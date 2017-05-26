@@ -967,6 +967,12 @@ public class InlineTestGenerated extends AbstractInlineTest {
                 doTest(fileName);
             }
 
+            @TestMetadata("RetainArgumentsInFunctionParameter.kt")
+            public void testRetainArgumentsInFunctionParameter() throws Exception {
+                String fileName = KotlinTestUtils.navigationMetadata("idea/testData/refactoring/inline/inlineVariableOrProperty/explicateTypeArgument/RetainArgumentsInFunctionParameter.kt");
+                doTest(fileName);
+            }
+
             @TestMetadata("Simplest.kt")
             public void testSimplest() throws Exception {
                 String fileName = KotlinTestUtils.navigationMetadata("idea/testData/refactoring/inline/inlineVariableOrProperty/explicateTypeArgument/Simplest.kt");
