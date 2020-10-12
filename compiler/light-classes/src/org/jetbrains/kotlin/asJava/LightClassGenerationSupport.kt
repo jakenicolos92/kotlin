@@ -18,67 +18,101 @@ package org.jetbrains.kotlin.asJava
 
 import com.intellij.openapi.components.ServiceManager
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiClass
-import com.intellij.psi.search.GlobalSearchScope
-import org.jetbrains.kotlin.asJava.builder.*
-import org.jetbrains.kotlin.asJava.classes.KtLightClass
+import com.intellij.psi.PsiConstantEvaluationHelper
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiManager
+import com.intellij.psi.util.CachedValue
+import org.jetbrains.kotlin.asJava.builder.LightClassBuilderResult
+import org.jetbrains.kotlin.asJava.builder.LightClassConstructionContext
+import org.jetbrains.kotlin.asJava.builder.LightClassDataHolder
+import org.jetbrains.kotlin.asJava.classes.*
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor
+import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.psi.KtClassOrObject
-import org.jetbrains.kotlin.psi.KtDeclaration
-import org.jetbrains.kotlin.psi.KtElement
-import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator
 
 typealias LightClassBuilder = (LightClassConstructionContext) -> LightClassBuilderResult
 
 abstract class LightClassGenerationSupport {
-
     abstract fun createDataHolderForClass(classOrObject: KtClassOrObject, builder: LightClassBuilder): LightClassDataHolder.ForClass
 
     abstract fun createDataHolderForFacade(files: Collection<KtFile>, builder: LightClassBuilder): LightClassDataHolder.ForFacade
 
-    abstract fun findClassOrObjectDeclarations(fqName: FqName, searchScope: GlobalSearchScope): Collection<KtClassOrObject>
-
-    /*
-     * Finds files whose package declaration is exactly {@code fqName}. For example, if a file declares
-     *     package a.b.c
-     * it will not be returned for fqName "a.b"
-     *
-     * If the resulting collection is empty, it means that this package has not other declarations than sub-packages
-     */
-    abstract fun findFilesForPackage(fqName: FqName, searchScope: GlobalSearchScope): Collection<KtFile>
-
-    // Returns only immediately declared classes/objects, package classes are not included (they have no declarations)
-    abstract fun findClassOrObjectDeclarationsInPackage(
-            packageFqName: FqName,
-            searchScope: GlobalSearchScope
-    ): Collection<KtClassOrObject>
-
-    abstract fun packageExists(fqName: FqName, scope: GlobalSearchScope): Boolean
-
-    abstract fun getSubPackages(fqn: FqName, scope: GlobalSearchScope): Collection<FqName>
-
-    abstract fun getLightClass(classOrObject: KtClassOrObject): KtLightClass?
+    abstract fun createDataHolderForScript(script: KtScript, builder: LightClassBuilder): LightClassDataHolder.ForScript
 
     abstract fun resolveToDescriptor(declaration: KtDeclaration): DeclarationDescriptor?
 
     abstract fun analyze(element: KtElement): BindingContext
 
-    abstract fun analyzeFully(element: KtElement): BindingContext
+    abstract fun analyzeAnnotation(element: KtAnnotationEntry): AnnotationDescriptor?
 
-    abstract fun getFacadeClasses(facadeFqName: FqName, scope: GlobalSearchScope): Collection<PsiClass>
+    abstract fun analyzeWithContent(element: KtClassOrObject): BindingContext
 
-    abstract fun getKotlinInternalClasses(fqName: FqName, scope: GlobalSearchScope): Collection<PsiClass>
+    protected abstract fun getUltraLightClassSupport(element: KtElement): KtUltraLightSupport
 
-    abstract fun getFacadeClassesInPackage(packageFqName: FqName, scope: GlobalSearchScope): Collection<PsiClass>
+    fun createConstantEvaluator(expression: KtExpression): ConstantExpressionEvaluator = getUltraLightClassSupport(expression).run {
+        ConstantExpressionEvaluator(moduleDescriptor, languageVersionSettings, expression.project)
+    }
 
-    abstract fun getFacadeNames(packageFqName: FqName, scope: GlobalSearchScope): Collection<String>
+    abstract val useUltraLightClasses: Boolean
 
-    abstract fun findFilesForFacade(facadeFqName: FqName, scope: GlobalSearchScope): Collection<KtFile>
+    fun createUltraLightClassForFacade(
+        manager: PsiManager,
+        facadeClassFqName: FqName,
+        lightClassDataCache: CachedValue<LightClassDataHolder.ForFacade>,
+        files: Collection<KtFile>,
+    ): KtUltraLightClassForFacade? {
+
+        if (!useUltraLightClasses) return null
+
+        if (files.any { it.isScript() }) return null
+
+        val filesToSupports: List<Pair<KtFile, KtUltraLightSupport>> = files.map {
+            it to getUltraLightClassSupport(it)
+        }
+
+        return KtUltraLightClassForFacade(
+            manager,
+            facadeClassFqName,
+            lightClassDataCache,
+            files,
+            filesToSupports
+        )
+    }
+
+    fun createUltraLightClass(element: KtClassOrObject): KtUltraLightClass? {
+
+        if (!useUltraLightClasses) return null
+
+        if (element.shouldNotBeVisibleAsLightClass()) {
+            return null
+        }
+
+        return getUltraLightClassSupport(element).let { support ->
+            when {
+                element is KtObjectDeclaration && element.isObjectLiteral() ->
+                    KtUltraLightClassForAnonymousDeclaration(element, support)
+
+                element.safeIsLocal() ->
+                    KtUltraLightClassForLocalDeclaration(element, support)
+
+                (element.hasModifier(KtTokens.INLINE_KEYWORD)) ->
+                    KtUltraLightInlineClass(element, support)
+
+                else -> KtUltraLightClass(element, support)
+            }
+        }
+    }
+
+    fun createUltraLightClassForScript(script: KtScript): KtUltraLightClassForScript? =
+        if (useUltraLightClasses) KtUltraLightClassForScript(script, support = getUltraLightClassSupport(script)) else null
 
     companion object {
-        @JvmStatic fun getInstance(project: Project): LightClassGenerationSupport {
+        @JvmStatic
+        fun getInstance(project: Project): LightClassGenerationSupport {
             return ServiceManager.getService(project, LightClassGenerationSupport::class.java)
         }
     }

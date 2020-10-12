@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.refactoring.pullUp
@@ -40,10 +29,10 @@ import org.jetbrains.kotlin.types.isError
 import org.jetbrains.kotlin.types.typeUtil.isUnit
 
 fun KtProperty.mustBeAbstractInInterface() =
-        hasInitializer() || hasDelegate() || (!hasInitializer() && !hasDelegate() && accessors.isEmpty())
+    hasInitializer() || hasDelegate() || (!hasInitializer() && !hasDelegate() && accessors.isEmpty())
 
 fun KtNamedDeclaration.isAbstractInInterface(originalClass: KtClassOrObject) =
-        originalClass is KtClass && originalClass.isInterface() && isAbstract()
+    originalClass is KtClass && originalClass.isInterface() && isAbstract()
 
 fun KtNamedDeclaration.canMoveMemberToJavaClass(targetClass: PsiClass): Boolean {
     return when (this) {
@@ -69,24 +58,33 @@ fun addMemberToTarget(targetMember: KtNamedDeclaration, targetClass: KtClassOrOb
         return parameterList.addParameterBefore(targetMember, anchor)
     }
 
-    val anchor = targetClass.declarations.filterIsInstance(targetMember::class.java).lastOrNull()
-    val movedMember = when {
+    val anchor = targetClass.declarations.asSequence().filterIsInstance(targetMember::class.java).lastOrNull()
+    return when {
         anchor == null && targetMember is KtProperty -> targetClass.addDeclarationBefore(targetMember, null)
         else -> targetClass.addDeclarationAfter(targetMember, anchor)
     }
-    return movedMember
 }
 
 private fun KtParameter.needToBeAbstract(targetClass: KtClassOrObject): Boolean {
     return hasModifier(KtTokens.ABSTRACT_KEYWORD) || targetClass is KtClass && targetClass.isInterface()
 }
 
-private fun KtParameter.toProperty(): KtProperty = KtPsiFactory(this).createProperty(text)
+private fun KtParameter.toProperty(): KtProperty =
+    KtPsiFactory(this)
+        .createProperty(text)
+        .also {
+            val originalTypeRef = typeReference
+            val generatedTypeRef = it.typeReference
+            if (originalTypeRef != null && generatedTypeRef != null) {
+                // Preserve copyable user data of original type reference
+                generatedTypeRef.replace(originalTypeRef)
+            }
+        }
 
 fun doAddCallableMember(
-        memberCopy: KtCallableDeclaration,
-        clashingSuper: KtCallableDeclaration?,
-        targetClass: KtClassOrObject
+    memberCopy: KtCallableDeclaration,
+    clashingSuper: KtCallableDeclaration?,
+    targetClass: KtClassOrObject
 ): KtCallableDeclaration {
     val memberToAdd = if (memberCopy is KtParameter && memberCopy.needToBeAbstract(targetClass)) memberCopy.toProperty() else memberCopy
 
@@ -111,8 +109,8 @@ fun KtClass.makeAbstract() {
 }
 
 fun KtClassOrObject.getSuperTypeEntryByDescriptor(
-        descriptor: ClassDescriptor,
-        context: BindingContext
+    descriptor: ClassDescriptor,
+    context: BindingContext
 ): KtSuperTypeListEntry? {
     return superTypeListEntries.firstOrNull {
         val referencedType = context[BindingContext.TYPE, it.typeReference]
@@ -120,10 +118,12 @@ fun KtClassOrObject.getSuperTypeEntryByDescriptor(
     }
 }
 
-fun makeAbstract(member: KtCallableDeclaration,
-                 originalMemberDescriptor: CallableMemberDescriptor,
-                 substitutor: TypeSubstitutor,
-                 targetClass: KtClass) {
+fun makeAbstract(
+    member: KtCallableDeclaration,
+    originalMemberDescriptor: CallableMemberDescriptor,
+    substitutor: TypeSubstitutor,
+    targetClass: KtClass
+) {
     if (!targetClass.isInterface()) {
         member.addModifier(KtTokens.ABSTRACT_KEYWORD)
     }
@@ -133,10 +133,9 @@ fun makeAbstract(member: KtCallableDeclaration,
         var type = originalMemberDescriptor.returnType
         if (type == null || type.isError) {
             type = builtIns.nullableAnyType
-        }
-        else {
+        } else {
             type = substitutor.substitute(type.anonymousObjectSuperTypeOrNull() ?: type, Variance.INVARIANT)
-                   ?: builtIns.nullableAnyType
+                ?: builtIns.nullableAnyType
         }
 
         if (member is KtProperty || !type.isUnit()) {
@@ -162,11 +161,11 @@ fun makeAbstract(member: KtCallableDeclaration,
 }
 
 fun addSuperTypeEntry(
-        delegator: KtSuperTypeListEntry,
-        targetClass: KtClassOrObject,
-        targetClassDescriptor: ClassDescriptor,
-        context: BindingContext,
-        substitutor: TypeSubstitutor
+    delegator: KtSuperTypeListEntry,
+    targetClass: KtClassOrObject,
+    targetClassDescriptor: ClassDescriptor,
+    context: BindingContext,
+    substitutor: TypeSubstitutor
 ) {
     val referencedType = context[BindingContext.TYPE, delegator.typeReference]!!
     val referencedClass = referencedType.constructor.declarationDescriptor as? ClassDescriptor ?: return
@@ -181,14 +180,12 @@ fun addSuperTypeEntry(
     targetClass.addSuperTypeListEntry(newSpecifier).addToShorteningWaitSet()
 }
 
-fun getInterfaceContainmentVerifier(getMemberInfos: () -> List<KotlinMemberInfo>): (KtNamedDeclaration) -> Boolean {
-    return result@ { member ->
-        val psiMethodToCheck = lightElementForMemberInfo(member) as? PsiMethod ?: return@result false
-        getMemberInfos().any {
-            if (!it.isSuperClass || it.overrides != false) return@any false
+fun getInterfaceContainmentVerifier(getMemberInfos: () -> List<KotlinMemberInfo>): (KtNamedDeclaration) -> Boolean = result@{ member ->
+    val psiMethodToCheck = lightElementForMemberInfo(member) as? PsiMethod ?: return@result false
+    getMemberInfos().any {
+        if (!it.isSuperClass || it.overrides != false) return@any false
 
-            val psiSuperInterface = (it.member as? KtClass)?.toLightClass()
-            psiSuperInterface?.findMethodBySignature(psiMethodToCheck, true) != null
-        }
+        val psiSuperInterface = (it.member as? KtClass)?.toLightClass()
+        psiSuperInterface?.findMethodBySignature(psiMethodToCheck, true) != null
     }
 }

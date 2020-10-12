@@ -32,7 +32,7 @@ import java.io.File
  */
 class ClasspathOrderTest : TestCaseWithTmpdir() {
     companion object {
-        val sourceDir = File(KotlinTestUtils.getTestDataPathBase() + "/classpathOrder").absoluteFile
+        private val sourceDir = File(KotlinTestUtils.getTestDataPathBase() + "/classpathOrder").absoluteFile
     }
 
     fun testClasspathOrderForCLI() {
@@ -41,16 +41,17 @@ class ClasspathOrderTest : TestCaseWithTmpdir() {
 
     fun testClasspathOrderForModuleScriptBuild() {
         val xmlContent = KotlinModuleXmlBuilder().addModule(
-                "name",
-                File(tmpdir, "output").absolutePath,
-                listOf(sourceDir),
-                listOf(JvmSourceRoot(sourceDir)),
-                listOf(PathUtil.getKotlinPathsForDistDirectory().runtimePath),
-                null,
-                JavaModuleBuildTargetType.PRODUCTION.typeId,
-                JavaModuleBuildTargetType.PRODUCTION.isTests,
-                setOf(),
-                emptyList()
+            "name",
+            File(tmpdir, "output").absolutePath,
+            listOf(sourceDir),
+            listOf(JvmSourceRoot(sourceDir)),
+            listOf(PathUtil.kotlinPathsForDistDirectory.stdlibPath),
+            emptyList(),
+            null,
+            JavaModuleBuildTargetType.PRODUCTION.typeId,
+            JavaModuleBuildTargetType.PRODUCTION.isTests,
+            setOf(),
+            emptyList()
         ).asText().toString()
 
         val xml = File(tmpdir, "module.xml")

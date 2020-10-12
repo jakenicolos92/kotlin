@@ -16,33 +16,32 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
-import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
 import org.jetbrains.kotlin.ir.expressions.IrEnumConstructorCall
+import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
-import org.jetbrains.kotlin.ir.symbols.impl.IrConstructorSymbolImpl
+import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
 
 class IrEnumConstructorCallImpl(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val symbol: IrConstructorSymbol,
+    typeArgumentsCount: Int,
+    valueArgumentsCount: Int
+) : IrEnumConstructorCall(typeArgumentsCount, valueArgumentsCount) {
+    override val origin: IrStatementOrigin?
+        get() = null
+
+    @ObsoleteDescriptorBasedAPI
+    constructor(
         startOffset: Int,
         endOffset: Int,
-        override val symbol: IrConstructorSymbol
-) : IrEnumConstructorCall,
-        IrCallWithIndexedArgumentsBase(
-                startOffset, endOffset,
-                symbol.descriptor.builtIns.unitType,
-                symbol.descriptor.valueParameters.size,
-                null
-        )
-{
-    @Deprecated("Creates unbound symbols")
-    constructor(
-            startOffset: Int,
-            endOffset: Int,
-            descriptor: ClassConstructorDescriptor
-    ) : this(startOffset, endOffset, IrConstructorSymbolImpl(descriptor))
-
-    override val descriptor: ClassConstructorDescriptor get() = symbol.descriptor
+        type: IrType,
+        symbol: IrConstructorSymbol,
+        typeArgumentsCount: Int
+    ) : this(startOffset, endOffset, type, symbol, typeArgumentsCount, symbol.descriptor.valueParameters.size)
 
     override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R {
         return visitor.visitEnumConstructorCall(this, data)

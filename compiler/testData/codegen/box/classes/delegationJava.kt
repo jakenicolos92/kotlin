@@ -1,3 +1,5 @@
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // Enable for JS when it supports Java class library.
 // IGNORE_BACKEND: JS, NATIVE
 

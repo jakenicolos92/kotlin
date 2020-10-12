@@ -24,15 +24,17 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
 import org.jetbrains.kotlin.storage.StorageManager
 import org.jetbrains.kotlin.types.*
+import org.jetbrains.kotlin.types.checker.KotlinTypeRefiner
+import org.jetbrains.kotlin.types.refinement.TypeRefinement
 
 abstract class AbstractTypeAliasDescriptor(
-        containingDeclaration: DeclarationDescriptor,
-        annotations: Annotations,
-        name: Name,
-        sourceElement: SourceElement,
-        private val visibilityImpl: Visibility
+    containingDeclaration: DeclarationDescriptor,
+    annotations: Annotations,
+    name: Name,
+    sourceElement: SourceElement,
+    private val visibilityImpl: DescriptorVisibility
 ) : DeclarationDescriptorNonRootImpl(containingDeclaration, annotations, name, sourceElement),
-        TypeAliasDescriptor {
+    TypeAliasDescriptor {
 
     protected abstract val storageManager: StorageManager
 
@@ -44,19 +46,19 @@ abstract class AbstractTypeAliasDescriptor(
     }
 
     override fun <R, D> accept(visitor: DeclarationDescriptorVisitor<R, D>, data: D): R =
-            visitor.visitTypeAliasDescriptor(this, data)
+        visitor.visitTypeAliasDescriptor(this, data)
 
     override fun isInner(): Boolean =
-            // NB: it's ok to use underlyingType here, since referenced inner type aliases also capture type parameters.
-            // Using expandedType looks "proper", but in fact will cause a recursion in expandedType resolution,
-            // which will silently produce wrong result.
-            TypeUtils.contains(underlyingType) { type ->
-                !type.isError && run {
-                    val constructorDescriptor = type.constructor.declarationDescriptor
-                    constructorDescriptor is TypeParameterDescriptor &&
-                    constructorDescriptor.containingDeclaration != this@AbstractTypeAliasDescriptor
-                }
+        // NB: it's ok to use underlyingType here, since referenced inner type aliases also capture type parameters.
+        // Using expandedType looks "proper", but in fact will cause a recursion in expandedType resolution,
+        // which will silently produce wrong result.
+        TypeUtils.contains(underlyingType) { type ->
+            !type.isError && run {
+                val constructorDescriptor = type.constructor.declarationDescriptor
+                constructorDescriptor is TypeParameterDescriptor &&
+                        constructorDescriptor.containingDeclaration != this@AbstractTypeAliasDescriptor
             }
+        }
 
 
     fun getTypeAliasConstructors(): Collection<TypeAliasConstructorDescriptor> {
@@ -68,20 +70,20 @@ abstract class AbstractTypeAliasDescriptor(
     }
 
     override fun getDeclaredTypeParameters(): List<TypeParameterDescriptor> =
-            declaredTypeParametersImpl
+        declaredTypeParametersImpl
 
     override fun getModality() = Modality.FINAL
 
     override fun getVisibility() = visibilityImpl
 
-    override fun isHeader(): Boolean = false
+    override fun isExpect(): Boolean = false
 
-    override fun isImpl(): Boolean = false
+    override fun isActual(): Boolean = false
 
     override fun isExternal() = false
 
     override fun getTypeConstructor(): TypeConstructor =
-            typeConstructor
+        typeConstructor
 
     override fun toString(): String = "typealias ${name.asString()}"
 
@@ -89,28 +91,36 @@ abstract class AbstractTypeAliasDescriptor(
 
     protected abstract fun getTypeConstructorTypeParameters(): List<TypeParameterDescriptor>
 
+    @OptIn(TypeRefinement::class)
     protected fun computeDefaultType(): SimpleType =
-            TypeUtils.makeUnsubstitutedType(this, classDescriptor?.unsubstitutedMemberScope ?: MemberScope.Empty)
+        TypeUtils.makeUnsubstitutedType(this, classDescriptor?.unsubstitutedMemberScope ?: MemberScope.Empty) { kotlinTypeRefiner ->
+            kotlinTypeRefiner.refineDescriptor(this)?.defaultType
+        }
 
     private val typeConstructor = object : TypeConstructor {
         override fun getDeclarationDescriptor(): TypeAliasDescriptor =
-                this@AbstractTypeAliasDescriptor
+            this@AbstractTypeAliasDescriptor
 
         override fun getParameters(): List<TypeParameterDescriptor> =
-                getTypeConstructorTypeParameters()
+            getTypeConstructorTypeParameters()
 
         override fun getSupertypes(): Collection<KotlinType> =
-                declarationDescriptor.underlyingType.constructor.supertypes
+            declarationDescriptor.underlyingType.constructor.supertypes
 
         override fun isFinal(): Boolean =
-                declarationDescriptor.underlyingType.constructor.isFinal
+            declarationDescriptor.underlyingType.constructor.isFinal
 
         override fun isDenotable(): Boolean =
-                true
+            true
 
         override fun getBuiltIns(): KotlinBuiltIns =
-                declarationDescriptor.builtIns
+            declarationDescriptor.builtIns
 
         override fun toString(): String = "[typealias ${declarationDescriptor.name.asString()}]"
+
+        // There must be @TypeRefinement, but there is a bug with anonymous objects and experimental annotations
+        // See KT-31728
+        @OptIn(TypeRefinement::class)
+        override fun refine(kotlinTypeRefiner: KotlinTypeRefiner): TypeConstructor = this
     }
 }

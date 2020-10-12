@@ -17,27 +17,32 @@
 package org.jetbrains.uast.kotlin
 
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiType
 import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.psi.KtConstantExpression
 import org.jetbrains.kotlin.psi.KtEscapeStringTemplateEntry
 import org.jetbrains.uast.UElement
 import org.jetbrains.uast.ULiteralExpression
+import org.jetbrains.uast.kotlin.internal.KotlinFakeUElement
+import org.jetbrains.uast.wrapULiteral
 
 class KotlinULiteralExpression(
-        override val psi: KtConstantExpression,
-        override val uastParent: UElement?
-) : KotlinAbstractUExpression(), ULiteralExpression, KotlinUElementWithType, KotlinEvaluatableUElement {
+    override val sourcePsi: KtConstantExpression,
+    givenParent: UElement?
+) : KotlinAbstractUExpression(givenParent), ULiteralExpression, KotlinUElementWithType, KotlinEvaluatableUElement, KotlinFakeUElement {
     override val isNull: Boolean
-        get() = psi.unwrapBlockOrParenthesis().node?.elementType == KtNodeTypes.NULL
+        get() = sourcePsi.unwrapBlockOrParenthesis().node?.elementType == KtNodeTypes.NULL
 
     override val value by lz { evaluate() }
+
+    override fun unwrapToSourcePsi(): List<PsiElement> = listOfNotNull(wrapULiteral(this).sourcePsi)
 }
 
 class KotlinStringULiteralExpression(
-        override val psi: PsiElement,
-        override val uastParent: UElement?,
-        val text: String
-) : KotlinAbstractUExpression(), ULiteralExpression, KotlinUElementWithType{
+    override val sourcePsi: PsiElement,
+    givenParent: UElement?,
+    val text: String
+) : KotlinAbstractUExpression(givenParent), ULiteralExpression, KotlinUElementWithType, KotlinFakeUElement {
     constructor(psi: PsiElement, uastParent: UElement?)
             : this(psi, uastParent, if (psi is KtEscapeStringTemplateEntry) psi.unescapedValue else psi.text)
 
@@ -45,4 +50,8 @@ class KotlinStringULiteralExpression(
         get() = text
 
     override fun evaluate() = value
+
+    override fun getExpressionType(): PsiType? = PsiType.getJavaLangString(sourcePsi.manager, sourcePsi.resolveScope)
+
+    override fun unwrapToSourcePsi(): List<PsiElement> = listOfNotNull(wrapULiteral(this).sourcePsi)
 }

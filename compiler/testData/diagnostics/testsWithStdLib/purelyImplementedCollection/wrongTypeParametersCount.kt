@@ -1,6 +1,8 @@
+// FIR_IDENTICAL
 // !DIAGNOSTICS: -UNUSED_VARIABLE
+// JAVAC_EXPECTED_FILE
 
-import java.util.*
+import java.util.*;
 
 // FILE: A.java
 @kotlin.jvm.PurelyImplements("kotlin.collections.MutableList")

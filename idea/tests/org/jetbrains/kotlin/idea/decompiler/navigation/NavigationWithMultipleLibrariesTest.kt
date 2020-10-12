@@ -1,46 +1,39 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.decompiler.navigation
 
 import com.intellij.openapi.module.Module
 import com.intellij.openapi.module.StdModuleTypes
-import com.intellij.openapi.roots.DependencyScope
-import com.intellij.openapi.roots.ModuleRootModificationUtil
 import com.intellij.openapi.roots.OrderRootType
 import com.intellij.openapi.roots.impl.libraries.ProjectLibraryTable
 import com.intellij.openapi.roots.libraries.Library
 import com.intellij.openapi.vfs.LocalFileSystem
-import com.intellij.openapi.vfs.StandardFileSystems
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.testFramework.ModuleTestCase
 import org.jetbrains.kotlin.codegen.forTestCompile.ForTestCompileRuntime
-import org.jetbrains.kotlin.idea.caches.resolve.LibraryInfo
-import org.jetbrains.kotlin.idea.caches.resolve.LibrarySourceInfo
-import org.jetbrains.kotlin.idea.caches.resolve.getNullableModuleInfo
+import org.jetbrains.kotlin.idea.caches.project.LibraryInfo
+import org.jetbrains.kotlin.idea.caches.project.LibrarySourceInfo
+import org.jetbrains.kotlin.idea.caches.project.getNullableModuleInfo
+import org.jetbrains.kotlin.idea.decompiler.navigation.NavigationChecker.Companion.checkAnnotatedCode
 import org.jetbrains.kotlin.idea.test.PluginTestCaseBase
 import org.jetbrains.kotlin.idea.util.projectStructure.getModuleDir
+import org.jetbrains.kotlin.test.JUnit3WithIdeaConfigurationRunner
 import org.jetbrains.kotlin.test.MockLibraryUtil
 import org.jetbrains.kotlin.test.testFramework.runWriteAction
+import org.jetbrains.kotlin.test.util.addDependency
+import org.jetbrains.kotlin.test.util.jarRoot
+import org.jetbrains.kotlin.test.util.projectLibrary
 import org.junit.Assert
+import org.junit.runner.RunWith
 import java.io.File
 
-class NavigationWithMultipleCustomLibrariesTest : AbstractNavigationWithMultipleLibrariesTest() {
+@RunWith(JUnit3WithIdeaConfigurationRunner::class)
+class NavigationWithMultipleCustomLibrariesTest : AbstractNavigationToSourceOrDecompiledTest() {
 
     override val testDataPath = PluginTestCaseBase.getTestDataPathBase() + "/decompiler/navigationMultipleLibs/"
 
@@ -55,22 +48,13 @@ class NavigationWithMultipleCustomLibrariesTest : AbstractNavigationWithMultiple
     override fun createProjectLib(libraryName: String, withSources: Boolean): Library {
         val librarySrc = testDataPath + "libSrc"
 
-        val libraryJar = MockLibraryUtil.compileLibraryToJar(librarySrc, libraryName, withSources, false, false)
-        val jarRoot = libraryJar.jarRoot()
-        return runWriteAction {
-            val library = ProjectLibraryTable.getInstance(project).createLibrary(libraryName)
-            val modifiableModel = library.modifiableModel
-            modifiableModel.addRoot(jarRoot, OrderRootType.CLASSES)
-            if (withSources) {
-                modifiableModel.addRoot(jarRoot.findChild("src")!!, OrderRootType.SOURCES)
-            }
-            modifiableModel.commit()
-            library
-        }
+        val libraryJar = MockLibraryUtil.compileJvmLibraryToJar(librarySrc, libraryName, addSources = withSources)
+        val jarRoot = libraryJar.jarRoot
+        return projectLibrary(libraryName, jarRoot, jarRoot.findChild("src").takeIf { withSources })
     }
 }
 
-class NavigationWithMultipleRuntimesTest : AbstractNavigationWithMultipleLibrariesTest() {
+class NavigationWithMultipleRuntimesTest : AbstractNavigationToSourceOrDecompiledTest() {
 
     override val testDataPath = PluginTestCaseBase.getTestDataPathBase() + "/decompiler/navigationMultipleRuntimes/"
 
@@ -84,14 +68,15 @@ class NavigationWithMultipleRuntimesTest : AbstractNavigationWithMultipleLibrari
 
     override fun createProjectLib(libraryName: String, withSources: Boolean): Library {
         val libraryJar = ForTestCompileRuntime.runtimeJarForTests().copyTo(File(createTempDirectory(), "$libraryName.jar"))
-        val jarUrl = libraryJar.jarRoot()
+        val jarUrl = libraryJar.jarRoot
         return runWriteAction {
             val library = ProjectLibraryTable.getInstance(project).createLibrary(libraryName)
             val modifiableModel = library.modifiableModel
             modifiableModel.addRoot(jarUrl, OrderRootType.CLASSES)
             if (withSources) {
-                val sourcesJar = ForTestCompileRuntime.runtimeSourcesJarForTests().copyTo(File(createTempDirectory(), "$libraryName-sources.jar"))
-                modifiableModel.addRoot(sourcesJar.jarRoot(), OrderRootType.SOURCES)
+                val sourcesJar =
+                    ForTestCompileRuntime.runtimeSourcesJarForTests().copyTo(File(createTempDirectory(), "$libraryName-sources.jar"))
+                modifiableModel.addRoot(sourcesJar.jarRoot, OrderRootType.SOURCES)
             }
             modifiableModel.commit()
             library
@@ -99,17 +84,14 @@ class NavigationWithMultipleRuntimesTest : AbstractNavigationWithMultipleLibrari
     }
 }
 
-abstract class AbstractNavigationWithMultipleLibrariesTest : ModuleTestCase() {
-
-    abstract val testDataPath: String
-
+abstract class AbstractNavigationToSourceOrDecompiledTest : AbstractNavigationWithMultipleLibrariesTest() {
     fun doTest(withSources: Boolean, expectedFileName: String) {
         val srcPath = testDataPath + "src"
         val moduleA = module("moduleA", srcPath)
         val moduleB = module("moduleB", srcPath)
 
-        addDependencyOnProjectLibrary(moduleA, "libA", withSources)
-        addDependencyOnProjectLibrary(moduleB, "libB", withSources)
+        moduleA.addDependency(createProjectLib("libA", withSources))
+        moduleB.addDependency(createProjectLib("libB", withSources))
 
         // navigation code works by providing first matching declaration from indices
         // that's we need to check references in both modules to guard against possibility of code breaking
@@ -118,28 +100,44 @@ abstract class AbstractNavigationWithMultipleLibrariesTest : ModuleTestCase() {
         checkReferencesInModule(moduleB, "libB", expectedFileName)
     }
 
-    private fun module(name: String, srcPath: String) = createModuleFromTestData(srcPath, name, StdModuleTypes.JAVA, true)!!
-
-    private fun checkReferencesInModule(moduleB: Module, libraryName: String, expectedFileName: String) {
-        NavigationChecker.checkAnnotatedCode(findSourceFile(moduleB), File(testDataPath + expectedFileName)) {
-            checkLibraryName(it, libraryName)
-        }
-    }
-
-    private fun findSourceFile(moduleA: Module): PsiFile {
-        val ioFile = File(moduleA.getModuleDir()).listFiles().first()
-        val vFile = LocalFileSystem.getInstance().findFileByIoFile(ioFile)!!
-        return PsiManager.getInstance(project).findFile(vFile)!!
-    }
-
-    private fun addDependencyOnProjectLibrary(mainModule: Module, libraryName: String, withSources: Boolean) {
-        val library = createProjectLib(libraryName, withSources)
-        ModuleRootModificationUtil.addDependency(mainModule, library, DependencyScope.COMPILE, false)
-    }
-
     abstract fun createProjectLib(libraryName: String, withSources: Boolean): Library
 }
 
+class NavigationToSingleJarInMultipleLibrariesTest : AbstractNavigationWithMultipleLibrariesTest() {
+
+    override val testDataPath = "${PluginTestCaseBase.getTestDataPathBase()}/multiModuleReferenceResolve/sameJarInDifferentLibraries/"
+
+    fun testNavigatingToLibrarySharingSameJarOnlyOneHasSourcesAttached() {
+        val srcPath = testDataPath + "src"
+        val moduleA = module("m1", srcPath)
+        val moduleB = module("m2", srcPath)
+        val moduleC = module("m3", srcPath)
+
+        val sharedJar = MockLibraryUtil.compileJvmLibraryToJar(testDataPath + "libSrc", "sharedJar", addSources = true)
+        val jarRoot = sharedJar.jarRoot
+
+        moduleA.addDependency(projectLibrary("libA", jarRoot))
+        moduleB.addDependency(projectLibrary("libB", jarRoot, jarRoot.findChild("src")!!))
+        moduleC.addDependency(projectLibrary("libC", jarRoot))
+
+        val expectedFile = File(testDataPath + "expected.sources")
+        checkAnnotatedCode(findSourceFile(moduleA), expectedFile)
+        checkAnnotatedCode(findSourceFile(moduleB), expectedFile)
+        checkAnnotatedCode(findSourceFile(moduleC), expectedFile)
+    }
+}
+
+abstract class AbstractNavigationWithMultipleLibrariesTest : ModuleTestCase() {
+    abstract val testDataPath: String
+
+    protected fun module(name: String, srcPath: String) = createModuleFromTestData(srcPath, name, StdModuleTypes.JAVA, true)
+
+    protected fun checkReferencesInModule(module: Module, libraryName: String, expectedFileName: String) {
+        checkAnnotatedCode(findSourceFile(module), File(testDataPath + expectedFileName)) {
+            checkLibraryName(it, libraryName)
+        }
+    }
+}
 
 private fun checkLibraryName(referenceTarget: PsiElement, expectedName: String) {
     val navigationFile = referenceTarget.navigationElement.containingFile ?: return
@@ -152,4 +150,8 @@ private fun checkLibraryName(referenceTarget: PsiElement, expectedName: String) 
     Assert.assertEquals("Referenced code from unrelated library: ${referenceTarget.text}", expectedName, libraryName)
 }
 
-private fun File.jarRoot() = StandardFileSystems.getJarRootForLocalFile(LocalFileSystem.getInstance().findFileByIoFile(this)!!)!!
+private fun findSourceFile(module: Module): PsiFile {
+    val ioFile = File(module.getModuleDir()).listFiles().first()
+    val vFile = LocalFileSystem.getInstance().findFileByIoFile(ioFile)!!
+    return PsiManager.getInstance(module.project).findFile(vFile)!!
+}

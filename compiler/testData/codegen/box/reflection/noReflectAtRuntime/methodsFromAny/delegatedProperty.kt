@@ -1,4 +1,7 @@
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // IGNORE_BACKEND: JS
+// IGNORE_BACKEND: NATIVE
 // WITH_RUNTIME
 
 import kotlin.reflect.KProperty
@@ -13,8 +16,8 @@ object Delegate {
     }
 
     operator fun getValue(x: Any?, p: KProperty<*>) {
-        assertEquals(prop, p)
-        assertEquals(p, prop)
+        assertEquals(prop as Any, p)
+        assertEquals(p as Any, prop)
         assertEquals(p.hashCode(), prop.hashCode())
         assertEquals("property x (Kotlin reflection is not available)", p.toString())
     }

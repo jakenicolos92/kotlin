@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.serialization.deserialization
@@ -20,8 +9,35 @@ interface DeserializationConfiguration {
     val skipMetadataVersionCheck: Boolean
         get() = false
 
+    val skipPrereleaseCheck: Boolean
+        get() = false
+
+    val reportErrorsOnPreReleaseDependencies: Boolean
+        get() = false
+
+    val reportErrorsOnIrDependencies: Boolean
+        get() = false
+
     val typeAliasesAllowed: Boolean
         get() = true
+
+    val isJvmPackageNameSupported: Boolean
+        get() = true
+
+    val readDeserializedContracts: Boolean
+        get() = false
+
+    val releaseCoroutines: Boolean
+        get() = false
+
+    /**
+     * We may want to preserve the order of the declarations the same as in the serialized object
+     * (for example, to later create a decompiled code with the original order of declarations).
+     *
+     * It is required to avoid PSI-Stub mismatch errors like in KT-41346.
+     */
+    val preserveDeclarationsOrdering: Boolean
+        get() = false
 
     object Default : DeserializationConfiguration
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ public interface ConstructorDescriptor extends FunctionDescriptor {
     ConstructorDescriptor copy(
             DeclarationDescriptor newOwner,
             Modality modality,
-            Visibility visibility,
+            DescriptorVisibility visibility,
             Kind kind,
             boolean copyOverrides
     );

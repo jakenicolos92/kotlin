@@ -62,7 +62,7 @@ public class QuickFixUtil {
     public static KotlinType getDeclarationReturnType(KtNamedDeclaration declaration) {
         PsiFile file = declaration.getContainingFile();
         if (!(file instanceof KtFile)) return null;
-        DeclarationDescriptor descriptor = ResolutionUtils.resolveToDescriptor(declaration, BodyResolveMode.FULL);
+        DeclarationDescriptor descriptor = ResolutionUtils.unsafeResolveToDescriptor(declaration, BodyResolveMode.FULL);
         if (!(descriptor instanceof CallableDescriptor)) return null;
         KotlinType type = ((CallableDescriptor) descriptor).getReturnType();
         if (type instanceof DeferredType) {
@@ -105,9 +105,9 @@ public class QuickFixUtil {
         return declaration instanceof KtParameter ? (KtParameter) declaration : null;
     }
 
-    private static boolean equalOrLastInThenOrElse(KtExpression thenOrElse, KtExpression expression) {
-        if (thenOrElse == expression) return true;
-        return thenOrElse instanceof KtBlockExpression && expression.getParent() == thenOrElse &&
+    private static boolean equalOrLastInBlock(KtExpression block, KtExpression expression) {
+        if (block == expression) return true;
+        return block instanceof KtBlockExpression && expression.getParent() == block &&
                PsiTreeUtil.getNextSiblingOfType(expression, KtExpression.class) == null;
     }
 
@@ -115,11 +115,28 @@ public class QuickFixUtil {
     public static KtIfExpression getParentIfForBranch(@Nullable KtExpression expression) {
         KtIfExpression ifExpression = PsiTreeUtil.getParentOfType(expression, KtIfExpression.class, true);
         if (ifExpression == null) return null;
-        if (equalOrLastInThenOrElse(ifExpression.getThen(), expression)
-            || equalOrLastInThenOrElse(ifExpression.getElse(), expression)) {
+        if (equalOrLastInBlock(ifExpression.getThen(), expression)
+            || equalOrLastInBlock(ifExpression.getElse(), expression)) {
             return ifExpression;
         }
         return null;
+    }
+
+    @Nullable
+    private static KtWhenExpression getParentWhenForBranch(@Nullable KtExpression expression) {
+        KtWhenEntry whenEntry = PsiTreeUtil.getParentOfType(expression, KtWhenEntry.class, true);
+        if (whenEntry == null) return null;
+        KtExpression whenEntryExpression = whenEntry.getExpression();
+        if (whenEntryExpression == null) return null;
+        if (!equalOrLastInBlock(whenEntryExpression, expression)) return null;
+        return PsiTreeUtil.getParentOfType(whenEntry, KtWhenExpression.class, true);
+    }
+
+    @Nullable
+    private static KtExpression getParentForBranch(@Nullable KtExpression expression) {
+        KtExpression parent = getParentIfForBranch(expression);
+        if (parent != null) return parent;
+        return getParentWhenForBranch(expression);
     }
 
     // Returns true iff parent's value always or sometimes is evaluable to child's value, e.g.
@@ -141,7 +158,7 @@ public class QuickFixUtil {
                 child = (KtExpression) childParent;
                 continue;
             }
-            child = getParentIfForBranch(child);
+            child = getParentForBranch(child);
             if (child == null) return false;
         }
         return true;
@@ -150,7 +167,14 @@ public class QuickFixUtil {
     public static boolean canFunctionOrGetterReturnExpression(@NotNull KtDeclaration functionOrGetter, @NotNull KtExpression expression) {
         if (functionOrGetter instanceof KtFunctionLiteral) {
             KtBlockExpression functionLiteralBody = ((KtFunctionLiteral) functionOrGetter).getBodyExpression();
-            PsiElement returnedElement = functionLiteralBody == null ? null : functionLiteralBody.getLastChild();
+            PsiElement returnedElement = null;
+            if (functionLiteralBody != null) {
+                PsiElement[] children = functionLiteralBody.getChildren();
+                int length = children.length;
+                if (length > 0) {
+                    returnedElement = children[length - 1];
+                }
+            }
             return returnedElement instanceof KtExpression && canEvaluateTo((KtExpression) returnedElement, expression);
         }
         else {
@@ -168,7 +192,7 @@ public class QuickFixUtil {
         FqName typeFqName = typeClassifierDescriptor != null ? DescriptorUtils.getFqNameSafe(typeClassifierDescriptor) : fqNameToCheckAgainst;
         DescriptorRenderer renderer = typeFqName.shortName().equals(fqNameToCheckAgainst.shortName())
                ? IdeDescriptorRenderers.SOURCE_CODE
-               : IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES;
+               : IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_NO_ANNOTATIONS;
         return renderer.renderType(type);
     }
 }

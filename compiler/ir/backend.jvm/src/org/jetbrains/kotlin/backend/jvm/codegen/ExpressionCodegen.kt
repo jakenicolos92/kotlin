@@ -1,904 +1,1362 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.backend.jvm.codegen
 
-import org.jetbrains.kotlin.backend.jvm.intrinsics.IrIntrinsicFunction
+import org.jetbrains.kotlin.backend.common.lower.BOUND_RECEIVER_PARAMETER
+import org.jetbrains.kotlin.backend.common.lower.SYNTHESIZED_INIT_BLOCK
+import org.jetbrains.kotlin.backend.jvm.JvmLoweredDeclarationOrigin
+import org.jetbrains.kotlin.backend.jvm.JvmLoweredStatementOrigin
 import org.jetbrains.kotlin.backend.jvm.intrinsics.IrIntrinsicMethods
-import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+import org.jetbrains.kotlin.backend.jvm.intrinsics.JavaClassProperty
+import org.jetbrains.kotlin.backend.jvm.lower.MultifileFacadeFileEntry
+import org.jetbrains.kotlin.backend.jvm.lower.constantValue
+import org.jetbrains.kotlin.backend.jvm.lower.inlineclasses.unboxInlineClass
+import org.jetbrains.kotlin.backend.jvm.lower.suspendFunctionOriginal
 import org.jetbrains.kotlin.codegen.*
 import org.jetbrains.kotlin.codegen.AsmUtil.*
-import org.jetbrains.kotlin.codegen.StackValue.*
-import org.jetbrains.kotlin.codegen.intrinsics.JavaClassProperty
+import org.jetbrains.kotlin.codegen.DescriptorAsmUtil.*
+import org.jetbrains.kotlin.codegen.coroutines.SuspensionPointKind
+import org.jetbrains.kotlin.codegen.coroutines.generateCoroutineSuspendedCheck
+import org.jetbrains.kotlin.codegen.inline.*
+import org.jetbrains.kotlin.codegen.inline.ReifiedTypeInliner.Companion.putNeedClassReificationMarker
+import org.jetbrains.kotlin.codegen.inline.ReifiedTypeInliner.OperationKind.AS
+import org.jetbrains.kotlin.codegen.inline.ReifiedTypeInliner.OperationKind.SAFE_AS
+import org.jetbrains.kotlin.codegen.intrinsics.TypeIntrinsics
+import org.jetbrains.kotlin.codegen.pseudoInsns.fakeAlwaysFalseIfeq
 import org.jetbrains.kotlin.codegen.pseudoInsns.fixStackAndJump
-import org.jetbrains.kotlin.descriptors.*
-import org.jetbrains.kotlin.descriptors.impl.TypeAliasConstructorDescriptor
+import org.jetbrains.kotlin.codegen.signature.BothSignatureWriter
+import org.jetbrains.kotlin.config.LanguageFeature
+import org.jetbrains.kotlin.config.isReleaseCoroutines
+import org.jetbrains.kotlin.config.languageVersionSettings
+import org.jetbrains.kotlin.descriptors.ClassDescriptor
+import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
+import org.jetbrains.kotlin.diagnostics.Errors
 import org.jetbrains.kotlin.ir.IrElement
-import org.jetbrains.kotlin.ir.declarations.IrClass
-import org.jetbrains.kotlin.ir.declarations.IrFunction
-import org.jetbrains.kotlin.ir.declarations.IrTypeAlias
-import org.jetbrains.kotlin.ir.declarations.IrVariable
+import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.descriptors.toIrBasedDescriptor
+import org.jetbrains.kotlin.ir.descriptors.toIrBasedKotlinType
 import org.jetbrains.kotlin.ir.expressions.*
-import org.jetbrains.kotlin.ir.util.render
+import org.jetbrains.kotlin.ir.symbols.IrSymbol
+import org.jetbrains.kotlin.ir.symbols.IrTypeParameterSymbol
+import org.jetbrains.kotlin.ir.symbols.IrValueParameterSymbol
+import org.jetbrains.kotlin.ir.types.*
+import org.jetbrains.kotlin.ir.util.*
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.resolve.descriptorUtil.hasDefaultValue
+import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.resolve.jvm.AsmTypes
-import org.jetbrains.kotlin.resolve.jvm.AsmTypes.JAVA_THROWABLE_TYPE
-import org.jetbrains.kotlin.resolve.jvm.AsmTypes.OBJECT_TYPE
-import org.jetbrains.kotlin.synthetic.SyntheticJavaPropertyDescriptor
-import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.resolve.jvm.AsmTypes.*
+import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodParameterKind
+import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodSignature
+import org.jetbrains.kotlin.types.TypeSystemCommonBackendContext
+import org.jetbrains.kotlin.types.model.TypeParameterMarker
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
+import org.jetbrains.kotlin.utils.addToStdlib.safeAs
+import org.jetbrains.kotlin.utils.keysToMap
 import org.jetbrains.org.objectweb.asm.Label
+import org.jetbrains.org.objectweb.asm.Opcodes
 import org.jetbrains.org.objectweb.asm.Type
 import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter
 import java.util.*
 
-open class ExpressionInfo(val expression: IrExpression)
+sealed class ExpressionInfo
 
-class LoopInfo(val loop: IrLoop, val continueLabel: Label, val breakLabel: Label): ExpressionInfo(loop)
+class LoopInfo(val loop: IrLoop, val continueLabel: Label, val breakLabel: Label) : ExpressionInfo()
 
-class TryInfo(val tryBlock: IrTry) : ExpressionInfo(tryBlock) {
-    val gaps = mutableListOf<Label>()
+open class TryInfo : ExpressionInfo() {
+    // Regions corresponding to copy-pasted contents of the `finally` block.
+    // These should not be covered by `catch` clauses.
+    val gaps = mutableListOf<Pair<Label, Label>>()
 }
 
-class BlockInfo private constructor(val parent: BlockInfo?) {
-    val variables: MutableList<VariableInfo> = mutableListOf()
+class TryWithFinallyInfo(val onExit: IrExpression) : TryInfo()
 
-    private val infos = Stack<ExpressionInfo>()
+class BlockInfo(val parent: BlockInfo? = null) {
+    val variables = mutableListOf<VariableInfo>()
+    private val infos: Stack<ExpressionInfo> = parent?.infos ?: Stack()
 
-    fun create() = BlockInfo(this).apply {
-        this@apply.infos.addAll(this@BlockInfo.infos)
+    fun hasFinallyBlocks(): Boolean = infos.firstIsInstanceOrNull<TryWithFinallyInfo>() != null
+
+    internal inline fun <T : ExpressionInfo, R> withBlock(info: T, f: (T) -> R): R {
+        infos.add(info)
+        try {
+            return f(info)
+        } finally {
+            infos.pop()
+        }
     }
 
-    fun addInfo(loop: ExpressionInfo) {
-        infos.add(loop)
-    }
-
-    fun removeInfo(info: ExpressionInfo) {
-        assert (peek() == info)
-        pop()
-    }
-
-    fun pop(): ExpressionInfo = infos.pop()
-
-    fun peek(): ExpressionInfo = infos.peek()
-
-    fun isEmpty(): Boolean = infos.isEmpty()
-
-    fun hasFinallyBlocks(): Boolean = infos.firstIsInstanceOrNull<TryInfo>() != null
-
-    companion object {
-        fun create() = BlockInfo(null)
+    internal inline fun <R> handleBlock(f: (ExpressionInfo) -> R): R? {
+        if (infos.isEmpty()) {
+            return null
+        }
+        val top = infos.pop()
+        try {
+            return f(top)
+        } finally {
+            infos.add(top)
+        }
     }
 }
 
-class VariableInfo(val descriptor: VariableDescriptor, val index: Int, val type: Type, val startLabel: Label)
+class VariableInfo(val declaration: IrVariable, val index: Int, val type: Type, val startLabel: Label)
 
-@Suppress("IMPLICIT_CAST_TO_ANY")
 class ExpressionCodegen(
-        val irFunction: IrFunction,
-        val frame: FrameMap,
-        val mv: InstructionAdapter,
-        val classCodegen: ClassCodegen
-) : IrElementVisitor<StackValue, BlockInfo> {
+    val irFunction: IrFunction,
+    val signature: JvmMethodSignature,
+    override val frameMap: IrFrameMap,
+    val mv: InstructionAdapter,
+    val classCodegen: ClassCodegen,
+    val inlinedInto: ExpressionCodegen?,
+    val smap: SourceMapper,
+) : IrElementVisitor<PromisedValue, BlockInfo>, BaseExpressionCodegen {
 
-    /*TODO*/
-    val intrinsics = IrIntrinsicMethods(classCodegen.context.irBuiltIns)
+    var finallyDepth = 0
 
-    val typeMapper = classCodegen.typeMapper
+    val context = classCodegen.context
+    val typeMapper = context.typeMapper
+    val methodSignatureMapper = context.methodSignatureMapper
 
-    val returnType = typeMapper.mapReturnType(irFunction.descriptor)
+    val state = context.state
+
+    private val fileEntry = classCodegen.context.psiSourceManager.getFileEntry(irFunction.fileParent)
+
+    override val visitor: InstructionAdapter
+        get() = mv
+
+    override val inlineNameGenerator: NameGenerator = classCodegen.getRegeneratedObjectNameGenerator(irFunction)
+
+    override val typeSystem: TypeSystemCommonBackendContext
+        get() = typeMapper.typeSystem
+
+    override var lastLineNumber: Int = -1
+    var noLineNumberScope: Boolean = false
+
+    private var isInsideCondition = false
+
+    private val closureReifiedMarkers = hashMapOf<IrClass, ReifiedTypeParametersUsages>()
+
+    private val IrType.asmType: Type
+        get() = typeMapper.mapType(this)
+
+    val IrExpression.asmType: Type
+        get() = type.asmType
+
+    val IrValueDeclaration.asmType: Type
+        get() = type.asmType
+
+    // Assume this expression's result has already been materialized on the stack
+    // with the correct type.
+    val IrExpression.onStack: MaterialValue
+        get() = MaterialValue(this@ExpressionCodegen, asmType, type)
+
+    private fun markNewLabel() = Label().apply { mv.visitLabel(this) }
+
+    private fun markNewLinkedLabel() = linkedLabel().apply { mv.visitLabel(this) }
+
+    private fun getLineNumberForOffset(offset: Int): Int = fileEntry?.getLineNumber(offset)?.plus(1) ?: -1
+
+    private fun IrElement.markLineNumber(startOffset: Boolean) {
+        if (noLineNumberScope) return
+        val offset = if (startOffset) this.startOffset else endOffset
+        if (offset < 0) {
+            return
+        }
+        if (fileEntry != null) {
+            val lineNumber = getLineNumberForOffset(offset)
+            assert(lineNumber > 0)
+            if (lastLineNumber != lineNumber) {
+                lastLineNumber = lineNumber
+                mv.visitLineNumber(lineNumber, markNewLabel())
+            }
+        }
+    }
+
+    fun markLineNumber(element: IrElement) = element.markLineNumber(true)
+
+    fun noLineNumberScope(block: () -> Unit) {
+        val previousState = noLineNumberScope
+        noLineNumberScope = true
+        block()
+        noLineNumberScope = previousState
+    }
+
+    // TODO remove
+    fun gen(expression: IrExpression, type: Type, irType: IrType, data: BlockInfo): StackValue {
+        if (expression.attributeOwnerId === context.fakeContinuation) {
+            addFakeContinuationMarker(mv)
+        } else {
+            expression.accept(this, data).materializeAt(type, irType)
+        }
+        return StackValue.onStack(type, irType.toIrBasedKotlinType())
+    }
+
+    internal fun genOrGetLocal(expression: IrExpression, data: BlockInfo): StackValue {
+        if (irFunction.origin == IrDeclarationOrigin.FUNCTION_FOR_DEFAULT_PARAMETER) {
+            if (expression is IrTypeOperatorCall && expression.operator == IrTypeOperator.IMPLICIT_CAST) {
+                // inline lambda parameters are passed from `foo$default` to `foo` call with implicit cast,
+                // we need return pure StackValue.local value to be able proper inline this parameter later
+                if (expression.type.makeNullable() == expression.argument.type) {
+                    return genOrGetLocal(expression.argument, data)
+                }
+            }
+        }
+
+        return if (expression is IrGetValue)
+            StackValue.local(findLocalIndex(expression.symbol), frameMap.typeOf(expression.symbol), expression.type.toIrBasedKotlinType())
+        else
+            gen(expression, typeMapper.mapType(expression.type), expression.type, data)
+    }
 
     fun generate() {
         mv.visitCode()
-        val info = BlockInfo.create()
-        val result = irFunction.body?.accept(this, info)
-//        result?.apply {
-//            coerce(this.type, irFunction.body!!.as)
-//        }
-        val returnType = typeMapper.mapReturnType(irFunction.descriptor)
-        if (returnType == Type.VOID_TYPE) {
-            //for implicit return
-            mv.areturn(Type.VOID_TYPE)
-        }
-        writeLocalVariablesInTable(info)
-        mv.visitEnd()
-    }
-
-    override fun visitBlockBody(body: IrBlockBody, data: BlockInfo): StackValue {
-        return body.statements.fold(none()) {
-            _, exp ->
-            exp.accept(this, data)
-        }
-    }
-
-    override fun visitBlock(expression: IrBlock, data: BlockInfo): StackValue {
-        val info = data.create()
-        return super.visitBlock(expression, info).apply {
-            if (!expression.isTransparentScope) {
-                writeLocalVariablesInTable(info)
+        val startLabel = markNewLabel()
+        val info = BlockInfo()
+        val body = irFunction.body!!
+        generateNonNullAssertions()
+        generateFakeContinuationConstructorIfNeeded()
+        val result = body.accept(this, info)
+        // If this function has an expression body, return the result of that expression.
+        // Otherwise, if it does not end in a return statement, it must be void-returning,
+        // and an explicit return instruction at the end is still required to pass validation.
+        if (body !is IrStatementContainer || body.statements.lastOrNull() !is IrReturn) {
+            // Allow setting a breakpoint on the closing brace of a void-returning function
+            // without an explicit return, or the `class Something(` line of a primary constructor.
+            if (irFunction.origin != JvmLoweredDeclarationOrigin.CLASS_STATIC_INITIALIZER) {
+                irFunction.markLineNumber(startOffset = irFunction is IrConstructor && irFunction.isPrimary)
             }
-            else {
-                info.variables.forEach {
-                    data.variables.add(it)
+            if (irFunction.isSuspend && irFunction.origin == IrDeclarationOrigin.BRIDGE) {
+                mv.areturn(OBJECT_TYPE)
+            } else {
+                var returnType = signature.returnType
+                var returnIrType = if (irFunction !is IrConstructor) irFunction.returnType else context.irBuiltIns.unitType
+                val unboxedInlineClass =
+                    irFunction.suspendFunctionOriginal().originalReturnTypeOfSuspendFunctionReturningUnboxedInlineClass()
+                if (unboxedInlineClass != null) {
+                    returnIrType = unboxedInlineClass
+                    returnType = unboxedInlineClass.asmType
                 }
+                result.materializeAt(returnType, returnIrType)
+                mv.areturn(returnType)
             }
+        }
+        val endLabel = markNewLabel()
+        writeLocalVariablesInTable(info, endLabel)
+        writeParameterInLocalVariableTable(startLabel, endLabel)
+    }
+
+    private fun generateFakeContinuationConstructorIfNeeded() {
+        val continuationClass = irFunction.continuationClass() ?: return
+        val continuationType = typeMapper.mapClass(continuationClass)
+        val continuationIndex = frameMap.getIndex(irFunction.continuationParameter()!!.symbol)
+        with(mv) {
+            addFakeContinuationConstructorCallMarker(this, true)
+            anew(continuationType)
+            dup()
+            if (irFunction.dispatchReceiverParameter != null) {
+                load(0, OBJECT_TYPE)
+                load(continuationIndex, Type.getObjectType("kotlin/coroutines/Continuation"))
+                invokespecial(continuationType.internalName, "<init>", "(${classCodegen.type}Lkotlin/coroutines/Continuation;)V", false)
+            } else {
+                load(continuationIndex, Type.getObjectType("kotlin/coroutines/Continuation"))
+                invokespecial(continuationType.internalName, "<init>", "(Lkotlin/coroutines/Continuation;)V", false)
+            }
+            addFakeContinuationConstructorCallMarker(this, false)
+            pop()
         }
     }
 
-    private fun writeLocalVariablesInTable(info: BlockInfo) {
-        val endLabel = markNewLabel()
+    private fun generateNonNullAssertions() {
+        if (state.isParamAssertionsDisabled)
+            return
+
+        val notCallableFromJava = inlinedInto != null ||
+                (DescriptorVisibilities.isPrivate(irFunction.visibility) && !(irFunction is IrSimpleFunction && irFunction.isOperator)) ||
+                irFunction.origin.isSynthetic ||
+                // TODO: refine this condition to not generate nullability assertions on parameters
+                //       corresponding to captured variables and anonymous object super constructor arguments
+                (irFunction is IrConstructor && irFunction.parentAsClass.isAnonymousObject) ||
+                // TODO: Implement this as a lowering, so that we can more easily exclude generated methods.
+                irFunction.origin == JvmLoweredDeclarationOrigin.INLINE_CLASS_GENERATED_IMPL_METHOD ||
+                // Although these are accessible from Java, the functions they bridge to already have the assertions.
+                irFunction.origin == IrDeclarationOrigin.BRIDGE_SPECIAL ||
+                irFunction.origin == JvmLoweredDeclarationOrigin.DEFAULT_IMPLS_BRIDGE ||
+                irFunction.origin == JvmLoweredDeclarationOrigin.JVM_STATIC_WRAPPER ||
+                irFunction.origin == JvmLoweredDeclarationOrigin.MULTIFILE_BRIDGE ||
+                irFunction.parentAsClass.origin == JvmLoweredDeclarationOrigin.CONTINUATION_CLASS ||
+                irFunction.parentAsClass.origin == JvmLoweredDeclarationOrigin.SUSPEND_LAMBDA
+
+        if (notCallableFromJava)
+            return
+
+        // Do not generate non-null checks for suspend functions. When resumed the arguments
+        // will be null and the actual values are taken from the continuation.
+
+        if (irFunction.isSuspend)
+            return
+
+        irFunction.extensionReceiverParameter?.let { generateNonNullAssertion(it) }
+        irFunction.valueParameters.forEach(::generateNonNullAssertion)
+    }
+
+    private fun generateNonNullAssertion(param: IrValueParameter) {
+        val asmType = param.type.asmType
+        if (!param.type.unboxInlineClass().isNullable() && !isPrimitive(asmType)) {
+            mv.load(findLocalIndex(param.symbol), asmType)
+            mv.aconst(param.name.asString())
+            val methodName = if (state.unifiedNullChecks) "checkNotNullParameter" else "checkParameterIsNotNull"
+            mv.invokestatic(IrIntrinsicMethods.INTRINSICS_CLASS_NAME, methodName, "(Ljava/lang/Object;Ljava/lang/String;)V", false)
+        }
+    }
+
+    private fun writeParameterInLocalVariableTable(startLabel: Label, endLabel: Label) {
+        if (!irFunction.isInline && irFunction.origin == IrDeclarationOrigin.FUNCTION_FOR_DEFAULT_PARAMETER) return
+        if (!irFunction.isStatic) {
+            mv.visitLocalVariable("this", classCodegen.type.descriptor, null, startLabel, endLabel, 0)
+        }
+        val extensionReceiverParameter = irFunction.extensionReceiverParameter
+        if (extensionReceiverParameter != null) {
+            writeValueParameterInLocalVariableTable(extensionReceiverParameter, startLabel, endLabel, true)
+        }
+        for (param in irFunction.valueParameters) {
+            if (param.origin == IrDeclarationOrigin.MASK_FOR_DEFAULT_FUNCTION || param.origin == IrDeclarationOrigin.METHOD_HANDLER_IN_DEFAULT_FUNCTION)
+                continue
+            writeValueParameterInLocalVariableTable(param, startLabel, endLabel, false)
+        }
+    }
+
+    private fun writeValueParameterInLocalVariableTable(param: IrValueParameter, startLabel: Label, endLabel: Label, isReceiver: Boolean) {
+        // TODO: old code has a special treatment for destructuring lambda parameters.
+        // There is no (easy) way to reproduce it with IR structures.
+        // Does not show up in tests, but might come to bite us at some point.
+
+        // If the parameter is an extension receiver parameter or a captured extension receiver from enclosing,
+        // then generate name accordingly.
+        val name = if (param.origin == BOUND_RECEIVER_PARAMETER || isReceiver) {
+            getNameForReceiverParameter(
+                irFunction.toIrBasedDescriptor(),
+                state.bindingContext,
+                context.configuration.languageVersionSettings
+            )
+        } else {
+            param.name.asString()
+        }
+
+        val type = typeMapper.mapType(param)
+        // NOTE: we expect all value parameters to be present in the frame.
+        mv.visitLocalVariable(
+            name, type.descriptor, null, startLabel, endLabel, findLocalIndex(param.symbol)
+        )
+    }
+
+    override fun visitBlock(expression: IrBlock, data: BlockInfo): PromisedValue {
+        assert(expression !is IrReturnableBlock) { "unlowered returnable block: ${expression.dump()}" }
+        val isSynthesizedInitBlock = expression.origin == SYNTHESIZED_INIT_BLOCK
+        if (isSynthesizedInitBlock) {
+            expression.markLineNumber(startOffset = true)
+            mv.nop()
+        }
+        if (expression.isTransparentScope)
+            return super.visitBlock(expression, data)
+        val info = BlockInfo(data)
+        // Force materialization to avoid reading from out-of-scope variables.
+        val value = super.visitBlock(expression, info).materialized().also {
+            if (info.variables.isNotEmpty()) {
+                writeLocalVariablesInTable(info, markNewLabel())
+            }
+        }
+        if (isSynthesizedInitBlock) {
+            expression.markLineNumber(startOffset = false)
+            mv.nop()
+        }
+        return value
+    }
+
+    private val IrVariable.isVisibleInLVT: Boolean
+        get() = origin != IrDeclarationOrigin.IR_TEMPORARY_VARIABLE &&
+                origin != IrDeclarationOrigin.FOR_LOOP_ITERATOR
+
+    private fun writeLocalVariablesInTable(info: BlockInfo, endLabel: Label) {
         info.variables.forEach {
-            mv.visitLocalVariable(it.descriptor.name.asString(), it.type.descriptor, null, it.startLabel, endLabel, it.index)
+            if (it.declaration.isVisibleInLVT) {
+                mv.visitLocalVariable(it.declaration.name.asString(), it.type.descriptor, null, it.startLabel, endLabel, it.index)
+            }
         }
 
         info.variables.reversed().forEach {
-            frame.leave(it.descriptor)
+            frameMap.leave(it.declaration.symbol)
         }
     }
 
-    override fun visitContainerExpression(expression: IrContainerExpression, data: BlockInfo): StackValue {
-        val result = expression.statements.fold(none()) {
-            _, exp ->
-            //coerceNotToUnit(r.type, Type.VOID_TYPE)
+    private fun visitStatementContainer(container: IrStatementContainer, data: BlockInfo) =
+        container.statements.fold(unitValue) { prev, exp ->
+            prev.discard()
             exp.accept(this, data)
         }
-        coerceNotToUnit(result.type, expression.asmType)
-        return expression.onStack
+
+    override fun visitBlockBody(body: IrBlockBody, data: BlockInfo): PromisedValue {
+        visitStatementContainer(body, data).discard()
+        return unitValue
     }
 
-    override fun visitMemberAccess(expression: IrMemberAccessExpression, data: BlockInfo): StackValue {
-        return generateCall(expression, null, data)
-    }
+    override fun visitContainerExpression(expression: IrContainerExpression, data: BlockInfo) =
+        visitStatementContainer(expression, data)
 
-    override fun visitCall(expression: IrCall, data: BlockInfo): StackValue {
-        if (expression.descriptor is ConstructorDescriptor) {
-            return generateNewCall(expression, data)
+    override fun visitCall(expression: IrCall, data: BlockInfo): PromisedValue {
+        classCodegen.context.irIntrinsics.getIntrinsic(expression.symbol)
+            ?.invoke(expression, this, data)?.let { return it }
+
+        val callee = expression.symbol.owner
+        require(callee.parent is IrClass) { "Unhandled intrinsic in ExpressionCodegen: ${callee.render()}" }
+        val callable = methodSignatureMapper.mapToCallableMethod(irFunction, expression)
+        val callGenerator = getOrCreateCallGenerator(expression, data, callable.signature)
+        val isSuspensionPoint = expression.isSuspensionPoint()
+
+        if (isSuspensionPoint != SuspensionPointKind.NEVER) {
+            addInlineMarker(mv, isStartNotEnd = true)
         }
-        return generateCall(expression, expression.superQualifier, data)
-    }
 
-    private fun generateNewCall(expression: IrCall, data: BlockInfo): StackValue {
-        val type = expression.asmType
-        if (type.sort == Type.ARRAY) {
-            //noinspection ConstantConditions
-            return generateNewArray(expression, data)
+        expression.dispatchReceiver?.let { receiver ->
+            val type = if (expression.superQualifierSymbol != null) receiver.asmType else callable.owner
+            callGenerator.genValueAndPut(callee.dispatchReceiverParameter!!, receiver, type, this, data)
         }
 
-        mv.anew(expression.asmType)
+        expression.extensionReceiver?.let { receiver ->
+            val type = callable.signature.valueParameters.singleOrNull { it.kind == JvmMethodParameterKind.RECEIVER }?.asmType
+                ?: error("No single extension receiver parameter: ${callable.signature.valueParameters}")
+            callGenerator.genValueAndPut(callee.extensionReceiverParameter!!, receiver, type, this, data)
+        }
+
+        callGenerator.beforeValueParametersStart()
+        expression.symbol.owner.valueParameters.forEachIndexed { i, irParameter ->
+            val arg = expression.getValueArgument(i)
+            val parameterType = callable.valueParameterTypes[i]
+            require(arg != null) { "Null argument in ExpressionCodegen for parameter ${irParameter.render()}" }
+            callGenerator.genValueAndPut(irParameter, arg, parameterType, this, data)
+        }
+
+        expression.markLineNumber(true)
+
+        if (isSuspensionPoint != SuspensionPointKind.NEVER) {
+            addSuspendMarker(mv, isStartNotEnd = true, isSuspensionPoint == SuspensionPointKind.NOT_INLINE)
+        }
+
+        val generatorForActualCall =
+            // Do not inline callee to continuation, instead, call it
+            if (irFunction.isInvokeSuspendOfContinuation()) IrCallGenerator.DefaultCallGenerator else callGenerator
+        generatorForActualCall.genCall(callable, this, expression, isInsideCondition)
+
+        val unboxedInlineClassIrType =
+            callee.suspendFunctionOriginal().originalReturnTypeOfSuspendFunctionReturningUnboxedInlineClass()
+
+        if (isSuspensionPoint != SuspensionPointKind.NEVER) {
+            addSuspendMarker(mv, isStartNotEnd = false, isSuspensionPoint == SuspensionPointKind.NOT_INLINE)
+            if (unboxedInlineClassIrType != null) {
+                generateResumePathUnboxing(mv, unboxedInlineClassIrType.toIrBasedKotlinType())
+            }
+            addInlineMarker(mv, isStartNotEnd = false)
+        }
+
+        if (unboxedInlineClassIrType != null) {
+            val isFunctionReference = irFunction.origin != IrDeclarationOrigin.BRIDGE &&
+                    irFunction.parentAsClass.origin == JvmLoweredDeclarationOrigin.FUNCTION_REFERENCE_IMPL
+
+            val isDelegateCall = irFunction.origin == IrDeclarationOrigin.DELEGATED_MEMBER
+
+            if (irFunction.isInvokeSuspendOfContinuation() || isFunctionReference || isDelegateCall) {
+                mv.generateCoroutineSuspendedCheck(state.languageVersionSettings)
+                mv.checkcast(unboxedInlineClassIrType.asmType)
+            }
+            if (irFunction.isInvokeSuspendOfContinuation()) {
+                StackValue.boxInlineClass(unboxedInlineClassIrType.toIrBasedKotlinType(), mv)
+            }
+        }
+
+        return when {
+            (expression.type.isNothing() || expression.type.isUnit()) && irFunction.shouldContainSuspendMarkers() -> {
+                // NewInference allows casting `() -> T` to `() -> Unit`. A CHECKCAST here will fail.
+                // Also, if the callee is a suspend function with a suspending tail call, the next `resumeWith`
+                // will continue from here, but the value passed to it might not have been `Unit`. An exception
+                // is methods that do not pass through the state machine generating MethodVisitor, since getting
+                // COROUTINE_SUSPENDED here is still possible; luckily, all those methods are bridges.
+                if (callable.asmMethod.returnType != Type.VOID_TYPE)
+                    MaterialValue(this, callable.asmMethod.returnType, callee.returnType).discard()
+                // don't generate redundant UNIT/pop instructions
+                unitValue
+            }
+            callee.parentAsClass.isAnnotationClass && callable.asmMethod.returnType == AsmTypes.JAVA_CLASS_TYPE -> {
+                wrapJavaClassIntoKClass(mv)
+                MaterialValue(this, AsmTypes.K_CLASS_TYPE, expression.type)
+            }
+            callee.parentAsClass.isAnnotationClass && callable.asmMethod.returnType == AsmTypes.JAVA_CLASS_ARRAY_TYPE -> {
+                wrapJavaClassesIntoKClasses(mv)
+                MaterialValue(this, AsmTypes.K_CLASS_ARRAY_TYPE, expression.type)
+            }
+            unboxedInlineClassIrType != null && !irFunction.isInvokeSuspendOfContinuation() ->
+                object : PromisedValue(this, unboxedInlineClassIrType.asmType, unboxedInlineClassIrType) {
+                    override fun materializeAt(target: Type, irTarget: IrType) {
+                        mv.checkcast(unboxedInlineClassIrType.asmType)
+                        MaterialValue(this@ExpressionCodegen, unboxedInlineClassIrType.asmType, unboxedInlineClassIrType)
+                            .materializeAt(target, irTarget)
+                    }
+
+                    override fun discard() {
+                        pop(mv, OBJECT_TYPE)
+                    }
+                }
+            else ->
+                MaterialValue(this, callable.asmMethod.returnType, callee.returnType)
+        }
+    }
+
+    private fun IrFunctionAccessExpression.isSuspensionPoint(): SuspensionPointKind = when {
+        !symbol.owner.isSuspend || !irFunction.shouldContainSuspendMarkers() -> SuspensionPointKind.NEVER
+        // Copy-pasted bytecode blocks are not suspension points.
+        symbol.owner.isInline ->
+            if (symbol.owner.name.asString() == "suspendCoroutineUninterceptedOrReturn" &&
+                symbol.owner.getPackageFragment()?.fqName == FqName("kotlin.coroutines.intrinsics")
+            ) SuspensionPointKind.ALWAYS else SuspensionPointKind.NEVER
+        // This includes inline lambdas, but only in functions intended for the inliner; in others, they stay as `f.invoke()`.
+        dispatchReceiver.isReadOfInlineLambda() -> SuspensionPointKind.NOT_INLINE
+        else -> SuspensionPointKind.ALWAYS
+    }
+
+    override fun visitDelegatingConstructorCall(expression: IrDelegatingConstructorCall, data: BlockInfo): PromisedValue {
+        val callee = expression.symbol.owner
+        val owner = typeMapper.mapClass(callee.constructedClass)
+        val signature = methodSignatureMapper.mapSignatureSkipGeneric(callee)
+
+        markLineNumber(expression)
+
+        // In this case the receiver is `this` (not specified in IR) and the return value is discarded anyway.
+        mv.load(0, OBJECT_TYPE)
+
+        for (argumentIndex in 0 until expression.typeArgumentsCount) {
+            val classifier = expression.getTypeArgument(argumentIndex)?.classifierOrNull
+            if (classifier is IrTypeParameterSymbol && classifier.owner.isReified) {
+                consumeReifiedOperationMarker(classifier)
+            }
+        }
+
+        generateConstructorArguments(expression, signature, data)
+        markLineNumber(expression)
+
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, owner.internalName, signature.asmMethod.name, signature.asmMethod.descriptor, false)
+
+        return unitValue
+    }
+
+    override fun visitConstructorCall(expression: IrConstructorCall, data: BlockInfo): PromisedValue {
+        classCodegen.context.irIntrinsics.getIntrinsic(expression.symbol)
+            ?.invoke(expression, this, data)?.let { return it }
+
+        val callee = expression.symbol.owner
+        val owner = typeMapper.mapClass(callee.constructedClass)
+        val signature = methodSignatureMapper.mapSignatureSkipGeneric(callee)
+
+        closureReifiedMarkers[expression.symbol.owner.parentAsClass]?.let {
+            if (it.wereUsedReifiedParameters()) {
+                putNeedClassReificationMarker(v)
+                propagateChildReifiedTypeParametersUsages(it)
+            }
+        }
+
+        // IR constructors have no receiver and return the new instance, but on JVM they are void-returning
+        // instance methods named <init>.
+        markLineNumber(expression)
+        mv.anew(owner)
         mv.dup()
-        generateCall(expression, expression.superQualifier, data)
-        return expression.onStack
+
+        generateConstructorArguments(expression, signature, data)
+        markLineNumber(expression)
+
+        mv.visitMethodInsn(Opcodes.INVOKESPECIAL, owner.internalName, signature.asmMethod.name, signature.asmMethod.descriptor, false)
+
+        return MaterialValue(this, owner, expression.type)
     }
 
-    fun generateNewArray(
-            expression: IrCall, data: BlockInfo
-    ): StackValue {
-        val args = expression.descriptor.valueParameters
-        assert(args.size == 1 || args.size == 2) { "Unknown constructor called: " + args.size + " arguments" }
+    private fun generateConstructorArguments(expression: IrFunctionAccessExpression, signature: JvmMethodSignature, data: BlockInfo) {
+        expression.symbol.owner.valueParameters.forEachIndexed { i, irParameter ->
+            val arg = expression.getValueArgument(i)
+                ?: error("Null argument in ExpressionCodegen for parameter ${irParameter.render()}")
+            gen(arg, signature.valueParameters[i].asmType, irParameter.type, data)
+        }
+    }
 
-        if (args.size == 1) {
-            val sizeExpression = expression.getValueArgument(0)!!
-            gen(sizeExpression, Type.INT_TYPE, data)
-            newArrayInstruction(expression.type)
-            return expression.onStack
+    override fun visitVariable(declaration: IrVariable, data: BlockInfo): PromisedValue {
+        val varType = typeMapper.mapType(declaration)
+        val index = frameMap.enter(declaration.symbol, varType)
+
+        val initializer = declaration.initializer
+        if (initializer != null) {
+            var value = initializer.accept(this, data)
+            initializer.markLineNumber(startOffset = true)
+            value.materializeAt(varType, declaration.type)
+            declaration.markLineNumber(startOffset = true)
+            mv.store(index, varType)
+        } else if (declaration.isVisibleInLVT) {
+            pushDefaultValueOnStack(varType, mv)
+            mv.store(index, varType)
         }
 
-        return generateCall(expression, expression.superQualifier, data)
+        data.variables.add(VariableInfo(declaration, index, varType, markNewLabel()))
+        return unitValue
     }
 
-    private fun generateCall(expression: IrMemberAccessExpression, superQualifier: ClassDescriptor?, data: BlockInfo): StackValue {
-        val callable = resolveToCallable(expression, superQualifier != null)
-        if (callable is IrIntrinsicFunction) {
-            return callable.invoke(mv, this, data)
-        } else {
-            val receiver = expression.dispatchReceiver
-            receiver?.apply {
-                gen(receiver, callable.dispatchReceiverType!!, data)
-            }
+    override fun visitGetValue(expression: IrGetValue, data: BlockInfo): PromisedValue {
+        expression.markLineNumber(startOffset = true)
+        val type = frameMap.typeOf(expression.symbol)
+        mv.load(findLocalIndex(expression.symbol), type)
+        return MaterialValue(this, type, expression.type)
+    }
 
-            expression.extensionReceiver?.apply {
-                gen(this, callable.extensionReceiverType!!, data)
-            }
+    override fun visitFieldAccess(expression: IrFieldAccessExpression, data: BlockInfo): PromisedValue {
+        val callee = expression.symbol.owner
+        if (context.state.shouldInlineConstVals) {
+            // Const fields should only have reads, and those should have been transformed by ConstLowering.
+            assert(callee.constantValue() == null) { "access of const val: ${expression.dump()}" }
+        }
 
-            val args = expression.descriptor.valueParameters.mapIndexed { i, valueParameterDescriptor ->
-                           expression.getValueArgument(i) ?:
-                           if (valueParameterDescriptor.hasDefaultValue()) DefaultArg(i) else Vararg(i)
-                       }
+        val isStatic = expression.receiver == null
+        expression.markLineNumber(startOffset = true)
 
-            val defaultMask = DefaultCallArgs(callable.valueParameterTypes.size)
-            args.forEachIndexed { i, expression ->
-                when (expression) {
-                    is IrExpression -> {
-                        gen(expression, callable.valueParameterTypes[i], data)
-                    }
-                    is DefaultArg -> {
-                        pushDefaultValueOnStack(callable.valueParameterTypes[i], mv)
-                        defaultMask.mark(expression.index)
-                    }
-                    is Vararg -> {
-                        mv.aconst(null)
-                        //empty vararg
-                    }
-                    else -> TODO()
-                }
-            }
+        val receiverType = expression.receiver?.let { receiver ->
+            receiver.accept(this, data).materializedAt(typeMapper.mapTypeAsDeclaration(receiver.type), receiver.type).type
+        }
 
-
-            if (!defaultMask.generateOnStackIfNeeded(mv, expression.descriptor is ConstructorDescriptor)) {
-                callable.genInvokeInstruction(mv)
+        val ownerType = expression.superQualifierSymbol?.let { typeMapper.mapClass(it.owner) }
+            ?: receiverType ?: typeMapper.mapClass(callee.parentAsClass)
+        val ownerName = ownerType.internalName
+        val fieldName = callee.name.asString()
+        val fieldType = callee.type.asmType
+        return if (expression is IrSetField) {
+            val value = expression.value.accept(this, data)
+            // We only initialize enum entries with a subtype of `fieldType` and can avoid the CHECKCAST.
+            // This is important for some tools which analyze bytecode for enum classes by looking at the
+            // initializer of the $VALUES field.
+            if (callee.origin == IrDeclarationOrigin.FIELD_FOR_ENUM_ENTRY) {
+                value.materialize()
             } else {
-                (callable as CallableMethod).genInvokeDefaultInstruction(mv)
+                value.materializeAt(fieldType, callee.type)
             }
-            val returnType = expression.descriptor.returnType
-            if (returnType != null && KotlinBuiltIns.isNothing(returnType)) {
-                mv.aconst(null)
-                mv.athrow()
-            }
-            return StackValue.onStack(callable.returnType)
+
+            expression.markLineNumber(startOffset = true)
+            mv.visitFieldInsn(if (isStatic) Opcodes.PUTSTATIC else Opcodes.PUTFIELD, ownerName, fieldName, fieldType.descriptor)
+            assert(expression.type.isUnit())
+            unitValue
+        } else {
+            mv.visitFieldInsn(if (isStatic) Opcodes.GETSTATIC else Opcodes.GETFIELD, ownerName, fieldName, fieldType.descriptor)
+            MaterialValue(this, fieldType, callee.type)
         }
     }
 
-    override fun visitInstanceInitializerCall(expression: IrInstanceInitializerCall, data: BlockInfo): StackValue {
-        throw AssertionError("Instruction should've been lowered before code generation: ${expression.render()}")
+    override fun visitSetField(expression: IrSetField, data: BlockInfo): PromisedValue {
+        val expressionValue = expression.value
+        // Do not add redundant field initializers that initialize to default values.
+        val inClassInit = irFunction.origin == JvmLoweredDeclarationOrigin.CLASS_STATIC_INITIALIZER
+        val isFieldInitializer = expression.origin == IrStatementOrigin.INITIALIZE_FIELD
+        val skip = (irFunction is IrConstructor || inClassInit) && isFieldInitializer && expressionValue is IrConst<*> &&
+                isDefaultValueForType(expression.symbol.owner.type.asmType, expressionValue.value)
+        return if (skip) unitValue else super.visitSetField(expression, data)
     }
 
-    override fun visitDelegatingConstructorCall(expression: IrDelegatingConstructorCall, data: BlockInfo): StackValue {
-        //HACK
-        StackValue.local(0, OBJECT_TYPE).put(OBJECT_TYPE, mv)
-        return super.visitDelegatingConstructorCall(expression, data)
-    }
-
-    override fun visitVariable(declaration: IrVariable, data: BlockInfo): StackValue {
-        val varType = typeMapper.mapType(declaration.descriptor)
-        val index = frame.enter(declaration.descriptor, varType)
-
-        declaration.initializer?.apply {
-            StackValue.local(index, varType).store(gen(this, varType, data), mv)
+    /**
+     * Returns true if the given constant value is the JVM's default value for the given type.
+     * See: https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.3
+     */
+    private fun isDefaultValueForType(type: Type, value: Any?): Boolean =
+        when (type) {
+            Type.BOOLEAN_TYPE -> value is Boolean && !value
+            Type.CHAR_TYPE -> value is Char && value.toInt() == 0
+            Type.BYTE_TYPE, Type.SHORT_TYPE, Type.INT_TYPE, Type.LONG_TYPE -> value is Number && value.toLong() == 0L
+            // Must use `equals` for these two to differentiate between +0.0 and -0.0:
+            Type.FLOAT_TYPE -> value is Number && value.toFloat().equals(0.0f)
+            Type.DOUBLE_TYPE -> value is Number && value.toDouble().equals(0.0)
+            else -> !isPrimitive(type) && value == null
         }
 
-        val info = VariableInfo(
-                declaration.descriptor,
-                index,
-                varType,
-                markNewLabel()
+    private fun findLocalIndex(irSymbol: IrSymbol): Int {
+        val index = frameMap.getIndex(irSymbol)
+        if (index >= 0)
+            return index
+        throw AssertionError("Non-mapped local declaration: $irSymbol\n in ${irFunction.dump()}")
+    }
+
+    private fun handlePlusMinus(expression: IrSetValue, value: IrExpression?, isMinus: Boolean): Boolean {
+        if (value is IrConst<*> && value.kind == IrConstKind.Int) {
+            @Suppress("UNCHECKED_CAST")
+            val delta = (value as IrConst<Int>).value
+            val upperBound = Byte.MAX_VALUE.toInt() + (if (isMinus) 1 else 0)
+            val lowerBound = Byte.MIN_VALUE.toInt() + (if (isMinus) 1 else 0)
+            if (delta in lowerBound..upperBound) {
+                expression.markLineNumber(startOffset = true)
+                mv.iinc(findLocalIndex(expression.symbol), if (isMinus) -delta else delta)
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun hasSameLineNumber(element0: IrElement, element1: IrElement): Boolean =
+        getLineNumberForOffset(element0.startOffset) == getLineNumberForOffset(element1.startOffset)
+
+    // Use iinc for all for the set var int special cases where we can.
+    // Be careful to make sure that debugging behavior does not change and
+    // only perform the optimization if that can be done without losing
+    // line number information.
+    private fun handleIntVariableSpecialCases(expression: IrSetValue): Boolean {
+        if (expression.symbol.owner.type.isInt()) {
+            when (expression.origin) {
+                IrStatementOrigin.PREFIX_INCR, IrStatementOrigin.PREFIX_DECR -> {
+                    expression.markLineNumber(startOffset = true)
+                    mv.iinc(findLocalIndex(expression.symbol), if (expression.origin == IrStatementOrigin.PREFIX_INCR) 1 else -1)
+                    return true
+                }
+                IrStatementOrigin.PLUSEQ, IrStatementOrigin.MINUSEQ -> {
+                    val argument = (expression.value as IrCall).getValueArgument(0)!!
+                    if (!hasSameLineNumber(argument, expression)) {
+                        return false
+                    }
+                    return handlePlusMinus(expression, argument, expression.origin is IrStatementOrigin.MINUSEQ)
+                }
+                IrStatementOrigin.EQ -> {
+                    val value = expression.value
+                    if (!hasSameLineNumber(value, expression)) {
+                        return false
+                    }
+                    if (value is IrCall) {
+                        val receiver = value.dispatchReceiver ?: return false
+                        val symbol = expression.symbol
+                        if (!hasSameLineNumber(receiver, expression)) {
+                            return false
+                        }
+                        if (value.origin == IrStatementOrigin.PLUS || value.origin == IrStatementOrigin.MINUS) {
+                            val argument = value.getValueArgument(0)!!
+                            if (receiver is IrGetValue && receiver.symbol == symbol && hasSameLineNumber(argument, expression)) {
+                                return handlePlusMinus(expression, argument, value.origin == IrStatementOrigin.MINUS)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    override fun visitSetValue(expression: IrSetValue, data: BlockInfo): PromisedValue {
+        if (!handleIntVariableSpecialCases(expression)) {
+            expression.value.markLineNumber(startOffset = true)
+            expression.value.accept(this, data).materializeAt(expression.symbol.owner.type)
+            // We set the value of parameters only for default values. The inliner accepts only
+            // a very specific bytecode pattern for default arguments and does not tolerate a
+            // line number on the store. Therefore, if we are storing to a parameter, we do not
+            // output a line number for the store.
+            if (expression.symbol !is IrValueParameterSymbol) {
+                expression.markLineNumber(startOffset = true)
+            }
+            mv.store(findLocalIndex(expression.symbol), expression.symbol.owner.asmType)
+        }
+        return unitValue
+    }
+
+    override fun <T> visitConst(expression: IrConst<T>, data: BlockInfo): PromisedValue {
+        expression.markLineNumber(startOffset = true)
+        when (val value = expression.value) {
+            is Boolean -> {
+                // BooleanConstants _may not_ be materialized, so we ensure an instruction for the line number.
+                mv.nop()
+                return BooleanConstant(this, value)
+            }
+            is Char -> mv.iconst(value.toInt())
+            is Long -> mv.lconst(value)
+            is Float -> mv.fconst(value)
+            is Double -> mv.dconst(value)
+            is Number -> mv.iconst(value.toInt())
+            else -> if (expression.kind == IrConstKind.Null) return nullConstant else mv.aconst(value)
+        }
+        return expression.onStack
+    }
+
+    override fun visitExpressionBody(body: IrExpressionBody, data: BlockInfo) =
+        body.expression.accept(this, data)
+
+    override fun visitElement(element: IrElement, data: BlockInfo) =
+        throw AssertionError(
+            "Unexpected IR element found during code generation. Either code generation for it " +
+                    "is not implemented, or it should have been lowered:\n" +
+                    element.render()
         )
-        data.variables.add(info)
 
-        return none()
-    }
-
-    fun gen(expression: IrElement, type: Type, data: BlockInfo): StackValue {
-        gen(expression, data).put(type, mv)
-        return onStack(type)
-    }
-
-    fun gen(expression: IrElement, data: BlockInfo): StackValue {
-        return expression.accept(this, data)
-    }
-
-    override fun visitGetValue(expression: IrGetValue, data: BlockInfo): StackValue {
-        return generateLocal(expression.descriptor, expression.asmType)
-    }
-
-    private fun generateFieldValue(expression: IrFieldAccessExpression, data: BlockInfo): StackValue {
-        val receiverValue = expression.receiver?.accept(this, data) ?: StackValue.none()
-        val propertyDescriptor = expression.descriptor
-        val fieldType = typeMapper.mapType(propertyDescriptor.type)
-        val ownerType = typeMapper.mapImplementationOwner(propertyDescriptor)
-        val fieldName = propertyDescriptor.name.asString()
-        val isStatic = expression.receiver == null // TODO
-        return StackValue.field(fieldType, ownerType, fieldName, isStatic, receiverValue, propertyDescriptor)
-    }
-
-    override fun visitGetField(expression: IrGetField, data: BlockInfo): StackValue {
-        val value = generateFieldValue(expression, data)
-        value.put(value.type, mv)
-        return onStack(value.type)
-    }
-
-    override fun visitSetField(expression: IrSetField, data: BlockInfo): StackValue {
-        val fieldValue = generateFieldValue(expression, data)
-        fieldValue.store(expression.value.accept(this, data), mv)
-        return none()
-    }
-
-    private fun generateLocal(descriptor: CallableDescriptor, type: Type): StackValue {
-        val index = findLocalIndex(descriptor)
-        StackValue.local(index, type).put(type, mv)
-        return onStack(type)
-    }
-
-    private fun findLocalIndex(descriptor: CallableDescriptor): Int {
-        val index = frame.getIndex(descriptor).apply {
-            if (this < 0) throw AssertionError("Non-mapped local variable descriptor: $descriptor")
+    override fun visitClass(declaration: IrClass, data: BlockInfo): PromisedValue {
+        if (declaration.origin != JvmLoweredDeclarationOrigin.CONTINUATION_CLASS) {
+            val childCodegen = ClassCodegen.getOrCreate(declaration, context, generateSequence(this) { it.inlinedInto }.last().irFunction)
+            childCodegen.generate()
+            closureReifiedMarkers[declaration] = childCodegen.reifiedTypeParametersUsages
         }
-        return index
+        return unitValue
     }
 
-    override fun visitGetObjectValue(expression: IrGetObjectValue, data: BlockInfo): StackValue {
-        throw AssertionError("Instruction should've been lowered before code generation: ${expression.render()}")
-    }
-
-    override fun visitGetEnumValue(expression: IrGetEnumValue, data: BlockInfo): StackValue {
-        throw AssertionError("Instruction should've been lowered before code generation: ${expression.render()}")
-    }
-
-    override fun visitSetVariable(expression: IrSetVariable, data: BlockInfo): StackValue {
-        val value = expression.value.accept(this, data)
-        StackValue.local(findLocalIndex(expression.descriptor), expression.descriptor.asmType).store(value, mv)
-        return none()
-    }
-
-    override fun <T> visitConst(expression: IrConst<T>, data: BlockInfo): StackValue {
-        val value = expression.value
-        val type = expression.asmType
-        StackValue.constant(value, type).put(type, mv)
-        return expression.onStack
-    }
-
-    override fun visitElement(element: IrElement, data: BlockInfo): StackValue {
-        TODO("not implemented for $element") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun visitClass(declaration: IrClass, data: BlockInfo): StackValue {
-        classCodegen.generateDeclaration(declaration)
-        return none()
-    }
-
-    override fun visitTypeAlias(declaration: IrTypeAlias, data: BlockInfo): StackValue {
-        return none()
-    }
-
-    override fun visitVararg(expression: IrVararg, data: BlockInfo): StackValue {
-        val outType = expression.type
-        val type = expression.asmType
-        assert(type.sort == Type.ARRAY)
-        val elementType = correctElementType(type)
-        val arguments = expression.elements
-        val size = arguments.size
-
-        val hasSpread = arguments.firstIsInstanceOrNull<IrSpreadElement>() != null
-
-        if (hasSpread) {
-            val arrayOfReferences = KotlinBuiltIns.isArray(outType)
-            if (size == 1) {
-                // Arrays.copyOf(receiverValue, newLength)
-                val argument = (arguments[0] as IrSpreadElement).expression
-                val arrayType = if (arrayOfReferences)
-                    Type.getType("[Ljava/lang/Object;")
-                else
-                    Type.getType("[" + elementType.descriptor)
-                gen(argument, type, data)
-                mv.dup()
-                mv.arraylength()
-                mv.invokestatic("java/util/Arrays", "copyOf", Type.getMethodDescriptor(arrayType, arrayType, Type.INT_TYPE), false)
-                if (arrayOfReferences) {
-                    mv.checkcast(type)
-                }
-            }
-            else {
-                val owner: String
-                val addDescriptor: String
-                val toArrayDescriptor: String
-                if (arrayOfReferences) {
-                    owner = "kotlin/jvm/internal/SpreadBuilder"
-                    addDescriptor = "(Ljava/lang/Object;)V"
-                    toArrayDescriptor = "([Ljava/lang/Object;)[Ljava/lang/Object;"
-                }
-                else {
-                    val spreadBuilderClassName = AsmUtil.asmPrimitiveTypeToLangPrimitiveType(elementType)!!.typeName.identifier + "SpreadBuilder"
-                    owner = "kotlin/jvm/internal/" + spreadBuilderClassName
-                    addDescriptor = "(" + elementType.descriptor + ")V"
-                    toArrayDescriptor = "()" + type.descriptor
-                }
-                mv.anew(Type.getObjectType(owner))
-                mv.dup()
-                mv.iconst(size)
-                mv.invokespecial(owner, "<init>", "(I)V", false)
-                for (i in 0..size - 1) {
-                    mv.dup()
-                    val argument = arguments[i]
-                    if (argument is IrSpreadElement) {
-                        gen(argument.expression, OBJECT_TYPE, data)
-                        mv.invokevirtual(owner, "addSpread", "(Ljava/lang/Object;)V", false)
-                    }
-                    else {
-                        gen(argument, elementType, data)
-                        mv.invokevirtual(owner, "add", addDescriptor, false)
-                    }
-                }
-                if (arrayOfReferences) {
-                    mv.dup()
-                    mv.invokevirtual(owner, "size", "()I", false)
-                    newArrayInstruction(outType)
-                    mv.invokevirtual(owner, "toArray", toArrayDescriptor, false)
-                    mv.checkcast(type)
-                }
-                else {
-                    mv.invokevirtual(owner, "toArray", toArrayDescriptor, false)
-                }
-            }
-        }
-        else {
-            mv.iconst(size)
-            val asmType = elementType
-            newArrayInstruction(expression.type)
-            for ((i, element)  in expression.elements.withIndex()) {
-                mv.dup()
-                StackValue.constant(i, Type.INT_TYPE).put(Type.INT_TYPE, mv)
-                val rightSide = gen(element, asmType, data)
-                StackValue.arrayElement(asmType, StackValue.onStack(asmType), StackValue.onStack(Type.INT_TYPE)).store(rightSide, mv)
-            }
-        }
-        return expression.onStack
-    }
-
-    fun newArrayInstruction(arrayType: KotlinType) {
-        if (KotlinBuiltIns.isArray(arrayType)) {
-            val elementJetType = arrayType.arguments[0].type
-//            putReifiedOperationMarkerIfTypeIsReifiedParameter(
-//                    elementJetType,
-//                    ReifiedTypeInliner.OperationKind.NEW_ARRAY
-//            )
-            mv.newarray(boxType(elementJetType.asmType))
-        }
-        else {
-            val type = typeMapper.mapType(arrayType)
-            mv.newarray(correctElementType(type))
-        }
-    }
-
-
-    fun markNewLabel(): Label {
-        return Label().apply { mv.visitLabel(this) }
-    }
-
-    override fun visitReturn(expression: IrReturn, data: BlockInfo): StackValue {
-        val value = expression.value.apply {
-            gen(this, returnType, data)
+    override fun visitReturn(expression: IrReturn, data: BlockInfo): PromisedValue {
+        val returnTarget = expression.returnTargetSymbol.owner
+        val owner =
+            returnTarget as? IrFunction
+                ?: (returnTarget as? IrReturnableBlock)?.inlineFunctionSymbol?.owner
+                ?: error("Unsupported IrReturnTarget: $returnTarget")
+        //TODO: should be owner != irFunction
+        val isNonLocalReturn =
+            methodSignatureMapper.mapFunctionName(owner) != methodSignatureMapper.mapFunctionName(irFunction)
+        if (isNonLocalReturn && state.isInlineDisabled) {
+            context.psiErrorBuilder.at(expression, owner).report(Errors.NON_LOCAL_RETURN_IN_DISABLED_INLINE)
+            genThrow(
+                mv, "java/lang/UnsupportedOperationException",
+                "Non-local returns are not allowed with inlining disabled"
+            )
+            return unitValue
         }
 
+        var returnType = if (owner == irFunction) signature.returnType else methodSignatureMapper.mapReturnType(owner)
+        var returnIrType = owner.returnType
+
+        val unboxedInlineClass = owner.suspendFunctionOriginal().originalReturnTypeOfSuspendFunctionReturningUnboxedInlineClass()
+        if (unboxedInlineClass != null) {
+            returnIrType = unboxedInlineClass
+            returnType = unboxedInlineClass.asmType
+        }
         val afterReturnLabel = Label()
+        expression.value.accept(this, data).materializeAt(returnType, returnIrType)
         generateFinallyBlocksIfNeeded(returnType, afterReturnLabel, data)
-
+        expression.markLineNumber(startOffset = true)
+        if (isNonLocalReturn) {
+            generateGlobalReturnFlag(mv, owner.name.asString())
+        }
         mv.areturn(returnType)
         mv.mark(afterReturnLabel)
         mv.nop()/*TODO check RESTORE_STACK_IN_TRY_CATCH processor*/
-        return expression.onStack
+        return unitValue
     }
 
+    override fun visitWhen(expression: IrWhen, data: BlockInfo): PromisedValue {
+        expression.markLineNumber(startOffset = true)
+        SwitchGenerator(expression, data, this).generate()?.let { return it }
+        // When a lookup/table switch instruction is not generate, output a nop
+        // for the line number of the when itself. Otherwise, there will be
+        // no option of breaking on the line of the `when` if there is no
+        // subject:
+        //
+        // when {
+        //   cond1 -> exp1
+        //   else -> exp2
+        // }
+        if (expression.origin == IrStatementOrigin.WHEN) {
+            mv.nop()
+        }
+        val endLabel = Label()
+        val exhaustive = expression.branches.any { it.condition.isTrueConst() } && !expression.type.isUnit()
+        assert(exhaustive || expression.type.isUnit()) {
+            "non-exhaustive conditional should return Unit: ${expression.dump()}"
+        }
+        val lastBranch = expression.branches.lastOrNull()
+        for (branch in expression.branches) {
+            val elseLabel = Label()
+            if (branch.condition.isFalseConst() || branch.condition.isTrueConst()) {
+                // True or false conditions known at compile time need not be generated. A linenumber and nop
+                // are still required for a debugger to break on the line of the condition.
+                if (branch !is IrElseBranch) {
+                    branch.condition.markLineNumber(startOffset = true)
+                    mv.nop()
+                }
+                if (branch.condition.isFalseConst())
+                    continue // The branch body is dead code.
+            } else {
+                val oldIsInsideCondition = isInsideCondition
+                isInsideCondition = true
+                branch.condition.accept(this, data).coerceToBoolean().jumpIfFalse(elseLabel)
+                isInsideCondition = oldIsInsideCondition
+            }
+            val result = branch.result.accept(this, data)
+            if (!exhaustive) {
+                result.discard()
+            } else {
+                val materializedResult = result.materializedAt(expression.type)
+                if (branch.condition.isTrueConst()) {
+                    // The rest of the expression is dead code.
+                    mv.mark(endLabel)
+                    return materializedResult
+                }
+            }
 
-    override fun visitWhen(expression: IrWhen, data: BlockInfo): StackValue {
-        val resultType = expression.asmType
-        genIfWithBranches(expression.branches[0], data, resultType, expression.branches.drop(1))
-        return expression.onStack
+            if (branch != lastBranch) {
+                mv.goTo(endLabel)
+            }
+            mv.mark(elseLabel)
+        }
+        mv.mark(endLabel)
+        return unitValue
     }
 
-
-    fun genIfWithBranches(branch: IrBranch, data: BlockInfo, type: Type, otherBranches: List<IrBranch>) {
-        val elseLabel = Label()
-        val condition = branch.condition
-        val thenBranch = branch.result
-        //TODO don't generate condition for else branch - java verifier fails with empty stack
-        val elseBranch = branch is IrElseBranch
-        if (!elseBranch) {
-            gen(condition, data)
-            BranchedValue.condJump(StackValue.onStack(condition.asmType), elseLabel, true, mv)
-        }
-
-        val end = Label()
-
-        thenBranch.apply {
-            gen(this, type, data)
-            //coerceNotToUnit(this.asmType, type)
-        }
-
-        mv.goTo(end)
-        mv.mark(elseLabel)
-
-        if (!otherBranches.isEmpty()) {
-            val nextBranch = otherBranches.first()
-            genIfWithBranches(nextBranch, data, type, otherBranches.drop(1))
-        }
-
-        mv.mark(end)
-    }
-
-
-    override fun visitTypeOperator(expression: IrTypeOperatorCall, data: BlockInfo): StackValue {
-        val asmType = expression.typeOperand.asmType
-        when (expression.operator) {
-            IrTypeOperator.IMPLICIT_COERCION_TO_UNIT -> {
+    override fun visitTypeOperator(expression: IrTypeOperatorCall, data: BlockInfo): PromisedValue {
+        val typeOperand = expression.typeOperand
+        val kotlinType = typeOperand.toIrBasedKotlinType()
+        return when (expression.operator) {
+            IrTypeOperator.IMPLICIT_CAST ->
                 expression.argument.accept(this, data)
-                coerce(expression.argument.asmType, Type.VOID_TYPE, mv)
-                return none()
-            }
-            IrTypeOperator.IMPLICIT_CAST -> {
-                gen(expression.argument, asmType, data)
-            }
 
             IrTypeOperator.CAST, IrTypeOperator.SAFE_CAST -> {
-                val value = expression.argument.accept(this, data)
-                value.put(boxType(value.type), mv)
-                if (value.type === Type.VOID_TYPE) {
-                    StackValue.putUnitInstance(mv)
+                val result = expression.argument.accept(this, data)
+                val boxedLeftType = typeMapper.boxType(result.irType)
+                result.materializeAt(boxedLeftType, expression.argument.type)
+                val boxedRightType = typeMapper.boxType(typeOperand)
+
+                if (typeOperand.isReifiedTypeParameter) {
+                    val operationKind = if (expression.operator == IrTypeOperator.CAST) AS else SAFE_AS
+                    putReifiedOperationMarkerIfTypeIsReifiedParameter(typeOperand, operationKind)
+                    v.checkcast(boxedRightType)
+                } else {
+                    assert(expression.operator == IrTypeOperator.CAST) { "IrTypeOperator.SAFE_CAST should have been lowered." }
+                    TypeIntrinsics.checkcast(mv, kotlinType, boxedRightType, false)
                 }
-                val boxedType = boxType(asmType)
-                generateAsCast(mv, expression.typeOperand, boxedType, expression.operator == IrTypeOperator.SAFE_CAST)
-                return onStack(boxedType)
+                MaterialValue(this, boxedRightType, expression.type)
             }
 
-            IrTypeOperator.INSTANCEOF, IrTypeOperator.NOT_INSTANCEOF -> {
-                gen(expression.argument, OBJECT_TYPE, data)
-                val type = boxType(asmType)
-                generateIsCheck(mv, expression.typeOperand, type)
-                if (IrTypeOperator.NOT_INSTANCEOF == expression.operator) {
-                    StackValue.not(StackValue.onStack(Type.BOOLEAN_TYPE)).put(Type.BOOLEAN_TYPE, mv)
+            IrTypeOperator.INSTANCEOF -> {
+                expression.argument.accept(this, data).materializeAt(context.irBuiltIns.anyNType)
+                val type = typeMapper.boxType(typeOperand)
+                if (typeOperand.isReifiedTypeParameter) {
+                    putReifiedOperationMarkerIfTypeIsReifiedParameter(typeOperand, ReifiedTypeInliner.OperationKind.IS)
+                    v.instanceOf(type)
+                } else {
+                    TypeIntrinsics.instanceOf(mv, kotlinType, type, state.languageVersionSettings.isReleaseCoroutines())
                 }
+                expression.onStack
             }
 
-            IrTypeOperator.IMPLICIT_NOTNULL -> {
-                gen(expression.argument, OBJECT_TYPE, data)
-                mv.dup()
-                mv.visitLdcInsn("TODO provide message") /*TODO*/
-                mv.invokestatic("kotlin/jvm/internal/Intrinsics", "checkExpressionValueIsNotNull",
-                               "(Ljava/lang/Object;Ljava/lang/String;)V", false)
-            }
-
-            else -> super.visitTypeOperator(expression, data)
+            else -> throw AssertionError("type operator ${expression.operator} should have been lowered")
         }
-        return expression.onStack
     }
 
-    override fun visitStringConcatenation(expression: IrStringConcatenation, data: BlockInfo): StackValue {
-        AsmUtil.genStringBuilderConstructor(mv)
-        expression.arguments.forEach {
-            AsmUtil.genInvokeAppendMethod(mv, gen(it, data).type)
-        }
-
-        mv.invokevirtual("java/lang/StringBuilder", "toString", "()Ljava/lang/String;", false)
-        return expression.onStack
-    }
-
-    override fun visitWhileLoop(loop: IrWhileLoop, data: BlockInfo): StackValue {
+    override fun visitWhileLoop(loop: IrWhileLoop, data: BlockInfo): PromisedValue {
         val continueLabel = markNewLabel()
         val endLabel = Label()
-        val condition = loop.condition
-        gen(condition, data)
-        BranchedValue.condJump(StackValue.onStack(condition.asmType), endLabel, true, mv)
-
-        with(LoopInfo(loop, continueLabel, endLabel)) {
-            data.addInfo(this)
-            loop.body?.apply {
-                gen(this, data)
-            }
-            data.removeInfo(this)
+        // Mark stack depth for break
+        mv.fakeAlwaysFalseIfeq(endLabel)
+        loop.condition.markLineNumber(true)
+        loop.condition.accept(this, data).coerceToBoolean().jumpIfFalse(endLabel)
+        data.withBlock(LoopInfo(loop, continueLabel, endLabel)) {
+            loop.body?.accept(this, data)?.discard()
         }
         mv.goTo(continueLabel)
         mv.mark(endLabel)
-
-        return loop.onStack
+        return unitValue
     }
 
-    override fun visitBreakContinue(jump: IrBreakContinue, data: BlockInfo): StackValue {
-        generateBreakOrContinueExpression(jump, Label(), data)
-        return none()
-    }
-
-    private fun generateBreakOrContinueExpression(
-            expression: IrBreakContinue,
-            afterBreakContinueLabel: Label,
-            data: BlockInfo
-    ) {
-        if (data.isEmpty()) {
-            throw UnsupportedOperationException("Target label for break/continue not found")
-        }
-
-        val stackElement = data.peek()
-
-        if (stackElement is TryInfo) {
-            //noinspection ConstantConditions
-            genFinallyBlockOrGoto(stackElement, null, afterBreakContinueLabel, data)
-        }
-        else if (stackElement is LoopInfo) {
-            val loop = expression.loop
-            //noinspection ConstantConditions
-            if (loop == stackElement.loop) {
-                val label = if (expression is IrBreak) stackElement.breakLabel else stackElement.continueLabel
-                mv.fixStackAndJump(label)
-                mv.mark(afterBreakContinueLabel)
-                return
-            }
-        }
-        else {
-            throw UnsupportedOperationException("Wrong BlockStackElement in processing stack")
-        }
-
-        data.pop()
-        val result = generateBreakOrContinueExpression(expression, afterBreakContinueLabel, data)
-        data.addInfo(stackElement)
-        return result
-    }
-
-    override fun visitDoWhileLoop(loop: IrDoWhileLoop, data: BlockInfo): StackValue {
+    override fun visitDoWhileLoop(loop: IrDoWhileLoop, data: BlockInfo): PromisedValue {
         val entry = markNewLabel()
         val endLabel = Label()
         val continueLabel = Label()
-
-        with(LoopInfo(loop, continueLabel, endLabel)) {
-            data.addInfo(this)
-            loop.body?.apply {
-                gen(this, data)
-            }
-            data.removeInfo(this)
+        // Mark stack depth for break/continue
+        mv.fakeAlwaysFalseIfeq(continueLabel)
+        mv.fakeAlwaysFalseIfeq(endLabel)
+        data.withBlock(LoopInfo(loop, continueLabel, endLabel)) {
+            loop.body?.accept(this, data)?.discard()
         }
-
         mv.visitLabel(continueLabel)
-        val condition = loop.condition
-        gen(condition, data)
-        BranchedValue.condJump(StackValue.onStack(condition.asmType), entry, false, mv)
+        loop.condition.markLineNumber(true)
+        loop.condition.accept(this, data).coerceToBoolean().jumpIfTrue(entry)
         mv.mark(endLabel)
-
-        return loop.onStack
+        return unitValue
     }
 
-    override fun visitTry(aTry: IrTry, data: BlockInfo): StackValue {
-        val finallyExpression = aTry.finallyExpression
-        val tryInfo = if (finallyExpression != null) TryInfo(aTry) else null
-        if (tryInfo != null) {
-            data.addInfo(tryInfo)
+    private fun unwindBlockStack(
+        endLabel: Label,
+        data: BlockInfo,
+        nestedTryWithoutFinally: MutableList<TryInfo> = arrayListOf(),
+        stop: (ExpressionInfo) -> Boolean = { false }
+    ): ExpressionInfo? {
+        return data.handleBlock {
+            if (it is TryWithFinallyInfo) {
+                genFinallyBlock(it, null, endLabel, data, nestedTryWithoutFinally)
+                nestedTryWithoutFinally.clear()
+            } else if (it is TryInfo) {
+                nestedTryWithoutFinally.add(it)
+            }
+            return if (stop(it)) it else unwindBlockStack(endLabel, data, nestedTryWithoutFinally, stop)
+        }
+    }
+
+    override fun visitBreakContinue(jump: IrBreakContinue, data: BlockInfo): PromisedValue {
+        jump.markLineNumber(startOffset = true)
+        val endLabel = Label()
+        val stackElement = unwindBlockStack(endLabel, data) { it is LoopInfo && it.loop == jump.loop } as LoopInfo?
+            ?: throw AssertionError("Target label for break/continue not found")
+        mv.fixStackAndJump(if (jump is IrBreak) stackElement.breakLabel else stackElement.continueLabel)
+        mv.mark(endLabel)
+        return unitValue
+    }
+
+    override fun visitTry(aTry: IrTry, data: BlockInfo): PromisedValue {
+        aTry.markLineNumber(startOffset = true)
+        return data.withBlock(if (aTry.finallyExpression != null) TryWithFinallyInfo(aTry.finallyExpression!!) else TryInfo()) {
+            visitTryWithInfo(aTry, data, it)
         }
 
+    }
+
+    private fun visitTryWithInfo(aTry: IrTry, data: BlockInfo, tryInfo: TryInfo): PromisedValue {
         val tryBlockStart = markNewLabel()
         mv.nop()
-        gen(aTry.tryResult, aTry.asmType, data)
+        val tryAsmType = aTry.asmType
+        val tryResult = aTry.tryResult.accept(this, data)
+        val isExpression = !aTry.type.isUnit()
+        var savedValue: Int? = null
+        if (isExpression) {
+            tryResult.materializeAt(tryAsmType, aTry.type)
+            savedValue = frameMap.enterTemp(tryAsmType)
+            mv.store(savedValue, tryAsmType)
+        } else {
+            tryResult.discard()
+        }
+
         val tryBlockEnd = markNewLabel()
-
-        val tryRegions = getCurrentTryIntervals(tryInfo, tryBlockStart, tryBlockEnd)
-
+        val tryBlockGaps = tryInfo.gaps.toList()
         val tryCatchBlockEnd = Label()
-        genFinallyBlockOrGoto(tryInfo,  tryCatchBlockEnd, null, data)
+        if (tryInfo is TryWithFinallyInfo) {
+            data.handleBlock { genFinallyBlock(tryInfo, tryCatchBlockEnd, null, data) }
+        } else {
+            mv.goTo(tryCatchBlockEnd)
+        }
 
         val catches = aTry.catches
         for (clause in catches) {
             val clauseStart = markNewLabel()
-            val descriptor = clause.parameter
-            val descriptorType = descriptor.asmType
-            val index = frame.enter(descriptor, descriptorType)
+            val parameter = clause.catchParameter
+            val descriptorType = parameter.asmType
+            val index = frameMap.enter(clause.catchParameter, descriptorType)
+            clause.markLineNumber(true)
             mv.store(index, descriptorType)
+            val afterStore = markNewLabel()
 
             val catchBody = clause.result
-            gen(catchBody, catchBody.asmType, data)
+            val catchResult = catchBody.accept(this, data)
+            if (savedValue != null) {
+                catchResult.materializeAt(tryAsmType, aTry.type)
+                mv.store(savedValue, tryAsmType)
+            } else {
+                catchResult.discard()
+            }
 
-            frame.leave(descriptor)
+            frameMap.leave(clause.catchParameter)
 
             val clauseEnd = markNewLabel()
+            mv.visitLocalVariable(parameter.name.asString(), descriptorType.descriptor, null, afterStore, clauseEnd, index)
 
-            mv.visitLocalVariable(descriptor.name.asString(), descriptorType.descriptor, null, clauseStart, clauseEnd,
-                                 index)
+            if (tryInfo is TryWithFinallyInfo) {
+                data.handleBlock { genFinallyBlock(tryInfo, tryCatchBlockEnd, null, data) }
+            } else if (clause != catches.last()) {
+                mv.goTo(tryCatchBlockEnd)
+            }
 
-            genFinallyBlockOrGoto(tryInfo, if (clause != catches.last() || finallyExpression != null) tryCatchBlockEnd else null, null, data)
-
-            generateExceptionTable(clauseStart, tryRegions, descriptorType.internalName)
+            genTryCatchCover(clauseStart, tryBlockStart, tryBlockEnd, tryBlockGaps, descriptorType.internalName)
         }
 
-        //for default catch clause
-        if (finallyExpression != null) {
-            val defaultCatchStart = Label()
-            mv.mark(defaultCatchStart)
-            val savedException = frame.enterTemp(JAVA_THROWABLE_TYPE)
-            mv.store(savedException, JAVA_THROWABLE_TYPE)
+        if (tryInfo is TryWithFinallyInfo) {
+            // Generate `try { ... } catch (e: Any?) { <finally>; throw e }` around every part of
+            // the try-catch that is not a copy-pasted `finally` block.
+            val defaultCatchStart = markNewLabel()
+            // While keeping this value on the stack should be enough, the bytecode validator will
+            // complain if a catch block does not start with ASTORE.
+            val savedException = frameMap.enterTemp(AsmTypes.JAVA_THROWABLE_TYPE)
+            mv.store(savedException, AsmTypes.JAVA_THROWABLE_TYPE)
 
-            val defaultCatchEnd = Label()
-            mv.mark(defaultCatchEnd)
-
-            //do it before finally block generation
-            //javac also generates entry in exception table for default catch clause too!!!! so defaultCatchEnd as end parameter
-            val defaultCatchRegions = getCurrentTryIntervals(tryInfo, tryBlockStart, defaultCatchEnd)
-
-            genFinallyBlockOrGoto(tryInfo, null, null, data)
-
-            mv.load(savedException, JAVA_THROWABLE_TYPE)
-            frame.leaveTemp(JAVA_THROWABLE_TYPE)
-
+            val finallyStart = markNewLabel()
+            val finallyGaps = tryInfo.gaps.toList()
+            data.handleBlock { genFinallyBlock(tryInfo, null, null, data) }
+            mv.load(savedException, AsmTypes.JAVA_THROWABLE_TYPE)
+            frameMap.leaveTemp(AsmTypes.JAVA_THROWABLE_TYPE)
             mv.athrow()
 
-            generateExceptionTable(defaultCatchStart, defaultCatchRegions, null)
+            // Include the ASTORE into the covered region. This is used by the inliner to detect try-finally.
+            genTryCatchCover(defaultCatchStart, tryBlockStart, finallyStart, finallyGaps, null)
         }
 
         mv.mark(tryCatchBlockEnd)
-        if (tryInfo != null) {
-            data.removeInfo(tryInfo)
-        }
+        // TODO: generate a common `finally` for try & catch blocks here? Right now this breaks the inliner.
+        return object : PromisedValue(this, tryAsmType, aTry.type) {
+            override fun materializeAt(target: Type, irTarget: IrType) {
+                if (savedValue != null) {
+                    mv.load(savedValue, tryAsmType)
+                    frameMap.leaveTemp(tryAsmType)
+                    super.materializeAt(target, irTarget)
+                } else {
+                    unitValue.materializeAt(target, irTarget)
+                }
+            }
 
-        return aTry.onStack
-    }
-
-    private fun getCurrentTryIntervals(
-            finallyBlockStackElement: TryInfo?,
-            blockStart: Label,
-            blockEnd: Label
-    ): List<Label> {
-        val gapsInBlock = if (finallyBlockStackElement != null) ArrayList<Label>(finallyBlockStackElement.gaps) else emptyList<Label>()
-        assert(gapsInBlock.size % 2 == 0)
-        val blockRegions = ArrayList<Label>(gapsInBlock.size + 2)
-        blockRegions.add(blockStart)
-        blockRegions.addAll(gapsInBlock)
-        blockRegions.add(blockEnd)
-        return blockRegions
-    }
-
-    private fun generateExceptionTable(catchStart: Label, catchedRegions: List<Label>, exception: String?) {
-        var i = 0
-        while (i < catchedRegions.size) {
-            val startRegion = catchedRegions[i]
-            val endRegion = catchedRegions[i + 1]
-            mv.visitTryCatchBlock(startRegion, endRegion, catchStart, exception)
-            i += 2
+            override fun discard() {
+                if (savedValue != null) {
+                    frameMap.leaveTemp(tryAsmType)
+                }
+            }
         }
     }
 
-    private fun genFinallyBlockOrGoto(
-            tryInfo: TryInfo?,
-            tryCatchBlockEnd: Label?,
-            afterJumpLabel: Label?,
-            data: BlockInfo
+    private fun genTryCatchCover(catchStart: Label, tryStart: Label, tryEnd: Label, tryGaps: List<Pair<Label, Label>>, type: String?) {
+        val lastRegionStart = tryGaps.fold(tryStart) { regionStart, (gapStart, gapEnd) ->
+            mv.visitTryCatchBlock(regionStart, gapStart, catchStart, type)
+            gapEnd
+        }
+        mv.visitTryCatchBlock(lastRegionStart, tryEnd, catchStart, type)
+    }
+
+    private fun genFinallyBlock(
+        tryWithFinallyInfo: TryWithFinallyInfo,
+        tryCatchBlockEnd: Label?,
+        afterJumpLabel: Label?,
+        data: BlockInfo,
+        nestedTryWithoutFinally: MutableList<TryInfo> = arrayListOf()
     ) {
-        if (tryInfo != null) {
-            assert(tryInfo.gaps.size % 2 == 0) { "Finally block gaps are inconsistent" }
-
-            val topOfStack = data.pop()
-            assert(topOfStack === tryInfo) { "Top element of stack doesn't equals processing finally block" }
-
-            val tryBlock = tryInfo.tryBlock
-            val finallyStart = markNewLabel()
-            tryInfo.gaps.add(finallyStart)
-
-            //noinspection ConstantConditions
-            gen(tryBlock.finallyExpression!!, Type.VOID_TYPE, data)
+        val gapStart = markNewLinkedLabel()
+        finallyDepth++
+        if (isFinallyMarkerRequired()) {
+            generateFinallyMarker(mv, finallyDepth, true)
         }
-
+        tryWithFinallyInfo.onExit.accept(this, data).discard()
+        if (isFinallyMarkerRequired()) {
+            generateFinallyMarker(mv, finallyDepth, false)
+        }
+        finallyDepth--
         if (tryCatchBlockEnd != null) {
+            tryWithFinallyInfo.onExit.markLineNumber(startOffset = false)
             mv.goTo(tryCatchBlockEnd)
         }
-
-        if (tryInfo != null) {
-            val finallyEnd = afterJumpLabel ?: Label()
-            if (afterJumpLabel == null) {
-                mv.mark(finallyEnd)
+        val gapEnd = afterJumpLabel ?: markNewLabel()
+        tryWithFinallyInfo.gaps.add(gapStart to gapEnd)
+        if (state.languageVersionSettings.supportsFeature(LanguageFeature.ProperFinally)) {
+            for (it in nestedTryWithoutFinally) {
+                it.gaps.add(gapStart to gapEnd)
             }
-            tryInfo.gaps.add(finallyEnd)
-
-            data.addInfo(tryInfo)
         }
     }
 
     fun generateFinallyBlocksIfNeeded(returnType: Type, afterReturnLabel: Label, data: BlockInfo) {
         if (data.hasFinallyBlocks()) {
             if (Type.VOID_TYPE != returnType) {
-                val returnValIndex = frame.enterTemp(returnType)
-                val localForReturnValue = StackValue.local(returnValIndex, returnType)
-                localForReturnValue.store(StackValue.onStack(returnType), mv)
-                doFinallyOnReturn(afterReturnLabel, data)
-                localForReturnValue.put(returnType, mv)
-                frame.leaveTemp(returnType)
-            }
-            else {
-                doFinallyOnReturn(afterReturnLabel, data)
+                val returnValIndex = frameMap.enterTemp(returnType)
+                mv.store(returnValIndex, returnType)
+                unwindBlockStack(afterReturnLabel, data)
+                mv.load(returnValIndex, returnType)
+                frameMap.leaveTemp(returnType)
+            } else {
+                unwindBlockStack(afterReturnLabel, data)
             }
         }
     }
 
-
-    private fun doFinallyOnReturn(afterReturnLabel: Label, data: BlockInfo) {
-        if (!data.isEmpty()) {
-            val stackElement = data.peek()
-            if (stackElement is TryInfo) {
-                genFinallyBlockOrGoto(stackElement, null, afterReturnLabel, data)
-            }
-            else if (stackElement is LoopInfo) {
-
-            }
-            else {
-                throw UnsupportedOperationException("Wrong BlockStackElement in processing stack")
-            }
-
-            data.pop()
-            doFinallyOnReturn(afterReturnLabel, data)
-            data.addInfo(stackElement)
-        }
-    }
-
-    override fun visitThrow(expression: IrThrow, data: BlockInfo): StackValue {
-        gen(expression.value, JAVA_THROWABLE_TYPE, data)
+    override fun visitThrow(expression: IrThrow, data: BlockInfo): PromisedValue {
+        expression.markLineNumber(startOffset = true)
+        val exception = expression.value.accept(this, data)
+        // Avoid unecessary CHECKCASTs to java/lang/Throwable. If the exception is not of type Object
+        // then it must be some subtype of throwable and we don't need to coerce it.
+        if (exception.type == OBJECT_TYPE)
+            exception.materializeAt(context.irBuiltIns.throwableType)
+        else
+            exception.materialize()
         mv.athrow()
-        return expression.onStack
+        return unitValue
     }
 
-    override fun visitClassReference(expression: IrClassReference, data: BlockInfo): StackValue {
-        generateClassLiteralReference(expression, true, data)
-        return expression.onStack
+    override fun visitStringConcatenation(expression: IrStringConcatenation, data: BlockInfo): PromisedValue {
+        assert(context.state.runtimeStringConcat.isDynamic) {
+            "IrStringConcatenation expression should be presented only with dynamic concatenation: ${expression.dump()}"
+        }
+        val generator = StringConcatGenerator(context.state.runtimeStringConcat, mv)
+        expression.arguments.forEach { arg ->
+            if (arg is IrConst<*>) {
+                val type = when (arg.kind) {
+                    IrConstKind.Boolean -> Type.BOOLEAN_TYPE
+                    IrConstKind.Char -> Type.CHAR_TYPE
+                    IrConstKind.Int -> Type.INT_TYPE
+                    IrConstKind.Long -> Type.LONG_TYPE
+                    IrConstKind.Float -> Type.FLOAT_TYPE
+                    IrConstKind.Double -> Type.DOUBLE_TYPE
+                    IrConstKind.Byte -> Type.BYTE_TYPE
+                    IrConstKind.Short -> Type.SHORT_TYPE
+                    IrConstKind.String -> JAVA_STRING_TYPE
+                    IrConstKind.Null -> OBJECT_TYPE
+                }
+                generator.putValueOrProcessConstant(StackValue.constant(arg.value, type, null))
+            } else {
+                val value = arg.accept(this, data)
+                value.materializeAt(value.type, value.irType)
+                generator.invokeAppend(value.type)
+            }
+        }
+        generator.genToString()
+        return MaterialValue(this@ExpressionCodegen, JAVA_STRING_TYPE, context.irBuiltIns.stringType)
     }
+
+    override fun visitGetClass(expression: IrGetClass, data: BlockInfo) =
+        generateClassLiteralReference(expression, true, data)
+
+    override fun visitClassReference(expression: IrClassReference, data: BlockInfo) =
+        generateClassLiteralReference(expression, true, data)
 
     fun generateClassLiteralReference(
-            receiverExpression: IrExpression,
-            wrapIntoKClass: Boolean,
-            data: BlockInfo
-    ) {
-        if (receiverExpression !is IrClassReference /* && DescriptorUtils.isObjectQualifier(receiverExpression.descriptor)*/) {
-            JavaClassProperty.generateImpl(mv, gen(receiverExpression, data))
-        }
-        else {
-//                if (TypeUtils.isTypeParameter(type)) {
-//                    assert(TypeUtils.isReifiedTypeParameter(type)) { "Non-reified type parameter under ::class should be rejected by type checker: " + type }
-//                    putReifiedOperationMarkerIfTypeIsReifiedParameter(type, ReifiedTypeInliner.OperationKind.JAVA_CLASS)
-//                }
+        classReference: IrExpression,
+        wrapIntoKClass: Boolean,
+        data: BlockInfo
+    ): PromisedValue {
+        if (classReference is IrGetClass) {
+            // TODO transform one sort of access into the other?
+            JavaClassProperty.invokeWith(classReference.argument.accept(this, data))
+        } else if (classReference is IrClassReference) {
+            val classType = classReference.classType
+            val classifier = classType.classifierOrNull
+            if (classifier is IrTypeParameterSymbol) {
+                assert(classifier.owner.isReified) {
+                    "Non-reified type parameter under ::class should be rejected by type checker: ${classifier.owner.dump()}"
+                }
+                putReifiedOperationMarkerIfTypeIsReifiedParameter(classType, ReifiedTypeInliner.OperationKind.JAVA_CLASS)
+            }
 
-            putJavaLangClassInstance(mv, typeMapper.mapType(receiverExpression.descriptor.defaultType))
+            generateClassInstance(mv, classType, typeMapper)
+        } else {
+            throw AssertionError("not an IrGetClass or IrClassReference: ${classReference.dump()}")
         }
 
         if (wrapIntoKClass) {
             wrapJavaClassIntoKClass(mv)
         }
-
+        return classReference.onStack
     }
 
-    private fun coerceNotToUnit(fromType: Type, toType: Type) {
-        if (toType != AsmTypes.UNIT_TYPE) {
-            coerce(fromType, toType, mv)
-        }
-    }
-
-    val IrExpression.asmType: Type
-        get() = typeMapper.mapType(this.type)
-
-    val IrExpression.onStack: StackValue
-        get() = StackValue.onStack(this.asmType)
-
-    private fun resolveToCallable(irCall: IrMemberAccessExpression, isSuper: Boolean): Callable {
-        val intrinsic = intrinsics.getIntrinsic(irCall.descriptor.original as CallableMemberDescriptor)
-        if (intrinsic != null) {
-            return intrinsic.toCallable(irCall, typeMapper.mapSignatureSkipGeneric(irCall.descriptor as FunctionDescriptor), classCodegen.context)
+    private fun getOrCreateCallGenerator(
+        element: IrFunctionAccessExpression, data: BlockInfo, signature: JvmMethodSignature
+    ): IrCallGenerator {
+        if (!element.symbol.owner.isInlineFunctionCall(context) ||
+            classCodegen.irClass.fileParent.fileEntry is MultifileFacadeFileEntry ||
+            irFunction.isInvokeSuspendOfContinuation()
+        ) {
+            return IrCallGenerator.DefaultCallGenerator
         }
 
-        var descriptor = irCall.descriptor
-        if (descriptor is TypeAliasConstructorDescriptor) {
-            //TODO where is best to unwrap?
-            descriptor = descriptor.underlyingConstructorDescriptor
+        if (element.origin == JvmLoweredStatementOrigin.DEFAULT_STUB_CALL_TO_IMPLEMENTATION) {
+            return IrInlineDefaultCodegen
         }
-        if (descriptor is CallableMemberDescriptor && JvmCodegenUtil.getDirectMember(descriptor) is SyntheticJavaPropertyDescriptor) {
-            val propertyDescriptor = JvmCodegenUtil.getDirectMember(descriptor) as SyntheticJavaPropertyDescriptor
-            if (descriptor is PropertyGetterDescriptor) {
-                descriptor = propertyDescriptor.getMethod
+
+        val callee = element.symbol.owner
+        val typeArgumentContainer = if (callee is IrConstructor) callee.parentAsClass else callee
+        val typeArguments =
+            if (element.typeArgumentsCount == 0) {
+                //avoid ambiguity with type constructor type parameters
+                emptyMap()
+            } else typeArgumentContainer.typeParameters.keysToMap {
+                element.getTypeArgumentOrDefault(it)
             }
-            else {
-                descriptor = propertyDescriptor.setMethod!!
+
+        val mappings = TypeParameterMappings<IrType>()
+        for ((key, type) in typeArguments.entries) {
+            val reificationArgument = typeMapper.typeSystem.extractReificationArgument(type)
+            if (reificationArgument == null) {
+                // type is not generic
+                val signatureWriter = BothSignatureWriter(BothSignatureWriter.Mode.TYPE)
+                val asmType = typeMapper.mapTypeParameter(type, signatureWriter)
+
+                mappings.addParameterMappingToType(
+                    key.name.identifier, type, asmType, signatureWriter.toString(), key.isReified
+                )
+            } else {
+                mappings.addParameterMappingForFurtherReification(
+                    key.name.identifier, type, reificationArgument.second, key.isReified
+                )
             }
         }
-        return typeMapper.mapToCallableMethod(descriptor as FunctionDescriptor, isSuper)
+
+        val methodOwner = typeMapper.mapClass(callee.parentAsClass)
+        val sourceCompiler = IrSourceCompilerForInline(state, element, callee, this, data)
+
+        val reifiedTypeInliner = ReifiedTypeInliner(
+            mappings,
+            IrInlineIntrinsicsSupport(context, typeMapper),
+            IrTypeCheckerContext(context.irBuiltIns),
+            state.languageVersionSettings,
+            state.unifiedNullChecks,
+        )
+
+        return IrInlineCodegen(this, state, callee, methodOwner, signature, mappings, sourceCompiler, reifiedTypeInliner)
     }
 
-    private val KotlinType.asmType: Type
-        get() = typeMapper.mapType(this)
+    override fun consumeReifiedOperationMarker(typeParameter: TypeParameterMarker) {
+        require(typeParameter is IrTypeParameterSymbol)
+        // This is a hack to work around the problem in LocalDeclarationsLowering. Specifically, suppose an inline
+        // lambda uses a reified type parameter declared by a function:
+        //
+        //     object {
+        //         inline fun <reified T : Any> f() = run { T::class.java.getName() }
+        //     }
+        //
+        // LocalDeclarationsLowering would extract that lambda into a method of the enclosing type, but will not create
+        // a reified type parameter in it (in fact, the lambda method isn't even marked as inline):
+        //
+        //     object {
+        //         /* static */ private fun `f$lambda-0`() = T::class.java.getName()
+        //         inline fun <reified T : Any> f() = run(::`f$lambda-0`)
+        //     }
+        //
+        // The parent of the type parameter then is not `irFunction` (i.e. the lambda itself), but the function
+        // it is inlined into.
+        //
+        // TODO make LocalDeclarationsLowering handle captured type parameters and only compare with `irFunction`.
+        if (generateSequence(this) { it.inlinedInto }.none { it.irFunction == typeParameter.owner.parent }) {
+            classCodegen.reifiedTypeParametersUsages.addUsedReifiedParameter(typeParameter.owner.name.asString())
+        }
+    }
 
-    private val CallableDescriptor.asmType: Type
-        get() = typeMapper.mapType(this)
+    override fun propagateChildReifiedTypeParametersUsages(reifiedTypeParametersUsages: ReifiedTypeParametersUsages) {
+        classCodegen.reifiedTypeParametersUsages.propagateChildUsagesWithinContext(reifiedTypeParametersUsages) {
+            irFunction.typeParameters.filter { it.isReified }.map { it.name.asString() }.toSet()
+        }
+    }
+
+    override fun pushClosureOnStack(
+        classDescriptor: ClassDescriptor,
+        putThis: Boolean,
+        callGenerator: CallGenerator,
+        functionReferenceReceiver: StackValue?
+    ) {
+        //TODO
+    }
+
+    override fun markLineNumberAfterInlineIfNeeded(registerLineNumberAfterwards: Boolean) {
+        if (noLineNumberScope || registerLineNumberAfterwards) {
+            if (lastLineNumber > -1) {
+                val label = Label()
+                v.visitLabel(label)
+                v.visitLineNumber(lastLineNumber, label)
+            }
+        } else {
+            // Inline function has its own line number which is in a separate instance of codegen,
+            // therefore we need to reset lastLineNumber to force a line number generation after visiting inline function.
+            lastLineNumber = -1
+        }
+    }
+
+    fun isFinallyMarkerRequired(): Boolean {
+        return irFunction.isInline || inlinedInto != null
+    }
+
+    val IrType.isReifiedTypeParameter: Boolean
+        get() = this.classifierOrNull?.safeAs<IrTypeParameterSymbol>()?.owner?.isReified == true
+
+    companion object {
+        internal fun generateClassInstance(v: InstructionAdapter, classType: IrType, typeMapper: IrTypeMapper) {
+            val asmType = typeMapper.mapType(classType)
+            if (classType.getClass()?.isInline == true || !isPrimitive(asmType)) {
+                v.aconst(typeMapper.boxType(classType))
+            } else {
+                v.getstatic(boxType(asmType).internalName, "TYPE", "Ljava/lang/Class;")
+            }
+        }
+    }
 }
-
-private class DefaultArg(val index: Int)
-
-private class Vararg(val index: Int)

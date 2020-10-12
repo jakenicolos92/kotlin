@@ -23,22 +23,27 @@ import java.io.FileInputStream
 import java.util.zip.ZipInputStream
 
 class TestStdlibWithDxTest {
-    @Test fun testRuntimeWithDx() {
+    @Test
+    fun testRuntimeWithDx() {
         doTest(ForTestCompileRuntime.runtimeJarForTests())
     }
 
-    @Test fun testReflectWithDx() {
+    @Test
+    fun testReflectWithDx() {
         doTest(ForTestCompileRuntime.reflectJarForTests())
     }
 
     private fun doTest(file: File) {
-        val zip = ZipInputStream(FileInputStream(file))
-        zip.use {
-            generateSequence { zip.nextEntry }.forEach {
-                if (it.name.endsWith(".class")) {
-                    DxChecker.checkFileWithDx(zip.readBytes(), it.name)
+        val files = mutableListOf<Pair<ByteArray, String>>();
+        ZipInputStream(FileInputStream(file)).use { zip ->
+            for (entry in generateSequence { zip.nextEntry }) {
+                if (entry.name.endsWith(".class") && !entry.name.startsWith("META-INF/")) {
+                    val bytes = zip.readBytes()
+                    DxChecker.checkFileWithDx(bytes, entry.name)
+                    files.add(Pair(bytes, entry.name))
                 }
             }
         }
+        D8Checker.checkFilesWithD8(files)
     }
 }

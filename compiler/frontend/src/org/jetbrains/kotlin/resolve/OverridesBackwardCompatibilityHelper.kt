@@ -16,13 +16,15 @@
 
 package org.jetbrains.kotlin.resolve
 
+import org.jetbrains.kotlin.container.DefaultImplementation
 import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
 
+@DefaultImplementation(impl = OverridesBackwardCompatibilityHelper.Default::class)
 interface OverridesBackwardCompatibilityHelper {
     fun overrideCanBeOmitted(overridingDescriptor: CallableMemberDescriptor): Boolean
 
-    object DEFAULT : OverridesBackwardCompatibilityHelper {
+    object Default : OverridesBackwardCompatibilityHelper {
         override fun overrideCanBeOmitted(overridingDescriptor: CallableMemberDescriptor): Boolean =
-                false
+            false
     }
 }

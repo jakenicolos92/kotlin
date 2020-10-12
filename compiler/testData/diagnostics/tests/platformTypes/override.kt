@@ -1,8 +1,9 @@
+// FIR_IDENTICAL
 // FILE: p/I.java
 
 package p;
 
-import p.J.Param
+import p.J.Param;
 
 public interface I {
     String s();

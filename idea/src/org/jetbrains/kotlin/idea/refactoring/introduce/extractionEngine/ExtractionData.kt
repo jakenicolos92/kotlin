@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -28,9 +28,12 @@ import org.jetbrains.kotlin.idea.caches.resolve.analyze
 import org.jetbrains.kotlin.idea.caches.resolve.getResolutionFacade
 import org.jetbrains.kotlin.idea.codeInsight.DescriptorToSourceUtilsIde
 import org.jetbrains.kotlin.idea.core.compareDescriptors
+import org.jetbrains.kotlin.idea.project.languageVersionSettings
 import org.jetbrains.kotlin.idea.refactoring.introduce.ExtractableSubstringInfo
 import org.jetbrains.kotlin.idea.refactoring.introduce.extractableSubstringInfo
 import org.jetbrains.kotlin.idea.refactoring.introduce.substringContextOrThis
+import org.jetbrains.kotlin.idea.resolve.getDataFlowValueFactory
+import org.jetbrains.kotlin.idea.util.application.runReadAction
 import org.jetbrains.kotlin.idea.util.getResolutionScope
 import org.jetbrains.kotlin.idea.util.psi.patternMatching.KotlinPsiRange
 import org.jetbrains.kotlin.psi.*
@@ -44,7 +47,6 @@ import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.calls.model.VariableAsFunctionResolvedCall
 import org.jetbrains.kotlin.resolve.calls.resolvedCallUtil.getImplicitReceiverValue
 import org.jetbrains.kotlin.resolve.calls.resolvedCallUtil.hasBothReceivers
-import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowValueFactory
 import org.jetbrains.kotlin.resolve.calls.tasks.isSynthesizedInvoke
 import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitReceiver
 import org.jetbrains.kotlin.synthetic.SyntheticJavaPropertyDescriptor
@@ -52,12 +54,11 @@ import org.jetbrains.kotlin.types.KotlinType
 import java.util.*
 
 data class ExtractionOptions(
-        val inferUnitTypeForUnusedValues: Boolean = true,
-        val enableListBoxing: Boolean = false,
-        val extractAsProperty: Boolean = false,
-        val allowSpecialClassNames: Boolean = false,
-        val captureLocalFunctions: Boolean = false,
-        val canWrapInWith: Boolean = false
+    val inferUnitTypeForUnusedValues: Boolean = true,
+    val enableListBoxing: Boolean = false,
+    val extractAsProperty: Boolean = false,
+    val captureLocalFunctions: Boolean = false,
+    val canWrapInWith: Boolean = false
 ) {
     companion object {
         val DEFAULT = ExtractionOptions()
@@ -65,28 +66,28 @@ data class ExtractionOptions(
 }
 
 data class ResolveResult(
-        val originalRefExpr: KtSimpleNameExpression,
-        val declaration: PsiNameIdentifierOwner,
-        val descriptor: DeclarationDescriptor,
-        val resolvedCall: ResolvedCall<*>?
+    val originalRefExpr: KtSimpleNameExpression,
+    val declaration: PsiElement,
+    val descriptor: DeclarationDescriptor,
+    val resolvedCall: ResolvedCall<*>?
 )
 
 data class ResolvedReferenceInfo(
-        val refExpr: KtSimpleNameExpression,
-        val resolveResult: ResolveResult,
-        val smartCast: KotlinType?,
-        val possibleTypes: Set<KotlinType>,
-        val shouldSkipPrimaryReceiver: Boolean
+    val refExpr: KtSimpleNameExpression,
+    val resolveResult: ResolveResult,
+    val smartCast: KotlinType?,
+    val possibleTypes: Set<KotlinType>,
+    val shouldSkipPrimaryReceiver: Boolean
 )
 
-internal var KtSimpleNameExpression.resolveResult: ResolveResult? by CopyableUserDataProperty(Key.create("RESOLVE_RESULT"))
+internal var KtSimpleNameExpression.resolveResult: ResolveResult? by CopyablePsiUserDataProperty(Key.create("RESOLVE_RESULT"))
 
 data class ExtractionData(
-        val originalFile: KtFile,
-        val originalRange: KotlinPsiRange,
-        val targetSibling: PsiElement,
-        val duplicateContainer: PsiElement? = null,
-        val options: ExtractionOptions = ExtractionOptions.DEFAULT
+    val originalFile: KtFile,
+    val originalRange: KotlinPsiRange,
+    val targetSibling: PsiElement,
+    val duplicateContainer: PsiElement? = null,
+    val options: ExtractionOptions = ExtractionOptions.DEFAULT
 ) : Disposable {
     val project: Project = originalFile.project
     val originalElements: List<PsiElement> = originalRange.elements
@@ -96,9 +97,9 @@ data class ExtractionData(
         get() = (originalElements.singleOrNull() as? KtExpression)?.extractableSubstringInfo
 
     val insertBefore: Boolean = options.extractAsProperty
-                                || targetSibling.getStrictParentOfType<KtDeclaration>()?.let {
-                                    it is KtDeclarationWithBody || it is KtAnonymousInitializer
-                                } ?: false
+            || targetSibling.getStrictParentOfType<KtDeclaration>()?.let {
+        it is KtDeclarationWithBody || it is KtAnonymousInitializer
+    } ?: false
 
     val expressions = originalElements.filterIsInstance<KtExpression>()
 
@@ -123,19 +124,22 @@ data class ExtractionData(
     }
 
     private fun isExtractableIt(descriptor: DeclarationDescriptor, context: BindingContext): Boolean {
-        if (!(descriptor is ValueParameterDescriptor && (context[BindingContext.AUTO_CREATED_IT, descriptor] ?: false))) return false
+        if (!(descriptor is ValueParameterDescriptor && (context[BindingContext.AUTO_CREATED_IT, descriptor] == true))) return false
         val function = DescriptorToSourceUtils.descriptorToDeclaration(descriptor.containingDeclaration) as? KtFunctionLiteral
         return function == null || !function.isInsideOf(physicalElements)
     }
 
-    private tailrec fun getDeclaration(descriptor: DeclarationDescriptor, context: BindingContext): PsiNameIdentifierOwner? {
-        (DescriptorToSourceUtilsIde.getAnyDeclaration(project, descriptor) as? PsiNameIdentifierOwner)?.let { return it }
+    private tailrec fun getDeclaration(descriptor: DeclarationDescriptor, context: BindingContext): PsiElement? {
+        val declaration = DescriptorToSourceUtilsIde.getAnyDeclaration(project, descriptor)
+        if (declaration is PsiNameIdentifierOwner) {
+            return declaration
+        }
 
         return when {
             isExtractableIt(descriptor, context) -> itFakeDeclaration
             isSynthesizedInvoke(descriptor) -> synthesizedInvokeDeclaration
             descriptor is SyntheticJavaPropertyDescriptor -> getDeclaration(descriptor.getMethod, context)
-            else -> null
+            else -> declaration
         }
     }
 
@@ -177,17 +181,21 @@ data class ExtractionData(
         expressions.forEach { it.accept(visitor) }
     }
 
-    fun getPossibleTypes(expression: KtExpression, resolvedCall: ResolvedCall<*>?, context: BindingContext): Set<KotlinType> {
+    private fun getPossibleTypes(expression: KtExpression, resolvedCall: ResolvedCall<*>?, context: BindingContext): Set<KotlinType> {
+        val dataFlowValueFactory = expression.getResolutionFacade().getDataFlowValueFactory()
         val dataFlowInfo = context.getDataFlowInfoAfter(expression)
 
-        (resolvedCall?.getImplicitReceiverValue() as? ImplicitReceiver)?.let {
-            return dataFlowInfo.getCollectedTypes(DataFlowValueFactory.createDataFlowValueForStableReceiver(it))
+        resolvedCall?.getImplicitReceiverValue()?.let {
+            return dataFlowInfo.getCollectedTypes(
+                dataFlowValueFactory.createDataFlowValueForStableReceiver(it),
+                expression.languageVersionSettings
+            )
         }
 
         val type = resolvedCall?.resultingDescriptor?.returnType ?: return emptySet()
         val containingDescriptor = expression.getResolutionScope(context, expression.getResolutionFacade()).ownerDescriptor
-        val dataFlowValue = DataFlowValueFactory.createDataFlowValue(expression, type, context, containingDescriptor)
-        return dataFlowInfo.getCollectedTypes(dataFlowValue)
+        val dataFlowValue = dataFlowValueFactory.createDataFlowValue(expression, type, context, containingDescriptor)
+        return dataFlowInfo.getCollectedTypes(dataFlowValue, expression.languageVersionSettings)
     }
 
     fun getBrokenReferencesInfo(body: KtBlockExpression): List<ResolvedReferenceInfo> {
@@ -212,13 +220,12 @@ data class ExtractionData(
                 smartCast = originalContext[BindingContext.SMARTCAST, smartCastTarget]?.defaultType
                 possibleTypes = getPossibleTypes(smartCastTarget, originalResolveResult.resolvedCall, originalContext)
                 val receiverDescriptor =
-                        (originalResolveResult.resolvedCall?.dispatchReceiver as? ImplicitReceiver)?.declarationDescriptor
+                    (originalResolveResult.resolvedCall?.dispatchReceiver as? ImplicitReceiver)?.declarationDescriptor
                 shouldSkipPrimaryReceiver = smartCast == null
-                                            && !DescriptorUtils.isCompanionObject(receiverDescriptor)
-                                            && qualifiedExpression.receiverExpression !is KtSuperExpression
-                if (shouldSkipPrimaryReceiver && !(originalResolveResult.resolvedCall?.hasBothReceivers() ?: false)) continue
-            }
-            else {
+                        && !DescriptorUtils.isCompanionObject(receiverDescriptor)
+                        && qualifiedExpression.receiverExpression !is KtSuperExpression
+                if (shouldSkipPrimaryReceiver && originalResolveResult.resolvedCall?.hasBothReceivers() != true) continue
+            } else {
                 if (newRef.getParentOfTypeAndBranch<KtCallableReferenceExpression> { callableReference } != null) continue
                 smartCast = originalContext[BindingContext.SMARTCAST, originalResolveResult.originalRefExpr]?.defaultType
                 possibleTypes = getPossibleTypes(originalResolveResult.originalRefExpr, originalResolveResult.resolvedCall, originalContext)
@@ -232,8 +239,10 @@ data class ExtractionData(
 
             val descriptor = context[BindingContext.REFERENCE_TARGET, newRef]
             val isBadRef = !(compareDescriptors(project, originalResolveResult.descriptor, descriptor)
-                             && originalContext.diagnostics.forElement(originalResolveResult.originalRefExpr) == context.diagnostics.forElement(newRef))
-                           || smartCast != null
+                    && originalContext.diagnostics.forElement(originalResolveResult.originalRefExpr) == context.diagnostics.forElement(
+                newRef
+            ))
+                    || smartCast != null
             if (isBadRef && !originalResolveResult.declaration.isInsideOf(physicalElements)) {
                 val originalResolvedCall = originalResolveResult.resolvedCall as? VariableAsFunctionResolvedCall
                 val originalFunctionCall = originalResolvedCall?.functionCall
@@ -241,16 +250,43 @@ data class ExtractionData(
                 val invokeDescriptor = originalFunctionCall?.resultingDescriptor
                 if (invokeDescriptor != null) {
                     val invokeDeclaration = getDeclaration(invokeDescriptor, context) ?: synthesizedInvokeDeclaration
-                    val variableResolveResult = originalResolveResult.copy(resolvedCall = originalVariableCall!!,
-                                                                           descriptor = originalVariableCall.resultingDescriptor)
-                    val functionResolveResult = originalResolveResult.copy(resolvedCall = originalFunctionCall,
-                                                                           descriptor = originalFunctionCall.resultingDescriptor,
-                                                                           declaration = invokeDeclaration)
-                    referencesInfo.add(ResolvedReferenceInfo(newRef, variableResolveResult, smartCast, possibleTypes, shouldSkipPrimaryReceiver))
-                    referencesInfo.add(ResolvedReferenceInfo(newRef, functionResolveResult, smartCast, possibleTypes, shouldSkipPrimaryReceiver))
-                }
-                else {
-                    referencesInfo.add(ResolvedReferenceInfo(newRef, originalResolveResult, smartCast, possibleTypes, shouldSkipPrimaryReceiver))
+                    val variableResolveResult = originalResolveResult.copy(
+                        resolvedCall = originalVariableCall!!,
+                        descriptor = originalVariableCall.resultingDescriptor
+                    )
+                    val functionResolveResult = originalResolveResult.copy(
+                        resolvedCall = originalFunctionCall,
+                        descriptor = originalFunctionCall.resultingDescriptor,
+                        declaration = invokeDeclaration
+                    )
+                    referencesInfo.add(
+                        ResolvedReferenceInfo(
+                            newRef,
+                            variableResolveResult,
+                            smartCast,
+                            possibleTypes,
+                            shouldSkipPrimaryReceiver
+                        )
+                    )
+                    referencesInfo.add(
+                        ResolvedReferenceInfo(
+                            newRef,
+                            functionResolveResult,
+                            smartCast,
+                            possibleTypes,
+                            shouldSkipPrimaryReceiver
+                        )
+                    )
+                } else {
+                    referencesInfo.add(
+                        ResolvedReferenceInfo(
+                            newRef,
+                            originalResolveResult,
+                            smartCast,
+                            possibleTypes,
+                            shouldSkipPrimaryReceiver
+                        )
+                    )
                 }
             }
         }
@@ -264,6 +300,8 @@ data class ExtractionData(
 }
 
 fun unmarkReferencesInside(root: PsiElement) {
-    if (!root.isValid) return
-    root.forEachDescendantOfType<KtSimpleNameExpression> { it.resolveResult = null }
+    runReadAction {
+        if (!root.isValid) return@runReadAction
+        root.forEachDescendantOfType<KtSimpleNameExpression> { it.resolveResult = null }
+    }
 }

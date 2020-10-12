@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.inspections
@@ -20,6 +9,7 @@ import com.intellij.codeInsight.CodeInsightUtil
 import com.intellij.codeInspection.*
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElementVisitor
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.intentions.negate
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.*
@@ -27,18 +17,17 @@ import org.jetbrains.kotlin.psi.*
 class RedundantIfInspection : AbstractKotlinInspection(), CleanupLocalInspectionTool {
 
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
-        return object : KtVisitorVoid() {
-            override fun visitIfExpression(expression: KtIfExpression) {
-                super.visitIfExpression(expression)
-                if (expression.condition == null) return
-                val (redundancyType, branchType) = RedundancyType.of(expression)
-                if (redundancyType == RedundancyType.NONE) return
+        return ifExpressionVisitor { expression ->
+            if (expression.condition == null) return@ifExpressionVisitor
+            val (redundancyType, branchType) = RedundancyType.of(expression)
+            if (redundancyType == RedundancyType.NONE) return@ifExpressionVisitor
 
-                holder.registerProblem(expression,
-                                       "Redundant 'if' statement",
-                                       ProblemHighlightType.WEAK_WARNING,
-                                       RemoveRedundantIf(redundancyType, branchType))
-            }
+            holder.registerProblem(
+                expression,
+                KotlinBundle.message("redundant.if.statement"),
+                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                RemoveRedundantIf(redundancyType, branchType)
+            )
         }
     }
 
@@ -46,6 +35,8 @@ class RedundantIfInspection : AbstractKotlinInspection(), CleanupLocalInspection
         object Simple : BranchType()
 
         object Return : BranchType()
+
+        data class LabeledReturn(val label: String) : BranchType()
 
         class Assign(val lvalue: KtExpression) : BranchType() {
             override fun equals(other: Any?) = other is Assign && lvalue.text == other.lvalue.text
@@ -74,7 +65,10 @@ class RedundantIfInspection : AbstractKotlinInspection(), CleanupLocalInspection
 
             private fun KtExpression?.getBranchExpression(): Pair<KtExpression?, BranchType>? {
                 return when (this) {
-                    is KtReturnExpression -> returnedExpression to BranchType.Return
+                    is KtReturnExpression -> {
+                        val branchType = labeledExpression?.let { BranchType.LabeledReturn(it.text) } ?: BranchType.Return
+                        returnedExpression to branchType
+                    }
                     is KtBlockExpression -> statements.singleOrNull()?.getBranchExpression()
                     is KtBinaryExpression -> if (operationToken == KtTokens.EQ && left != null)
                         right to BranchType.Assign(left!!)
@@ -88,7 +82,7 @@ class RedundantIfInspection : AbstractKotlinInspection(), CleanupLocalInspection
     }
 
     private class RemoveRedundantIf(private val redundancyType: RedundancyType, private val branchType: BranchType) : LocalQuickFix {
-        override fun getName() = "Remove redundant 'if' statement"
+        override fun getName() = KotlinBundle.message("remove.redundant.if.text")
         override fun getFamilyName() = name
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
@@ -101,11 +95,12 @@ class RedundantIfInspection : AbstractKotlinInspection(), CleanupLocalInspection
             }
             val factory = KtPsiFactory(element)
             element.replace(
-                    when (branchType) {
-                        is BranchType.Return -> factory.createExpressionByPattern("return $0", condition)
-                        is BranchType.Assign -> factory.createExpressionByPattern("$0 = $1", branchType.lvalue, condition)
-                        else -> condition
-                    }
+                when (branchType) {
+                    is BranchType.Return -> factory.createExpressionByPattern("return $0", condition)
+                    is BranchType.LabeledReturn -> factory.createExpressionByPattern("return${branchType.label} $0", condition)
+                    is BranchType.Assign -> factory.createExpressionByPattern("$0 = $1", branchType.lvalue, condition)
+                    else -> condition
+                }
             )
         }
     }

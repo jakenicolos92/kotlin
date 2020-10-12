@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,27 +17,52 @@
 package org.jetbrains.kotlin.js.inline.util.rewriters
 
 import org.jetbrains.kotlin.js.backend.ast.*
+import org.jetbrains.kotlin.js.backend.ast.metadata.coroutineMetadata
 
 class NameReplacingVisitor(private val replaceMap: Map<JsName, JsExpression>) : JsVisitorWithContextImpl() {
 
     override fun endVisit(x: JsNameRef, ctx: JsContext<JsNode>) {
+        if (x.qualifier != null) return
         val replacement = replaceMap[x.name] ?: return
-        ctx.replaceMe(replacement.deepCopy())
-    }
-
-    override fun endVisit(x: JsVars.JsVar, ctx: JsContext<JsNode>) {
-        val replacement = replaceMap[x.name]
-        if (replacement is HasName) {
-            val replacementVar = JsVars.JsVar(replacement.name, x.initExpression)
-            ctx.replaceMe(replacementVar)
+        if (replacement is JsNameRef) {
+            applyToNamedNode(x)
+        }
+        else {
+            val replacementCopy = replacement.deepCopy()
+            if (x.source != null) {
+                replacementCopy.source = x.source
+            }
+            ctx.replaceMe(accept(replacementCopy))
         }
     }
 
-    override fun endVisit(x: JsLabel, ctx: JsContext<JsNode>) {
-        val replacement = replaceMap[x.name]
-        if (replacement is HasName) {
-            val replacementLabel = JsLabel(replacement.name, x.statement)
-            ctx.replaceMe(replacementLabel)
+    override fun endVisit(x: JsVars.JsVar, ctx: JsContext<*>) = applyToNamedNode(x)
+
+    override fun endVisit(x: JsLabel, ctx: JsContext<*>) = applyToNamedNode(x)
+
+    override fun endVisit(x: JsFunction, ctx: JsContext<*>) = applyToNamedNode(x)
+
+    override fun endVisit(x: JsParameter, ctx: JsContext<*>) = applyToNamedNode(x)
+
+    override fun visit(x: JsFunction, ctx: JsContext<*>): Boolean {
+        x.coroutineMetadata?.let { coroutineMetadata ->
+            x.coroutineMetadata = coroutineMetadata.copy(
+                baseClassRef = accept(coroutineMetadata.baseClassRef.deepCopy()),
+                suspendObjectRef = accept(coroutineMetadata.suspendObjectRef.deepCopy())
+            )
+        }
+        return super.visit(x, ctx)
+    }
+
+    private fun applyToNamedNode(x: HasName) {
+        while (true) {
+            val replacement = replaceMap[x.name]
+            if (replacement is HasName) {
+                x.name = replacement.name
+            }
+            else {
+                break
+            }
         }
     }
 }

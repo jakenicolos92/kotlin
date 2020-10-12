@@ -1,22 +1,12 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.intentions.loopToCallChain
 
 import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.Ref
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.cfg.pseudocode.Pseudocode
 import org.jetbrains.kotlin.cfg.pseudocode.PseudocodeUtil
@@ -38,30 +28,30 @@ import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 
 object MatcherRegistrar {
     val matchers: Collection<TransformationMatcher> = listOf(
-            FindTransformationMatcher,
-            AddToCollectionTransformation.Matcher,
-            CountTransformation.Matcher,
-            SumTransformationBase.Matcher,
-            MaxOrMinTransformation.Matcher,
-            IntroduceIndexMatcher,
-            FilterTransformationBase.Matcher,
-            MapTransformation.Matcher,
-            FlatMapTransformation.Matcher,
-            ForEachTransformation.Matcher
+        FindTransformationMatcher,
+        AddToCollectionTransformation.Matcher,
+        CountTransformation.Matcher,
+        SumTransformationBase.Matcher,
+        MaxOrMinTransformation.Matcher,
+        IntroduceIndexMatcher,
+        FilterTransformationBase.Matcher,
+        MapTransformation.Matcher,
+        FlatMapTransformation.Matcher,
+        ForEachTransformation.Matcher
     )
 }
 
 data class MatchResult(
-        val sequenceExpression: KtExpression,
-        val transformationMatch: TransformationMatch.Result,
-        val initializationStatementsToDelete: Collection<KtExpression>
+    val sequenceExpression: KtExpression,
+    val transformationMatch: TransformationMatch.Result,
+    val initializationStatementsToDelete: Collection<KtExpression>
 )
 
 //TODO: loop which is already over Sequence
-fun match(loop: KtForExpression, useLazySequence: Boolean): MatchResult? {
+fun match(loop: KtForExpression, useLazySequence: Boolean, reformat: Boolean): MatchResult? {
     val (inputVariable, indexVariable, sequenceExpression) = extractLoopData(loop) ?: return null
 
-    var state = createInitialMatchingState(loop, inputVariable, indexVariable, useLazySequence) ?: return null
+    var state = createInitialMatchingState(loop, inputVariable, indexVariable, useLazySequence, reformat) ?: return null
 
     // used just as optimization to avoid unnecessary checks
     val loopContainsEmbeddedBreakOrContinue = loop.containsEmbeddedBreakOrContinue()
@@ -77,7 +67,8 @@ fun match(loop: KtForExpression, useLazySequence: Boolean): MatchResult? {
             state = state.copy(indexVariable = null)
         }
 
-        val restContainsEmbeddedBreakOrContinue = loopContainsEmbeddedBreakOrContinue && state.statements.any { it.containsEmbeddedBreakOrContinue() }
+        val restContainsEmbeddedBreakOrContinue =
+            loopContainsEmbeddedBreakOrContinue && state.statements.any { it.containsEmbeddedBreakOrContinue() }
 
         MatchersLoop@
         for (matcher in MatcherRegistrar.matchers) {
@@ -94,7 +85,8 @@ fun match(loop: KtForExpression, useLazySequence: Boolean): MatchResult? {
 
                         if (matcher.shouldUseInputVariables
                             && !state.inputVariable.hasDifferentSetsOfUsages(state.statements, newState.statements)
-                            && !(state.indexVariable?.hasDifferentSetsOfUsages(state.statements, newState.statements) ?: false)) {
+                            && !(state.indexVariable?.hasDifferentSetsOfUsages(state.statements, newState.statements) ?: false)
+                        ) {
                             // matched part of the loop uses neither input variable nor index variable
                             continue@MatchersLoop
                         }
@@ -122,13 +114,14 @@ fun match(loop: KtForExpression, useLazySequence: Boolean): MatchResult? {
                         state.previousTransformations += match.sequenceTransformations
 
                         var result = TransformationMatch.Result(match.resultTransformation, state.previousTransformations)
-                        result = mergeTransformations(result)
+                        result = mergeTransformations(result, reformat)
 
                         if (useLazySequence) {
                             val sequenceTransformations = result.sequenceTransformations
                             val resultTransformation = result.resultTransformation
                             if (sequenceTransformations.isEmpty() && !resultTransformation.lazyMakesSense
-                                || sequenceTransformations.size == 1 && resultTransformation is AssignToListTransformation) {
+                                || sequenceTransformations.size == 1 && resultTransformation is AssignToListTransformation
+                            ) {
                                 return null // it makes no sense to use lazy sequence if no intermediate sequences produced
                             }
                             val asSequence = AsSequenceTransformation(loop)
@@ -137,7 +130,7 @@ fun match(loop: KtForExpression, useLazySequence: Boolean): MatchResult? {
 
 
                         return MatchResult(sequenceExpression, result, state.initializationStatementsToDelete)
-                                .takeIf { checkSmartCastsPreserved(loop, it) }
+                            .takeIf { checkSmartCastsPreserved(loop, it) }
                     }
                 }
             }
@@ -156,7 +149,7 @@ fun convertLoop(loop: KtForExpression, matchResult: MatchResult): KtExpression {
 
     matchResult.initializationStatementsToDelete.forEach { commentSavingRangeHolder.add(it) }
 
-    val callChain = matchResult.generateCallChain(loop)
+    val callChain = matchResult.generateCallChain(loop, true)
 
     commentSavingRangeHolder.remove(loop.unwrapIfLabeled()) // loop will be deleted in all cases
     val result = resultTransformation.convertLoop(callChain, commentSavingRangeHolder)
@@ -174,9 +167,10 @@ fun convertLoop(loop: KtForExpression, matchResult: MatchResult): KtExpression {
 }
 
 data class LoopData(
-        val inputVariable: KtCallableDeclaration,
-        val indexVariable: KtCallableDeclaration?,
-        val sequenceExpression: KtExpression)
+    val inputVariable: KtCallableDeclaration,
+    val indexVariable: KtCallableDeclaration?,
+    val sequenceExpression: KtExpression
+)
 
 private fun extractLoopData(loop: KtForExpression): LoopData? {
     val loopRange = loop.loopRange ?: return null
@@ -200,10 +194,11 @@ private fun extractLoopData(loop: KtForExpression): LoopData? {
 }
 
 private fun createInitialMatchingState(
-        loop: KtForExpression,
-        inputVariable: KtCallableDeclaration,
-        indexVariable: KtCallableDeclaration?,
-        useLazySequence: Boolean
+    loop: KtForExpression,
+    inputVariable: KtCallableDeclaration,
+    indexVariable: KtCallableDeclaration?,
+    useLazySequence: Boolean,
+    reformat: Boolean
 ): MatchingState? {
 
     val pseudocodeProvider: () -> Pseudocode = object : () -> Pseudocode {
@@ -217,13 +212,14 @@ private fun createInitialMatchingState(
     }
 
     return MatchingState(
-            outerLoop = loop,
-            innerLoop = loop,
-            statements = listOf(loop.body ?: return null),
-            inputVariable = inputVariable,
-            indexVariable = indexVariable,
-            lazySequence = useLazySequence,
-            pseudocodeProvider = pseudocodeProvider
+        outerLoop = loop,
+        innerLoop = loop,
+        statements = listOf(loop.body ?: return null),
+        inputVariable = inputVariable,
+        indexVariable = indexVariable,
+        lazySequence = useLazySequence,
+        pseudocodeProvider = pseudocodeProvider,
+        reformat = reformat
     )
 }
 
@@ -244,39 +240,47 @@ private fun checkSmartCastsPreserved(loop: KtForExpression, matchResult: MatchRe
     val bindingContext = loop.analyze(BodyResolveMode.FULL)
 
     // we declare these keys locally to avoid possible race-condition problems if this code is executed in 2 threads simultaneously
-    val SMARTCAST_KEY = Key<ExplicitSmartCasts>("SMARTCAST_KEY")
-    val IMPLICIT_RECEIVER_SMARTCAST_KEY = Key<ImplicitSmartCasts>("IMPLICIT_RECEIVER_SMARTCAST")
+    val SMARTCAST_KEY = Key<Ref<ExplicitSmartCasts>>("SMARTCAST_KEY")
+    val IMPLICIT_RECEIVER_SMARTCAST_KEY = Key<Ref<ImplicitSmartCasts>>("IMPLICIT_RECEIVER_SMARTCAST")
+
+    val storedUserData = mutableListOf<Ref<*>>()
 
     var smartCastCount = 0
     try {
         loop.forEachDescendantOfType<KtExpression> { expression ->
-            bindingContext[BindingContext.SMARTCAST, expression]?.let {
-                expression.putCopyableUserData(SMARTCAST_KEY, it)
+            bindingContext[BindingContext.SMARTCAST, expression]?.let { explicitSmartCasts ->
+                Ref(explicitSmartCasts).apply {
+                    expression.putCopyableUserData(SMARTCAST_KEY, this)
+                    storedUserData += this
+                }
                 smartCastCount++
             }
 
-            bindingContext[BindingContext.IMPLICIT_RECEIVER_SMARTCAST, expression]?.let {
-                expression.putCopyableUserData(IMPLICIT_RECEIVER_SMARTCAST_KEY, it)
+            bindingContext[BindingContext.IMPLICIT_RECEIVER_SMARTCAST, expression]?.let { implicitSmartCasts ->
+                Ref(implicitSmartCasts).apply {
+                    expression.putCopyableUserData(IMPLICIT_RECEIVER_SMARTCAST_KEY, this)
+                    storedUserData += this
+                }
                 smartCastCount++
             }
         }
 
         if (smartCastCount == 0) return true // optimization
 
-        val callChain = matchResult.generateCallChain(loop)
+        val callChain = matchResult.generateCallChain(loop, false)
 
         val newBindingContext = callChain.analyzeAsReplacement(loop, bindingContext)
 
         var preservedSmartCastCount = 0
         callChain.forEachDescendantOfType<KtExpression> { expression ->
-            val smartCastType = expression.getCopyableUserData(SMARTCAST_KEY)
+            val smartCastType = expression.getCopyableUserData(SMARTCAST_KEY)?.get()
             if (smartCastType != null) {
                 if (newBindingContext[BindingContext.SMARTCAST, expression] == smartCastType || newBindingContext.getType(expression) == smartCastType) {
                     preservedSmartCastCount++
                 }
             }
 
-            val implicitReceiverSmartCastType = expression.getCopyableUserData(IMPLICIT_RECEIVER_SMARTCAST_KEY)
+            val implicitReceiverSmartCastType = expression.getCopyableUserData(IMPLICIT_RECEIVER_SMARTCAST_KEY)?.get()
             if (implicitReceiverSmartCastType != null) {
                 if (newBindingContext[BindingContext.IMPLICIT_RECEIVER_SMARTCAST, expression] == implicitReceiverSmartCastType) {
                     preservedSmartCastCount++
@@ -291,8 +295,8 @@ private fun checkSmartCastsPreserved(loop: KtForExpression, matchResult: MatchRe
         if (!tryChangeAndCheckErrors(loop) { it.replace(expression) }) return false
 
         return true
-    }
-    finally {
+    } finally {
+        storedUserData.forEach { it.set(null) }
         if (smartCastCount > 0) {
             loop.forEachDescendantOfType<KtExpression> {
                 it.putCopyableUserData(SMARTCAST_KEY, null)
@@ -302,12 +306,12 @@ private fun checkSmartCastsPreserved(loop: KtForExpression, matchResult: MatchRe
     }
 }
 
-private fun MatchResult.generateCallChain(loop: KtForExpression): KtExpression {
+private fun MatchResult.generateCallChain(loop: KtForExpression, reformat: Boolean): KtExpression {
     var sequenceTransformations = transformationMatch.sequenceTransformations
     var resultTransformation = transformationMatch.resultTransformation
-    while(true) {
+    while (true) {
         val last = sequenceTransformations.lastOrNull() ?: break
-        resultTransformation = resultTransformation.mergeWithPrevious(last) ?: break
+        resultTransformation = resultTransformation.mergeWithPrevious(last, reformat) ?: break
         sequenceTransformations = sequenceTransformations.dropLast(1)
     }
 
@@ -321,10 +325,13 @@ private fun MatchResult.generateCallChain(loop: KtForExpression): KtExpression {
         override val receiver: KtExpression
             get() = callChain
 
+        override val reformat: Boolean
+            get() = reformat
+
         override fun generate(pattern: String, vararg args: Any, receiver: KtExpression, safeCall: Boolean): KtExpression {
             val dot = if (safeCall) "?." else "."
             val newPattern = "$" + args.size + lineBreak + dot + pattern
-            return psiFactory.createExpressionByPattern(newPattern, *args, receiver)
+            return psiFactory.createExpressionByPattern(newPattern, *args, receiver, reformat = reformat)
         }
     }
 
@@ -336,38 +343,43 @@ private fun MatchResult.generateCallChain(loop: KtForExpression): KtExpression {
     return callChain
 }
 
-private fun mergeTransformations(match: TransformationMatch.Result): TransformationMatch.Result {
+private fun mergeTransformations(match: TransformationMatch.Result, reformat: Boolean): TransformationMatch.Result {
     val transformations = (match.sequenceTransformations + match.resultTransformation).toMutableList()
 
     var anyChange: Boolean
     do {
         anyChange = false
-        for (index in 0..transformations.lastIndex - 1) {
+        for (index in 0 until transformations.lastIndex) {
             val transformation = transformations[index] as SequenceTransformation
             val next = transformations[index + 1]
-            val merged = next.mergeWithPrevious(transformation) ?: continue
+            val merged = next.mergeWithPrevious(transformation, reformat) ?: continue
             transformations[index] = merged
             transformations.removeAt(index + 1)
             anyChange = true
             break
         }
-    } while(anyChange)
+    } while (anyChange)
 
     @Suppress("UNCHECKED_CAST")
-    return TransformationMatch.Result(transformations.last() as ResultTransformation, transformations.dropLast(1) as List<SequenceTransformation>)
+    return TransformationMatch.Result(
+        transformations.last() as ResultTransformation,
+        transformations.dropLast(1) as List<SequenceTransformation>
+    )
 }
 
 data class IntroduceIndexData(
-        val indexVariable: KtCallableDeclaration,
-        val initializationStatement: KtExpression,
-        val incrementExpression: KtUnaryExpression
+    val indexVariable: KtCallableDeclaration,
+    val initializationStatement: KtExpression,
+    val incrementExpression: KtUnaryExpression
 )
 
-fun matchIndexToIntroduce(loop: KtForExpression): IntroduceIndexData? {
+fun matchIndexToIntroduce(loop: KtForExpression, reformat: Boolean): IntroduceIndexData? {
+    if (loop.destructuringDeclaration != null) return null
     val (inputVariable, indexVariable) = extractLoopData(loop) ?: return null
     if (indexVariable != null) return null // loop is already with "withIndex"
 
-    val state = createInitialMatchingState(loop, inputVariable, indexVariable, useLazySequence = false)?.unwrapBlock() ?: return null
+    val state = createInitialMatchingState(loop, inputVariable, indexVariable, useLazySequence = false, reformat = reformat)?.unwrapBlock()
+        ?: return null
 
     val match = IntroduceIndexMatcher.match(state) ?: return null
     assert(match.sequenceTransformations.isEmpty())

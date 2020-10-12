@@ -17,22 +17,52 @@
 package org.jetbrains.kotlin.idea.script
 
 import com.intellij.openapi.project.Project
+import org.jetbrains.kotlin.config.CompilerSettings
 import org.jetbrains.kotlin.idea.compiler.configuration.KotlinCompilerSettings
-import org.jetbrains.kotlin.idea.core.script.topLevelSectionCodeTextTokens
-import org.jetbrains.kotlin.script.ScriptTemplatesProvider
+import org.jetbrains.kotlin.idea.compiler.configuration.KotlinCompilerSettingsListener
+import org.jetbrains.kotlin.idea.core.script.ScriptDefinitionSourceAsContributor
+import org.jetbrains.kotlin.idea.core.script.ScriptDefinitionsManager
+import org.jetbrains.kotlin.idea.core.script.loadDefinitionsFromTemplates
+import org.jetbrains.kotlin.idea.util.application.executeOnPooledThread
+import org.jetbrains.kotlin.scripting.definitions.ScriptDefinition
+import org.jetbrains.kotlin.scripting.definitions.getEnvironment
 import java.io.File
+import kotlin.script.experimental.host.ScriptingHostConfiguration
+import kotlin.script.experimental.jvm.defaultJvmScriptingHostConfiguration
 
-class ScriptTemplatesFromCompilerSettingsProvider(project: Project): ScriptTemplatesProvider
-{
-    private val kotlinSettings = KotlinCompilerSettings.getInstance(project).settings
+class ScriptTemplatesFromCompilerSettingsProvider(
+    private val project: Project
+) : ScriptDefinitionSourceAsContributor {
+
+    init {
+        project.messageBus.connect().subscribe(KotlinCompilerSettingsListener.TOPIC, object : KotlinCompilerSettingsListener {
+            override fun <T> settingsChanged(newSettings: T) {
+                if (newSettings !is CompilerSettings) return
+
+                executeOnPooledThread {
+                    ScriptDefinitionsManager.getInstance(project).reloadDefinitionsBy(this@ScriptTemplatesFromCompilerSettingsProvider)
+                }
+            }
+        })
+    }
+
+    override val definitions: Sequence<ScriptDefinition>
+        get() {
+            val kotlinSettings = KotlinCompilerSettings.getInstance(project).settings
+            return if (kotlinSettings.scriptTemplates.isBlank()) emptySequence()
+            else loadDefinitionsFromTemplates(
+                templateClassNames = kotlinSettings.scriptTemplates.split(',', ' '),
+                templateClasspath = kotlinSettings.scriptTemplatesClasspath.split(File.pathSeparator).map(::File),
+                baseHostConfiguration = ScriptingHostConfiguration(defaultJvmScriptingHostConfiguration) {
+                    getEnvironment {
+                        mapOf(
+                            "projectRoot" to (project.basePath ?: project.baseDir.canonicalPath)?.let(::File)
+                        )
+                    }
+                }
+            ).asSequence()
+        }
 
     override val id: String = "KotlinCompilerScriptTemplatesSettings"
-    override val isValid: Boolean = kotlinSettings.scriptTemplates.isNotBlank()
-
-    override val templateClassNames: Iterable<String> get() = kotlinSettings.scriptTemplates.split(',', ' ')
-    override val dependenciesClasspath: Iterable<String> get() = kotlinSettings.scriptTemplatesClasspath.split(File.pathSeparator)
-    override val environment: Map<String, Any?>? by lazy { mapOf(
-            "projectRoot" to (project.basePath ?: project.baseDir.canonicalPath)?.let(::File))
-    }
 }
 

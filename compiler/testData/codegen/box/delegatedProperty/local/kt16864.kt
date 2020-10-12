@@ -1,4 +1,3 @@
-
 object Whatever {
     operator fun getValue(thisRef: Any?, prop: Any?) = "OK"
 }

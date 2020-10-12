@@ -16,13 +16,23 @@
 
 package org.jetbrains.kotlin.compilerRunner;
 
+import kotlin.collections.CollectionsKt;
+import kotlin.jvm.JvmClassMappingKt;
+import kotlin.reflect.KClass;
+import kotlin.reflect.KProperty1;
+import kotlin.reflect.KVisibility;
+import kotlin.reflect.full.KClasses;
+import kotlin.reflect.jvm.ReflectJvmMapping;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.cli.common.arguments.Argument;
-import org.jetbrains.kotlin.cli.common.arguments.CommonCompilerArguments;
+import org.jetbrains.kotlin.cli.common.arguments.CommonToolArguments;
+import org.jetbrains.kotlin.cli.common.arguments.InternalArgument;
 import org.jetbrains.kotlin.cli.common.arguments.ParseCommandLineArgumentsKt;
 import org.jetbrains.kotlin.utils.StringsKt;
 
-import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -32,40 +42,37 @@ public class ArgumentUtils {
     private ArgumentUtils() {}
 
     @NotNull
-    public static List<String> convertArgumentsToStringList(@NotNull CommonCompilerArguments arguments)
-            throws InstantiationException, IllegalAccessException {
+    public static List<String> convertArgumentsToStringList(@NotNull CommonToolArguments arguments)
+            throws InstantiationException, IllegalAccessException, InvocationTargetException {
         List<String> result = new ArrayList<>();
-        convertArgumentsToStringList(arguments, arguments.getClass().newInstance(), arguments.getClass(), result);
-        result.addAll(arguments.freeArgs);
+        Class<? extends CommonToolArguments> argumentsClass = arguments.getClass();
+        convertArgumentsToStringList(arguments, argumentsClass.newInstance(), JvmClassMappingKt.getKotlinClass(argumentsClass), result);
+        result.addAll(arguments.getFreeArgs());
+        result.addAll(CollectionsKt.map(arguments.getInternalArguments(), InternalArgument::getStringRepresentation));
         return result;
     }
 
+    @SuppressWarnings("unchecked")
     private static void convertArgumentsToStringList(
-            @NotNull CommonCompilerArguments arguments,
-            @NotNull CommonCompilerArguments defaultArguments,
-            @NotNull Class<?> clazz,
+            @NotNull CommonToolArguments arguments,
+            @NotNull CommonToolArguments defaultArguments,
+            @NotNull KClass<?> clazz,
             @NotNull List<String> result
-    ) throws IllegalAccessException, InstantiationException {
-        for (Field field : clazz.getDeclaredFields()) {
-            Argument argument = field.getAnnotation(Argument.class);
+    ) throws IllegalAccessException, InstantiationException, InvocationTargetException {
+        for (KProperty1 property : KClasses.getMemberProperties(clazz)) {
+            Argument argument = findInstance(property.getAnnotations(), Argument.class);
             if (argument == null) continue;
 
-            Object value;
-            Object defaultValue;
-            try {
-                value = field.get(arguments);
-                defaultValue = field.get(defaultArguments);
-            }
-            catch (IllegalAccessException ignored) {
-                // skip this field
-                continue;
-            }
+            if (property.getVisibility() != KVisibility.PUBLIC) continue;
 
-            if (Objects.equals(value, defaultValue)) continue;
+            Object value = property.get(arguments);
+            Object defaultValue = property.get(defaultArguments);
 
-            Class<?> fieldType = field.getType();
+            if (value == null || Objects.equals(value, defaultValue)) continue;
 
-            if (fieldType.isArray()) {
+            Type propertyJavaType = ReflectJvmMapping.getJavaType(property.getReturnType());
+
+            if (propertyJavaType instanceof Class && ((Class) propertyJavaType).isArray()) {
                 Object[] values = (Object[]) value;
                 if (values.length == 0) continue;
                 value = StringsKt.join(Arrays.asList(values), ",");
@@ -73,7 +80,7 @@ public class ArgumentUtils {
 
             result.add(argument.value());
 
-            if (fieldType == boolean.class || fieldType == Boolean.class) continue;
+            if (propertyJavaType == boolean.class || propertyJavaType == Boolean.class) continue;
 
             if (ParseCommandLineArgumentsKt.isAdvanced(argument)) {
                 result.set(result.size() - 1, argument.value() + "=" + value.toString());
@@ -82,10 +89,15 @@ public class ArgumentUtils {
                 result.add(value.toString());
             }
         }
+    }
 
-        Class<?> superClazz = clazz.getSuperclass();
-        if (superClazz != null) {
-            convertArgumentsToStringList(arguments, defaultArguments, superClazz, result);
+    @Nullable
+    private static <T> T findInstance(Iterable<? super T> iterable, Class<T> clazz) {
+        for (Object item : iterable) {
+            if (clazz.isInstance(item)) {
+                return clazz.cast(item);
+            }
         }
+        return null;
     }
 }

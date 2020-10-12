@@ -1,10 +1,11 @@
-// EXPECTED_REACHABLE_NODES: 499
+// EXPECTED_REACHABLE_NODES: 1383
 interface I {
     fun foo() = "OK"
 }
 
 interface J : I
 
-class A : J
+open class A : J
+class B : A()
 
-fun box() = A().foo()
+fun box() = B().foo()

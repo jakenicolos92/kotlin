@@ -21,15 +21,14 @@ import com.android.tools.idea.rendering.RenderSecurityManager;
 import com.android.tools.idea.startup.AndroidCodeStyleSettingsModifier;
 import com.intellij.analysis.AnalysisScope;
 import com.intellij.codeInspection.GlobalInspectionTool;
-import com.intellij.codeInspection.InspectionManager;
 import com.intellij.codeInspection.ex.GlobalInspectionToolWrapper;
-import com.intellij.codeInspection.ex.InspectionManagerEx;
 import com.intellij.facet.FacetManager;
 import com.intellij.facet.ModifiableFacetModel;
 import com.intellij.openapi.Disposable;
 import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.components.impl.ComponentManagerImpl;
 import com.intellij.openapi.module.Module;
+import com.intellij.openapi.projectRoots.ProjectJdkTable;
+import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.LanguageLevelProjectExtension;
 import com.intellij.openapi.roots.ModuleRootModificationUtil;
 import com.intellij.openapi.util.Disposer;
@@ -40,13 +39,13 @@ import com.intellij.psi.codeStyle.CodeStyleSchemes;
 import com.intellij.psi.codeStyle.CodeStyleSettings;
 import com.intellij.psi.codeStyle.CodeStyleSettingsManager;
 import com.intellij.testFramework.InspectionTestUtil;
+import com.intellij.testFramework.InspectionsKt;
 import com.intellij.testFramework.ThreadTracker;
 import com.intellij.testFramework.builders.JavaModuleFixtureBuilder;
 import com.intellij.testFramework.fixtures.IdeaProjectTestFixture;
 import com.intellij.testFramework.fixtures.IdeaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.JavaTestFixtureFactory;
 import com.intellij.testFramework.fixtures.TestFixtureBuilder;
-import com.intellij.testFramework.fixtures.impl.CodeInsightTestFixtureImpl;
 import com.intellij.testFramework.fixtures.impl.GlobalInspectionContextForTests;
 import com.intellij.util.ArrayUtil;
 import org.jetbrains.android.facet.AndroidFacet;
@@ -54,11 +53,13 @@ import org.jetbrains.android.facet.AndroidRootUtil;
 import org.jetbrains.android.formatter.AndroidXmlCodeStyleSettings;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.kotlin.test.KotlinTestUtils;
 import org.picocontainer.MutablePicoContainer;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -78,6 +79,8 @@ public abstract class AndroidTestCase extends AndroidTestBase {
     @Override
     protected void setUp() throws Exception {
         super.setUp();
+
+        VfsRootAccess.allowRootAccess(KotlinTestUtils.getHomeDirectory());
 
         TestFixtureBuilder<IdeaProjectTestFixture> projectBuilder = IdeaTestFixtureFactory.getFixtureFactory().createFixtureBuilder(getName());
         myFixture = JavaTestFixtureFactory.getFixtureFactory().createCodeInsightFixture(projectBuilder.getFixture());
@@ -117,7 +120,7 @@ public abstract class AndroidTestCase extends AndroidTestBase {
             Module additionalModule = data.myModuleFixtureBuilder.getFixture().getModule();
             myAdditionalModules.add(additionalModule);
             AndroidFacet facet = addAndroidFacet(additionalModule);
-            facet.setLibraryProject(data.myProjectType == 1);
+            facet.getProperties().PROJECT_TYPE = data.myProjectType;
             String rootPath = getAdditionalModulePath(data.myDirName);
             myFixture.copyDirectoryToProject(getResDir(), rootPath + "/res");
             myFixture.copyFileToProject(SdkConstants.FN_ANDROID_MANIFEST_XML, rootPath + '/' + SdkConstants.FN_ANDROID_MANIFEST_XML);
@@ -151,6 +154,11 @@ public abstract class AndroidTestCase extends AndroidTestBase {
     @Override
     protected void tearDown() throws Exception {
         try {
+            Sdk androidSdk = ProjectJdkTable.getInstance().findJdk(ANDROID_SDK_NAME);
+            if (androidSdk != null) {
+                ApplicationManager.getApplication().runWriteAction(() -> ProjectJdkTable.getInstance().removeJdk(androidSdk));
+            }
+
             CodeStyleSettingsManager.getInstance(getProject()).dropTemporarySettings();
             myModule = null;
             myAdditionalModules = null;
@@ -164,6 +172,7 @@ public abstract class AndroidTestCase extends AndroidTestBase {
         }
         finally {
             super.tearDown();
+            VfsRootAccess.disallowRootAccess(KotlinTestUtils.getHomeDirectory());
         }
     }
 
@@ -333,9 +342,8 @@ public abstract class AndroidTestCase extends AndroidTestBase {
 
         scope.invalidate();
 
-        InspectionManagerEx inspectionManager = (InspectionManagerEx)InspectionManager.getInstance(getProject());
         GlobalInspectionContextForTests globalContext =
-                CodeInsightTestFixtureImpl.createGlobalContextForTool(scope, getProject(), inspectionManager, wrapper);
+                InspectionsKt.createGlobalContextForTool(scope, getProject(), Collections.singletonList(wrapper));
 
         InspectionTestUtil.runTool(wrapper, scope, globalContext);
         InspectionTestUtil.compareToolResults(globalContext, wrapper, false, getTestDataPath() + globalTestDir);

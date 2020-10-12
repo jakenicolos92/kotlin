@@ -1,5 +1,9 @@
 package test
 
-sealed class Base
-
-class Derived : Base()
+fun test() {
+    while (true) {
+        when {
+            true -> break
+        }
+    }
+}

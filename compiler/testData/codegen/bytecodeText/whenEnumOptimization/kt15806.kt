@@ -1,3 +1,5 @@
+// IGNORE_BACKEND: JVM_IR
+// TODO KT-36845 Generate enum-based TABLESWITCH/LOOKUPSWITCH on a value with smart cast to enum in JVM_IR
 
 private fun Any?.doTheThing(): String {
     when (this) {
@@ -24,4 +26,4 @@ fun box(): String {
     return "O".doTheThing() + Level.K.doTheThing()
 }
 
-// 1 LOOKUPSWITCH
+// 1 TABLESWITCH

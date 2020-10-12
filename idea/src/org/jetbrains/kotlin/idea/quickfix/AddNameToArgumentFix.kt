@@ -23,8 +23,8 @@ import com.intellij.openapi.ui.popup.JBPopupFactory
 import com.intellij.openapi.ui.popup.ListPopupStep
 import com.intellij.openapi.ui.popup.PopupStep
 import com.intellij.openapi.ui.popup.util.BaseListPopupStep
-import com.intellij.psi.PsiFile
 import org.jetbrains.kotlin.diagnostics.Diagnostic
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.KotlinIcons
 import org.jetbrains.kotlin.idea.caches.resolve.analyze
 import org.jetbrains.kotlin.idea.util.application.executeWriteCommand
@@ -40,9 +40,8 @@ import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 import org.jetbrains.kotlin.types.isError
 
 class AddNameToArgumentFix(argument: KtValueArgument) : KotlinQuickFixAction<KtValueArgument>(argument) {
-    override fun isAvailable(project: Project, editor: Editor?, file: PsiFile): Boolean {
+    override fun isAvailable(project: Project, editor: Editor?, file: KtFile): Boolean {
         val element = element ?: return false
-        if (!super.isAvailable(project, editor, file)) return false
         if (element.getArgumentExpression() == null) return false
         return calculatePossibleArgumentNames().isNotEmpty()
     }
@@ -53,20 +52,21 @@ class AddNameToArgumentFix(argument: KtValueArgument) : KotlinQuickFixAction<KtV
         assert(possibleNames.isNotEmpty()) { "isAvailable() should be checked before invoke()" }
         if (possibleNames.size == 1 || editor == null || !editor.component.isShowing) {
             addName(project, element, possibleNames.first())
-        }
-        else {
+        } else {
             chooseNameAndAdd(project, editor, possibleNames)
         }
     }
 
     override fun getText(): String {
-        return calculatePossibleArgumentNames()
-                       .singleOrNull()
-                       ?.let { "Add name to argument: '${createArgumentWithName(it).text}'" }
-               ?: "Add name to argument..."
+        val argumentName = calculatePossibleArgumentNames().singleOrNull()
+        if (argumentName != null) {
+            return KotlinBundle.message("fix.add.argument.name.text", createArgumentWithName(argumentName, reformat = false).text)
+        } else {
+            return KotlinBundle.message("fix.add.argument.name.text.generic")
+        }
     }
 
-    override fun getFamilyName() = "Add name to argument"
+    override fun getFamilyName() = KotlinBundle.message("fix.add.argument.name.family")
 
     private fun calculatePossibleArgumentNames(): List<Name> {
         val callElement = element!!.getParentOfType<KtCallElement>(true) ?: return emptyList()
@@ -77,27 +77,29 @@ class AddNameToArgumentFix(argument: KtValueArgument) : KotlinQuickFixAction<KtV
         val argumentType = element!!.getArgumentExpression()?.let { context.getType(it) }
 
         val usedParameters = resolvedCall.call.valueArguments
-                .map { resolvedCall.getArgumentMapping(it) }
-                .filterIsInstance<ArgumentMatch>()
-                .filter { argumentMatch -> argumentType == null || argumentType.isError || !argumentMatch.isError() }
-                .map { it.valueParameter }
-                .toSet()
+            .asSequence()
+            .map { resolvedCall.getArgumentMapping(it) }
+            .filterIsInstance<ArgumentMatch>()
+            .filter { argumentMatch -> argumentType == null || argumentType.isError || !argumentMatch.isError() }
+            .map { it.valueParameter }
+            .toSet()
 
         return resolvedCall.resultingDescriptor.valueParameters
-                .filter { it !in usedParameters }
-                .map { it.name }
+            .asSequence()
+            .filter { it !in usedParameters }
+            .map { it.name }
+            .toList()
     }
 
     private fun addName(project: Project, argument: KtValueArgument, name: Name) {
-        project.executeWriteCommand("Add name to argument") {
+        project.executeWriteCommand(KotlinBundle.message("fix.add.argument.name.family")) {
             argument.replace(createArgumentWithName(name))
         }
     }
 
-    private fun createArgumentWithName(name: Name): KtValueArgument {
+    private fun createArgumentWithName(name: Name, reformat: Boolean = true): KtValueArgument {
         val argumentExpression = element!!.getArgumentExpression()!!
-        val newArgument = KtPsiFactory(element!!).createArgument(argumentExpression, name, element!!.getSpreadElement() != null)
-        return newArgument
+        return KtPsiFactory(element!!).createArgument(argumentExpression, name, element!!.getSpreadElement() != null, reformat = reformat)
     }
 
     private fun chooseNameAndAdd(project: Project, editor: Editor, names: List<Name>) {
@@ -105,7 +107,7 @@ class AddNameToArgumentFix(argument: KtValueArgument) : KotlinQuickFixAction<KtV
     }
 
     private fun getNamePopup(project: Project, names: List<Name>): ListPopupStep<Name> {
-        return object : BaseListPopupStep<Name>("Choose parameter name", names) {
+        return object : BaseListPopupStep<Name>(KotlinBundle.message("fix.add.argument.name.step.choose.parameter.name"), names) {
             override fun onChosen(selectedValue: Name, finalChoice: Boolean): PopupStep<*>? {
                 addName(project, element!!, selectedValue)
                 return PopupStep.FINAL_CHOICE

@@ -16,16 +16,14 @@
 
 package org.jetbrains.kotlin.resolve.lazy.descriptors
 
-import com.google.common.collect.Sets
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.incremental.components.LookupLocation
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.resolve.BindingTrace
+import org.jetbrains.kotlin.resolve.calls.components.InferenceSession
 import org.jetbrains.kotlin.resolve.lazy.LazyClassContext
-import org.jetbrains.kotlin.resolve.lazy.ResolveSession
-import org.jetbrains.kotlin.resolve.lazy.data.KtScriptInfo
 import org.jetbrains.kotlin.resolve.lazy.declarations.AbstractPsiBasedDeclarationProvider
 import org.jetbrains.kotlin.resolve.lazy.declarations.DeclarationProvider
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
@@ -34,31 +32,38 @@ import org.jetbrains.kotlin.resolve.scopes.MemberScopeImpl
 import org.jetbrains.kotlin.storage.MemoizedFunctionToNotNull
 import org.jetbrains.kotlin.storage.StorageManager
 import org.jetbrains.kotlin.utils.Printer
-import java.util.*
 
 abstract class AbstractLazyMemberScope<out D : DeclarationDescriptor, out DP : DeclarationProvider>
 protected constructor(
-        protected val c: LazyClassContext,
-        protected val declarationProvider: DP,
-        protected val thisDescriptor: D,
-        protected val trace: BindingTrace
+    protected val c: LazyClassContext,
+    protected val declarationProvider: DP,
+    protected val thisDescriptor: D,
+    protected val trace: BindingTrace,
+    protected val mainScope: AbstractLazyMemberScope<D, DP>? = null
 ) : MemberScopeImpl() {
 
     protected val storageManager: StorageManager = c.storageManager
-    private val classDescriptors: MemoizedFunctionToNotNull<Name, List<ClassDescriptor>> = storageManager.createMemoizedFunction { doGetClasses(it) }
-    private val functionDescriptors: MemoizedFunctionToNotNull<Name, Collection<SimpleFunctionDescriptor>> = storageManager.createMemoizedFunction { doGetFunctions(it) }
-    private val propertyDescriptors: MemoizedFunctionToNotNull<Name, Collection<PropertyDescriptor>> = storageManager.createMemoizedFunction { doGetProperties(it) }
-    private val typeAliasDescriptors: MemoizedFunctionToNotNull<Name, Collection<TypeAliasDescriptor>> = storageManager.createMemoizedFunction { doGetTypeAliases(it) }
+    private val classDescriptors: MemoizedFunctionToNotNull<Name, List<ClassDescriptor>> =
+        storageManager.createMemoizedFunction { doGetClasses(it) }
+    private val functionDescriptors: MemoizedFunctionToNotNull<Name, Collection<SimpleFunctionDescriptor>> =
+        storageManager.createMemoizedFunction { doGetFunctions(it) }
+    private val propertyDescriptors: MemoizedFunctionToNotNull<Name, Collection<PropertyDescriptor>> =
+        storageManager.createMemoizedFunction { doGetProperties(it) }
+    private val typeAliasDescriptors: MemoizedFunctionToNotNull<Name, Collection<TypeAliasDescriptor>> =
+        storageManager.createMemoizedFunction { doGetTypeAliases(it) }
+
+    private val declaredFunctionDescriptors: MemoizedFunctionToNotNull<Name, Collection<SimpleFunctionDescriptor>> =
+        storageManager.createMemoizedFunction { getDeclaredFunctions(it) }
+    private val declaredPropertyDescriptors: MemoizedFunctionToNotNull<Name, Collection<PropertyDescriptor>> =
+        storageManager.createMemoizedFunction { getDeclaredProperties(it) }
 
     private fun doGetClasses(name: Name): List<ClassDescriptor> {
-        val result = Sets.newLinkedHashSet<ClassDescriptor>()
+        mainScope?.classDescriptors?.invoke(name)?.let { return it }
+
+        val result = linkedSetOf<ClassDescriptor>()
         declarationProvider.getClassOrObjectDeclarations(name).mapTo(result) {
-            if (it is KtScriptInfo)
-                LazyScriptDescriptor(c as ResolveSession, thisDescriptor, name, it)
-            else {
-                val isExternal = it.modifierList?.hasModifier(KtTokens.EXTERNAL_KEYWORD) ?: false
-                LazyClassDescriptor(c, thisDescriptor, name, it, isExternal)
-            }
+            val isExternal = it.modifierList?.hasModifier(KtTokens.EXTERNAL_KEYWORD) ?: false
+            LazyClassDescriptor(c, thisDescriptor, name, it, isExternal)
         }
         getNonDeclaredClasses(name, result)
         return result.toList()
@@ -69,13 +74,17 @@ protected constructor(
         // NB we should resolve type alias descriptors even if a class descriptor with corresponding name is present
         val classes = classDescriptors(name)
         val typeAliases = typeAliasDescriptors(name)
-        var resultingClass: ClassDescriptor? = null
+        // See getFirstClassifierDiscriminateHeaders()
+        var result: ClassifierDescriptor? = null
         for (klass in classes) {
-            // See getFirstClassifierDiscriminateHeaders()
-            if (!klass.isHeader) return klass
-            if (resultingClass == null) resultingClass = klass
+            if (!klass.isExpect) return klass
+            if (result == null) result = klass
         }
-        return resultingClass ?: typeAliases.firstOrNull()
+        for (typeAlias in typeAliases) {
+            if (!typeAlias.isExpect) return typeAlias
+            if (result == null) result = typeAlias
+        }
+        return result
     }
 
     override fun getContributedFunctions(name: Name, location: LookupLocation): Collection<SimpleFunctionDescriptor> {
@@ -84,21 +93,36 @@ protected constructor(
     }
 
     private fun doGetFunctions(name: Name): Collection<SimpleFunctionDescriptor> {
-        val result = Sets.newLinkedHashSet<SimpleFunctionDescriptor>()
-
-        val declarations = declarationProvider.getFunctionDeclarations(name)
-        for (functionDeclaration in declarations) {
-            result.add(c.functionDescriptorResolver.resolveFunctionDescriptor(
-                    thisDescriptor,
-                    getScopeForMemberDeclarationResolution(functionDeclaration),
-                    functionDeclaration,
-                    trace,
-                    c.declarationScopeProvider.getOuterDataFlowInfoForDeclaration(functionDeclaration)))
-        }
+        val result = LinkedHashSet(declaredFunctionDescriptors.invoke(name))
 
         getNonDeclaredFunctions(name, result)
 
         return result.toList()
+    }
+
+    private fun getDeclaredFunctions(
+        name: Name
+    ): Collection<SimpleFunctionDescriptor> {
+        // TODO: do we really need to copy descriptors?
+        if (mainScope != null) return mainScope.declaredFunctionDescriptors(name).map {
+            it.newCopyBuilder().setPreserveSourceElement().build()!!
+        }
+
+        val result = linkedSetOf<SimpleFunctionDescriptor>()
+        val declarations = declarationProvider.getFunctionDeclarations(name)
+        for (functionDeclaration in declarations) {
+            result.add(
+                c.functionDescriptorResolver.resolveFunctionDescriptor(
+                    thisDescriptor,
+                    getScopeForMemberDeclarationResolution(functionDeclaration),
+                    functionDeclaration,
+                    trace,
+                    c.declarationScopeProvider.getOuterDataFlowInfoForDeclaration(functionDeclaration)
+                )
+            )
+        }
+
+        return result
     }
 
     protected abstract fun getScopeForMemberDeclarationResolution(declaration: KtDeclaration): LexicalScope
@@ -114,35 +138,52 @@ protected constructor(
         return propertyDescriptors(name)
     }
 
-    fun doGetProperties(name: Name): Collection<PropertyDescriptor> {
+    private fun doGetProperties(name: Name): Collection<PropertyDescriptor> {
+        val result = LinkedHashSet(declaredPropertyDescriptors(name))
+
+        getNonDeclaredProperties(name, result)
+
+        return result.toList()
+    }
+
+    private fun getDeclaredProperties(
+        name: Name
+    ): Collection<PropertyDescriptor> {
+        // TODO: do we really need to copy descriptors?
+        if (mainScope != null) return mainScope.declaredPropertyDescriptors(name).map {
+            it.newCopyBuilder().setPreserveSourceElement().build()!!
+        }
+
         val result = LinkedHashSet<PropertyDescriptor>()
 
         val declarations = declarationProvider.getPropertyDeclarations(name)
         for (propertyDeclaration in declarations) {
             val propertyDescriptor = c.descriptorResolver.resolvePropertyDescriptor(
-                    thisDescriptor,
-                    getScopeForMemberDeclarationResolution(propertyDeclaration),
-                    getScopeForInitializerResolution(propertyDeclaration),
-                    propertyDeclaration,
-                    trace,
-                    c.declarationScopeProvider.getOuterDataFlowInfoForDeclaration(propertyDeclaration))
+                thisDescriptor,
+                getScopeForMemberDeclarationResolution(propertyDeclaration),
+                getScopeForInitializerResolution(propertyDeclaration),
+                propertyDeclaration,
+                trace,
+                c.declarationScopeProvider.getOuterDataFlowInfoForDeclaration(propertyDeclaration),
+                InferenceSession.default
+            )
             result.add(propertyDescriptor)
         }
 
         for (entry in declarationProvider.getDestructuringDeclarationsEntries(name)) {
             val propertyDescriptor = c.descriptorResolver.resolveDestructuringDeclarationEntryAsProperty(
-                    thisDescriptor,
-                    getScopeForMemberDeclarationResolution(entry),
-                    getScopeForInitializerResolution(entry),
-                    entry,
-                    trace,
-                    c.declarationScopeProvider.getOuterDataFlowInfoForDeclaration(entry))
+                thisDescriptor,
+                getScopeForMemberDeclarationResolution(entry),
+                getScopeForInitializerResolution(entry),
+                entry,
+                trace,
+                c.declarationScopeProvider.getOuterDataFlowInfoForDeclaration(entry),
+                InferenceSession.default
+            )
             result.add(propertyDescriptor)
         }
 
-        getNonDeclaredProperties(name, result)
-
-        return result.toList()
+        return result
     }
 
     protected abstract fun getNonDeclaredProperties(name: Name, result: MutableSet<PropertyDescriptor>)
@@ -152,68 +193,72 @@ protected constructor(
         return typeAliasDescriptors(name)
     }
 
-    private fun doGetTypeAliases(name: Name): Collection<TypeAliasDescriptor> =
-            declarationProvider.getTypeAliasDeclarations(name).map { ktTypeAlias ->
-                c.descriptorResolver.resolveTypeAliasDescriptor(
-                        thisDescriptor,
-                        getScopeForMemberDeclarationResolution(ktTypeAlias),
-                        ktTypeAlias,
-                        trace)
-            }.toList()
+    private fun doGetTypeAliases(name: Name): Collection<TypeAliasDescriptor> {
+        mainScope?.typeAliasDescriptors?.invoke(name)?.let { return it }
+
+        return declarationProvider.getTypeAliasDeclarations(name).map { ktTypeAlias ->
+            c.descriptorResolver.resolveTypeAliasDescriptor(
+                thisDescriptor,
+                getScopeForMemberDeclarationResolution(ktTypeAlias),
+                ktTypeAlias,
+                trace
+            )
+        }.toList()
+    }
 
     protected fun computeDescriptorsFromDeclaredElements(
-            kindFilter: DescriptorKindFilter,
-            nameFilter: (Name) -> Boolean,
-            location: LookupLocation
+        kindFilter: DescriptorKindFilter,
+        nameFilter: (Name) -> Boolean,
+        location: LookupLocation
     ): List<DeclarationDescriptor> {
         val declarations = declarationProvider.getDeclarations(kindFilter, nameFilter)
         val result = LinkedHashSet<DeclarationDescriptor>(declarations.size)
         for (declaration in declarations) {
-            if (declaration is KtClassOrObject) {
-                val name = declaration.nameAsSafeName
-                if (nameFilter(name)) {
-                    result.addAll(classDescriptors(name))
+            when (declaration) {
+                is KtClassOrObject -> {
+                    val name = declaration.nameAsSafeName
+                    if (nameFilter(name)) {
+                        result.addAll(classDescriptors(name))
+                    }
                 }
-            }
-            else if (declaration is KtFunction) {
-                val name = declaration.nameAsSafeName
-                if (nameFilter(name)) {
-                    result.addAll(getContributedFunctions(name, location))
+                is KtFunction -> {
+                    val name = declaration.nameAsSafeName
+                    if (nameFilter(name)) {
+                        result.addAll(getContributedFunctions(name, location))
+                    }
                 }
-            }
-            else if (declaration is KtProperty) {
-                val name = declaration.nameAsSafeName
-                if (nameFilter(name)) {
-                    result.addAll(getContributedVariables(name, location))
+                is KtProperty -> {
+                    val name = declaration.nameAsSafeName
+                    if (nameFilter(name)) {
+                        result.addAll(getContributedVariables(name, location))
+                    }
                 }
-            }
-            else if (declaration is KtParameter) {
-                val name = declaration.nameAsSafeName
-                if (nameFilter(name)) {
-                    result.addAll(getContributedVariables(name, location))
+                is KtParameter -> {
+                    val name = declaration.nameAsSafeName
+                    if (nameFilter(name)) {
+                        result.addAll(getContributedVariables(name, location))
+                    }
                 }
-            }
-            else if (declaration is KtTypeAlias) {
-                val name = declaration.nameAsSafeName
-                if (nameFilter(name)) {
-                    result.addAll(getContributedTypeAliasDescriptors(name, location))
+                is KtTypeAlias -> {
+                    val name = declaration.nameAsSafeName
+                    if (nameFilter(name)) {
+                        result.addAll(getContributedTypeAliasDescriptors(name, location))
+                    }
                 }
-            }
-            else if (declaration is KtScript) {
-                val name = declaration.nameAsSafeName
-                if (nameFilter(name)) {
-                    result.addAll(classDescriptors(name))
+                is KtScript -> {
+                    val name = declaration.nameAsSafeName
+                    if (nameFilter(name)) {
+                        result.addAll(classDescriptors(name))
+                    }
                 }
+                is KtDestructuringDeclaration -> {
+                    // MultiDeclarations are not supported on global level
+                }
+                else -> throw IllegalArgumentException("Unsupported declaration kind: " + declaration)
             }
-            else if (declaration is KtDestructuringDeclaration) {
-                // MultiDeclarations are not supported on global level
-            }
-            else throw IllegalArgumentException("Unsupported declaration kind: " + declaration)
         }
         return result.toList()
     }
-
-    abstract fun recordLookup(name: Name, from: LookupLocation)
 
     // Do not change this, override in concrete subclasses:
     // it is very easy to compromise laziness of this class, and fail all the debugging
@@ -221,7 +266,7 @@ protected constructor(
     abstract override fun toString(): String
 
     fun toProviderString() = (declarationProvider as? AbstractPsiBasedDeclarationProvider)?.toInfoString()
-                             ?: declarationProvider.toString()
+            ?: declarationProvider.toString()
 
     override fun printScopeStructure(p: Printer) {
         p.println(this::class.java.simpleName, " {")

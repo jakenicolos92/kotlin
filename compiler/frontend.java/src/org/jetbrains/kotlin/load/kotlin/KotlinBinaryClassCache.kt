@@ -22,19 +22,23 @@ import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.ServiceManager
 import com.intellij.openapi.util.Computable
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.psi.PsiJavaModule
 
 class KotlinBinaryClassCache : Disposable {
     private class RequestCache {
         internal var virtualFile: VirtualFile? = null
         internal var modificationStamp: Long = 0
-        internal var virtualFileKotlinClass: VirtualFileKotlinClass? = null
+        internal var result: KotlinClassFinder.Result? = null
 
-        fun cache(file: VirtualFile, aClass: VirtualFileKotlinClass?): VirtualFileKotlinClass? {
+        fun cache(
+            file: VirtualFile,
+            result: KotlinClassFinder.Result?
+        ): KotlinClassFinder.Result? {
             virtualFile = file
-            virtualFileKotlinClass = aClass
+            this.result = result
             modificationStamp = file.modificationStamp
 
-            return aClass
+            return result
         }
     }
 
@@ -52,14 +56,18 @@ class KotlinBinaryClassCache : Disposable {
     }
 
     companion object {
-        fun getKotlinBinaryClass(file: VirtualFile, fileContent: ByteArray? = null): KotlinJvmBinaryClass? {
+        fun getKotlinBinaryClassOrClassFileContent(
+            file: VirtualFile, fileContent: ByteArray? = null
+        ): KotlinClassFinder.Result? {
             if (file.fileType !== JavaClassFileType.INSTANCE) return null
+
+            if (file.name == PsiJavaModule.MODULE_INFO_CLS_FILE) return null
 
             val service = ServiceManager.getService(KotlinBinaryClassCache::class.java)
             val requestCache = service.cache.get()
 
             if (file.modificationStamp == requestCache.modificationStamp && file == requestCache.virtualFile) {
-                return requestCache.virtualFileKotlinClass
+                return requestCache.result
             }
 
             val aClass = ApplicationManager.getApplication().runReadAction(Computable {

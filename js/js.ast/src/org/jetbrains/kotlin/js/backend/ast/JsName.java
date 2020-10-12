@@ -4,9 +4,9 @@
 
 package org.jetbrains.kotlin.js.backend.ast;
 
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.kotlin.js.backend.ast.metadata.HasMetadata;
 import org.jetbrains.kotlin.js.common.Symbol;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * An abstract base class for named JavaScript objects.
@@ -20,9 +20,13 @@ public class JsName extends HasMetadata implements Symbol {
   /**
    * @param ident the unmangled ident to use for this name
    */
-  JsName(@NotNull String ident, boolean temporary) {
+  public JsName(@NotNull String ident, boolean temporary) {
     this.ident = ident;
     this.temporary = temporary;
+  }
+
+  public JsName(@NotNull String ident) {
+    this(ident, false);
   }
 
   public boolean isTemporary() {

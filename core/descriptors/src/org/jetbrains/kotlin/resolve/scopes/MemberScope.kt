@@ -20,18 +20,21 @@ import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.incremental.components.LookupLocation
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.utils.Printer
+import org.jetbrains.kotlin.utils.addToStdlib.flatMapToNullable
 import java.lang.reflect.Modifier
 
 interface MemberScope : ResolutionScope {
 
-    override fun getContributedVariables(name: Name, location: LookupLocation): Collection<PropertyDescriptor>
-    override fun getContributedFunctions(name: Name, location: LookupLocation): Collection<SimpleFunctionDescriptor>
+    override fun getContributedVariables(name: Name, location: LookupLocation): Collection<@JvmWildcard PropertyDescriptor>
+
+    override fun getContributedFunctions(name: Name, location: LookupLocation): Collection<@JvmWildcard SimpleFunctionDescriptor>
 
     /**
      * These methods may return a superset of an actual names' set
      */
     fun getFunctionNames(): Set<Name>
     fun getVariableNames(): Set<Name>
+    fun getClassifierNames(): Set<Name>?
 
     /**
      * Is supposed to be used in tests and debug only
@@ -43,14 +46,27 @@ interface MemberScope : ResolutionScope {
             p.println("Empty member scope")
         }
 
+        override fun definitelyDoesNotContainName(name: Name): Boolean = true
+
         override fun getFunctionNames() = emptySet<Name>()
         override fun getVariableNames() = emptySet<Name>()
+        override fun getClassifierNames() = emptySet<Name>()
     }
 
     companion object {
         val ALL_NAME_FILTER: (Name) -> Boolean = { true }
     }
 }
+
+fun MemberScope.computeAllNames() = getClassifierNames()?.let { classifierNames ->
+    getFunctionNames().toMutableSet().also {
+        it.addAll(getVariableNames())
+        it.addAll(classifierNames)
+    }
+}
+
+fun Iterable<MemberScope>.flatMapClassifierNamesOrNull(): MutableSet<Name>? =
+        flatMapToNullable(hashSetOf(), MemberScope::getClassifierNames)
 
 /**
  * The same as getDescriptors(kindFilter, nameFilter) but the result is guaranteed to be filtered by kind and name.
@@ -156,7 +172,6 @@ class DescriptorKindFilter(
                     val filter = field.get(null) as? DescriptorKindFilter
                     if (filter != null) MaskToName(filter.kindMask, field.name) else null
                 }
-                .toList()
 
         private val DEBUG_MASK_BIT_NAMES = staticFields<DescriptorKindFilter>()
                 .filter { it.type == Integer.TYPE }
@@ -165,7 +180,6 @@ class DescriptorKindFilter(
                     val isOneBitMask = mask == (mask and (-mask))
                     if (isOneBitMask) MaskToName(mask, field.name) else null
                 }
-                .toList()
 
         private inline fun <reified T : Any> staticFields() = T::class.java.fields.filter { Modifier.isStatic(it.modifiers) }
     }

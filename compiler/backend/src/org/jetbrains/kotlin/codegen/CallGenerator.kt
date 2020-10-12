@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.codegen
@@ -19,6 +8,7 @@ package org.jetbrains.kotlin.codegen
 import org.jetbrains.kotlin.descriptors.ValueParameterDescriptor
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
+import org.jetbrains.kotlin.resolve.jvm.AsmTypes.OBJECT_TYPE
 import org.jetbrains.org.objectweb.asm.Type
 
 enum class ValueKind {
@@ -28,22 +18,24 @@ enum class ValueKind {
     DEFAULT_MASK,
     METHOD_HANDLE_IN_DEFAULT,
     CAPTURED,
-    DEFAULT_LAMBDA_CAPTURED_PARAMETER
+    DEFAULT_LAMBDA_CAPTURED_PARAMETER,
+    NON_INLINEABLE_ARGUMENT_FOR_INLINE_PARAMETER_CALLED_IN_SUSPEND,
+    NON_INLINEABLE_ARGUMENT_FOR_INLINE_SUSPEND_PARAMETER
 }
 
-abstract class CallGenerator {
+interface CallGenerator {
 
-    internal class DefaultCallGenerator(private val codegen: ExpressionCodegen) : CallGenerator() {
+    class DefaultCallGenerator(private val codegen: ExpressionCodegen) : CallGenerator {
 
         override fun genCallInner(
-                callableMethod: Callable,
-                resolvedCall: ResolvedCall<*>?,
-                callDefault: Boolean,
-                codegen: ExpressionCodegen) {
+            callableMethod: Callable,
+            resolvedCall: ResolvedCall<*>?,
+            callDefault: Boolean,
+            codegen: ExpressionCodegen
+        ) {
             if (!callDefault) {
                 callableMethod.genInvokeInstruction(codegen.v)
-            }
-            else {
+            } else {
                 (callableMethod as CallableMethod).genInvokeDefaultInstruction(codegen.v)
             }
         }
@@ -57,21 +49,38 @@ abstract class CallGenerator {
         }
 
         override fun genValueAndPut(
-                valueParameterDescriptor: ValueParameterDescriptor,
-                argumentExpression: KtExpression,
-                parameterType: Type,
-                parameterIndex: Int) {
+            valueParameterDescriptor: ValueParameterDescriptor?,
+            argumentExpression: KtExpression,
+            parameterType: JvmKotlinType,
+            parameterIndex: Int
+        ) {
+            val container = valueParameterDescriptor?.containingDeclaration
+            val isVarargInvoke = container != null && JvmCodegenUtil.isDeclarationOfBigArityFunctionInvoke(container)
+
+            val v = codegen.v
+            if (isVarargInvoke) {
+                if (parameterIndex == 0) {
+                    v.iconst(container!!.valueParameters.size)
+                    v.newarray(OBJECT_TYPE)
+                }
+                v.dup()
+                v.iconst(parameterIndex)
+            }
+
             val value = codegen.gen(argumentExpression)
-            value.put(parameterType, codegen.v)
+            value.put(parameterType.type, parameterType.kotlinType, v)
+
+            if (isVarargInvoke) {
+                v.astore(OBJECT_TYPE)
+            }
         }
 
-        override fun putCapturedValueOnStack(
-                stackValue: StackValue, valueType: Type, paramIndex: Int) {
-            stackValue.put(stackValue.type, codegen.v)
+        override fun putCapturedValueOnStack(stackValue: StackValue, valueType: Type, paramIndex: Int) {
+            stackValue.put(stackValue.type, stackValue.kotlinType, codegen.v)
         }
 
-        override fun putValueIfNeeded(parameterType: Type, value: StackValue, kind: ValueKind, parameterIndex: Int) {
-            value.put(value.type, codegen.v)
+        override fun putValueIfNeeded(parameterType: JvmKotlinType, value: StackValue, kind: ValueKind, parameterIndex: Int) {
+            value.put(value.type, value.kotlinType, codegen.v)
         }
 
         override fun reorderArgumentsIfNeeded(actualArgsWithDeclIndex: List<ArgumentAndDeclIndex>, valueParameterTypes: List<Type>) {
@@ -106,34 +115,36 @@ abstract class CallGenerator {
         genCallInner(callableMethod, resolvedCall, callDefault, codegen)
     }
 
-    abstract fun genCallInner(callableMethod: Callable, resolvedCall: ResolvedCall<*>?, callDefault: Boolean, codegen: ExpressionCodegen)
+    fun genCallInner(callableMethod: Callable, resolvedCall: ResolvedCall<*>?, callDefault: Boolean, codegen: ExpressionCodegen)
 
-    abstract fun genValueAndPut(
-            valueParameterDescriptor: ValueParameterDescriptor,
-            argumentExpression: KtExpression,
-            parameterType: Type,
-            parameterIndex: Int)
+    fun genValueAndPut(
+        valueParameterDescriptor: ValueParameterDescriptor?,
+        argumentExpression: KtExpression,
+        parameterType: JvmKotlinType,
+        parameterIndex: Int
+    )
 
-    fun putValueIfNeeded(
-            parameterType: Type,
-            value: StackValue) {
+    fun putValueIfNeeded(parameterType: JvmKotlinType, value: StackValue) {
         putValueIfNeeded(parameterType, value, ValueKind.GENERAL)
     }
 
-    abstract fun putValueIfNeeded(
-            parameterType: Type,
-            value: StackValue,
-            kind: ValueKind = ValueKind.GENERAL,
-            parameterIndex: Int = -1)
+    fun putValueIfNeeded(
+        parameterType: JvmKotlinType,
+        value: StackValue,
+        kind: ValueKind = ValueKind.GENERAL,
+        parameterIndex: Int = -1
+    )
 
-    abstract fun putCapturedValueOnStack(
-            stackValue: StackValue,
-            valueType: Type, paramIndex: Int)
+    fun putCapturedValueOnStack(
+        stackValue: StackValue,
+        valueType: Type,
+        paramIndex: Int
+    )
 
-    abstract fun processAndPutHiddenParameters(justProcess: Boolean)
+    fun processAndPutHiddenParameters(justProcess: Boolean)
 
     /*should be called if justProcess = true in processAndPutHiddenParameters*/
-    abstract fun putHiddenParamsIntoLocals()
+    fun putHiddenParamsIntoLocals()
 
-    abstract fun reorderArgumentsIfNeeded(actualArgsWithDeclIndex: List<ArgumentAndDeclIndex>, valueParameterTypes: List<Type>)
+    fun reorderArgumentsIfNeeded(actualArgsWithDeclIndex: List<ArgumentAndDeclIndex>, valueParameterTypes: List<Type>)
 }

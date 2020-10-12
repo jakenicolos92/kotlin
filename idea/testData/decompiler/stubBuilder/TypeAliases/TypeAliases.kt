@@ -15,6 +15,8 @@ annotation class Ann
 
 class TypeAliases {
 
+    class OrderB
+
     @Suppress("TOPLEVEL_TYPEALIASES_ONLY")
     typealias B = (A) -> Unit
 
@@ -25,4 +27,13 @@ class TypeAliases {
     @Ann
     @Suppress("TOPLEVEL_TYPEALIASES_ONLY")
     private typealias Parametrized<E, F> = Map<E, F>
+
+    fun order(path: String) {}
+    fun order(body: Z) {}
+
+    class OrderA
 }
+
+
+typealias Z = dependency.SomeClass // dependency.SomeClass is before (lexicography) kotlin.String, but test.Z is after
+

@@ -16,28 +16,42 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
-import org.jetbrains.kotlin.descriptors.PropertyDescriptor
-import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
+import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrPropertyReference
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.symbols.IrFieldSymbol
-import org.jetbrains.kotlin.ir.symbols.IrFunctionSymbol
+import org.jetbrains.kotlin.ir.symbols.IrPropertySymbol
+import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
+import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.name.Name
 
 class IrPropertyReferenceImpl(
-        startOffset: Int,
-        endOffset: Int,
-        type: KotlinType,
-        override val descriptor: PropertyDescriptor,
-        override val field: IrFieldSymbol?,
-        override val getter: IrFunctionSymbol?,
-        override val setter: IrFunctionSymbol?,
-        typeArguments: Map<TypeParameterDescriptor, KotlinType>?,
-        origin: IrStatementOrigin? = null
-) : IrPropertyReference,
-        IrNoArgumentsCallableReferenceBase(startOffset, endOffset, type, typeArguments, origin)
-{
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val symbol: IrPropertySymbol,
+    typeArgumentsCount: Int,
+    override val field: IrFieldSymbol?,
+    override val getter: IrSimpleFunctionSymbol?,
+    override val setter: IrSimpleFunctionSymbol?,
+    override val origin: IrStatementOrigin? = null,
+) : IrPropertyReference(typeArgumentsCount) {
+    override val valueArgumentsCount: Int
+        get() = 0
+
+    override val referencedName: Name
+        get() = symbol.owner.name
+
+    private fun throwNoValueArguments(): Nothing =
+        throw UnsupportedOperationException("Property reference $symbol has no value arguments")
+
+    override fun getValueArgument(index: Int): IrExpression? = throwNoValueArguments()
+
+    override fun putValueArgument(index: Int, valueArgument: IrExpression?): Unit = throwNoValueArguments()
+
+    override fun removeValueArgument(index: Int): Unit = throwNoValueArguments()
+
     override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-            visitor.visitPropertyReference(this, data)
+        visitor.visitPropertyReference(this, data)
 }

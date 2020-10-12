@@ -1,70 +1,140 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.ir.expressions
 
-import org.jetbrains.kotlin.descriptors.*
-import org.jetbrains.kotlin.ir.symbols.IrFunctionSymbol
+import org.jetbrains.kotlin.descriptors.CallableDescriptor
+import org.jetbrains.kotlin.descriptors.PropertyAccessorDescriptor
+import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
+import org.jetbrains.kotlin.descriptors.ValueParameterDescriptor
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
+import org.jetbrains.kotlin.ir.declarations.IrFunction
+import org.jetbrains.kotlin.ir.declarations.IrTypeParameter
+import org.jetbrains.kotlin.ir.declarations.IrValueParameter
+import org.jetbrains.kotlin.ir.symbols.IrSymbol
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.defaultType
+import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
+import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 import org.jetbrains.kotlin.types.KotlinType
 
-interface IrMemberAccessExpression : IrExpression {
-    var dispatchReceiver: IrExpression?
-    var extensionReceiver: IrExpression?
+abstract class IrMemberAccessExpression<S : IrSymbol>(typeArgumentsCount: Int) : IrDeclarationReference() {
+    var dispatchReceiver: IrExpression? = null
+    var extensionReceiver: IrExpression? = null
 
-    val descriptor: CallableDescriptor
-    val origin: IrStatementOrigin?
+    abstract override val symbol: S
 
-    // NB `typeParameterDescriptor` should be taken from `descriptor.original`
-    fun getTypeArgument(typeParameterDescriptor: TypeParameterDescriptor): KotlinType?
+    abstract val origin: IrStatementOrigin?
+    abstract val valueArgumentsCount: Int
 
-    fun getValueArgument(index: Int): IrExpression?
-    fun putValueArgument(index: Int, valueArgument: IrExpression?)
-    fun removeValueArgument(index: Int)
+    abstract fun getValueArgument(index: Int): IrExpression?
+    abstract fun putValueArgument(index: Int, valueArgument: IrExpression?)
+    abstract fun removeValueArgument(index: Int)
+
+    private val typeArgumentsByIndex = arrayOfNulls<IrType>(typeArgumentsCount)
+
+    val typeArgumentsCount: Int get() = typeArgumentsByIndex.size
+
+    fun getTypeArgument(index: Int): IrType? {
+        if (index >= typeArgumentsCount) {
+            throw AssertionError("$this: No such type argument slot: $index")
+        }
+        return typeArgumentsByIndex[index]
+    }
+
+    fun putTypeArgument(index: Int, type: IrType?) {
+        if (index >= typeArgumentsCount) {
+            throw AssertionError("$this: No such type argument slot: $index")
+        }
+        typeArgumentsByIndex[index] = type
+    }
+
+    override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
+        dispatchReceiver?.accept(visitor, data)
+        extensionReceiver?.accept(visitor, data)
+    }
+
+    override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
+        dispatchReceiver = dispatchReceiver?.transform(transformer, data)
+        extensionReceiver = extensionReceiver?.transform(transformer, data)
+    }
 }
 
-fun IrMemberAccessExpression.getTypeArgumentOrDefault(typeParameterDescriptor: TypeParameterDescriptor) =
-        getTypeArgument(typeParameterDescriptor) ?: typeParameterDescriptor.defaultType
+fun IrMemberAccessExpression<*>.getTypeArgument(typeParameterDescriptor: TypeParameterDescriptor): IrType? =
+    getTypeArgument(typeParameterDescriptor.index)
 
-interface IrFunctionAccessExpression : IrMemberAccessExpression, IrDeclarationReference {
-    override val descriptor: FunctionDescriptor
-    override val symbol: IrFunctionSymbol
+fun IrMemberAccessExpression<*>.copyTypeArgumentsFrom(other: IrMemberAccessExpression<*>, shift: Int = 0) {
+    assert(typeArgumentsCount == other.typeArgumentsCount + shift) {
+        "Mismatching type arguments: $typeArgumentsCount vs ${other.typeArgumentsCount} + $shift"
+    }
+    for (i in 0 until other.typeArgumentsCount) {
+        putTypeArgument(i + shift, other.getTypeArgument(i))
+    }
 }
 
-fun IrMemberAccessExpression.getValueArgument(valueParameterDescriptor: ValueParameterDescriptor) =
-        getValueArgument(valueParameterDescriptor.index)
+inline fun IrMemberAccessExpression<*>.putTypeArguments(
+    typeArguments: Map<TypeParameterDescriptor, KotlinType>?,
+    toIrType: (KotlinType) -> IrType
+) {
+    if (typeArguments == null) return
+    for ((typeParameter, typeArgument) in typeArguments) {
+        putTypeArgument(typeParameter.index, toIrType(typeArgument))
+    }
+}
 
-fun IrMemberAccessExpression.putValueArgument(valueParameterDescriptor: ValueParameterDescriptor, valueArgument: IrExpression?) {
+val CallableDescriptor.typeParametersCount: Int
+    get() =
+        when (this) {
+            is PropertyAccessorDescriptor -> correspondingProperty.typeParameters.size
+            else -> typeParameters.size
+        }
+
+fun IrMemberAccessExpression<*>.getTypeArgumentOrDefault(irTypeParameter: IrTypeParameter) =
+    getTypeArgument(irTypeParameter.index) ?: irTypeParameter.defaultType
+
+fun IrMemberAccessExpression<*>.getValueArgument(valueParameterDescriptor: ValueParameterDescriptor) =
+    getValueArgument(valueParameterDescriptor.index)
+
+fun IrMemberAccessExpression<*>.putValueArgument(valueParameterDescriptor: ValueParameterDescriptor, valueArgument: IrExpression?) {
     putValueArgument(valueParameterDescriptor.index, valueArgument)
 }
 
-fun IrMemberAccessExpression.removeValueArgument(valueParameterDescriptor: ValueParameterDescriptor) {
+fun IrMemberAccessExpression<*>.removeValueArgument(valueParameterDescriptor: ValueParameterDescriptor) {
     removeValueArgument(valueParameterDescriptor.index)
 }
 
-inline fun <T : IrMemberAccessExpression> T.mapValueParameters(transform: (ValueParameterDescriptor) -> IrExpression?): T {
-    descriptor.valueParameters.forEach {
-        putValueArgument(it.index, transform(it))
+@ObsoleteDescriptorBasedAPI
+inline fun <T : IrMemberAccessExpression<*>> T.mapTypeParameters(transform: (TypeParameterDescriptor) -> IrType) : T =
+    apply {
+        val descriptor = symbol.descriptor as CallableDescriptor
+        descriptor.typeParameters.forEach {
+            putTypeArgument(it.index, transform(it))
+        }
     }
-    return this
-}
 
-inline fun <T : IrMemberAccessExpression> T.mapValueParametersIndexed(transform: (Int, ValueParameterDescriptor) -> IrExpression?): T {
-    descriptor.valueParameters.forEach {
-        putValueArgument(it.index, transform(it.index, it))
+@ObsoleteDescriptorBasedAPI
+inline fun <T : IrMemberAccessExpression<*>> T.mapValueParameters(transform: (ValueParameterDescriptor) -> IrExpression?): T =
+    apply {
+        val descriptor = symbol.descriptor as CallableDescriptor
+        descriptor.valueParameters.forEach {
+            putValueArgument(it.index, transform(it))
+        }
     }
-    return this
-}
 
+@ObsoleteDescriptorBasedAPI
+inline fun <T : IrMemberAccessExpression<*>> T.mapValueParametersIndexed(transform: (Int, ValueParameterDescriptor) -> IrExpression?): T =
+    apply {
+        val descriptor = symbol.descriptor as CallableDescriptor
+        descriptor.valueParameters.forEach {
+            putValueArgument(it.index, transform(it.index, it))
+        }
+    }
+
+fun IrMemberAccessExpression<*>.putArgument(callee: IrFunction, parameter: IrValueParameter, argument: IrExpression) =
+    when (parameter) {
+        callee.dispatchReceiverParameter -> dispatchReceiver = argument
+        callee.extensionReceiverParameter -> extensionReceiver = argument
+        else -> putValueArgument(parameter.index, argument)
+    }

@@ -22,14 +22,14 @@ object Test {
 // EXIST:  infix
 // EXIST:  sealed class
 // EXIST:  lateinit var
-// EXIST:  data
+// EXIST:  data class
 // EXIST:  inline
 // EXIST:  tailrec
 // EXIST:  external
 // EXIST:  annotation class
-// EXIST:  const
-// EXIST:  suspend
+// EXIST:  const val
+// EXIST:  suspend fun
 // EXIST:  typealias
-// EXIST:  header
-// EXIST:  impl
+// EXIST:  expect
+// EXIST:  actual
 // NOTHING_ELSE

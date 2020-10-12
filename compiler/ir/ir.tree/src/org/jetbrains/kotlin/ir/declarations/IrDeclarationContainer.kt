@@ -16,6 +16,10 @@
 
 package org.jetbrains.kotlin.ir.declarations
 
-interface IrDeclarationContainer {
+import org.jetbrains.kotlin.ir.IrElement
+
+interface IrDeclarationParent : IrElement
+
+interface IrDeclarationContainer : IrDeclarationParent {
     val declarations: MutableList<IrDeclaration>
 }

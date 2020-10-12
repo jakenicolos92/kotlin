@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.resolve
 
 import com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.builtins.StandardNames
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.impl.FunctionDescriptorImpl
 import org.jetbrains.kotlin.descriptors.impl.PropertyAccessorDescriptorImpl
@@ -34,7 +35,7 @@ import org.jetbrains.kotlin.resolve.typeBinding.createTypeBindingForReturnType
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.Variance
 import org.jetbrains.kotlin.types.Variance.*
-import org.jetbrains.kotlin.types.checkTypePosition
+import org.jetbrains.kotlin.types.checker.TypeCheckingProcedure
 
 class ManualVariance(val descriptor: TypeParameterDescriptor, val variance: Variance)
 
@@ -47,15 +48,15 @@ class VarianceChecker(trace: BindingTrace) {
 }
 
 class VarianceConflictDiagnosticData(
-        val containingType: KotlinType,
-        val typeParameter: TypeParameterDescriptor,
-        val occurrencePosition: Variance
+    val containingType: KotlinType,
+    val typeParameter: TypeParameterDescriptor,
+    val occurrencePosition: Variance
 )
 
 class VarianceCheckerCore(
-        val context: BindingContext,
-        private val diagnosticSink: DiagnosticSink,
-        private val manualVariance: ManualVariance? = null
+    val context: BindingContext,
+    private val diagnosticSink: DiagnosticSink,
+    private val manualVariance: ManualVariance? = null
 ) {
 
     fun check(c: TopDownAnalysisContext) {
@@ -86,13 +87,13 @@ class VarianceCheckerCore(
     }
 
     fun checkMember(member: KtCallableDeclaration, descriptor: CallableMemberDescriptor) =
-            Visibilities.isPrivate(descriptor.visibility) || checkCallableDeclaration(context, member, descriptor)
+        DescriptorVisibilities.isPrivate(descriptor.visibility) || checkCallableDeclaration(context, member, descriptor)
 
     private fun TypeParameterDescriptor.varianceWithManual() =
-            if (manualVariance != null && this.original == manualVariance.descriptor) manualVariance.variance else variance
+        if (manualVariance != null && this.original == manualVariance.descriptor) manualVariance.variance else variance
 
     fun recordPrivateToThisIfNeeded(descriptor: CallableMemberDescriptor) {
-        if (isIrrelevant(descriptor) || descriptor.visibility != Visibilities.PRIVATE) return
+        if (isIrrelevant(descriptor) || descriptor.visibility != DescriptorVisibilities.PRIVATE) return
 
         val psiElement = descriptor.source.getPsi() as? KtCallableDeclaration ?: return
 
@@ -102,9 +103,9 @@ class VarianceCheckerCore(
     }
 
     private fun checkCallableDeclaration(
-            trace: BindingContext,
-            declaration: KtCallableDeclaration,
-            descriptor: CallableDescriptor
+        trace: BindingContext,
+        declaration: KtCallableDeclaration,
+        descriptor: CallableDescriptor
     ): Boolean {
         if (isIrrelevant(descriptor)) return true
         var noError = true
@@ -124,8 +125,8 @@ class VarianceCheckerCore(
     }
 
     private fun KtTypeParameterListOwner.checkTypeParameters(
-            trace: BindingContext,
-            typePosition: Variance
+        trace: BindingContext,
+        typePosition: Variance
     ): Boolean {
         var noError = true
         for (typeParameter in typeParameters) {
@@ -137,21 +138,43 @@ class VarianceCheckerCore(
         return noError
     }
 
-    private fun KtTypeReference.checkTypePosition(trace: BindingContext, position: Variance)
-            = createTypeBinding(trace)?.checkTypePosition(position)
+    private fun KtTypeReference.checkTypePosition(trace: BindingContext, position: Variance) =
+        createTypeBinding(trace)?.checkTypePosition(position)
 
     private fun TypeBinding<PsiElement>.checkTypePosition(position: Variance) = checkTypePosition(type, position)
 
-    private fun TypeBinding<PsiElement>.checkTypePosition(containingType: KotlinType, position: Variance): Boolean =
-        checkTypePosition(
-                position,
-                {   typeParameterDescriptor, typeBinding, errorPosition ->
-                    val varianceConflictDiagnosticData = VarianceConflictDiagnosticData(containingType, typeParameterDescriptor, errorPosition)
-                    val diagnostic = if (typeBinding.isInAbbreviation) Errors.TYPE_VARIANCE_CONFLICT_IN_EXPANDED_TYPE else Errors.TYPE_VARIANCE_CONFLICT
-                    diagnosticSink.report(diagnostic.on(typeBinding.psiElement, varianceConflictDiagnosticData))
-                },
-                customVariance = { it.varianceWithManual() }
-        )
+    private fun TypeBinding<PsiElement>.checkTypePosition(containingType: KotlinType, position: Variance): Boolean {
+        val classifierDescriptor = type.constructor.declarationDescriptor
+        if (classifierDescriptor is TypeParameterDescriptor) {
+            val declarationVariance = classifierDescriptor.varianceWithManual()
+            if (!declarationVariance.allowsPosition(position)
+                && !type.annotations.hasAnnotation(StandardNames.FqNames.unsafeVariance)
+            ) {
+                val varianceConflictDiagnosticData = VarianceConflictDiagnosticData(containingType, classifierDescriptor, position)
+                val diagnostic =
+                    if (isInAbbreviation) Errors.TYPE_VARIANCE_CONFLICT_IN_EXPANDED_TYPE else Errors.TYPE_VARIANCE_CONFLICT
+                diagnosticSink.report(diagnostic.on(psiElement, varianceConflictDiagnosticData))
+            }
+            return declarationVariance.allowsPosition(position)
+        }
+
+        var noError = true
+        for (argument in arguments) {
+            if (argument?.typeParameter == null || argument.projection.isStarProjection) continue
+
+            val projectionKind = TypeCheckingProcedure.getEffectiveProjectionKind(argument.typeParameter!!, argument.projection)!!
+            val newPosition = when (projectionKind) {
+                TypeCheckingProcedure.EnrichedProjectionKind.OUT -> position
+                TypeCheckingProcedure.EnrichedProjectionKind.IN -> position.opposite()
+                TypeCheckingProcedure.EnrichedProjectionKind.INV -> Variance.INVARIANT
+                TypeCheckingProcedure.EnrichedProjectionKind.STAR -> null // CONFLICTING_PROJECTION error was reported
+            }
+            if (newPosition != null) {
+                noError = noError and argument.binding.checkTypePosition(containingType, newPosition)
+            }
+        }
+        return noError
+    }
 
     private fun isIrrelevant(descriptor: CallableDescriptor): Boolean {
         val containingClass = descriptor.containingDeclaration as? ClassDescriptor ?: return true
@@ -162,11 +185,11 @@ class VarianceCheckerCore(
 
         private fun recordPrivateToThis(descriptor: CallableMemberDescriptor) {
             when (descriptor) {
-                is FunctionDescriptorImpl -> descriptor.visibility = Visibilities.PRIVATE_TO_THIS
+                is FunctionDescriptorImpl -> descriptor.visibility = DescriptorVisibilities.PRIVATE_TO_THIS
                 is PropertyDescriptorImpl -> {
-                    descriptor.visibility = Visibilities.PRIVATE_TO_THIS
+                    descriptor.visibility = DescriptorVisibilities.PRIVATE_TO_THIS
                     for (accessor in descriptor.accessors) {
-                        (accessor as PropertyAccessorDescriptorImpl).visibility = Visibilities.PRIVATE_TO_THIS
+                        (accessor as PropertyAccessorDescriptorImpl).visibility = DescriptorVisibilities.PRIVATE_TO_THIS
                     }
                 }
                 else -> throw IllegalStateException("Unexpected descriptor type: ${descriptor::class.java.name}")

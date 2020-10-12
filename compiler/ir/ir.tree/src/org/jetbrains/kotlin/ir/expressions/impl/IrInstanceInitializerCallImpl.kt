@@ -16,27 +16,17 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.ir.expressions.IrInstanceInitializerCall
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
-import org.jetbrains.kotlin.ir.symbols.impl.IrClassSymbolImpl
+import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
 
 class IrInstanceInitializerCallImpl(
-        startOffset: Int,
-        endOffset: Int,
-        override val classSymbol: IrClassSymbol
-) : IrTerminalExpressionBase(startOffset, endOffset, classSymbol.descriptor.builtIns.unitType), IrInstanceInitializerCall {
-    @Deprecated("Creates unbound symbol")
-    constructor(
-            startOffset: Int,
-            endOffset: Int,
-            descriptor: ClassDescriptor
-    ) : this(startOffset, endOffset, IrClassSymbolImpl(descriptor))
-
-    override val classDescriptor: ClassDescriptor get() = classSymbol.descriptor
-
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override val classSymbol: IrClassSymbol,
+    override var type: IrType,
+) : IrInstanceInitializerCall() {
     override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R {
         return visitor.visitInstanceInitializerCall(this, data)
     }

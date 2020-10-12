@@ -73,6 +73,46 @@ class KotlinJsr223LocalScriptEngineIT {
     }
 
     @Test
+    fun testEvalWithError() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+
+        try {
+            engine.eval("java.lang.fish")
+            Assert.fail("Script error expected")
+        }
+        catch (e: ScriptException) {}
+
+        val res1 = engine.eval("val x = 3")
+        Assert.assertNull(res1)
+
+        try {
+            engine.eval("y")
+            Assert.fail("Script error expected")
+        }
+        catch (e: ScriptException) {
+            Assert.assertTrue("Expected message to contain \"unresolved reference: y\", actual: \"${e.message}\"",
+                              e.message?.contains("unresolved reference: y") ?: false)
+        }
+
+        val res3 = engine.eval("x + 2")
+        Assert.assertEquals(5, res3)
+    }
+
+    @Test
+    fun testEngineRepeatWithReset() {
+        val code = "open class A {}\n" +
+                   "class B : A() {}"
+        val engine = ScriptEngineManager().getEngineByExtension("kts") as KotlinJsr223JvmLocalScriptEngine
+
+        val res1 = engine.eval(code)
+        Assert.assertNull(res1)
+
+        engine.state.history.reset()
+
+        engine.eval(code)
+    }
+
+    @Test
     fun testInvocable() {
         val engine = ScriptEngineManager().getEngineByExtension("kts")!!
         val res1 = engine.eval("""
@@ -192,6 +232,17 @@ obj
         fun Long.ms() = TimeUnit.NANOSECONDS.toMillis(this)
         Assert.assertTrue("eval in eval is too long: ${times.joinToString { "(${it.first.ms()}, ${it.second.ms()})" }} (expecting no more than 5x difference)",
                 adjustedMaxDiff.third < 20 /* assuming it measurement error */ || adjustedMaxDiff.first * 5 > adjustedMaxDiff.second )
+    }
+
+    @Test
+    fun `kotlin script evaluation should support functional return types`() {
+        val scriptEngine = KotlinJsr223JvmLocalScriptEngineFactory().scriptEngine
+
+        val script = "{1 + 2}"
+        val result = scriptEngine.eval(script)
+
+        Assert.assertTrue(result is Function0<*>)
+        Assert.assertEquals(3, (result as Function0<*>).invoke())
     }
 }
 

@@ -18,17 +18,17 @@ package org.jetbrains.kotlin.ir.expressions.impl
 
 import org.jetbrains.kotlin.ir.expressions.IrErrorCallExpression
 import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.utils.SmartList
 
 class IrErrorCallExpressionImpl(
-        startOffset: Int,
-        endOffset: Int,
-        type: KotlinType,
-        override val description: String
-) : IrExpressionBase(startOffset, endOffset, type), IrErrorCallExpression {
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val description: String
+) : IrErrorCallExpression() {
     override var explicitReceiver: IrExpression? = null
     override val arguments: MutableList<IrExpression> = SmartList()
 

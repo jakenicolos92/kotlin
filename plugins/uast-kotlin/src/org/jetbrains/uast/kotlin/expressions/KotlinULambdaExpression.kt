@@ -16,22 +16,66 @@
 
 package org.jetbrains.uast.kotlin
 
+import com.intellij.psi.PsiType
+import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.KtLambdaExpression
-import org.jetbrains.uast.UBlockExpression
-import org.jetbrains.uast.UElement
-import org.jetbrains.uast.ULambdaExpression
+import org.jetbrains.kotlin.resolve.BindingContext.FUNCTION
+import org.jetbrains.kotlin.resolve.bindingContextUtil.isUsedAsResultOfLambda
+import org.jetbrains.kotlin.resolve.calls.components.isVararg
+import org.jetbrains.uast.*
 import org.jetbrains.uast.kotlin.psi.UastKotlinPsiParameter
-import org.jetbrains.uast.withMargin
+import org.jetbrains.uast.kotlin.psi.UastKotlinPsiParameterBase
 
 class KotlinULambdaExpression(
-        override val psi: KtLambdaExpression,
-        override val uastParent: UElement?
-) : KotlinAbstractUExpression(), ULambdaExpression, KotlinUElementWithType {
-    override val body by lz { KotlinConverter.convertOrEmpty(psi.bodyExpression, this) }
-    
+        override val sourcePsi: KtLambdaExpression,
+        givenParent: UElement?
+) : KotlinAbstractUExpression(givenParent), ULambdaExpression, KotlinUElementWithType {
+    override val functionalInterfaceType: PsiType?
+        get() = getFunctionalInterfaceType()
+
+    override val body by lz {
+        sourcePsi.bodyExpression?.let { Body(it, this) } ?: UastEmptyExpression(this)
+    }
+
+    class Body(bodyExpression: KtBlockExpression, parent: KotlinULambdaExpression) : KotlinUBlockExpression(bodyExpression, parent) {
+
+        override val expressions: List<UExpression> by lz expressions@{
+            val statements = sourcePsi.statements
+            if (statements.isEmpty()) return@expressions emptyList<UExpression>()
+            ArrayList<UExpression>(statements.size).also { result ->
+                statements.subList(0, statements.size - 1).mapTo(result) { KotlinConverter.convertOrEmpty(it, this) }
+                result.add(implicitReturn ?: KotlinConverter.convertOrEmpty(statements.last(), this))
+            }
+        }
+
+        val implicitReturn: KotlinUImplicitReturnExpression? by lz {
+            val lastExpression = sourcePsi.statements.lastOrNull() ?: return@lz null
+            if (!lastExpression.isUsedAsResultOfLambda(lastExpression.analyze())) return@lz null
+
+            KotlinUImplicitReturnExpression(this).apply {
+                returnExpression = KotlinConverter.convertOrEmpty(lastExpression, this)
+            }
+        }
+
+    }
+
     override val valueParameters by lz {
-        psi.valueParameters.mapIndexed { i, p ->
-            KotlinUParameter(UastKotlinPsiParameter.create(p, psi, this, i), this)
+
+        val explicitParameters = sourcePsi.valueParameters.mapIndexed { i, p ->
+            KotlinUParameter(UastKotlinPsiParameter.create(p, sourcePsi, this, i), p, this)
+        }
+        if (explicitParameters.isNotEmpty()) return@lz explicitParameters
+
+        val functionDescriptor = sourcePsi.analyze()[FUNCTION, sourcePsi.functionLiteral] ?: return@lz emptyList()
+        functionDescriptor.valueParameters.mapIndexed { i, p ->
+            KotlinUParameter(
+                UastKotlinPsiParameterBase(
+                    p.name.asString(),
+                    p.type.toPsiType(this, sourcePsi, false),
+                    sourcePsi, sourcePsi, sourcePsi.language, p.isVararg, null
+                ),
+                null, this
+            )
         }
     }
     
@@ -43,6 +87,6 @@ class KotlinULambdaExpression(
         val expressions = (body as? UBlockExpression)?.expressions
                                   ?.joinToString("\n") { it.asRenderString().withMargin } ?: body.asRenderString()
 
-        return "{ " + renderedValueParameters + "\n" + expressions + "\n}"
+        return "{ $renderedValueParameters\n$expressions\n}"
     }
 }

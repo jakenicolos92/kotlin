@@ -1,9 +1,10 @@
-FILE /javaEnum.kt
-  PROPERTY public val test: JEnum
-    FIELD PROPERTY_BACKING_FIELD public val test: JEnum
+FILE fqName:<root> fileName:/javaEnum.kt
+  PROPERTY name:test visibility:public modality:FINAL [val]
+    FIELD PROPERTY_BACKING_FIELD name:test type:<root>.JEnum visibility:private [final,static]
       EXPRESSION_BODY
-        GET_ENUM 'ONE' type=JEnum
-    FUN DEFAULT_PROPERTY_ACCESSOR public fun <get-test>(): JEnum
+        GET_ENUM 'ENUM_ENTRY IR_EXTERNAL_DECLARATION_STUB name:ONE' type=<root>.JEnum
+    FUN DEFAULT_PROPERTY_ACCESSOR name:<get-test> visibility:public modality:FINAL <> () returnType:<root>.JEnum
+      correspondingProperty: PROPERTY name:test visibility:public modality:FINAL [val]
       BLOCK_BODY
-        RETURN type=kotlin.Nothing from='<get-test>(): JEnum'
-          GET_FIELD 'test: JEnum' type=JEnum origin=null
+        RETURN type=kotlin.Nothing from='public final fun <get-test> (): <root>.JEnum declared in <root>'
+          GET_FIELD 'FIELD PROPERTY_BACKING_FIELD name:test type:<root>.JEnum visibility:private [final,static]' type=<root>.JEnum origin=null

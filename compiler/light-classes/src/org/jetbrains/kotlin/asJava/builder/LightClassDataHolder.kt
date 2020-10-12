@@ -1,27 +1,16 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2017 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.asJava.builder
 
+import com.intellij.openapi.diagnostic.ControlFlowException
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiClassType
 import com.intellij.psi.impl.DebugUtil
 import com.intellij.psi.impl.java.stubs.PsiJavaFileStub
 import com.intellij.psi.stubs.StubElement
-import org.jetbrains.kotlin.asJava.LightClassUtil
 import org.jetbrains.kotlin.asJava.LightClassUtil.findClass
 import org.jetbrains.kotlin.asJava.classes.KtLightClass
 import org.jetbrains.kotlin.asJava.classes.getOutermostClassOrObject
@@ -34,6 +23,7 @@ import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.debugText.getDebugText
 import org.jetbrains.kotlin.resolve.diagnostics.Diagnostics
+import org.jetbrains.kotlin.utils.KotlinExceptionWithAttachments
 
 interface LightClassDataHolder {
     val javaFileStub: PsiJavaFileStub
@@ -44,7 +34,7 @@ interface LightClassDataHolder {
     interface ForClass : LightClassDataHolder {
         fun findDataForDefaultImpls(classOrObject: KtClassOrObject) = findData {
             it.findDelegate(classOrObject).findInnerClassByName(JvmAbi.DEFAULT_IMPLS_CLASS_NAME, false)
-            ?: throw IllegalStateException("Couldn't get delegate for $this\n in ${DebugUtil.stubTreeToString(it)}")
+                ?: throw IllegalStateException("Couldn't get delegate for $this\n in ${DebugUtil.stubTreeToString(it)}")
         }
 
         fun findDataForClassOrObject(classOrObject: KtClassOrObject): LightClassData = findData { it.findDelegate(classOrObject) }
@@ -53,12 +43,19 @@ interface LightClassDataHolder {
     interface ForFacade : LightClassDataHolder {
         fun findDataForFacade(classFqName: FqName): LightClassData = findData { it.findDelegate(classFqName) }
     }
+
+    interface ForScript : ForClass {
+        fun findDataForScript(scriptFqName: FqName): LightClassData = findData { it.findDelegate(scriptFqName) }
+    }
 }
 
 interface LightClassData {
     val clsDelegate: PsiClass
 
-    val supertypes: Array<PsiClassType> get() { return clsDelegate.superTypes }
+    val supertypes: Array<PsiClassType>
+        get() {
+            return clsDelegate.superTypes
+        }
 
     fun getOwnFields(containingClass: KtLightClass): List<KtLightField>
     fun getOwnMethods(containingClass: KtLightClass): List<KtLightMethod>
@@ -83,9 +80,9 @@ object InvalidLightClassDataHolder : LightClassDataHolder.ForClass {
 }
 
 class LightClassDataHolderImpl(
-        override val javaFileStub: PsiJavaFileStub,
-        override val extraDiagnostics: Diagnostics
-) : LightClassDataHolder.ForClass, LightClassDataHolder.ForFacade {
+    override val javaFileStub: PsiJavaFileStub,
+    override val extraDiagnostics: Diagnostics
+) : LightClassDataHolder.ForClass, LightClassDataHolder.ForFacade, LightClassDataHolder.ForScript {
     override fun findData(findDelegate: (PsiJavaFileStub) -> PsiClass) = findDelegate(javaFileStub).let(::LightClassDataImpl)
 }
 
@@ -97,13 +94,16 @@ fun PsiJavaFileStub.findDelegate(classOrObject: KtClassOrObject): PsiClass {
     val outermostClassOrObject = getOutermostClassOrObject(classOrObject)
     val ktFileText: String? = try {
         outermostClassOrObject.containingFile.text
-    }
-    catch (e: Exception) {
+    } catch (e: Exception) {
+        if (e is ControlFlowException) throw e
         "Can't get text for outermost class"
     }
 
     val stubFileText = DebugUtil.stubTreeToString(this)
-    throw IllegalStateException("Couldn't get delegate for ${classOrObject.getDebugText()}\nin $ktFileText\nstub: \n$stubFileText")
+    throw KotlinExceptionWithAttachments("Couldn't get delegate for class")
+        .withAttachment(classOrObject.name ?: "unnamed class or object", classOrObject.getDebugText())
+        .withAttachment("file.kt", ktFileText)
+        .withAttachment("stub text", stubFileText)
 }
 
 fun PsiJavaFileStub.findDelegate(classFqName: FqName): PsiClass {
@@ -115,7 +115,7 @@ fun PsiJavaFileStub.findDelegate(classFqName: FqName): PsiClass {
 
 private fun collectClassNames(javaFileStub: PsiJavaFileStub): String {
     val names = mutableListOf<String>()
-    LightClassUtil.findClass(javaFileStub) { cls ->
+    findClass(javaFileStub) { cls ->
         names.add(cls.qualifiedName ?: "<null>")
         false
     }

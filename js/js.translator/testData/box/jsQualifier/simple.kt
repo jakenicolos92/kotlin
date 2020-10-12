@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 489
+// EXPECTED_REACHABLE_NODES: 1282
 // MODULE: lib
 // FILE: lib.kt
 @file:JsQualifier("a.b")

@@ -1,36 +1,55 @@
 apply plugin: 'kotlin'
+apply plugin: 'jps-compatible'
 
-configureJvmProject(project)
 configurePublishing(project)
 
-repositories {
-    mavenLocal()
-    jcenter()
-    maven { url 'http://repository.jetbrains.com/utils' }
+pill {
+    variant = 'FULL'
 }
 
 dependencies {
     compile project(':kotlin-gradle-plugin-api')
+    compile project(':kotlin-gradle-plugin-model')
 
-    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    compileOnly "org.jetbrains.kotlin:kotlin-compiler-embeddable:$kotlin_version"
+    compile kotlinStdlib()
+    compileOnly project(path: ':kotlin-compiler-embeddable', configuration: 'runtimeJar')
+    compileOnly project(':kotlin-allopen-compiler-plugin')
 
-    compileOnly 'org.jetbrains.kotlin:gradle-api:1.6'
+    compileOnly gradleApi()
+
+    testCompile gradleApi()
+    testCompile "junit:junit:4.12"
+
+    embedded(project(":kotlin-allopen-compiler-plugin")) { transitive = false }
 }
 
-def originalSrc = "$kotlin_root/plugins/allopen/allopen-cli/src"
-def targetSrc = file("$buildDir/allopen-target-src")
-
-task preprocessSources(type: Copy) {
-    from originalSrc
-    into targetSrc
-    filter { it.replaceAll('(?<!\\.)com\\.intellij', 'org.jetbrains.kotlin.com.intellij') }
+tasks.withType(project.compileKotlin.class) {
+    kotlinOptions.languageVersion = "1.3"
+    kotlinOptions.apiVersion = "1.3"
+    kotlinOptions.freeCompilerArgs += ["-Xskip-prerelease-check"]
 }
-
-sourceSets.main.java.srcDirs += targetSrc
-
-compileKotlin.dependsOn preprocessSources
 
 jar {
-    from(targetSrc) { include("META-INF/**") }
+    manifestAttributes(manifest, project)
 }
+
+ArtifactsKt.runtimeJar(project, EmbeddableKt.rewriteDefaultJarDepsToShadedCompiler(project, {}), {})
+configureSourcesJar()
+configureJavadocJar()
+
+pluginBundle {
+    plugins {
+        kotlinAllopenPlugin {
+            id = 'org.jetbrains.kotlin.plugin.allopen'
+            description = displayName = 'Kotlin All Open compiler plugin'
+        }
+        kotlinSpringPlugin {
+            id = 'org.jetbrains.kotlin.plugin.spring'
+            description = displayName = 'Kotlin Spring compiler plugin'
+        }
+    }
+}
+
+configurePluginMarkers(project)
+
+test.executable = "${JDK_18}/bin/java"

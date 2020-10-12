@@ -16,13 +16,13 @@
 
 package org.jetbrains.kotlin.ir.expressions
 
-abstract class IrStatementOriginImpl(val debugName: String): IrStatementOrigin {
+abstract class IrStatementOriginImpl(val debugName: String) : IrStatementOrigin {
     override fun toString(): String = debugName
 }
 
 interface IrStatementOrigin {
     object SAFE_CALL : IrStatementOriginImpl("SAFE_CALL")
-    
+
     object UMINUS : IrStatementOriginImpl("UMINUS")
     object UPLUS : IrStatementOriginImpl("UPLUS")
     object EXCL : IrStatementOriginImpl("EXCL")
@@ -70,7 +70,7 @@ interface IrStatementOrigin {
 
     object ARGUMENTS_REORDERING_FOR_CALL : IrStatementOriginImpl("ARGUMENTS_REORDERING_FOR_CALL")
     object DESTRUCTURING_DECLARATION : IrStatementOriginImpl("DESTRUCTURING_DECLARATION")
-    
+
     object GET_PROPERTY : IrStatementOriginImpl("GET_PROPERTY")
     object GET_LOCAL_PROPERTY : IrStatementOriginImpl("GET_LOCAL_PROPERTY")
 
@@ -86,32 +86,38 @@ interface IrStatementOrigin {
     object FOR_LOOP_NEXT : IrStatementOriginImpl("FOR_LOOP_NEXT")
 
     object LAMBDA : IrStatementOriginImpl("LAMBDA")
+    object DEFAULT_VALUE : IrStatementOriginImpl("DEFAULT_VALUE")
     object ANONYMOUS_FUNCTION : IrStatementOriginImpl("ANONYMOUS_FUNCTION")
     object OBJECT_LITERAL : IrStatementOriginImpl("OBJECT_LITERAL")
+    object ADAPTED_FUNCTION_REFERENCE : IrStatementOriginImpl("ADAPTED_FUNCTION_REFERENCE")
+    object SUSPEND_CONVERSION: IrStatementOriginImpl("SUSPEND_CONVERSION")
 
     object INITIALIZE_PROPERTY_FROM_PARAMETER : IrStatementOriginImpl("INITIALIZE_PROPERTY_FROM_PARAMETER")
+    object INITIALIZE_FIELD : IrStatementOriginImpl("INITIALIZE_FIELD")
 
     object PROPERTY_REFERENCE_FOR_DELEGATE : IrStatementOriginImpl("PROPERTY_REFERENCE_FOR_DELEGATE")
+
+    object BRIDGE_DELEGATION : IrStatementOriginImpl("BRIDGE_DELEGATION")
 
     data class COMPONENT_N private constructor(val index: Int) : IrStatementOriginImpl("COMPONENT_$index") {
         companion object {
             private val precreatedComponents = Array(32) { i -> COMPONENT_N(i + 1) }
 
             fun withIndex(index: Int) =
-                    if (index < precreatedComponents.size)
-                        precreatedComponents[index - 1]
-                    else
-                        COMPONENT_N(index)
+                if (index < precreatedComponents.size)
+                    precreatedComponents[index - 1]
+                else
+                    COMPONENT_N(index)
         }
     }
 
 }
 
 fun IrStatementOrigin.isAssignmentOperatorWithResult() =
-        when (this) {
-            IrStatementOrigin.PREFIX_INCR, IrStatementOrigin.PREFIX_DECR,
-            IrStatementOrigin.POSTFIX_INCR, IrStatementOrigin.POSTFIX_DECR ->
-                true
-            else ->
-                false
-        }
+    when (this) {
+        IrStatementOrigin.PREFIX_INCR, IrStatementOrigin.PREFIX_DECR,
+        IrStatementOrigin.POSTFIX_INCR, IrStatementOrigin.POSTFIX_DECR ->
+            true
+        else ->
+            false
+    }

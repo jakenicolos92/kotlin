@@ -16,31 +16,39 @@
 
 package org.jetbrains.kotlin.resolve.scopes
 
-import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
+import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+import org.jetbrains.kotlin.descriptors.PropertyDescriptor
+import org.jetbrains.kotlin.descriptors.SimpleFunctionDescriptor
 import org.jetbrains.kotlin.incremental.components.LookupLocation
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.util.collectionUtils.filterIsInstanceMapTo
 import org.jetbrains.kotlin.utils.Printer
 import org.jetbrains.kotlin.utils.alwaysTrue
 
 abstract class MemberScopeImpl : MemberScope {
     override fun getContributedClassifier(name: Name, location: LookupLocation): ClassifierDescriptor? = null
 
-    override fun getContributedVariables(name: Name, location: LookupLocation): Collection<PropertyDescriptor> = emptyList()
+    override fun getContributedVariables(name: Name, location: LookupLocation): Collection<@JvmWildcard PropertyDescriptor> =
+        emptyList()
 
-    override fun getContributedFunctions(name: Name, location: LookupLocation): Collection<SimpleFunctionDescriptor> = emptyList()
+    override fun getContributedFunctions(name: Name, location: LookupLocation): Collection<@JvmWildcard SimpleFunctionDescriptor> =
+        emptyList()
 
     override fun getContributedDescriptors(kindFilter: DescriptorKindFilter,
                                            nameFilter: (Name) -> Boolean): Collection<DeclarationDescriptor> = emptyList()
 
     override fun getFunctionNames(): Set<Name> =
-            getContributedDescriptors(
-                    DescriptorKindFilter.FUNCTIONS, alwaysTrue()
-            ).filterIsInstance<SimpleFunctionDescriptor>().mapTo(mutableSetOf()) { it.name }
+        getContributedDescriptors(
+            DescriptorKindFilter.FUNCTIONS, alwaysTrue()
+        ).filterIsInstanceMapTo<SimpleFunctionDescriptor, Name, MutableSet<Name>>(mutableSetOf()) { it.name }
 
     override fun getVariableNames(): Set<Name> =
-            getContributedDescriptors(
-                    DescriptorKindFilter.VARIABLES, alwaysTrue()
-            ).filterIsInstance<VariableDescriptor>().mapTo(mutableSetOf()) { it.name }
+        getContributedDescriptors(
+            DescriptorKindFilter.VARIABLES, alwaysTrue()
+        ).filterIsInstanceMapTo<SimpleFunctionDescriptor, Name, MutableSet<Name>>(mutableSetOf()) { it.name }
+
+    override fun getClassifierNames(): Set<Name>? = null
 
     // This method should not be implemented here by default: every scope class has its unique structure pattern
     abstract override fun printScopeStructure(p: Printer)

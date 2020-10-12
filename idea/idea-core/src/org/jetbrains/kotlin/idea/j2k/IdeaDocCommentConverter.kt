@@ -1,27 +1,13 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.j2k
 
 import com.intellij.ide.highlighter.HtmlFileType
 import com.intellij.openapi.util.text.StringUtil
-import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiFileFactory
-import com.intellij.psi.PsiWhiteSpace
-import com.intellij.psi.XmlRecursiveElementVisitor
+import com.intellij.psi.*
 import com.intellij.psi.html.HtmlTag
 import com.intellij.psi.javadoc.PsiDocComment
 import com.intellij.psi.javadoc.PsiDocTag
@@ -31,8 +17,6 @@ import com.intellij.psi.xml.XmlFile
 import com.intellij.psi.xml.XmlTag
 import com.intellij.psi.xml.XmlText
 import com.intellij.psi.xml.XmlTokenType
-import org.jetbrains.kotlin.j2k.DocCommentConverter
-import org.jetbrains.kotlin.j2k.content
 
 object IdeaDocCommentConverter : DocCommentConverter {
     override fun convertDocComment(docComment: PsiDocComment): String {
@@ -44,7 +28,10 @@ object IdeaDocCommentConverter : DocCommentConverter {
                 when (tag.name) {
                     "deprecated" -> continue@tagsLoop
                     "see" -> append("@see ${convertJavadocLink(tag.content())}\n")
-                    else -> appendJavadocElements(tag.children).append("\n")
+                    else -> {
+                        appendJavadocElements(tag.children)
+                        if (!endsWithNewline()) append("\n")
+                    }
                 }
             }
         }
@@ -55,7 +42,8 @@ object IdeaDocCommentConverter : DocCommentConverter {
         }
 
         val htmlFile = PsiFileFactory.getInstance(docComment.project).createFileFromText(
-                "javadoc.html", HtmlFileType.INSTANCE, html)
+            "javadoc.html", HtmlFileType.INSTANCE, html
+        )
         val htmlToMarkdownConverter = HtmlToMarkdownConverter()
         htmlFile.accept(htmlToMarkdownConverter)
         return htmlToMarkdownConverter.result
@@ -65,13 +53,30 @@ object IdeaDocCommentConverter : DocCommentConverter {
         elements.forEach {
             if (it is PsiInlineDocTag) {
                 append(convertInlineDocTag(it))
-            }
-            else {
-                append(it.text)
+            } else {
+                if (it.node?.elementType != JavaDocTokenType.DOC_COMMENT_LEADING_ASTERISKS) {
+                    append(it.text)
+                }
             }
         }
         return this
     }
+
+    /**
+     * Returns true if the builder ends with a new-line optionally followed by some spaces
+     */
+    private fun StringBuilder.endsWithNewline(): Boolean {
+        for (i in length - 1 downTo 0) {
+            val c = get(i)
+            if (c.isWhitespace()) {
+                if (c == '\n' || c == '\r') return true
+            } else {
+                return false
+            }
+        }
+        return false
+    }
+
 
     private fun convertInlineDocTag(tag: PsiInlineDocTag) = when (tag.name) {
         "code", "literal" -> {
@@ -91,17 +96,14 @@ object IdeaDocCommentConverter : DocCommentConverter {
         else -> tag.text
     }
 
-    private fun convertJavadocLink(link: String?): String =
-            if (link != null) link.substringBefore('(').replace('#', '.') else ""
+    private fun convertJavadocLink(link: String?): String = link?.substringBefore('(')?.replace('#', '.') ?: ""
 
-    private fun PsiDocTag.linkElement(): PsiElement? =
-            valueElement ?: dataElements.firstOrNull { it !is PsiWhiteSpace }
+    private fun PsiDocTag.linkElement(): PsiElement? = valueElement ?: dataElements.firstOrNull { it !is PsiWhiteSpace }
 
-    private fun XmlTag.attributesAsString() =
-            if (attributes.isNotEmpty())
-                attributes.joinToString(separator = " ", prefix = " ") { it.text }
-            else
-                ""
+    private fun XmlTag.attributesAsString() = if (attributes.isNotEmpty())
+        attributes.joinToString(separator = " ", prefix = " ") { it.text }
+    else
+        ""
 
     private class HtmlToMarkdownConverter() : XmlRecursiveElementVisitor() {
         private enum class ListType { Ordered, Unordered; }
@@ -113,7 +115,7 @@ object IdeaDocCommentConverter : DocCommentConverter {
                 fun prefix(text: String) = MarkdownSpan(text, "")
 
                 fun preserveTag(tag: XmlTag) =
-                        MarkdownSpan("<${tag.name}${tag.attributesAsString()}>", "</${tag.name}>")
+                    MarkdownSpan("<${tag.name}${tag.attributesAsString()}>", "</${tag.name}>")
             }
         }
 
@@ -131,8 +133,18 @@ object IdeaDocCommentConverter : DocCommentConverter {
 
             if (whitespaceIsPartOfText) {
                 appendPendingText()
-                markdownBuilder.append(space.text)
-                if (space.textContains('\n')) {
+                val lines = space.text.lines()
+                if (lines.size == 1) {
+                    markdownBuilder.append(space.text)
+                } else {
+                    //several lines of spaces:
+                    //drop first line - it contains trailing spaces before the first new-line;
+                    //do not add star for the last line, it is handled by appendPendingText()
+                    //and it is not needed in the end of the comment
+                    lines.drop(1).dropLast(1).forEach {
+                        markdownBuilder.append("\n * ")
+                    }
+                    markdownBuilder.append("\n")
                     afterLineBreak = true
                 }
             }
@@ -141,9 +153,7 @@ object IdeaDocCommentConverter : DocCommentConverter {
         override fun visitElement(element: PsiElement) {
             super.visitElement(element)
 
-            val tokenType = element.node.elementType
-
-            when (tokenType) {
+            when (element.node.elementType) {
                 XmlTokenType.XML_DATA_CHARACTERS -> {
                     appendPendingText()
                     markdownBuilder.append(element.text)
@@ -170,6 +180,7 @@ object IdeaDocCommentConverter : DocCommentConverter {
 
                 super.visitXmlTag(tag)
 
+                //appendPendingText()
                 markdownBuilder.append(closingMarkdown)
                 currentListType = oldListType
             }
@@ -186,8 +197,7 @@ object IdeaDocCommentConverter : DocCommentConverter {
             whitespaceIsPartOfText = newValue
             try {
                 block()
-            }
-            finally {
+            } finally {
                 whitespaceIsPartOfText = oldValue
             }
         }
@@ -214,11 +224,9 @@ object IdeaDocCommentConverter : DocCommentConverter {
                     val docRef = tag.getAttributeValue("docref")
                     val innerText = tag.value.text
                     if (docRef == innerText) MarkdownSpan("[", "]") else MarkdownSpan("[", "][$docRef]")
-                }
-                else if (tag.getAttributeValue("href") != null) {
+                } else if (tag.getAttributeValue("href") != null) {
                     MarkdownSpan("[", "](${tag.getAttributeValue("href") ?: ""})")
-                }
-                else {
+                } else {
                     MarkdownSpan.preserveTag(tag)
                 }
             }

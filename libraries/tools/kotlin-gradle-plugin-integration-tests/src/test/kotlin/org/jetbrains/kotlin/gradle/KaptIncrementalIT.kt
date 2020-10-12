@@ -1,50 +1,42 @@
 package org.jetbrains.kotlin.gradle
 
-import org.jetbrains.kotlin.gradle.util.allKotlinFiles
-import org.jetbrains.kotlin.gradle.util.findFileByName
-import org.jetbrains.kotlin.gradle.util.getFileByName
-import org.jetbrains.kotlin.gradle.util.modify
+import org.jetbrains.kotlin.gradle.util.*
 import org.junit.Test
+import kotlin.test.assertEquals
 
-class KaptIncrementalNoStubsIT : KaptIncrementalBaseIT(shouldUseStubs = false)
-class KaptIncrementalWithStubsIT : KaptIncrementalBaseIT(shouldUseStubs = true)
-
-class Kapt3Incremental : KaptIncrementalBaseIT(shouldUseStubs = false, useKapt3 = true)
-
-abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: Boolean = false): BaseGradleIT() {
-    init {
-        if (useKapt3) {
-            assert(!shouldUseStubs)
-        }
-    }
-
+open class KaptIncrementalIT : BaseGradleIT() {
     companion object {
-        private const val GRADLE_VERSION = "2.10"
         private val EXAMPLE_ANNOTATION_REGEX = "@(field:)?example.ExampleAnnotation".toRegex()
-        private const val GENERATE_STUBS_PLACEHOLDER = "GENERATE_STUBS_PLACEHOLDER"
-
-        private const val APPLY_KAPT3_PLUGIN_PLACEHOLDER = "// APPLY_KAPT_PLUGIN"
-        private const val APPLY_KAPT3_PLUGIN = "apply plugin: \"kotlin-kapt\""
     }
 
-    protected open val projectName = "kaptIncrementalCompilationProject"
-
-    private fun getProject() =
-            Project(projectName, GRADLE_VERSION).apply {
-                setupWorkingDir()
-                val buildGradle = projectDir.parentFile.getFileByName("build.gradle")
-                buildGradle.modify { it.replace(GENERATE_STUBS_PLACEHOLDER, shouldUseStubs.toString()) }
-
-                if (useKapt3) {
-                    buildGradle.modify { it.replace(APPLY_KAPT3_PLUGIN_PLACEHOLDER, APPLY_KAPT3_PLUGIN) }
-                }
-            }
+    open fun getProject() =
+        Project(
+            "kaptIncrementalCompilationProject",
+            GradleVersionRequired.None
+        ).apply { setupWorkingDir() }
 
     private val annotatedElements =
-            arrayOf("A", "funA", "valA", "funUtil", "valUtil", "B", "funB", "valB", "useB")
+        arrayOf("A", "funA", "valA", "funUtil", "valUtil", "B", "funB", "valB", "useB")
 
     override fun defaultBuildOptions(): BuildOptions =
-            super.defaultBuildOptions().copy(incremental = true)
+        super.defaultBuildOptions().copy(incremental = true)
+
+    @Test
+    fun testAddNewLine() {
+        val project = getProject()
+
+        project.build("clean", "build") {
+            assertSuccessful()
+        }
+
+        project.projectFile("useB.kt").modify { "\n$it" }
+        project.build("build") {
+            assertSuccessful()
+            assertTasksExecuted(":kaptGenerateStubsKotlin", ":compileKotlin")
+            assertTasksUpToDate(":kaptKotlin")
+            assertTasksUpToDate(":compileJava")
+        }
+    }
 
     @Test
     fun testBasic() {
@@ -52,7 +44,6 @@ abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: 
 
         project.build("build") {
             assertSuccessful()
-            checkStubUsage()
             checkGenerated(*annotatedElements)
             checkNotGenerated("notAnnotatedFun")
             assertContains("foo.ATest PASSED")
@@ -60,17 +51,41 @@ abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: 
 
         project.build("build") {
             assertSuccessful()
-            assertContains(":compileKotlin UP-TO-DATE",
-                           ":compileJava UP-TO-DATE")
+            assertTasksUpToDate(
+                ":compileKotlin",
+                ":compileJava"
+            )
 
-            if (useKapt3) {
-                assertContains(":kaptKotlin UP-TO-DATE",
-                               ":kaptGenerateStubsKotlin UP-TO-DATE")
-            }
+            assertTasksUpToDate(
+                ":kaptKotlin",
+                ":kaptGenerateStubsKotlin"
+            )
+        }
+    }
 
-            if (shouldUseStubs) {
-                assertContains(":compileKotlinAfterJava UP-TO-DATE")
-            }
+    @Test
+    fun testCompileError() {
+        val project = getProject()
+
+        project.build("build") {
+            assertSuccessful()
+        }
+
+        val bKt = project.projectDir.getFileByName("B.kt")
+        val errorKt = bKt.resolveSibling("error.kt")
+        errorKt.writeText("<COMPILE_ERROR_MARKER>")
+
+        project.build("build") {
+            assertFailed()
+            assertTasksFailed(":kaptGenerateStubsKotlin")
+        }
+
+        errorKt.delete()
+        bKt.modify { "$it\n" }
+        project.build("build") {
+            assertSuccessful()
+            assertCompiledKotlinSources(project.relativize(bKt))
+            assertTasksExecuted(":kaptGenerateStubsKotlin", ":compileKotlin")
         }
     }
 
@@ -80,7 +95,6 @@ abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: 
 
         project.build("build") {
             assertSuccessful()
-            checkStubUsage()
             checkGenerated(*annotatedElements)
             checkNotGenerated("notAnnotatedFun")
             assertContains("foo.ATest PASSED")
@@ -94,12 +108,8 @@ abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: 
 
         project.build("build") {
             assertSuccessful()
-            checkStubUsage()
-
-            if (useKapt3) {
-                assertNotContains(":kaptGenerateStubsKotlin UP-TO-DATE")
-                assertContains(":kaptKotlin UP-TO-DATE")
-            }
+            assertTasksExecuted(":kaptGenerateStubsKotlin")
+            assertTasksUpToDate(":kaptKotlin")
         }
     }
 
@@ -156,15 +166,15 @@ abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: 
             assertSuccessful()
             assertKapt3FullyExecuted()
 
-            if (useKapt3) {
-                assertFileExists("$kapt3IncDataPath/bar/B.class")
-                assertFileExists("$kapt3IncDataPath/bar/UseBKt.class")
-                assertFileExists("$kapt3StubsPath/bar/B.java")
-                assertFileExists("$kapt3StubsPath/bar/UseBKt.java")
-            }
+            assertFileExists("$kapt3IncDataPath/bar/B.class")
+            assertFileExists("$kapt3IncDataPath/bar/UseBKt.class")
+            assertFileExists("$kapt3StubsPath/bar/B.java")
+            assertFileExists("$kapt3StubsPath/bar/B.kapt_metadata")
+            assertFileExists("$kapt3StubsPath/bar/UseBKt.java")
+            assertFileExists("$kapt3StubsPath/bar/UseBKt.kapt_metadata")
         }
 
-        with (project.projectDir) {
+        with(project.projectDir) {
             getFileByName("B.kt").delete()
             getFileByName("useB.kt").delete()
         }
@@ -172,12 +182,12 @@ abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: 
         project.build("build") {
             assertFailed()
 
-            if (useKapt3) {
-                assertNoSuchFile("$kapt3IncDataPath/bar/B.class")
-                assertNoSuchFile("$kapt3IncDataPath/bar/UseBKt.class")
-                assertNoSuchFile("$kapt3StubsPath/bar/B.java")
-                assertNoSuchFile("$kapt3StubsPath/bar/UseBKt.java")
-            }
+            assertNoSuchFile("$kapt3IncDataPath/bar/B.class")
+            assertNoSuchFile("$kapt3IncDataPath/bar/UseBKt.class")
+            assertNoSuchFile("$kapt3StubsPath/bar/B.java")
+            assertNoSuchFile("$kapt3StubsPath/bar/B.kaptMetadata")
+            assertNoSuchFile("$kapt3StubsPath/bar/UseBKt.java")
+            assertNoSuchFile("$kapt3StubsPath/bar/UseBKt.kaptMetadata")
         }
 
         project.projectDir.getFileByName("JavaClass.java").delete()
@@ -189,6 +199,40 @@ abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: 
             val affectedElements = arrayOf("B", "funB", "valB", "useB")
             checkGenerated(*(annotatedElements.toSet() - affectedElements).toTypedArray())
             checkNotGenerated(*affectedElements)
+        }
+    }
+
+    @Test
+    fun testRemoveAllKotlinSources() {
+        val project = getProject()
+        val kapt3StubsPath = "build/tmp/kapt3/stubs/main"
+
+        project.build("build") {
+            assertSuccessful()
+            assertFileExists("$kapt3StubsPath/bar/UseBKt.java")
+        }
+
+        with(project.projectDir) {
+            resolve("src/").deleteRecursively()
+            resolve("src/main/java/bar").mkdirs()
+            resolve("src/main/java/bar/MyClass.java").writeText(
+                """
+                package bar;
+                public class MyClass {}
+            """.trimIndent()
+            )
+        }
+
+        project.build("build") {
+            assertSuccessful()
+
+            // Make sure all generated stubs are removed (except for NonExistentClass).
+            assertEquals(
+                listOf(fileInWorkingDir("$kapt3StubsPath/error/NonExistentClass.java").canonicalPath),
+                fileInWorkingDir(kapt3StubsPath).walk().filter { it.extension == "java" }.map { it.canonicalPath }.toList()
+            )
+            // Make sure all compiled kt files are cleaned up.
+            assertEquals(emptyList(), fileInWorkingDir("build/classes/kotlin").walk().filter { it.extension == "class" }.toList())
         }
     }
 
@@ -206,25 +250,17 @@ abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: 
         project.build("build") {
             assertSuccessful()
 
-            if (useKapt3) {
-                assertKapt3FullyExecuted()
+            assertKapt3FullyExecuted()
 
-                val useBKt = project.projectDir.getFileByName("useB.kt")
-                assertCompiledKotlinSources(project.relativize(bKt, useBKt),
-                        output = getOutputForTask("kaptGenerateStubsKotlin"))
+            val useBKt = project.projectDir.getFileByName("useB.kt")
+            assertCompiledKotlinSources(project.relativize(bKt, useBKt), tasks = listOf("kaptGenerateStubsKotlin"))
 
-                // java removal is detected
-                assertCompiledKotlinSources(project.relativize(project.projectDir.allKotlinFiles()),
-                        output = getOutputForTask("compileKotlin"))
-            }
-            else if (shouldUseStubs) {
-                // java removal is detected
-                assertCompiledKotlinSources(project.relativize(project.projectDir.allKotlinFiles()))
-            }
-            else {
-                val useBKt = project.projectDir.getFileByName("useB.kt")
-                assertCompiledKotlinSources(project.relativize(bKt, useBKt))
-            }
+            // java removal is detected
+            assertCompiledKotlinSources(
+                project.relativize(project.projectDir.allKotlinFiles()),
+                tasks = listOf("compileKotlin")
+            )
+
             checkGenerated(*(annotatedElements.toSet() - affectedElements).toTypedArray())
             checkNotGenerated(*affectedElements)
         }
@@ -250,22 +286,17 @@ abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: 
     }
 
     private fun CompiledProject.assertCompiledKotlinSourcesHandleKapt3(
-            sources: Iterable<String>,
-            weakTesting: Boolean = false
+        sources: Iterable<String>,
+        weakTesting: Boolean = false
     ) {
-        if (useKapt3) {
-            assertCompiledKotlinSources(sources, weakTesting,
-                    tasks = listOf("compileKotlin", "kaptGenerateStubsKotlin"))
-        } else {
-            assertCompiledKotlinSources(sources, weakTesting)
-        }
+        assertCompiledKotlinSources(
+            sources, weakTesting,
+            tasks = listOf("compileKotlin", "kaptGenerateStubsKotlin")
+        )
     }
 
     private fun CompiledProject.assertKapt3FullyExecuted() {
-        if (useKapt3) {
-            assertNotContains(":kaptKotlin UP-TO-DATE",
-                    ":kaptGenerateStubsKotlin UP-TO-DATE")
-        }
+        assertTasksExecuted(":kaptKotlin", ":kaptGenerateStubsKotlin")
     }
 
     private fun CompiledProject.checkGenerated(vararg annotatedElementNames: String) {
@@ -285,16 +316,5 @@ abstract class KaptIncrementalBaseIT(val shouldUseStubs: Boolean, val useKapt3: 
     private fun getGeneratedFileNames(vararg annotatedElementNames: String): Iterable<String> {
         val names = annotatedElementNames.map { it.capitalize() + "Generated" }
         return names.map { it + ".java" }
-    }
-
-    private fun CompiledProject.checkStubUsage() {
-        val usingStubs = "kapt: Using class file stubs"
-
-        if (shouldUseStubs) {
-            assertContains(usingStubs)
-        }
-        else {
-            assertNotContains(usingStubs)
-        }
     }
 }

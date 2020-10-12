@@ -1,16 +1,19 @@
-// IGNORE_BACKEND: NATIVE
 // WITH_RUNTIME
 // WITH_COROUTINES
-import helpers.*
+// COMMON_COROUTINES_TEST
 // CHECK_BYTECODE_LISTING
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+// CHECK_NEW_COUNT: function=suspendHere count=0
+// CHECK_NEW_COUNT: function=complexSuspend count=0
+import helpers.*
+import COROUTINES_PACKAGE.*
+import COROUTINES_PACKAGE.intrinsics.*
 
-inline suspend fun suspendThere(v: String): String = suspendCoroutineOrReturn { x ->
+inline suspend fun suspendThere(v: String): String = suspendCoroutineUninterceptedOrReturn { x ->
     x.resume(v)
     COROUTINE_SUSPENDED
 }
 
+// TODO: Somehow we still generate continuations for tail-call function, but we don't use them.
 suspend fun suspendHere(): String = suspendThere("O")
 
 // There is a kind of redundant state machine generated for complexSuspend:

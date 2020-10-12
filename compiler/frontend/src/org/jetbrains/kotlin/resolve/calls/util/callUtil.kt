@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,21 +16,29 @@
 
 package org.jetbrains.kotlin.resolve.calls.callUtil
 
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiWhiteSpace
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.diagnostics.Diagnostic
+import org.jetbrains.kotlin.diagnostics.Errors
 import org.jetbrains.kotlin.incremental.KotlinLookupLocation
-import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.getTextWithLocation
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.BindingContext.CALL
 import org.jetbrains.kotlin.resolve.BindingContext.RESOLVED_CALL
+import org.jetbrains.kotlin.resolve.BindingTrace
+import org.jetbrains.kotlin.resolve.StatementFilter
 import org.jetbrains.kotlin.resolve.calls.ArgumentTypeResolver
 import org.jetbrains.kotlin.resolve.calls.CallTransformer
 import org.jetbrains.kotlin.resolve.calls.context.ResolutionContext
 import org.jetbrains.kotlin.resolve.calls.model.*
+import org.jetbrains.kotlin.resolve.calls.tower.NewResolvedCallImpl
+import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.isError
+import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 import org.jetbrains.kotlin.utils.sure
 
 // resolved call
@@ -48,8 +56,8 @@ fun <D : CallableDescriptor> ResolvedCall<D>.hasUnmappedParameters(): Boolean {
     return !parameterToArgumentMap.keys.containsAll(resultingDescriptor.valueParameters)
 }
 
-fun <D : CallableDescriptor> ResolvedCall<D>.allArgumentsMapped()
-        = call.valueArguments.all { argument -> getArgumentMapping(argument) is ArgumentMatch }
+fun <D : CallableDescriptor> ResolvedCall<D>.allArgumentsMapped() =
+    call.valueArguments.all { argument -> getArgumentMapping(argument) is ArgumentMatch }
 
 fun <D : CallableDescriptor> ResolvedCall<D>.hasTypeMismatchErrorOnParameter(parameter: ValueParameterDescriptor): Boolean {
     val resolvedValueArgument = valueArguments[parameter]
@@ -72,15 +80,20 @@ fun <D : CallableDescriptor> ResolvedCall<D>.usesDefaultArguments(): Boolean {
 
 // call
 
-fun <C: ResolutionContext<C>> Call.hasUnresolvedArguments(context: ResolutionContext<C>): Boolean {
+fun <C : ResolutionContext<C>> Call.hasUnresolvedArguments(context: ResolutionContext<C>): Boolean =
+    hasUnresolvedArguments(context.trace.bindingContext, context.statementFilter)
+
+fun Call.hasUnresolvedArguments(bindingContext: BindingContext, statementFilter: StatementFilter): Boolean {
     val arguments = valueArguments.map { it.getArgumentExpression() }
-    return arguments.any (fun (argument: KtExpression?): Boolean {
-        if (argument == null || ArgumentTypeResolver.isFunctionLiteralArgument(argument, context)) return false
+    return arguments.any(fun(argument: KtExpression?): Boolean {
+        if (argument == null || ArgumentTypeResolver.isFunctionLiteralOrCallableReference(argument, statementFilter)) return false
 
-        val resolvedCall = argument.getResolvedCall(context.trace.bindingContext) as MutableResolvedCall<*>?
-        if (resolvedCall != null && !resolvedCall.hasInferredReturnType()) return false
+        when (val resolvedCall = argument.getResolvedCall(bindingContext)) {
+            is MutableResolvedCall<*> -> if (!resolvedCall.hasInferredReturnType()) return false
+            is NewResolvedCallImpl<*> -> if (resolvedCall.resultingDescriptor.returnType?.isError == true) return false
+        }
 
-        val expressionType = context.trace.bindingContext.getType(argument)
+        val expressionType = bindingContext.getType(argument)
         return expressionType == null || expressionType.isError
     })
 }
@@ -90,12 +103,11 @@ fun Call.getValueArgumentsInParentheses(): List<ValueArgument> = valueArguments.
 fun KtCallElement.getValueArgumentsInParentheses(): List<ValueArgument> = valueArguments.filterArgsInParentheses()
 
 fun Call.getValueArgumentListOrElement(): KtElement =
-        if (this is CallTransformer.CallForImplicitInvoke) {
-            outerCall.getValueArgumentListOrElement()
-        }
-        else {
-            valueArgumentList ?: calleeExpression ?: callElement
-        }
+    if (this is CallTransformer.CallForImplicitInvoke) {
+        outerCall.getValueArgumentListOrElement()
+    } else {
+        valueArgumentList ?: calleeExpression ?: callElement
+    }
 
 @Suppress("UNCHECKED_CAST")
 private fun List<ValueArgument?>.filterArgsInParentheses() = filter { it !is KtLambdaArgument } as List<ValueArgument>
@@ -110,6 +122,7 @@ fun Call.getValueArgumentForExpression(expression: KtExpression): ValueArgument?
             else -> null
         }
     }
+
     fun KtElement.isParenthesizedExpression() = generateSequence(this) { it.deparenthesizeStructurally() }.any { it == expression }
     return valueArguments.firstOrNull { it?.getArgumentExpression()?.isParenthesizedExpression() ?: false }
 }
@@ -141,6 +154,13 @@ fun KtElement.getCall(context: BindingContext): Call? {
     // Do not use Call bound to outer call expression (if any) to prevent stack overflow during analysis
     if (element is KtCallElement && element.calleeExpression == null) return null
 
+    if (element is KtWhenExpression) {
+        val subjectVariable = element.subjectVariable
+        if (subjectVariable != null) {
+            return subjectVariable.getCall(context)
+        }
+    }
+
     val parent = element.parent
     val reference: KtExpression? = when (parent) {
         is KtInstanceExpressionWithLabel -> parent
@@ -155,8 +175,9 @@ fun KtElement.getCall(context: BindingContext): Call? {
 
 fun KtElement.getParentCall(context: BindingContext, strict: Boolean = true): Call? {
     val callExpressionTypes = arrayOf<Class<out KtElement>?>(
-            KtSimpleNameExpression::class.java, KtCallElement::class.java, KtBinaryExpression::class.java,
-            KtUnaryExpression::class.java, KtArrayAccessExpression::class.java)
+        KtSimpleNameExpression::class.java, KtCallElement::class.java, KtBinaryExpression::class.java,
+        KtUnaryExpression::class.java, KtArrayAccessExpression::class.java
+    )
 
     val parent = if (strict) {
         PsiTreeUtil.getParentOfType(this, *callExpressionTypes)
@@ -234,28 +255,69 @@ val KtElement.isFakeElement: Boolean
         return file is KtFile && file.doNotAnalyze != null
     }
 
+val PsiElement.isFakePsiElement: Boolean
+    get() = this is KtElement && isFakeElement
+
 fun Call.isSafeCall(): Boolean {
     if (this is CallTransformer.CallForImplicitInvoke) {
         //implicit safe 'invoke'
-        if (outerCall.isExplicitSafeCall()) {
+        if (outerCall.isSemanticallyEquivalentToSafeCall) {
             return true
         }
     }
-    return isExplicitSafeCall()
+    return isSemanticallyEquivalentToSafeCall
 }
-
-fun Call.isExplicitSafeCall(): Boolean = callOperationNode?.elementType == KtTokens.SAFE_ACCESS
 
 fun Call.isCallableReference(): Boolean {
     val callElement = callElement
-    return callElement is KtNameReferenceExpression &&
-           (callElement.parent as? KtCallableReferenceExpression)?.callableReference == callElement
+    return callElement.isCallableReference()
 }
+
+fun KtElement.isCallableReference(): Boolean =
+    this is KtNameReferenceExpression && (parent as? KtCallableReferenceExpression)?.callableReference == this
 
 fun Call.createLookupLocation(): KotlinLookupLocation {
     val calleeExpression = calleeExpression
     val element =
-            if (calleeExpression != null && !calleeExpression.isFakeElement) calleeExpression
-            else callElement
+        if (calleeExpression != null && !calleeExpression.isFakeElement) calleeExpression
+        else callElement
     return KotlinLookupLocation(element)
+}
+
+fun KtExpression.createLookupLocation(): KotlinLookupLocation? =
+    if (!isFakeElement) KotlinLookupLocation(this) else null
+
+fun ResolvedCall<*>.getFirstArgumentExpression(): KtExpression? =
+    valueArgumentsByIndex?.run { get(0).arguments[0].getArgumentExpression() }
+
+fun ResolvedCall<*>.getReceiverExpression(): KtExpression? =
+    extensionReceiver.safeAs<ExpressionReceiver>()?.expression ?: dispatchReceiver.safeAs<ExpressionReceiver>()?.expression
+
+val KtLambdaExpression.isTrailingLambdaOnNewLIne
+    get(): Boolean {
+        parent?.safeAs<KtLambdaArgument>()?.let { lambdaArgument ->
+            var prevSibling = lambdaArgument.prevSibling
+
+            while (prevSibling != null && prevSibling !is KtElement) {
+                if (prevSibling is PsiWhiteSpace && prevSibling.textContains('\n'))
+                    return true
+                prevSibling = prevSibling.prevSibling
+            }
+        }
+
+        return false
+    }
+
+
+inline fun BindingTrace.reportTrailingLambdaErrorOr(
+    expression: KtExpression?,
+    originalDiagnostic: (KtExpression) -> Diagnostic
+) {
+    expression?.let { expr ->
+        if (expr is KtLambdaExpression && expr.isTrailingLambdaOnNewLIne) {
+            report(Errors.UNEXPECTED_TRAILING_LAMBDA_ON_A_NEW_LINE.on(expr))
+        } else {
+            report(originalDiagnostic(expr))
+        }
+    }
 }

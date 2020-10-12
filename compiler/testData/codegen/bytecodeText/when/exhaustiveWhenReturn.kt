@@ -1,12 +1,13 @@
-enum class A { V }
+enum class A { V1, V2, V3 }
 
-fun box(): String {
-    val a: A = A.V
+fun box(a: A): String {
     when (a) {
-        A.V -> return "OK"
+        A.V1 -> return "V1"
+        A.V2 -> return "V2"
+        A.V3 -> return "V3"
     }
 }
 
-// 0 TABLESWITCH
-// 1 LOOKUPSWITCH
+// 1 TABLESWITCH
+// 0 LOOKUPSWITCH
 // 1 ATHROW

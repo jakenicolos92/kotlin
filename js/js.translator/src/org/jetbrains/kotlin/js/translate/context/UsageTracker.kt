@@ -22,6 +22,7 @@ import org.jetbrains.kotlin.js.backend.ast.JsScope
 import org.jetbrains.kotlin.js.backend.ast.metadata.descriptor
 import org.jetbrains.kotlin.js.descriptorUtils.isCoroutineLambda
 import org.jetbrains.kotlin.js.naming.NameSuggestion
+import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DescriptorUtils
 import org.jetbrains.kotlin.resolve.DescriptorUtils.*
 import org.jetbrains.kotlin.resolve.calls.util.FakeCallableDescriptorForObject
@@ -30,10 +31,12 @@ private val CAPTURED_RECEIVER_NAME_PREFIX : String = "this$"
 
 class UsageTracker(
         private val parent: UsageTracker?,
-        val containingDescriptor: MemberDescriptor
+        val containingDescriptor: MemberDescriptor,
+        val bindingContext: BindingContext
 ) {
 
     private val captured = linkedMapOf<DeclarationDescriptor, JsName>()
+    private val capturedTypesImpl = mutableMapOf<TypeParameterDescriptor, JsName>()
 
     // For readonly access from external places.
     val capturedDescriptorToJsName: Map<DeclarationDescriptor, JsName>
@@ -42,13 +45,16 @@ class UsageTracker(
     val capturedDescriptors: Set<DeclarationDescriptor>
         get() = captured.keys
 
+    val capturedTypes: Map<TypeParameterDescriptor, JsName>
+        get() = capturedTypesImpl
+
     fun used(descriptor: DeclarationDescriptor) {
         if (isCaptured(descriptor)) return
 
         if (descriptor is FakeCallableDescriptorForObject) return
 
         // local named function
-        if (descriptor is FunctionDescriptor && descriptor.visibility == Visibilities.LOCAL) {
+        if (descriptor is FunctionDescriptor && descriptor.visibility == DescriptorVisibilities.LOCAL) {
             captureIfNeed(descriptor)
         }
         // local variable
@@ -77,6 +83,11 @@ class UsageTracker(
         parent?.captureIfNeed(descriptor)
 
         captured[descriptor] = descriptor.getJsNameForCapturedDescriptor()
+
+        if (descriptor is TypeParameterDescriptor && descriptor.containingDeclaration.original != containingDescriptor.original) {
+            val name = "typeClosure\$" + NameSuggestion.sanitizeName(descriptor.name.asString())
+            capturedTypesImpl[descriptor] = JsScope.declareTemporaryName(name)
+        }
     }
 
     private fun isInLocalDeclaration(): Boolean {
@@ -166,7 +177,7 @@ class UsageTracker(
 
             // Append 'closure$' prefix to avoid name clash between closure and member fields in case of local classes
             else -> {
-                val mangled = NameSuggestion.sanitizeName(NameSuggestion().suggest(this)!!.names.last())
+                val mangled = NameSuggestion.sanitizeName(NameSuggestion().suggest(this, bindingContext)!!.names.last())
                 "closure\$$mangled"
             }
         }

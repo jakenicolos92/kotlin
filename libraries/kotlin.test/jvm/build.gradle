@@ -1,38 +1,58 @@
-
 description = 'Kotlin Test'
 
 apply plugin: 'kotlin-platform-jvm'
 
-configureJvmProject(project)
-configurePublishing(project)
+archivesBaseName = 'kotlin-test'
+
+configureJvm6Project(project)
+
+configurePublishing(project) {
+    artifactId = archivesBaseName
+}
+
+def includeJava9 = BuildPropertiesExtKt.getIncludeJava9(project.kotlinBuildProperties)
+
+sourceSets {
+    if (includeJava9) {
+        java9
+    }
+}
 
 dependencies {
-    implement project(':kotlin-test:kotlin-test-common')
-    compile project(':kotlin-stdlib')
+    expectedBy project(':kotlin-test:kotlin-test-common')
+    compile kotlinStdlib()
+    testCompile project(":kotlin-test:kotlin-test-junit")
     testCompile('junit:junit:4.12')
 }
 
-
-archivesBaseName = 'kotlin-test'
-
 jar {
-    manifestAttributes(manifest, project, 'Test')
+    manifestAttributes(manifest, project, 'Test', true)
+    if (includeJava9) {
+        from sourceSets.java9.output
+    }
 }
 
-artifacts {
-    archives sourcesJar
-    archives javadocJar
+configureModularJar {
+    dependsOn(jar)
+    manifestAttributes(manifest, project, 'Test', true)
+
+    from zipTree(jar.outputs.files.singleFile)
 }
 
-dist {
-    from (jar, sourcesJar)
-}
+configureSourcesJar()
+
+configureJavadocJar()
 
 compileKotlin {
-    // TODO: Why "-Xmulti-platfrom" ?
-    kotlinOptions.freeCompilerArgs = ["-Xallow-kotlin-package", "-Xmulti-platform", "-module-name", project.archivesBaseName]
+    kotlinOptions.freeCompilerArgs = ["-Xallow-kotlin-package", "-Xnormalize-constructor-calls=enable",
+                                      "-Xopt-in=kotlin.contracts.ExperimentalContracts",
+                                      "-module-name", project.archivesBaseName, ]
 }
 
 compileTestKotlin {
     kotlinOptions.freeCompilerArgs = ["-Xallow-kotlin-package"]
+}
+
+if (includeJava9) {
+    compileJava9Sources(project, 'kotlin.test')
 }

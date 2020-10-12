@@ -1,3 +1,5 @@
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
 // IGNORE_BACKEND: JS, NATIVE
 
@@ -5,7 +7,7 @@
 
 import kotlin.test.assertNull
 import kotlin.test.assertNotNull
-import kotlin.reflect.*
+import kotlin.reflect.full.*
 
 class OnlyPrimary
 
@@ -47,11 +49,13 @@ fun box(): String {
     val p4 = TwoSecondaries::class.primaryConstructor
     assertNull(p4)
 
-    assertNotNull(En::class.primaryConstructor) // TODO: maybe primaryConstructor should be null for enum classes
+    assertNotNull(En::class.primaryConstructor)
 
     assertNull(I::class.primaryConstructor)
     assertNull(O::class.primaryConstructor)
     assertNull(C.Companion::class.primaryConstructor)
+
+    assertNull(object {}::class.primaryConstructor)
 
     return "OK"
 }

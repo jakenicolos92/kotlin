@@ -1,5 +1,3 @@
-// WITH_RUNTIME
-
 fun test(): Int {
     var sum = 0
     for (i in 4 downTo 1) {
@@ -13,3 +11,5 @@ fun test(): Int {
 // 0 getEnd
 // 0 getFirst
 // 0 getLast
+// 1 IF_ICMP
+// 1 IF

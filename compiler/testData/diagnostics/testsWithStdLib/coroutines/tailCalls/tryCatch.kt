@@ -1,6 +1,8 @@
+// FIR_IDENTICAL
 // !DIAGNOSTICS: -UNUSED_ANONYMOUS_PARAMETER
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+// COMMON_COROUTINES_TEST
+import COROUTINES_PACKAGE.*
+import COROUTINES_PACKAGE.intrinsics.*
 
 fun nonSuspend() {}
 
@@ -8,7 +10,7 @@ suspend fun baz(): Int = 1
 
 suspend fun tryCatch(): Int {
     return try {
-        suspendCoroutineOrReturn { x: Continuation<Int> -> }
+        suspendCoroutineUninterceptedOrReturn { x: Continuation<Int> -> }
     } catch (e: Exception) {
         baz() // another suspend function
     }
@@ -16,7 +18,7 @@ suspend fun tryCatch(): Int {
 
 suspend fun tryFinally(): Int {
     return try {
-        suspendCoroutineOrReturn { x: Continuation<Int> -> }
+        suspendCoroutineUninterceptedOrReturn { x: Continuation<Int> -> }
     } finally {
         nonSuspend()
     }
@@ -32,7 +34,7 @@ suspend fun returnInFinally(): Int {
 
 suspend fun tryCatchFinally(): Int {
     return try {
-        suspendCoroutineOrReturn { x: Continuation<Int> -> }
+        suspendCoroutineUninterceptedOrReturn { x: Continuation<Int> -> }
     } catch (e: Exception) {
         baz() // another suspend function
     } finally {

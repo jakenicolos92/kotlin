@@ -16,16 +16,16 @@
 
 package org.jetbrains.kotlin.js.inline.util
 
+import org.jetbrains.kotlin.descriptors.CallableDescriptor
+import org.jetbrains.kotlin.js.backend.JsToStringGenerationVisitor
 import org.jetbrains.kotlin.js.backend.ast.*
-import org.jetbrains.kotlin.js.backend.ast.metadata.staticRef
+import org.jetbrains.kotlin.js.backend.ast.metadata.functionDescriptor
+import org.jetbrains.kotlin.js.backend.ast.metadata.imported
 import org.jetbrains.kotlin.js.inline.util.collectors.InstanceCollector
 import org.jetbrains.kotlin.js.translate.expression.InlineMetadata
 import org.jetbrains.kotlin.js.translate.utils.JsAstUtils
 
-fun collectFunctionReferencesInside(scope: JsNode): List<JsName> =
-        collectReferencedNames(scope).filter { it.staticRef is JsFunction }
-
-private fun collectReferencedNames(scope: JsNode): Set<JsName> {
+fun collectReferencedNames(scope: JsNode): Set<JsName> {
     val references = mutableSetOf<JsName>()
 
     object : RecursiveJsVisitor() {
@@ -83,7 +83,9 @@ fun collectUsedNames(scope: JsNode): Set<JsName> {
     return references
 }
 
-fun collectDefinedNames(scope: JsNode): Set<JsName> {
+fun collectDefinedNames(scope: JsNode) = collectDefinedNames(scope, false)
+
+fun collectDefinedNames(scope: JsNode, skipLabelsAndCatches: Boolean): Set<JsName> {
     val names = mutableSetOf<JsName>()
 
     object : RecursiveJsVisitor() {
@@ -106,6 +108,20 @@ fun collectDefinedNames(scope: JsNode): Set<JsName> {
             super.visitExpressionStatement(x)
         }
 
+        override fun visitLabel(x: JsLabel) {
+            if (!skipLabelsAndCatches) {
+                x.name?.let { names += it }
+            }
+            super.visitLabel(x)
+        }
+
+        override fun visitCatch(x: JsCatch) {
+            if (!skipLabelsAndCatches) {
+                names += x.parameter.name
+            }
+            super.visitCatch(x)
+        }
+
         // Skip function expression, since it does not introduce name in scope of containing function.
         // The only exception is function statement, that is handled with the code above.
         override fun visitFunction(x: JsFunction) { }
@@ -114,11 +130,43 @@ fun collectDefinedNames(scope: JsNode): Set<JsName> {
     return names
 }
 
+fun collectDefinedNamesInAllScopes(scope: JsNode): Set<JsName> {
+    // Order is important for the local declaration deduplication
+    val names = mutableSetOf<JsName>()
+
+    object : RecursiveJsVisitor() {
+        override fun visit(x: JsVars.JsVar) {
+            super.visit(x)
+            names += x.name
+        }
+
+        override fun visitFunction(x: JsFunction) {
+            super.visitFunction(x)
+            // The order is important. `function foo` and `var foo = wrapfunction(..)` should yield JsName's in the same order.
+            // TODO make more robust
+            names += x.parameters.map { it.name }
+            x.name?.let { names += it }
+        }
+
+        override fun visitLabel(x: JsLabel) {
+            x.name?.let { names += it }
+            super.visitLabel(x)
+        }
+
+        override fun visitCatch(x: JsCatch) {
+            names += x.parameter.name
+            super.visitCatch(x)
+        }
+    }.accept(scope)
+
+    return names
+}
+
 fun JsFunction.collectFreeVariables() = collectUsedNames(body) - collectDefinedNames(body) - parameters.map { it.name }
 
-fun JsFunction.collectLocalVariables() = collectDefinedNames(body) + parameters.map { it.name }
+fun JsFunction.collectLocalVariables(skipLabelsAndCatches: Boolean = false) = collectDefinedNames(body, skipLabelsAndCatches) + parameters.map { it.name }
 
-fun collectNamedFunctions(scope: JsNode) = collectNamedFunctionsAndMetadata(scope).mapValues { it.value.first }
+fun collectNamedFunctions(scope: JsNode) = collectNamedFunctionsAndMetadata(scope).mapValues { it.value.first.function }
 
 fun collectNamedFunctionsOrMetadata(scope: JsNode) = collectNamedFunctionsAndMetadata(scope).mapValues { it.value.second }
 
@@ -131,8 +179,17 @@ fun collectNamedFunctions(fragments: List<JsProgramFragment>): Map<JsName, JsFun
     return result
 }
 
-fun collectNamedFunctionsAndMetadata(scope: JsNode): Map<JsName, Pair<JsFunction, JsExpression>> {
-    val namedFunctions = mutableMapOf<JsName, Pair<JsFunction, JsExpression>>()
+fun collectNamedFunctionsAndWrappers(fragments: List<JsProgramFragment>): Map<JsName, FunctionWithWrapper> {
+    val result = mutableMapOf<JsName, FunctionWithWrapper>()
+    for (fragment in fragments) {
+        result += collectNamedFunctionsAndMetadata(fragment.declarationBlock).mapValues { it.value.first }
+        result += collectNamedFunctionsAndMetadata(fragment.initializerBlock).mapValues { it.value.first }
+    }
+    return result
+}
+
+fun collectNamedFunctionsAndMetadata(scope: JsNode): Map<JsName, Pair<FunctionWithWrapper, JsExpression>> {
+    val namedFunctions = mutableMapOf<JsName, Pair<FunctionWithWrapper, JsExpression>>()
 
     scope.accept(object : RecursiveJsVisitor() {
         override fun visitBinaryExpression(x: JsBinaryOperation) {
@@ -141,9 +198,10 @@ fun collectNamedFunctionsAndMetadata(scope: JsNode): Map<JsName, Pair<JsFunction
                 val (left, right) = assignment
                 if (left is JsNameRef) {
                     val name = left.name
-                    val function = extractFunction(right)
-                    if (function != null && name != null) {
-                        namedFunctions[name] = Pair(function, right)
+                    if (name != null) {
+                        extractFunction(right)?.let { (function, wrapper) ->
+                            namedFunctions[name] = Pair(FunctionWithWrapper(function, wrapper), right)
+                        }
                     }
                 }
             }
@@ -154,8 +212,7 @@ fun collectNamedFunctionsAndMetadata(scope: JsNode): Map<JsName, Pair<JsFunction
             val initializer = x.initExpression
             val name = x.name
             if (initializer != null && name != null) {
-                val function = extractFunction(initializer)
-                if (function != null) {
+                extractFunction(initializer)?.let { function ->
                     namedFunctions[name] = Pair(function, initializer)
                 }
             }
@@ -165,22 +222,19 @@ fun collectNamedFunctionsAndMetadata(scope: JsNode): Map<JsName, Pair<JsFunction
         override fun visitFunction(x: JsFunction) {
             val name = x.name
             if (name != null) {
-                namedFunctions[name] = Pair(x, x)
+                namedFunctions[name] = Pair(FunctionWithWrapper(x, null), x)
             }
             super.visitFunction(x)
-        }
-
-        private fun extractFunction(expression: JsExpression) = when (expression) {
-            is JsFunction -> expression
-            else -> InlineMetadata.decompose(expression)?.function
         }
     })
 
     return namedFunctions
 }
 
-fun collectAccessors(scope: JsNode): Map<String, JsFunction> {
-    val accessors = hashMapOf<String, JsFunction>()
+data class FunctionWithWrapper(val function: JsFunction, val wrapperBody: JsBlock?)
+
+fun collectAccessors(scope: JsNode): Map<String, FunctionWithWrapper> {
+    val accessors = hashMapOf<String, FunctionWithWrapper>()
 
     scope.accept(object : RecursiveJsVisitor() {
         override fun visitInvocation(invocation: JsInvocation) {
@@ -194,12 +248,42 @@ fun collectAccessors(scope: JsNode): Map<String, JsFunction> {
     return accessors
 }
 
-fun collectAccessors(fragments: List<JsProgramFragment>): Map<String, JsFunction> {
-    val result = mutableMapOf<String, JsFunction>()
+fun collectAccessors(fragments: Iterable<JsProgramFragment>): Map<String, FunctionWithWrapper> {
+    val result = mutableMapOf<String, FunctionWithWrapper>()
     for (fragment in fragments) {
         result += collectAccessors(fragment.declarationBlock)
     }
     return result
+}
+
+fun collectLocalFunctions(scope: JsNode): Map<CallableDescriptor, FunctionWithWrapper> {
+    val localFunctions = hashMapOf<CallableDescriptor, FunctionWithWrapper>()
+
+    scope.accept(object : RecursiveJsVisitor() {
+        override fun visitInvocation(invocation: JsInvocation) {
+            InlineMetadata.tryExtractFunction(invocation)?.let {
+                it.function.functionDescriptor?.let { fd ->
+                    localFunctions[fd] = it
+                }
+            }
+            super.visitInvocation(invocation)
+        }
+    })
+
+    return localFunctions
+}
+
+fun collectLocalFunctions(fragments: List<JsProgramFragment>): Map<CallableDescriptor, FunctionWithWrapper> {
+    val result = mutableMapOf<CallableDescriptor, FunctionWithWrapper>()
+    for (fragment in fragments) {
+        result += collectLocalFunctions(fragment.declarationBlock)
+    }
+    return result
+}
+
+fun extractFunction(expression: JsExpression) = when (expression) {
+    is JsFunction -> FunctionWithWrapper(expression, null)
+    else -> InlineMetadata.decompose(expression)?.function ?: InlineMetadata.tryExtractFunction(expression)
 }
 
 fun <T : JsNode> collectInstances(klass: Class<T>, scope: JsNode): List<T> {
@@ -313,4 +397,75 @@ fun JsNode.collectBreakContinueTargets(): Map<JsContinue, JsStatement> {
     })
 
     return targets
+}
+
+fun getImportTag(jsVars: JsVars): String? {
+    if (jsVars.vars.size == 1) {
+        val jsVar = jsVars.vars[0]
+        if (jsVar.name.imported) {
+            return extractImportTag(jsVar)
+        }
+    }
+
+    return null
+}
+
+fun extractImportTag(jsVar: JsVars.JsVar): String? {
+    val initExpression = jsVar.initExpression ?: return null
+
+    val sb = StringBuilder()
+
+    // Handle Long const val import
+    if (initExpression is JsInvocation || initExpression is JsNew) {
+        sb.append(jsVar.name.toString()).append(":")
+    }
+
+    return if (extractImportTagImpl(initExpression, sb)) sb.toString() else null
+}
+
+private fun extractImportTagImpl(expression: JsExpression, sb: StringBuilder): Boolean {
+    when (expression) {
+        is JsNameRef -> {
+            val nameRef = expression
+            if (nameRef.qualifier != null) {
+                if (!extractImportTagImpl(nameRef.qualifier!!, sb)) return false
+                sb.append('.')
+            }
+            sb.append(JsToStringGenerationVisitor.javaScriptString(nameRef.ident))
+            return true
+        }
+        is JsArrayAccess -> {
+            val arrayAccess = expression
+            if (!extractImportTagImpl(arrayAccess.arrayExpression, sb)) return false
+            sb.append(".")
+            val stringLiteral = arrayAccess.indexExpression as? JsStringLiteral ?: return false
+            sb.append(JsToStringGenerationVisitor.javaScriptString(stringLiteral.value))
+            return true
+        }
+        is JsInvocation -> {
+            val invocation = expression
+            if (!extractImportTagImpl(invocation.qualifier, sb)) return false
+            if (!appendArguments(invocation.arguments, sb)) return false
+            return true
+        }
+        is JsNew -> {
+            val newExpr = expression
+            if (!extractImportTagImpl(newExpr.constructorExpression, sb)) return false
+            if (!appendArguments(newExpr.arguments, sb)) return false
+            return true
+        }
+        else -> return false
+    }
+}
+
+private fun appendArguments(arguments: List<JsExpression>, sb: StringBuilder): Boolean {
+    arguments.forEachIndexed { index, arg ->
+        if (arg !is JsIntLiteral) {
+            return false
+        }
+        sb.append(if (index == 0) "(" else ",")
+        sb.append(arg.value)
+    }
+    sb.append(")")
+    return true
 }

@@ -1,3 +1,4 @@
+// !LANGUAGE: -SafeCastCheckBoundSmartCasts -BooleanElvisBoundSmartCasts
 // A set of examples for
 // "If the result of a safe call is not null, understand that its receiver is not null"
 // and some other improvements for nullability detection
@@ -58,11 +59,11 @@ fun kt4565_1(a: SomeClass?) {
 fun kt4565_2(a: SomeClass?) {
     // To be supported
     if (a as? SubClass != null) {
-        a.<!UNRESOLVED_REFERENCE!>extra<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>hashCode<!>()
+        a.<!UNRESOLVED_REFERENCE!>extra<!>.<!DEBUG_INFO_MISSING_UNRESOLVED!>hashCode<!>()
     }
     val extra = (a as? SubClass)?.extra
     if (extra != null) {
-        a.<!UNRESOLVED_REFERENCE!>extra<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>hashCode<!>()
+        a.<!UNRESOLVED_REFERENCE!>extra<!>.<!DEBUG_INFO_MISSING_UNRESOLVED!>hashCode<!>()
     }
 }
 

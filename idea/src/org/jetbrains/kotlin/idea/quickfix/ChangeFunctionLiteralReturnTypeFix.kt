@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.quickfix
@@ -19,7 +8,6 @@ package org.jetbrains.kotlin.idea.quickfix
 import com.intellij.codeInsight.intention.IntentionAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiFile
 import com.intellij.psi.util.PsiTreeUtil
 import org.jetbrains.kotlin.diagnostics.Diagnostic
 import org.jetbrains.kotlin.idea.KotlinBundle
@@ -38,19 +26,19 @@ import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
 import java.util.*
 
 class ChangeFunctionLiteralReturnTypeFix(
-        functionLiteralExpression: KtLambdaExpression,
-        type: KotlinType
+    functionLiteralExpression: KtLambdaExpression,
+    type: KotlinType
 ) : KotlinQuickFixAction<KtLambdaExpression>(functionLiteralExpression) {
 
-    private val typePresentation = IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES.renderType(type)
-    private val typeSourceCode = IdeDescriptorRenderers.SOURCE_CODE.renderType(type)
+    private val typePresentation = IdeDescriptorRenderers.SOURCE_CODE_TYPES_WITH_SHORT_NAMES.renderType(type)
+    private val typeSourceCode = IdeDescriptorRenderers.SOURCE_CODE_TYPES.renderType(type)
     private val functionLiteralReturnTypeRef: KtTypeReference?
         get() = element?.functionLiteral?.typeReference
     private val appropriateQuickFix = createAppropriateQuickFix(functionLiteralExpression, type)
 
     private fun createAppropriateQuickFix(functionLiteralExpression: KtLambdaExpression, type: KotlinType): IntentionAction? {
         val context = functionLiteralExpression.analyze()
-        val functionLiteralType = context.getType(functionLiteralExpression) ?: error("Type of function literal not available in binding context")
+        val functionLiteralType = context.getType(functionLiteralExpression) ?: return null
 
         val builtIns = functionLiteralType.constructor.builtIns
         val functionClass = builtIns.getFunction(functionLiteralType.arguments.size - 1)
@@ -65,7 +53,8 @@ class ChangeFunctionLiteralReturnTypeFix(
 
         val correspondingProperty = PsiTreeUtil.getParentOfType(functionLiteralExpression, KtProperty::class.java)
         if (correspondingProperty != null &&
-            correspondingProperty.initializer?.let { QuickFixUtil.canEvaluateTo(it, functionLiteralExpression) } ?: true
+            correspondingProperty.delegate == null &&
+            correspondingProperty.initializer?.let { QuickFixUtil.canEvaluateTo(it, functionLiteralExpression) } != false
         ) {
             val correspondingPropertyTypeRef = correspondingProperty.typeReference
             val propertyType = context.get(BindingContext.TYPE, correspondingPropertyTypeRef)
@@ -91,26 +80,28 @@ class ChangeFunctionLiteralReturnTypeFix(
 
 
         val parentFunction = PsiTreeUtil.getParentOfType(functionLiteralExpression, KtFunction::class.java, true)
-        if (parentFunction != null && QuickFixUtil.canFunctionOrGetterReturnExpression(parentFunction, functionLiteralExpression)) {
+        return if (parentFunction != null && QuickFixUtil.canFunctionOrGetterReturnExpression(parentFunction, functionLiteralExpression)) {
             val parentFunctionReturnTypeRef = parentFunction.typeReference
             val parentFunctionReturnType = context.get(BindingContext.TYPE, parentFunctionReturnTypeRef)
-            return if (parentFunctionReturnType != null && !KotlinTypeChecker.DEFAULT.isSubtypeOf(eventualFunctionLiteralType, parentFunctionReturnType))
+            if (parentFunctionReturnType != null && !KotlinTypeChecker.DEFAULT
+                    .isSubtypeOf(eventualFunctionLiteralType, parentFunctionReturnType)
+            )
                 ChangeCallableReturnTypeFix.ForEnclosing(parentFunction, eventualFunctionLiteralType)
             else
                 null
-        }
-
-        return null
+        } else
+            null
     }
 
-    override fun getText() = appropriateQuickFix?.text ?: "Change lambda expression return type to '$typePresentation'"
+    override fun getText() = appropriateQuickFix?.text ?: KotlinBundle.message("fix.change.return.type.lambda", typePresentation)
+    override fun getFamilyName() = KotlinBundle.message("fix.change.return.type.family")
 
-    override fun getFamilyName() = KotlinBundle.message("change.type.family")
-
-    override fun isAvailable(project: Project, editor: Editor?, file: PsiFile): Boolean {
-        return super.isAvailable(project, editor, file)
-               && (functionLiteralReturnTypeRef != null || appropriateQuickFix != null && appropriateQuickFix.isAvailable(project, editor!!, file))
-    }
+    override fun isAvailable(project: Project, editor: Editor?, file: KtFile): Boolean =
+        functionLiteralReturnTypeRef != null || appropriateQuickFix != null && appropriateQuickFix.isAvailable(
+            project,
+            editor!!,
+            file
+        )
 
     override fun invoke(project: Project, editor: Editor?, file: KtFile) {
         functionLiteralReturnTypeRef?.let {

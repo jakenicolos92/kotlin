@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.intentions
@@ -21,6 +10,8 @@ import com.intellij.codeInsight.intention.HighPriorityAction
 import com.intellij.codeInsight.template.TemplateBuilderImpl
 import com.intellij.codeInsight.template.impl.ConstantNode
 import com.intellij.openapi.editor.Editor
+import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.caches.resolve.analyze
 import org.jetbrains.kotlin.idea.caches.resolve.getResolutionFacade
 import org.jetbrains.kotlin.idea.core.*
@@ -35,13 +26,23 @@ import org.jetbrains.kotlin.psi.psiUtil.siblings
 import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 import org.jetbrains.kotlin.types.KotlinType
 
-class IterateExpressionIntention : SelfTargetingIntention<KtExpression>(KtExpression::class.java, "Iterate over collection"), HighPriorityAction {
+class IterateExpressionIntention : SelfTargetingIntention<KtExpression>(
+    KtExpression::class.java,
+    KotlinBundle.lazyMessage("iterate.over.collection")
+),
+    HighPriorityAction {
     override fun isApplicableTo(element: KtExpression, caretOffset: Int): Boolean {
         if (element.parent !is KtBlockExpression) return false
         val range = element.textRange
         if (caretOffset != range.startOffset && caretOffset != range.endOffset) return false
         val data = data(element) ?: return false
-        text = "Iterate over '${IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES.renderType(data.collectionType)}'"
+        setTextGetter(
+            KotlinBundle.lazyMessage(
+                "iterate.over.0",
+                IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_NO_ANNOTATIONS.renderType(data.collectionType)
+            )
+        )
+
         return true
     }
 
@@ -51,6 +52,7 @@ class IterateExpressionIntention : SelfTargetingIntention<KtExpression>(KtExpres
         val resolutionFacade = expression.getResolutionFacade()
         val bindingContext = resolutionFacade.analyze(expression, BodyResolveMode.PARTIAL)
         val type = bindingContext.getType(expression) ?: return null
+        if (KotlinBuiltIns.isNothing(type)) return null
         val scope = expression.getResolutionScope(bindingContext, resolutionFacade)
         val detector = resolutionFacade.ideService<IterableTypesDetection>().createDetector(scope)
         val elementType = detector.elementType(type)?.type ?: return null
@@ -74,21 +76,20 @@ class IterateExpressionIntention : SelfTargetingIntention<KtExpression>(KtExpres
                 val names = if (componentFunctions.isNotEmpty()) {
                     val collectingValidator = CollectingNameValidator(filter = nameValidator)
                     componentFunctions.map { suggestNamesForComponent(it, project, collectingValidator) }
-                }
-                else {
+                } else {
                     listOf(KotlinNameSuggester.suggestIterationVariableNames(element, elementType, bindingContext, nameValidator, "e"))
                 }
 
-                val paramPattern = (names.singleOrNull()?.first()
-                                    ?: psiFactory.createDestructuringParameter(names.indices.joinToString(prefix = "(", postfix = ")") { "p$it" }))
+                val paramPattern = (names.asSequence().singleOrNull()?.first()
+                    ?: psiFactory.createDestructuringParameter(names.indices.joinToString(prefix = "(", postfix = ")") { "p$it" }))
                 var forExpression = psiFactory.createExpressionByPattern("for($0 in $1) {\nx\n}", paramPattern, element) as KtForExpression
                 forExpression = element.replaced(forExpression)
 
-                CodeInsightUtilCore.forcePsiPostprocessAndRestoreElement(forExpression)?.let { forExpression ->
-                    val bodyPlaceholder = (forExpression.body as KtBlockExpression).statements.single()
-                    val parameters = forExpression.destructuringDeclaration?.entries ?: listOf(forExpression.loopParameter!!)
+                CodeInsightUtilCore.forcePsiPostprocessAndRestoreElement(forExpression)?.let { expression ->
+                    val bodyPlaceholder = (expression.body as KtBlockExpression).statements.single()
+                    val parameters = expression.destructuringDeclaration?.entries ?: listOf(expression.loopParameter!!)
 
-                    val templateBuilder = TemplateBuilderImpl(forExpression)
+                    val templateBuilder = TemplateBuilderImpl(expression)
                     for ((parameter, parameterNames) in (parameters zip names)) {
                         templateBuilder.replaceElement(parameter, ChooseStringExpression(parameterNames))
                     }

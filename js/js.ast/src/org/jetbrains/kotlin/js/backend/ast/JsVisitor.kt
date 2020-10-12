@@ -39,7 +39,7 @@ abstract class JsVisitor {
     open fun visitBlock(x: JsBlock): Unit =
             visitElement(x)
 
-    open fun visitBoolean(x: JsLiteral.JsBooleanLiteral): Unit =
+    open fun visitBoolean(x: JsBooleanLiteral): Unit =
             visitElement(x)
 
     open fun visitBreak(x: JsBreak): Unit =
@@ -49,6 +49,9 @@ abstract class JsVisitor {
             visitElement(x)
 
     open fun visitCatch(x: JsCatch): Unit =
+            visitElement(x)
+
+    open fun visitClass(x: JsClass): Unit =
             visitElement(x)
 
     open fun visitConditional(x: JsConditional): Unit =
@@ -64,7 +67,7 @@ abstract class JsVisitor {
             visitElement(x)
 
     open fun visitDoWhile(x: JsDoWhile): Unit =
-            visitElement(x)
+            visitLoop(x)
 
     open fun visitEmpty(x: JsEmpty): Unit =
             visitElement(x)
@@ -73,10 +76,10 @@ abstract class JsVisitor {
             visitElement(x)
 
     open fun visitFor(x: JsFor): Unit =
-            visitElement(x)
+            visitLoop(x)
 
     open fun visitForIn(x: JsForIn): Unit =
-            visitElement(x)
+            visitLoop(x)
 
     open fun visitFunction(x: JsFunction): Unit =
             visitElement(x)
@@ -90,6 +93,9 @@ abstract class JsVisitor {
     open fun visitLabel(x: JsLabel): Unit =
             visitElement(x)
 
+    open fun visitLoop(x: JsLoop): Unit =
+        visitElement(x)
+
     open fun visitNameRef(nameRef: JsNameRef): Unit =
             visitElement(nameRef)
 
@@ -99,10 +105,10 @@ abstract class JsVisitor {
     open fun visitNull(x: JsNullLiteral): Unit =
             visitElement(x)
 
-    open fun visitInt(x: JsNumberLiteral.JsIntLiteral): Unit =
+    open fun visitInt(x: JsIntLiteral): Unit =
             visitElement(x)
 
-    open fun visitDouble(x: JsNumberLiteral.JsDoubleLiteral): Unit =
+    open fun visitDouble(x: JsDoubleLiteral): Unit =
             visitElement(x)
 
     open fun visitObjectLiteral(x: JsObjectLiteral): Unit =
@@ -135,7 +141,7 @@ abstract class JsVisitor {
     open fun visit(x: JsSwitch): Unit =
             visitElement(x)
 
-    open fun visitThis(x: JsLiteral.JsThisRef): Unit =
+    open fun visitThis(x: JsThisRef): Unit =
             visitElement(x)
 
     open fun visitThrow(x: JsThrow): Unit =
@@ -151,9 +157,12 @@ abstract class JsVisitor {
             visitElement(x)
 
     open fun visitWhile(x: JsWhile): Unit =
-            visitElement(x)
+            visitLoop(x)
 
     open fun visitDocComment(comment: JsDocComment): Unit =
+            visitElement(comment)
+
+    open fun visitSingleLineComment(comment: JsSingleLineComment): Unit =
             visitElement(comment)
 
     protected open fun visitElement(node: JsNode) {

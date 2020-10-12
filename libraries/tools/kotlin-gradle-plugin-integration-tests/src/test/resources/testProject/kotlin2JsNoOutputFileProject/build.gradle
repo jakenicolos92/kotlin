@@ -1,6 +1,7 @@
 buildscript {
     repositories {
         mavenLocal()
+        mavenCentral()
     }
     dependencies {
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
@@ -11,8 +12,14 @@ apply plugin: "kotlin2js"
 
 repositories {
     mavenLocal()
+    mavenCentral()
 }
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-js:$kotlin_version"
+}
+
+if (project.findProperty("kotlin.js.useIrBackend")?.toBoolean() == true) {
+    compileKotlin2Js.kotlinOptions.freeCompilerArgs += ["-Xir-produce-klib-dir", "-Xir-produce-js", "-Xir-only"]
+    compileTestKotlin2Js.kotlinOptions.freeCompilerArgs += ["-Xir-produce-js"]
 }

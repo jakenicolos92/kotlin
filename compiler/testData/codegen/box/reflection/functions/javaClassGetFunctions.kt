@@ -1,5 +1,4 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
 // WITH_REFLECT
 // FILE: J.java
@@ -17,7 +16,7 @@ public class J {
 
 // FILE: K.kt
 
-import kotlin.reflect.*
+import kotlin.reflect.full.*
 import kotlin.test.assertEquals
 
 fun box(): String {

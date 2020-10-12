@@ -1,11 +1,10 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
-
-// WITH_REFLECT
+// !USE_EXPERIMENTAL: kotlin.ExperimentalStdlibApi
+// TARGET_BACKEND: JVM
+// WITH_RUNTIME
 
 import kotlin.reflect.KClass
-import kotlin.reflect.full.cast
-import kotlin.reflect.full.safeCast
+import kotlin.reflect.cast
+import kotlin.reflect.safeCast
 import kotlin.test.*
 
 fun testInstance(value: Any?, klass: KClass<*>) {

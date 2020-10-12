@@ -17,13 +17,15 @@
 package org.jetbrains.kotlin.resolve.lazy
 
 import org.jetbrains.kotlin.config.LanguageVersionSettings
+import org.jetbrains.kotlin.container.DefaultImplementation
 import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
 
+@DefaultImplementation(impl = DelegationFilter.Default::class)
 interface DelegationFilter {
 
     fun filter(interfaceMember: CallableMemberDescriptor, languageVersionSettings: LanguageVersionSettings): Boolean
 
-    object DEFAULT : DelegationFilter {
+    object Default : DelegationFilter {
         override fun filter(interfaceMember: CallableMemberDescriptor, languageVersionSettings: LanguageVersionSettings) = true
     }
 }

@@ -16,21 +16,36 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
+import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.ir.IrStatement
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
 import org.jetbrains.kotlin.ir.expressions.IrBlock
+import org.jetbrains.kotlin.ir.expressions.IrReturnableBlock
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
+import org.jetbrains.kotlin.ir.symbols.IrFunctionSymbol
+import org.jetbrains.kotlin.ir.symbols.IrReturnableBlockSymbol
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.types.KotlinType
 
-class IrBlockImpl(startOffset: Int, endOffset: Int, type: KotlinType, origin: IrStatementOrigin? = null):
-        IrContainerExpressionBase(startOffset, endOffset, type, origin), IrBlock {
-    constructor(startOffset: Int, endOffset: Int, type: KotlinType, origin: IrStatementOrigin?, statements: List<IrStatement>) :
-            this(startOffset, endOffset, type, origin) {
+class IrBlockImpl(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val origin: IrStatementOrigin? = null,
+) : IrBlock() {
+    constructor(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        origin: IrStatementOrigin?,
+        statements: List<IrStatement>
+    ) : this(startOffset, endOffset, type, origin) {
         this.statements.addAll(statements)
     }
 
     override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-            visitor.visitBlock(this, data)
+        visitor.visitBlock(this, data)
 }
 
 fun IrBlockImpl.addIfNotNull(statement: IrStatement?) {
@@ -40,8 +55,49 @@ fun IrBlockImpl.addIfNotNull(statement: IrStatement?) {
 fun IrBlockImpl.inlineStatement(statement: IrStatement) {
     if (statement is IrBlock) {
         statements.addAll(statement.statements)
-    }
-    else {
+    } else {
         statements.add(statement)
+    }
+}
+
+class IrReturnableBlockImpl(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val symbol: IrReturnableBlockSymbol,
+    override val origin: IrStatementOrigin? = null,
+    override val inlineFunctionSymbol: IrFunctionSymbol? = null
+) : IrReturnableBlock() {
+    @ObsoleteDescriptorBasedAPI
+    override val descriptor: FunctionDescriptor
+        get() = symbol.descriptor
+
+    constructor(
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrReturnableBlockSymbol,
+        origin: IrStatementOrigin?,
+        statements: List<IrStatement>,
+        inlineFunctionSymbol: IrFunctionSymbol? = null
+    ) : this(startOffset, endOffset, type, symbol, origin, inlineFunctionSymbol) {
+        this.statements.addAll(statements)
+    }
+
+    init {
+        symbol.bind(this)
+    }
+
+    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
+        visitor.visitBlock(this, data)
+
+    override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
+        statements.forEach { it.accept(visitor, data) }
+    }
+
+    override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
+        statements.forEachIndexed { i, irStatement ->
+            statements[i] = irStatement.transform(transformer, data) as IrStatement
+        }
     }
 }

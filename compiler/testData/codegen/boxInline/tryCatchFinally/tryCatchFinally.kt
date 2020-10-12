@@ -1,6 +1,6 @@
-// IGNORE_BACKEND: NATIVE
 // FILE: 1.kt
 // WITH_RUNTIME
+// KJS_WITH_FULL_RUNTIME
 
 class My(val value: Int)
 
@@ -22,7 +22,7 @@ inline fun <T, R> T.performWithFailFinally(job: (T)-> R, failJob : (e: RuntimeEx
     }
 }
 
-inline fun String.toInt2() : Int = java.lang.Integer.parseInt(this)
+inline fun String.toInt2() : Int = this.toInt()
 
 // FILE: 2.kt
 

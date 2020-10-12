@@ -18,7 +18,7 @@ package org.jetbrains.kotlin.idea.liveTemplates;
 
 import com.intellij.codeInsight.template.EverywhereContextType;
 import com.intellij.codeInsight.template.TemplateContextType;
-import com.intellij.openapi.util.Condition;
+import com.intellij.lang.ASTNode;
 import com.intellij.psi.PsiComment;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
@@ -30,6 +30,8 @@ import com.intellij.psi.util.PsiUtilCore;
 import org.jetbrains.annotations.NonNls;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.kotlin.KtNodeTypes;
+import org.jetbrains.kotlin.idea.KotlinBundle;
 import org.jetbrains.kotlin.idea.KotlinLanguage;
 import org.jetbrains.kotlin.lexer.KtTokens;
 import org.jetbrains.kotlin.psi.*;
@@ -105,7 +107,7 @@ public abstract class KotlinTemplateContextType extends TemplateContextType {
 
     public static class TopLevel extends KotlinTemplateContextType {
         public TopLevel() {
-            super("KOTLIN_TOPLEVEL", "Top-level", Generic.class);
+            super("KOTLIN_TOPLEVEL", KotlinBundle.message("top.level"), Generic.class);
         }
 
         @Override
@@ -134,7 +136,7 @@ public abstract class KotlinTemplateContextType extends TemplateContextType {
 
     public static class ObjectDeclaration extends KotlinTemplateContextType {
         public ObjectDeclaration() {
-            super("KOTLIN_OBJECT_DECLARATION", "Object declaration", Generic.class);
+            super("KOTLIN_OBJECT_DECLARATION", KotlinBundle.message("object.declaration"), Generic.class);
         }
 
         @Override
@@ -146,7 +148,7 @@ public abstract class KotlinTemplateContextType extends TemplateContextType {
 
     public static class Class extends KotlinTemplateContextType {
         public Class() {
-            super("KOTLIN_CLASS", "Class", Generic.class);
+            super("KOTLIN_CLASS", KotlinBundle.message("class"), Generic.class);
         }
 
         @Override
@@ -157,17 +159,13 @@ public abstract class KotlinTemplateContextType extends TemplateContextType {
 
     public static class Statement extends KotlinTemplateContextType {
         public Statement() {
-            super("KOTLIN_STATEMENT", "Statement", Generic.class);
+            super("KOTLIN_STATEMENT", KotlinBundle.message("statement"), Generic.class);
         }
 
         @Override
         protected boolean isInContext(@NotNull PsiElement element) {
-            PsiElement parentStatement = PsiTreeUtil.findFirstParent(element, new Condition<PsiElement>() {
-                @Override
-                public boolean value(PsiElement element) {
-                    return element instanceof KtExpression && (element.getParent() instanceof KtBlockExpression);
-                }
-            });
+            PsiElement parentStatement = PsiTreeUtil.findFirstParent(element, e ->
+                    e instanceof KtExpression && KtPsiUtil.isStatementContainer(e.getParent()));
 
             if (parentStatement == null) return false;
 
@@ -178,7 +176,7 @@ public abstract class KotlinTemplateContextType extends TemplateContextType {
 
     public static class Expression extends KotlinTemplateContextType {
         public Expression() {
-            super("KOTLIN_EXPRESSION", "Expression", Generic.class);
+            super("KOTLIN_EXPRESSION", KotlinBundle.message("expression"), Generic.class);
         }
 
         @Override
@@ -191,7 +189,7 @@ public abstract class KotlinTemplateContextType extends TemplateContextType {
 
     public static class Comment extends KotlinTemplateContextType {
         public Comment() {
-            super("KOTLIN_COMMENT", "Comment", Generic.class);
+            super("KOTLIN_COMMENT", KotlinBundle.message("comment"), Generic.class);
         }
 
         @Override

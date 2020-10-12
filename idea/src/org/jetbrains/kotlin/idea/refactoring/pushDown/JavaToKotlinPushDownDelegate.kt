@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.refactoring.pushDown
@@ -26,14 +15,14 @@ import com.intellij.util.containers.MultiMap
 import org.jetbrains.kotlin.asJava.unwrapped
 import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
-import org.jetbrains.kotlin.idea.caches.resolve.getJavaClassDescriptor
-import org.jetbrains.kotlin.idea.caches.resolve.getJavaMemberDescriptor
 import org.jetbrains.kotlin.idea.caches.resolve.getResolutionFacade
-import org.jetbrains.kotlin.idea.caches.resolve.resolveToDescriptor
+import org.jetbrains.kotlin.idea.caches.resolve.unsafeResolveToDescriptor
+import org.jetbrains.kotlin.idea.caches.resolve.util.getJavaClassDescriptor
+import org.jetbrains.kotlin.idea.caches.resolve.util.getJavaMemberDescriptor
 import org.jetbrains.kotlin.idea.core.getOrCreateCompanionObject
+import org.jetbrains.kotlin.idea.j2k.j2k
+import org.jetbrains.kotlin.idea.j2k.j2kText
 import org.jetbrains.kotlin.idea.refactoring.isInterfaceClass
-import org.jetbrains.kotlin.idea.refactoring.j2k
-import org.jetbrains.kotlin.idea.refactoring.j2kText
 import org.jetbrains.kotlin.idea.refactoring.pullUp.addMemberToTarget
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtCallableDeclaration
@@ -45,15 +34,15 @@ import org.jetbrains.kotlin.types.substitutions.getTypeSubstitutor
 
 class JavaToKotlinPushDownDelegate : JavaPushDownDelegate() {
     override fun checkTargetClassConflicts(
-            targetClass: PsiElement?,
-            pushDownData: PushDownData<MemberInfo, PsiMember>,
-            conflicts: MultiMap<PsiElement, String>,
-            subClassData: NewSubClassData?
+        targetClass: PsiElement?,
+        pushDownData: PushDownData<MemberInfo, PsiMember>,
+        conflicts: MultiMap<PsiElement, String>,
+        subClassData: NewSubClassData?
     ) {
         super.checkTargetClassConflicts(targetClass, pushDownData, conflicts, subClassData)
 
         val ktClass = targetClass?.unwrapped as? KtClassOrObject ?: return
-        val targetClassDescriptor = ktClass.resolveToDescriptor() as ClassDescriptor
+        val targetClassDescriptor = ktClass.unsafeResolveToDescriptor() as ClassDescriptor
         for (memberInfo in pushDownData.membersToMove) {
             val member = memberInfo.member ?: continue
             checkExternalUsages(conflicts, member, targetClassDescriptor, ktClass.getResolutionFacade())
@@ -65,7 +54,7 @@ class JavaToKotlinPushDownDelegate : JavaPushDownDelegate() {
         val subClass = targetClass.unwrapped as? KtClassOrObject ?: return
         val resolutionFacade = subClass.getResolutionFacade()
         val superClassDescriptor = superClass.getJavaClassDescriptor(resolutionFacade) ?: return
-        val subClassDescriptor = subClass.resolveToDescriptor() as ClassDescriptor
+        val subClassDescriptor = subClass.unsafeResolveToDescriptor() as ClassDescriptor
         val substitutor = getTypeSubstitutor(superClassDescriptor.defaultType, subClassDescriptor.defaultType) ?: TypeSubstitutor.EMPTY
         val psiFactory = KtPsiFactory(subClass)
         var hasAbstractMembers = false
@@ -83,12 +72,12 @@ class JavaToKotlinPushDownDelegate : JavaPushDownDelegate() {
                         hasAbstractMembers = true
                     }
                     moveCallableMemberToClass(
-                            ktMember,
-                            memberDescriptor as CallableMemberDescriptor,
-                            targetMemberClass,
-                            targetMemberClassDescriptor,
-                            substitutor,
-                            memberInfo.isToAbstract
+                        ktMember,
+                        memberDescriptor as CallableMemberDescriptor,
+                        targetMemberClass,
+                        targetMemberClassDescriptor,
+                        substitutor,
+                        memberInfo.isToAbstract
                     ).apply {
                         if (subClass.isInterfaceClass()) {
                             removeModifier(KtTokens.ABSTRACT_KEYWORD)
@@ -98,10 +87,10 @@ class JavaToKotlinPushDownDelegate : JavaPushDownDelegate() {
 
                 is PsiClass -> {
                     if (memberInfo.overrides != null) {
-                        val typeText = RefactoringUtil.findReferenceToClass(superClass.implementsList, member)?.j2kText() ?: continue@members
+                        val typeText =
+                            RefactoringUtil.findReferenceToClass(superClass.implementsList, member)?.j2kText() ?: continue@members
                         subClass.addSuperTypeListEntry(psiFactory.createSuperTypeEntry(typeText))
-                    }
-                    else {
+                    } else {
                         val ktClass = member.j2k() as? KtClassOrObject ?: continue@members
                         addMemberToTarget(ktClass, subClass)
                     }

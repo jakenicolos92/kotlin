@@ -13,6 +13,9 @@
 
 -keep class kotlin.reflect.jvm.internal.ReflectionFactoryImpl { public protected *; }
 
+-keep class * implements kotlin.reflect.jvm.internal.impl.resolve.ExternalOverridabilityCondition { public protected *; }
+-keep class * implements kotlin.reflect.jvm.internal.impl.builtins.BuiltInsLoader { public protected *; }
+
 -keepclassmembers enum * {
     public static **[] values();
     public static ** valueOf(java.lang.String);
@@ -28,3 +31,7 @@
     public boolean containsKey(java.lang.Object);
     public kotlin.reflect.jvm.internal.pcollections.HashPMap minus(java.lang.Object);
 }
+
+# This is needed because otherwise ProGuard strips generic signature of this class (even though we pass `-keepattributes Signature` above)
+# See KT-23962 and https://sourceforge.net/p/proguard/bugs/482/
+-keep class kotlin.reflect.jvm.internal.impl.protobuf.GeneratedMessageLite$ExtendableMessageOrBuilder

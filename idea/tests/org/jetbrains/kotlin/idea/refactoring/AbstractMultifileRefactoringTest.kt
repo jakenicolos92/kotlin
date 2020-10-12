@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.refactoring
@@ -19,6 +8,7 @@ package org.jetbrains.kotlin.idea.refactoring
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.intellij.codeInsight.TargetElementUtil
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
@@ -34,9 +24,6 @@ import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.testFramework.PlatformTestUtil
 import com.intellij.testFramework.UsefulTestCase
 import org.jetbrains.kotlin.idea.jsonUtils.getNullableString
-import org.jetbrains.kotlin.idea.jsonUtils.getString
-import org.jetbrains.kotlin.idea.refactoring.move.MoveAction
-import org.jetbrains.kotlin.idea.refactoring.move.runMoveRefactoring
 import org.jetbrains.kotlin.idea.refactoring.rename.loadTestConfiguration
 import org.jetbrains.kotlin.idea.test.KotlinLightCodeInsightFixtureTestCase
 import org.jetbrains.kotlin.idea.test.KotlinLightProjectDescriptor
@@ -73,7 +60,7 @@ abstract class AbstractMultifileRefactoringTest : KotlinLightCodeInsightFixtureT
         }
     }
 
-    protected fun getTestDirName(lowercaseFirstLetter : Boolean) : String {
+    protected fun getTestDirName(lowercaseFirstLetter: Boolean): String {
         val testName = getTestName(lowercaseFirstLetter)
         val endIndex = testName.lastIndexOf('_')
         if (endIndex < 0) return testName
@@ -95,16 +82,16 @@ abstract class AbstractMultifileRefactoringTest : KotlinLightCodeInsightFixtureT
 
         PsiDocumentManager.getInstance(project).commitAllDocuments()
         FileDocumentManager.getInstance().saveAllDocuments()
-        PlatformTestUtil.assertDirectoriesEqual(afterVFile, beforeVFile)
+        PlatformTestUtil.assertDirectoriesEqual(afterVFile, beforeVFile, { file -> !KotlinTestUtils.isMultiExtensionName(file.name) })
     }
 }
 
 fun runRefactoringTest(
-        path: String,
-        config: JsonObject,
-        rootDir: VirtualFile,
-        project: Project,
-        action: AbstractMultifileRefactoringTest.RefactoringAction
+    path: String,
+    config: JsonObject,
+    rootDir: VirtualFile,
+    project: Project,
+    action: AbstractMultifileRefactoringTest.RefactoringAction
 ) {
     val testDir = path.substring(0, path.lastIndexOf("/"))
     val mainFilePath = config.getNullableString("mainFile") ?: config.getAsJsonArray("filesToMove").first().asString
@@ -119,9 +106,9 @@ fun runRefactoringTest(
     val caretOffsets = document.extractMultipleMarkerOffsets(project)
     val elementsAtCaret = caretOffsets.map {
         TargetElementUtil.getInstance().findTargetElement(
-                editor,
-                TargetElementUtil.REFERENCED_ELEMENT_ACCEPTED or TargetElementUtil.ELEMENT_NAME_ACCEPTED,
-                it
+            editor,
+            TargetElementUtil.REFERENCED_ELEMENT_ACCEPTED or TargetElementUtil.ELEMENT_NAME_ACCEPTED,
+            it
         )!!
     }
 
@@ -129,18 +116,14 @@ fun runRefactoringTest(
         action.runRefactoring(rootDir, mainPsiFile, elementsAtCaret, config)
 
         assert(!conflictFile.exists())
-    }
-    catch(e: BaseRefactoringProcessor.ConflictsInTestsException) {
+    } catch (e: BaseRefactoringProcessor.ConflictsInTestsException) {
         KotlinTestUtils.assertEqualsToFile(conflictFile, e.messages.distinct().sorted().joinToString("\n"))
 
-        BaseRefactoringProcessor.ConflictsInTestsException.setTestIgnore(true)
-
-        // Run refactoring again with ConflictsInTestsException suppressed
-        action.runRefactoring(rootDir, mainPsiFile, elementsAtCaret, config)
-    }
-    finally {
-        BaseRefactoringProcessor.ConflictsInTestsException.setTestIgnore(false)
-
+        BaseRefactoringProcessor.ConflictsInTestsException.withIgnoredConflicts<Throwable> {
+            // Run refactoring again with ConflictsInTestsException suppressed
+            action.runRefactoring(rootDir, mainPsiFile, elementsAtCaret, config)
+        }
+    } finally {
         EditorFactory.getInstance()!!.releaseEditor(editor)
     }
 }

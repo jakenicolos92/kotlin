@@ -28,6 +28,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
 
+import static org.jetbrains.kotlin.test.testFramework.TestApplicationUtilKt.resetApplicationToNull;
+
 public class CompileEnvironmentTest extends TestCase {
 
     public void testSmokeWithCompilerOutput() throws IOException {
@@ -52,5 +54,11 @@ public class CompileEnvironmentTest extends TestCase {
         finally {
             FileUtil.delete(tempDir);
         }
+    }
+
+    @Override
+    protected void tearDown() throws Exception {
+        super.tearDown();
+        resetApplicationToNull();
     }
 }

@@ -39,9 +39,7 @@ class KotlinCompilerAdapter : Javac13() {
         return argument
     }
 
-    override fun getSupportedFileExtensions(): Array<String> {
-        return super.getSupportedFileExtensions() + KOTLIN_EXTENSIONS
-    }
+    override fun getSupportedFileExtensions(): Array<String> = super.getSupportedFileExtensions() + KOTLIN_EXTENSIONS
 
     @Throws(BuildException::class)
     override fun execute(): Boolean {
@@ -131,7 +129,7 @@ class KotlinCompilerAdapter : Javac13() {
     }
 
     companion object {
-        private val KOTLIN_EXTENSIONS = Arrays.asList("kt", "kts")
+        private val KOTLIN_EXTENSIONS = listOf("kt", "kts")
 
         private fun filterOutKotlinSources(files: Array<File>): Array<File> {
             return files.filterNot {

@@ -17,13 +17,16 @@
 package org.jetbrains.kotlin.ir.declarations
 
 import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 
+abstract class IrConstructor : IrFunction(), IrSymbolDeclaration<IrConstructorSymbol> {
+    @ObsoleteDescriptorBasedAPI
+    abstract override val descriptor: ClassConstructorDescriptor
 
-interface IrConstructor : IrFunction, IrSymbolDeclaration<IrConstructorSymbol> {
-    override val declarationKind: IrDeclarationKind
-        get() = IrDeclarationKind.CONSTRUCTOR
+    abstract val isPrimary: Boolean
 
-    override val descriptor: ClassConstructorDescriptor
+    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
+        visitor.visitConstructor(this, data)
 }
-

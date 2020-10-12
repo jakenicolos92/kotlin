@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.run
@@ -22,15 +11,19 @@ import com.intellij.psi.PsiFile
 import com.intellij.refactoring.RefactoringFactory
 import com.intellij.refactoring.move.moveFilesOrDirectories.MoveFilesOrDirectoriesProcessor
 import com.intellij.util.ActionRunner
+import org.jetbrains.kotlin.idea.core.script.ScriptConfigurationManager
 import org.jetbrains.kotlin.idea.run.script.standalone.KotlinStandaloneScriptRunConfiguration
 import org.jetbrains.kotlin.idea.search.allScope
 import org.jetbrains.kotlin.idea.stubindex.KotlinScriptFqnIndex
 import org.jetbrains.kotlin.idea.test.KotlinCodeInsightTestCase
 import org.jetbrains.kotlin.idea.test.PluginTestCaseBase
-import org.jetbrains.kotlin.psi.KtScript
+import org.jetbrains.kotlin.test.JUnit3WithIdeaConfigurationRunner
+import org.jetbrains.kotlin.utils.PathUtil
 import org.junit.Assert
+import org.junit.runner.RunWith
 import kotlin.test.assertNotEquals
 
+@RunWith(JUnit3WithIdeaConfigurationRunner::class)
 class StandaloneScriptRunConfigurationTest : KotlinCodeInsightTestCase() {
 
     fun testConfigurationForScript() {
@@ -43,9 +36,12 @@ class StandaloneScriptRunConfigurationTest : KotlinCodeInsightTestCase() {
 
         val javaParameters = getJavaRunParameters(runConfiguration)
         val programParametersList = javaParameters.programParametersList.list
-        val (first, second) = programParametersList
-        Assert.assertEquals("Should pass -script to compiler", "-script", first)
-        Assert.assertTrue("Should pass script file to compiler", second.contains("simpleScript.kts"))
+
+        programParametersList.checkParameter("-script") { it.contains("simpleScript.kts") }
+        programParametersList.checkParameter("-kotlin-home") { it == PathUtil.kotlinPathsForIdeaPlugin.homePath.path }
+
+        Assert.assertTrue(!programParametersList.contains("-cp"))
+
     }
 
     fun testOnFileRename() {
@@ -74,6 +70,9 @@ class StandaloneScriptRunConfigurationTest : KotlinCodeInsightTestCase() {
 
     fun testOnFileMoveWithDefaultWorkingDir() {
         configureByFile("move/script.kts")
+
+        ScriptConfigurationManager.updateScriptDependenciesSynchronously(myFile)
+
         val script = KotlinScriptFqnIndex.instance.get("foo.Script", project, project.allScope()).single()
         val runConfiguration = createConfigurationFromElement(script, save = true) as KotlinStandaloneScriptRunConfiguration
 
@@ -98,6 +97,9 @@ class StandaloneScriptRunConfigurationTest : KotlinCodeInsightTestCase() {
 
     fun testOnFileMoveWithNonDefaultWorkingDir() {
         configureByFile("move/script.kts")
+
+        ScriptConfigurationManager.updateScriptDependenciesSynchronously(myFile)
+
         val script = KotlinScriptFqnIndex.instance.get("foo.Script", project, project.allScope()).single()
         val runConfiguration = createConfigurationFromElement(script, save = true) as KotlinStandaloneScriptRunConfiguration
 
@@ -122,14 +124,20 @@ class StandaloneScriptRunConfigurationTest : KotlinCodeInsightTestCase() {
         assertEquals(originalWorkingDirectory, runConfiguration.workingDirectory)
     }
 
+    private fun List<String>.checkParameter(name: String, condition: (String) -> Boolean) {
+        val param = find { it == name } ?: throw AssertionError("Should pass $name to compiler")
+        val paramValue = this[this.indexOf(param) + 1]
+        Assert.assertTrue("Check for $name parameter fails: actual value = $paramValue", condition(paramValue))
+    }
+
     fun moveScriptFile(scriptFile: PsiFile) {
         ActionRunner.runInsideWriteAction { VfsUtil.createDirectoryIfMissing(scriptFile.virtualFile.parent, "dest") }
 
         MoveFilesOrDirectoriesProcessor(
-                project,
-                arrayOf(scriptFile),
-                JavaPsiFacade.getInstance(project).findPackage("dest")!!.directories[0],
-                false, true, null, null
+            project,
+            arrayOf(scriptFile),
+            JavaPsiFacade.getInstance(project).findPackage("dest")!!.directories[0],
+            false, true, null, null
         ).run()
     }
 

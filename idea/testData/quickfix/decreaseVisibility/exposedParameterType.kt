@@ -1,9 +1,9 @@
 // "Make 'foo' private" "false"
 // ACTION: Convert parameter to receiver
+// ACTION: Enable a trailing comma by default in the formatter
 // ACTION: Make 'Nested' internal
 // ACTION: Make 'Nested' public
 // ACTION: Remove parameter 'arg'
-// ACTION: Convert to expression body
 // ERROR: 'internal' function exposes its 'private' parameter type argument Nested
 // ERROR: Cannot access 'Nested': it is private in 'Outer'
 

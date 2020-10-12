@@ -19,14 +19,17 @@ package org.jetbrains.kotlin.noarg.ide
 import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.container.StorageComponentContainer
 import org.jetbrains.kotlin.container.useInstance
+import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.extensions.StorageComponentContainerContributor
-import org.jetbrains.kotlin.resolve.TargetPlatform
-import org.jetbrains.kotlin.resolve.jvm.platform.JvmPlatform
+import org.jetbrains.kotlin.platform.TargetPlatform
+import org.jetbrains.kotlin.platform.jvm.isJvm
 
 class IdeNoArgComponentContainerContributor(val project: Project) : StorageComponentContainerContributor {
-    override fun addDeclarations(container: StorageComponentContainer, platform: TargetPlatform) {
-        if (platform is JvmPlatform) {
-            container.useInstance(IdeNoArgDeclarationChecker(project))
-        }
+    override fun registerModuleComponents(
+        container: StorageComponentContainer, platform: TargetPlatform, moduleDescriptor: ModuleDescriptor
+    ) {
+        if (!platform.isJvm()) return
+
+        container.useInstance(IdeNoArgDeclarationChecker(project))
     }
 }

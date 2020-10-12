@@ -28,12 +28,13 @@ import com.intellij.util.xml.GenericDomValue
 import org.jetbrains.idea.maven.dom.MavenDomUtil
 import org.jetbrains.idea.maven.dom.model.MavenDomBuild
 import org.jetbrains.idea.maven.dom.model.MavenDomPluginExecution
+import org.jetbrains.kotlin.idea.maven.KotlinMavenBundle
 import org.jetbrains.kotlin.idea.maven.PomFile
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.parentsWithSelf
 
 class MavenPluginSourcesMoveToExecutionIntention : PsiElementBaseIntentionAction() {
-    override fun getFamilyName() = "Move to compile execution"
+    override fun getFamilyName() = KotlinMavenBundle.message("fix.move.to.execution.family")
     override fun getText() = familyName
 
     override fun isAvailable(project: Project, editor: Editor, element: PsiElement): Boolean {
@@ -75,12 +76,12 @@ class MavenPluginSourcesMoveToExecutionIntention : PsiElementBaseIntentionAction
         val domElement = DomManager.getDomManager(project).getDomElement(tag) as? GenericDomValue<*> ?: return
         val dir = domElement.rawText ?: return
 
-        val relevantExecutions = if (domElement.getParentOfType(MavenDomBuild::class.java, false)?.sourceDirectory === domElement) {
-            pomFile.findKotlinExecutions(PomFile.KotlinGoals.Compile, PomFile.KotlinGoals.Js)
-        } else if (domElement.getParentOfType(MavenDomBuild::class.java, false)?.testSourceDirectory === domElement) {
-            pomFile.findKotlinExecutions(PomFile.KotlinGoals.TestCompile, PomFile.KotlinGoals.TestJs)
-        } else {
-            emptyList()
+        val relevantExecutions = when {
+            domElement.getParentOfType(MavenDomBuild::class.java, false)?.sourceDirectory === domElement ->
+                pomFile.findKotlinExecutions(PomFile.KotlinGoals.Compile, PomFile.KotlinGoals.Js)
+            domElement.getParentOfType(MavenDomBuild::class.java, false)?.testSourceDirectory === domElement ->
+                pomFile.findKotlinExecutions(PomFile.KotlinGoals.TestCompile, PomFile.KotlinGoals.TestJs)
+            else -> emptyList()
         }
 
         if (relevantExecutions.isNotEmpty()) {
@@ -95,7 +96,7 @@ class MavenPluginSourcesMoveToExecutionIntention : PsiElementBaseIntentionAction
 }
 
 class MavenPluginSourcesMoveToBuild : PsiElementBaseIntentionAction() {
-    override fun getFamilyName() = "Move to build>sourceDirectory tag"
+    override fun getFamilyName() = KotlinMavenBundle.message("fix.move.to.build.family")
     override fun getText() = familyName
 
     override fun isAvailable(project: Project, editor: Editor, element: PsiElement): Boolean {
@@ -110,7 +111,11 @@ class MavenPluginSourcesMoveToBuild : PsiElementBaseIntentionAction() {
         }
     }
 
-    private fun tryInvoke(project: Project, element: PsiElement, block: (pom: PomFile, dir: String, execution: MavenDomPluginExecution, build: MavenDomBuild) -> Unit = { _, _, _, _ -> }): Boolean {
+    private fun tryInvoke(
+        project: Project,
+        element: PsiElement,
+        block: (pom: PomFile, dir: String, execution: MavenDomPluginExecution, build: MavenDomBuild) -> Unit = { _, _, _, _ -> }
+    ): Boolean {
         val file = element.containingFile
 
         if (file == null || !MavenDomUtil.isMavenFile(file) || (element !is XmlElement && element.parent !is XmlElement)) {
@@ -122,9 +127,9 @@ class MavenPluginSourcesMoveToBuild : PsiElementBaseIntentionAction() {
 
         val execution = domElement.getParentOfType(MavenDomPluginExecution::class.java, false) ?: return false
         tag.parentsWithSelf
-                .takeWhile { it != execution.xmlElement }
-                .filterIsInstance<XmlTag>()
-                .firstOrNull { it.localName == "sourceDirs" } ?: return false
+            .takeWhile { it != execution.xmlElement }
+            .filterIsInstance<XmlTag>()
+            .firstOrNull { it.localName == "sourceDirs" } ?: return false
 
         val pom = PomFile.forFileOrNull(element.containingFile as XmlFile) ?: return false
         val sourceDirsToMove = pom.executionSourceDirs(execution)
@@ -137,20 +142,20 @@ class MavenPluginSourcesMoveToBuild : PsiElementBaseIntentionAction() {
         var couldMove = 0
         if (shouldMoveCompileSourceRoot(execution)) {
             if (!build.sourceDirectory.exists() || build.sourceDirectory.stringValue == sourceDirsToMove.single()) {
-                couldMove ++
+                couldMove++
             }
         }
         if (shouldMoveTestSourceRoot(execution)) {
             if (!build.testSourceDirectory.exists() || build.testSourceDirectory.stringValue == sourceDirsToMove.single()) {
-                couldMove ++
+                couldMove++
             }
         }
 
-        if (couldMove == 1) {
+        return if (couldMove == 1) {
             block(pom, sourceDirsToMove.single(), execution, build)
-            return true
+            true
         } else {
-            return false
+            false
         }
     }
 
@@ -158,5 +163,5 @@ class MavenPluginSourcesMoveToBuild : PsiElementBaseIntentionAction() {
         execution.goals.goals.any { it.stringValue == PomFile.KotlinGoals.Compile || it.stringValue == PomFile.KotlinGoals.Js }
 
     private fun shouldMoveTestSourceRoot(execution: MavenDomPluginExecution) =
-            execution.goals.goals.any { it.stringValue == PomFile.KotlinGoals.TestCompile || it.stringValue == PomFile.KotlinGoals.TestJs }
+        execution.goals.goals.any { it.stringValue == PomFile.KotlinGoals.TestCompile || it.stringValue == PomFile.KotlinGoals.TestJs }
 }

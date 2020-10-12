@@ -1,4 +1,5 @@
 // A
+// WITH_RUNTIME
 
 class A {
     companion object {
@@ -31,3 +32,5 @@ class A {
         }
     }
 }
+
+// LAZINESS:NoConsistency

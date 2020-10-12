@@ -41,6 +41,16 @@ abstract class PerformanceCounter protected constructor(val name: String) {
             countersCopy.forEach { it.report(consumer) }
         }
 
+        fun report(consumer: (String, Int, Long) -> Unit) {
+            val countersCopy = synchronized(allCounters) {
+                allCounters.toTypedArray()
+            }
+            countersCopy.forEach { it.report(consumer) }
+        }
+
+        val numberOfCounters: Int
+            get() = synchronized(allCounters) { allCounters.size }
+
         fun setTimeCounterEnabled(enable: Boolean) {
             enabled = enable
         }
@@ -51,7 +61,8 @@ abstract class PerformanceCounter protected constructor(val name: String) {
             }
         }
 
-        @JvmOverloads fun create(name: String, reenterable: Boolean = false): PerformanceCounter {
+        @JvmOverloads
+        fun create(name: String, reenterable: Boolean = false): PerformanceCounter {
             return if (reenterable)
                 ReenterableCounter(name)
             else
@@ -60,7 +71,7 @@ abstract class PerformanceCounter protected constructor(val name: String) {
 
         fun create(name: String, vararg excluded: PerformanceCounter): PerformanceCounter = CounterWithExclude(name, *excluded)
 
-        internal inline fun <T> getOrPut(threadLocal: ThreadLocal<T>, default: () -> T) : T {
+        internal inline fun <T> getOrPut(threadLocal: ThreadLocal<T>, default: () -> T): T {
             var value = threadLocal.get()
             if (value == null) {
                 value = default()
@@ -92,8 +103,7 @@ abstract class PerformanceCounter protected constructor(val name: String) {
         excludedFrom.forEach { it.enterExcludedMethod() }
         try {
             return countTime(block)
-        }
-        finally {
+        } finally {
             excludedFrom.forEach { it.exitExcludedMethod() }
         }
     }
@@ -112,27 +122,28 @@ abstract class PerformanceCounter protected constructor(val name: String) {
     fun report(consumer: (String) -> Unit) {
         if (totalTimeNanos == 0L) {
             consumer("$name performed $count times")
-        }
-        else {
+        } else {
             val millis = TimeUnit.NANOSECONDS.toMillis(totalTimeNanos)
             consumer("$name performed $count times, total time $millis ms")
         }
     }
+
+    fun report(consumer: (String, Int, Long) -> Unit) =
+        consumer(name, count, totalTimeNanos)
 }
 
-private class SimpleCounter(name: String): PerformanceCounter(name) {
+private class SimpleCounter(name: String) : PerformanceCounter(name) {
     override fun <T> countTime(block: () -> T): T {
         val startTime = PerformanceCounter.currentTime()
         try {
             return block()
-        }
-        finally {
+        } finally {
             incrementTime(PerformanceCounter.currentTime() - startTime)
         }
     }
 }
 
-private class ReenterableCounter(name: String): PerformanceCounter(name) {
+private class ReenterableCounter(name: String) : PerformanceCounter(name) {
     companion object {
         private val enteredCounters = ThreadLocal<MutableSet<ReenterableCounter>>()
 
@@ -148,8 +159,7 @@ private class ReenterableCounter(name: String): PerformanceCounter(name) {
         val needTime = enterCounter(this)
         try {
             return block()
-        }
-        finally {
+        } finally {
             if (needTime) {
                 incrementTime(PerformanceCounter.currentTime() - startTime)
                 leaveCounter(this)
@@ -164,12 +174,12 @@ private class ReenterableCounter(name: String): PerformanceCounter(name) {
  *
  *  Main and excluded methods may be reenterable.
  */
-internal class CounterWithExclude(name: String, vararg excludedCounters: PerformanceCounter): PerformanceCounter(name) {
+internal class CounterWithExclude(name: String, vararg excludedCounters: PerformanceCounter) : PerformanceCounter(name) {
     companion object {
         private val counterToCallStackMapThreadLocal = ThreadLocal<MutableMap<CounterWithExclude, CallStackWithTime>>()
 
-        private fun getCallStack(counter: CounterWithExclude)
-                = PerformanceCounter.getOrPut(counterToCallStackMapThreadLocal) { HashMap() }.getOrPut(counter) { CallStackWithTime() }
+        private fun getCallStack(counter: CounterWithExclude) =
+            PerformanceCounter.getOrPut(counterToCallStackMapThreadLocal) { HashMap() }.getOrPut(counter) { CallStackWithTime() }
     }
 
     init {
@@ -183,8 +193,7 @@ internal class CounterWithExclude(name: String, vararg excludedCounters: Perform
         incrementTime(callStack.push(true))
         try {
             return block()
-        }
-        finally {
+        } finally {
             incrementTime(callStack.pop(true))
         }
     }

@@ -16,17 +16,18 @@
 
 package org.jetbrains.kotlin.ir.expressions
 
-interface IrConst<T> : IrExpression, IrExpressionWithCopy {
-    val kind: IrConstKind<T>
-    val value: T
+abstract class IrConst<T> : IrExpression(), IrExpressionWithCopy {
+    abstract val kind: IrConstKind<T>
+    abstract val value: T
 
-    override fun copy(): IrConst<T>
+    abstract override fun copy(): IrConst<T>
+    abstract fun copyWithOffsets(startOffset: Int, endOffset: Int): IrConst<T>
 }
 
-sealed class IrConstKind<T>(val asString: kotlin.String)  {
+sealed class IrConstKind<T>(val asString: kotlin.String) {
     @Suppress("UNCHECKED_CAST")
     fun valueOf(aConst: IrConst<*>) =
-            (aConst as IrConst<T>).value
+        (aConst as IrConst<T>).value
 
     object Null : IrConstKind<Nothing?>("Null")
     object Boolean : IrConstKind<kotlin.Boolean>("Boolean")
@@ -41,4 +42,3 @@ sealed class IrConstKind<T>(val asString: kotlin.String)  {
 
     override fun toString() = asString
 }
-

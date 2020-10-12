@@ -5,13 +5,13 @@ import java.util.HashMap
 
 public inline fun <K,V1, V: V1> Map<K,V>.getOrElse1(key: K, defaultValue: ()-> V1) : V1 {
     if (this.containsKey(key)) {
-        return <!UNCHECKED_CAST!>this.get(key) as V<!>
+        return this.get(key) <!UNCHECKED_CAST!>as V<!>
     } else {
         return defaultValue()
     }
 }
 
-fun main(args: Array<String>) {
+fun main() {
     val map = HashMap<Int, Int>()
     println(map.getOrElse1(2, { null })) // Error
 }

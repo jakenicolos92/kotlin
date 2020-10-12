@@ -1,5 +1,4 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
 // WITH_REFLECT
 // FULL_JDK
@@ -8,7 +7,7 @@ import java.lang.reflect.TypeVariable
 import kotlin.reflect.jvm.*
 import kotlin.test.assertEquals
 
-class A<T> {
+class A<T : CharSequence> {
     fun foo(t: T) {}
 }
 
@@ -18,7 +17,10 @@ fun box(): String {
     if (t !is TypeVariable<*>) return "Fail, t should be a type variable: $t"
 
     assertEquals("T", t.name)
-    assertEquals("A", (t.genericDeclaration as Class<*>).name)
+    assertEquals(A::class.java, (t.genericDeclaration as Class<*>))
+
+    val tp = A::class.typeParameters
+    assertEquals(CharSequence::class.java, tp.single().upperBounds.single().javaType)
 
     return "OK"
 }

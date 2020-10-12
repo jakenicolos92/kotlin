@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,38 +16,23 @@
 
 package org.jetbrains.kotlin.idea.codeInsight.surroundWith.expression;
 
-import com.intellij.lang.surroundWith.SurroundDescriptor;
 import com.intellij.lang.surroundWith.Surrounder;
-import com.intellij.psi.PsiElement;
-import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.kotlin.idea.codeInsight.CodeInsightUtils;
-import org.jetbrains.kotlin.psi.KtExpression;
+import org.jetbrains.kotlin.idea.core.surroundWith.KotlinExpressionSurroundDescriptorBase;
 
-public class KotlinExpressionSurroundDescriptor implements SurroundDescriptor {
-
+public class KotlinExpressionSurroundDescriptor extends KotlinExpressionSurroundDescriptorBase {
     private static final Surrounder[] SURROUNDERS = {
             new KotlinNotSurrounder(),
             new KotlinStringTemplateSurrounder(),
             new KotlinParenthesesSurrounder(),
-            new KotlinWhenSurrounder() ,
-            new KotlinRuntimeTypeCastSurrounder(),
+            new KotlinWhenSurrounder(),
             new KotlinWithIfExpressionSurrounder(/* withElse = */false),
-            new KotlinWithIfExpressionSurrounder(/* withElse = */true)
+            new KotlinWithIfExpressionSurrounder(/* withElse = */true),
+            new KotlinTryExpressionSurrounder.TryCatch(),
+            new KotlinTryExpressionSurrounder.TryCatchFinally(),
+            new KotlinIfElseExpressionSurrounder(/* withBraces = */false),
+            new KotlinIfElseExpressionSurrounder(/* withBraces = */true)
     };
-
-    @Override
-    @NotNull
-    public PsiElement[] getElementsToSurround(PsiFile file, int startOffset, int endOffset) {
-        KtExpression expression = (KtExpression) CodeInsightUtils.findElement(file,
-                                                                              startOffset,
-                                                                              endOffset,
-                                                                              CodeInsightUtils.ElementKind.EXPRESSION);
-        if (expression == null) {
-            return PsiElement.EMPTY_ARRAY;
-        }
-        return new PsiElement[] {expression};
-    }
 
     @Override
     @NotNull

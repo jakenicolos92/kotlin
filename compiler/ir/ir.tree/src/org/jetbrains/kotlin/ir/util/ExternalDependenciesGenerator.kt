@@ -16,38 +16,60 @@
 
 package org.jetbrains.kotlin.ir.util
 
-import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
-import org.jetbrains.kotlin.descriptors.PackageFragmentDescriptor
-import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
-import org.jetbrains.kotlin.ir.declarations.IrExternalPackageFragment
-import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.descriptors.IrBuiltIns
+import org.jetbrains.kotlin.ir.linkage.IrDeserializer
+import org.jetbrains.kotlin.ir.linkage.IrProvider
+import org.jetbrains.kotlin.ir.symbols.IrSymbol
+import org.jetbrains.kotlin.utils.addToStdlib.firstNotNullResult
 
-class ExternalDependenciesGenerator(val symbolTable: SymbolTable, val irBuiltIns: IrBuiltIns) {
-    private val stubGenerator = DeclarationStubGenerator(symbolTable, IrDeclarationOrigin.IR_EXTERNAL_DECLARATION_STUB)
-
-    fun generateUnboundSymbolsAsDependencies(irModule: IrModuleFragment) {
-        val collector = DependenciesCollector()
-        collector.collectTopLevelDescriptorsForUnboundSymbols(symbolTable)
-
-        collector.dependencyModules.mapTo(irModule.dependencyModules) { moduleDescriptor ->
-            generateModuleStub(collector, moduleDescriptor)
+class ExternalDependenciesGenerator(
+    val symbolTable: SymbolTable,
+    private val irProviders: List<IrProvider>,
+    private val languageVersionSettings: LanguageVersionSettings
+) {
+    fun generateUnboundSymbolsAsDependencies() {
+        // There should be at most one DeclarationStubGenerator (none in closed world?)
+        irProviders.singleOrNull { it is DeclarationStubGenerator }?.let {
+            (it as DeclarationStubGenerator).unboundSymbolGeneration = true
         }
+        /*
+            Deserializing a reference may lead to new unbound references, so we loop until none are left.
+         */
+        var unbound = setOf<IrSymbol>()
+        lateinit var prevUnbound: Set<IrSymbol>
+        do {
+            prevUnbound = unbound
+            unbound = symbolTable.allUnbound
+
+            for (symbol in unbound) {
+                // Symbol could get bound as a side effect of deserializing other symbols.
+                if (!symbol.isBound) {
+                    irProviders.getDeclaration(symbol)
+                }
+            }
+        // We wait for the unbound to stabilize on fake overrides.
+        } while (unbound != prevUnbound)
+    }
+}
+
+fun List<IrProvider>.getDeclaration(symbol: IrSymbol): IrDeclaration? =
+    firstNotNullResult { provider ->
+        provider.getDeclaration(symbol)
     }
 
-    private fun generateModuleStub(collector: DependenciesCollector, moduleDescriptor: ModuleDescriptor): IrModuleFragment =
-            stubGenerator.generateEmptyModuleFragmentStub(moduleDescriptor, irBuiltIns).also { irDependencyModule ->
-                collector.getPackageFragments(moduleDescriptor).mapTo(irDependencyModule.externalPackageFragments) { packageFragmentDescriptor ->
-                    generatePackageStub(packageFragmentDescriptor, collector.getTopLevelDescriptors(packageFragmentDescriptor))
-                }
-            }
-
-    private fun generatePackageStub(packageFragmentDescriptor: PackageFragmentDescriptor, topLevelDescriptors: Collection<DeclarationDescriptor>): IrExternalPackageFragment =
-            stubGenerator.generateEmptyExternalPackageFragmentStub(packageFragmentDescriptor).also { irExternalPackageFragment ->
-                topLevelDescriptors.mapTo(irExternalPackageFragment.declarations) {
-                    stubGenerator.generateMemberStub(it)
-                }
-            }
-
+// In most cases, IrProviders list consist of an optional deserializer and a DeclarationStubGenerator.
+fun generateTypicalIrProviderList(
+    moduleDescriptor: ModuleDescriptor,
+    irBuiltins: IrBuiltIns,
+    symbolTable: SymbolTable,
+    deserializer: IrDeserializer? = null,
+    extensions: StubGeneratorExtensions = StubGeneratorExtensions.EMPTY
+): List<IrProvider> {
+    val stubGenerator = DeclarationStubGenerator(
+        moduleDescriptor, symbolTable, irBuiltins.languageVersionSettings, extensions
+    )
+    return listOfNotNull(deserializer, stubGenerator)
 }

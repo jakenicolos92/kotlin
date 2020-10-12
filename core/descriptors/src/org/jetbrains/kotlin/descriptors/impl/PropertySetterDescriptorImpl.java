@@ -39,7 +39,7 @@ public class PropertySetterDescriptorImpl extends PropertyAccessorDescriptorImpl
             @NotNull PropertyDescriptor correspondingProperty,
             @NotNull Annotations annotations,
             @NotNull Modality modality,
-            @NotNull Visibility visibility,
+            @NotNull DescriptorVisibility visibility,
             boolean isDefault,
             boolean isExternal,
             boolean isInline,
@@ -58,16 +58,16 @@ public class PropertySetterDescriptorImpl extends PropertyAccessorDescriptorImpl
     }
 
     public void initializeDefault() {
-        assert parameter == null;
-        parameter = createSetterParameter(this, getCorrespondingProperty().getReturnType());
+        initialize(createSetterParameter(this, getCorrespondingProperty().getType(), Annotations.Companion.getEMPTY()));
     }
 
     public static ValueParameterDescriptorImpl createSetterParameter(
             @NotNull PropertySetterDescriptor setterDescriptor,
-            @NotNull KotlinType type
+            @NotNull KotlinType type,
+            @NotNull Annotations annotations
     ) {
         return new ValueParameterDescriptorImpl(
-                setterDescriptor, null, 0, Annotations.Companion.getEMPTY(), Name.special("<set-?>"), type,
+                setterDescriptor, null, 0, annotations, Name.special("<set-?>"), type,
                 /* declaresDefaultValue = */ false,
                 /* isCrossinline = */ false,
                 /* isNoinline = */ false,

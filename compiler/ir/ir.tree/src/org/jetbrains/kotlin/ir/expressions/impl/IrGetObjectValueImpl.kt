@@ -16,29 +16,17 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.ir.expressions.IrGetObjectValue
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
-import org.jetbrains.kotlin.ir.symbols.impl.IrClassSymbolImpl
+import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.types.KotlinType
 
 class IrGetObjectValueImpl(
-        startOffset: Int,
-        endOffset: Int,
-        type: KotlinType,
-        symbol: IrClassSymbol
-) : IrGetObjectValue,
-        IrTerminalDeclarationReferenceBase<IrClassSymbol, ClassDescriptor>(startOffset, endOffset, type, symbol, symbol.descriptor)
-{
-    @Deprecated("Creates unbound symbol")
-    constructor(
-            startOffset: Int,
-            endOffset: Int,
-            type: KotlinType,
-            descriptor: ClassDescriptor
-    ) : this(startOffset, endOffset, type, IrClassSymbolImpl(descriptor))
-
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val symbol: IrClassSymbol
+) : IrGetObjectValue() {
     override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-            visitor.visitGetObjectValue(this, data)
+        visitor.visitGetObjectValue(this, data)
 }

@@ -18,10 +18,10 @@ package org.jetbrains.kotlin.asJava;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.kotlin.asJava.finder.JavaElementFinder;
+import org.jetbrains.kotlin.cli.common.config.ContentRootsKt;
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles;
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment;
 import org.jetbrains.kotlin.config.CompilerConfiguration;
-import org.jetbrains.kotlin.config.ContentRootsKt;
 import org.jetbrains.kotlin.test.ConfigurationKind;
 import org.jetbrains.kotlin.test.KotlinTestUtils;
 import org.jetbrains.kotlin.test.KotlinTestWithEnvironment;
@@ -54,8 +54,9 @@ public abstract class KotlinAsJavaTestBase extends KotlinTestWithEnvironment {
     @Override
     protected void setUp() throws Exception {
         super.setUp();
-
-        finder = AbstractCompilerLightClassTest.createFinder(getEnvironment());
+        KotlinCoreEnvironment environment = getEnvironment();
+        KotlinTestUtils.resolveAllKotlinFiles(environment);
+        finder = JavaElementFinder.Companion.getInstance(environment.getProject());
     }
 
     @Override

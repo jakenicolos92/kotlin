@@ -21,15 +21,16 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.psi.*;
+import org.jetbrains.kotlin.psi.synthetics.SyntheticClassOrObjectDescriptorKt;
 import org.jetbrains.kotlin.resolve.BindingContext;
 import org.jetbrains.kotlin.resolve.BindingContextUtils;
 import org.jetbrains.kotlin.resolve.DescriptorToSourceUtils;
 import org.jetbrains.kotlin.resolve.DescriptorUtils;
 import org.jetbrains.kotlin.resolve.calls.callUtil.CallUtilKt;
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall;
+import org.jetbrains.kotlin.resolve.calls.util.FakeCallableDescriptorForTypeAliasObject;
 import org.jetbrains.kotlin.resolve.constants.CompileTimeConstant;
 import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator;
-import org.jetbrains.kotlin.resolve.descriptorUtil.DescriptorUtilsKt;
 import org.jetbrains.kotlin.types.KotlinType;
 import org.jetbrains.kotlin.types.TypeUtils;
 
@@ -48,21 +49,22 @@ public final class BindingUtils {
     private BindingUtils() {
     }
 
+    @SuppressWarnings("unchecked")
     @NotNull
-    static private <E extends PsiElement, D extends DeclarationDescriptor>
-    D getDescriptorForExpression(@NotNull BindingContext context, @NotNull E expression, Class<D> descriptorClass) {
+    private static <E extends PsiElement, D extends DeclarationDescriptor> D getDescriptorForExpression(
+            @NotNull BindingContext context, @NotNull E expression, Class<D> descriptorClass
+    ) {
         DeclarationDescriptor descriptor = context.get(BindingContext.DECLARATION_TO_DESCRIPTOR, expression);
         assert descriptor != null;
         assert descriptorClass.isInstance(descriptor)
                 : message(expression, expression.toString() + " expected to have of type" + descriptorClass.toString());
-        //noinspection unchecked
         return (D) descriptor;
     }
 
     @NotNull
     public static ClassDescriptor getClassDescriptor(@NotNull BindingContext context,
-            @NotNull KtClassOrObject declaration) {
-        return BindingContextUtils.getNotNull(context, BindingContext.CLASS, declaration);
+            @NotNull KtPureClassOrObject declaration) {
+        return SyntheticClassOrObjectDescriptorKt.findClassDescriptor(declaration, context);
     }
 
     @NotNull
@@ -84,7 +86,7 @@ public final class BindingUtils {
         return (KtParameter) result;
     }
 
-    public static boolean hasAncestorClass(@NotNull BindingContext context, @NotNull KtClassOrObject classDeclaration) {
+    public static boolean hasAncestorClass(@NotNull BindingContext context, @NotNull KtPureClassOrObject classDeclaration) {
         ClassDescriptor classDescriptor = getClassDescriptor(context, classDeclaration);
         List<ClassDescriptor> superclassDescriptors = DescriptorUtils.getSuperclassDescriptors(classDescriptor);
         return (JsDescriptorUtils.findAncestorClass(superclassDescriptors) != null);
@@ -128,6 +130,9 @@ public final class BindingUtils {
                 assert classDescriptor != null : "Resolved typealias must have non-null class descriptor: " + descriptor;
             }
             return classDescriptor;
+        }
+        else if (descriptor instanceof FakeCallableDescriptorForTypeAliasObject) {
+            return ((FakeCallableDescriptorForTypeAliasObject) descriptor).getReferencedObject();
         }
         else {
             return descriptor;
@@ -177,24 +182,10 @@ public final class BindingUtils {
 
     @NotNull
     public static KtExpression getDefaultArgument(@NotNull ValueParameterDescriptor parameterDescriptor) {
-        ValueParameterDescriptor descriptorWhichDeclaresDefaultValue =
-                getOriginalDescriptorWhichDeclaresDefaultValue(parameterDescriptor);
-        KtParameter psiParameter = getParameterForDescriptor(descriptorWhichDeclaresDefaultValue);
+        KtParameter psiParameter = getParameterForDescriptor(parameterDescriptor);
         KtExpression defaultValue = psiParameter.getDefaultValue();
         assert defaultValue != null : message(parameterDescriptor, "No default value found in PSI");
         return defaultValue;
-    }
-
-    private static ValueParameterDescriptor getOriginalDescriptorWhichDeclaresDefaultValue(
-            @NotNull ValueParameterDescriptor parameterDescriptor
-    ) {
-        ValueParameterDescriptor result = parameterDescriptor;
-        assert DescriptorUtilsKt.hasDefaultValue(result) : message(parameterDescriptor, "Unsupplied parameter must have default value");
-        // TODO: this seems incorrect, as the default value may come from _not the first_ overridden parameter
-        while (!result.declaresDefaultValue()) {
-            result = result.getOverriddenDescriptors().iterator().next();
-        }
-        return result;
     }
 
     @NotNull
@@ -231,7 +222,7 @@ public final class BindingUtils {
 
     @Nullable
     @SuppressWarnings("unchecked")
-    public static ResolvedCall<FunctionDescriptor> getSuperCall(@NotNull BindingContext context, KtClassOrObject classDeclaration) {
+    public static ResolvedCall<FunctionDescriptor> getSuperCall(@NotNull BindingContext context, KtPureClassOrObject classDeclaration) {
         for (KtSuperTypeListEntry specifier : classDeclaration.getSuperTypeListEntries()) {
             if (specifier instanceof KtSuperTypeCallEntry) {
                 KtSuperTypeCallEntry superCall = (KtSuperTypeCallEntry) specifier;

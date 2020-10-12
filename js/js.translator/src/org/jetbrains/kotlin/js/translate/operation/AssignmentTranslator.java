@@ -18,9 +18,7 @@ package org.jetbrains.kotlin.js.translate.operation;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.kotlin.descriptors.ClassDescriptor;
-import org.jetbrains.kotlin.descriptors.DeclarationDescriptor;
-import org.jetbrains.kotlin.descriptors.PropertyDescriptor;
+import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.js.backend.ast.JsExpression;
 import org.jetbrains.kotlin.js.translate.context.TranslationContext;
 import org.jetbrains.kotlin.js.translate.general.AbstractTranslator;
@@ -31,8 +29,7 @@ import org.jetbrains.kotlin.lexer.KtToken;
 import org.jetbrains.kotlin.psi.*;
 import org.jetbrains.kotlin.types.expressions.OperatorConventions;
 
-import static org.jetbrains.kotlin.js.translate.utils.BindingUtils.getDescriptorForReferenceExpression;
-import static org.jetbrains.kotlin.js.translate.utils.BindingUtils.isVariableReassignment;
+import static org.jetbrains.kotlin.js.translate.utils.BindingUtils.*;
 import static org.jetbrains.kotlin.js.translate.utils.PsiUtils.getSimpleName;
 import static org.jetbrains.kotlin.js.translate.utils.PsiUtils.isAssignment;
 import static org.jetbrains.kotlin.js.translate.utils.TranslationUtils.hasCorrespondingFunctionIntrinsic;
@@ -46,7 +43,14 @@ public abstract class AssignmentTranslator extends AbstractTranslator {
     @NotNull
     public static JsExpression translate(@NotNull KtBinaryExpression expression, @NotNull TranslationContext context) {
         if (hasCorrespondingFunctionIntrinsic(context, expression)) {
-            return IntrinsicAssignmentTranslator.doTranslate(expression, context);
+            // This is a hack. This code is conceptually wrong, refactoring required here.
+            // The right implementation is: get assignment via OverloadedAssignmentTranslator and see at the result.
+            // If it's an expression like `a = a + b` then represent it as `a += b`
+            // Another right implementation is: enumerate explicitly which descriptors are OK to intrinsify like this.
+            CallableDescriptor operationDescriptor = getCallableDescriptorForOperationExpression(context.bindingContext(), expression);
+            if (operationDescriptor == null || operationDescriptor.getExtensionReceiverParameter() == null) {
+                return IntrinsicAssignmentTranslator.doTranslate(expression, context);
+            }
         }
         return OverloadedAssignmentTranslator.doTranslate(expression, context);
     }
@@ -63,7 +67,7 @@ public abstract class AssignmentTranslator extends AbstractTranslator {
     }
 
     protected final AccessTranslator createAccessTranslator(@NotNull KtExpression left, boolean forceOrderOfEvaluation) {
-        if (isReferenceToBackingFieldFromConstructor(left, context())) {
+        if (isValProperty(left, context())) {
             KtSimpleNameExpression simpleName = getSimpleName(left);
             assert simpleName != null;
             return BackingFieldAccessTranslator.newInstance(simpleName, context());
@@ -73,40 +77,17 @@ public abstract class AssignmentTranslator extends AbstractTranslator {
         }
     }
 
-    private static boolean isReferenceToBackingFieldFromConstructor(
+    private static boolean isValProperty(
             @NotNull KtExpression expression,
             @NotNull TranslationContext context
     ) {
-        if (expression instanceof KtSimpleNameExpression) {
-            KtSimpleNameExpression nameExpression = (KtSimpleNameExpression) expression;
-            DeclarationDescriptor descriptor = getDescriptorForReferenceExpression(context.bindingContext(), nameExpression);
-            return isReferenceToBackingFieldFromConstructor(descriptor, context);
+        KtSimpleNameExpression simpleNameExpression = getSimpleName(expression);
+
+        if (simpleNameExpression != null) {
+            DeclarationDescriptor descriptor = getDescriptorForReferenceExpression(context.bindingContext(), simpleNameExpression);
+            return descriptor instanceof PropertyDescriptor && !((PropertyDescriptor) descriptor).isVar();
         }
-        else if (expression instanceof KtDotQualifiedExpression) {
-            KtDotQualifiedExpression qualifiedExpression = (KtDotQualifiedExpression) expression;
-            if (qualifiedExpression.getReceiverExpression() instanceof KtThisExpression &&
-                qualifiedExpression.getSelectorExpression() instanceof KtSimpleNameExpression
-            ) {
-                KtSimpleNameExpression nameExpression = (KtSimpleNameExpression) qualifiedExpression.getSelectorExpression();
-                DeclarationDescriptor descriptor = getDescriptorForReferenceExpression(context.bindingContext(), nameExpression);
-                return isReferenceToBackingFieldFromConstructor(descriptor, context);
-            }
-        }
+
         return false;
-    }
-
-    private static boolean isReferenceToBackingFieldFromConstructor(
-            @Nullable DeclarationDescriptor descriptor,
-            @NotNull TranslationContext context
-    ) {
-        if (!(descriptor instanceof PropertyDescriptor)) return false;
-
-        PropertyDescriptor propertyDescriptor = (PropertyDescriptor) descriptor;
-        if (!(context.getDeclarationDescriptor() instanceof ClassDescriptor)) return false;
-
-        ClassDescriptor classDescriptor = (ClassDescriptor) context.getDeclarationDescriptor();
-        if (classDescriptor != propertyDescriptor.getContainingDeclaration()) return false;
-
-        return !propertyDescriptor.isVar();
     }
 }

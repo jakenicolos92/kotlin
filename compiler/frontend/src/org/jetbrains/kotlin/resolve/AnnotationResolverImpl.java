@@ -16,10 +16,15 @@
 
 package org.jetbrains.kotlin.resolve;
 
+import com.intellij.psi.util.PsiTreeUtil;
+import kotlin.collections.CollectionsKt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.descriptors.*;
-import org.jetbrains.kotlin.descriptors.annotations.*;
+import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor;
+import org.jetbrains.kotlin.descriptors.annotations.AnnotationWithTarget;
+import org.jetbrains.kotlin.descriptors.annotations.Annotations;
+import org.jetbrains.kotlin.descriptors.annotations.TargetedAnnotations;
 import org.jetbrains.kotlin.diagnostics.Errors;
 import org.jetbrains.kotlin.psi.*;
 import org.jetbrains.kotlin.resolve.calls.CallResolver;
@@ -36,13 +41,12 @@ import org.jetbrains.kotlin.resolve.scopes.LexicalScope;
 import org.jetbrains.kotlin.storage.StorageManager;
 import org.jetbrains.kotlin.types.ErrorUtils;
 import org.jetbrains.kotlin.types.KotlinType;
-import org.jetbrains.kotlin.types.TypeUtils;
-import org.jetbrains.kotlin.types.expressions.ExpressionTypingContext;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.jetbrains.kotlin.diagnostics.Errors.ANNOTATION_USED_AS_ANNOTATION_ARGUMENT;
 import static org.jetbrains.kotlin.diagnostics.Errors.NOT_AN_ANNOTATION_CLASS;
 import static org.jetbrains.kotlin.types.TypeUtils.NO_EXPECTED_TYPE;
 
@@ -79,7 +83,9 @@ public class AnnotationResolverImpl extends AnnotationResolver {
             boolean shouldResolveArguments
     ) {
         if (annotationEntryElements.isEmpty()) return Annotations.Companion.getEMPTY();
-        List<AnnotationWithTarget> result = new ArrayList<>(0);
+
+        List<AnnotationDescriptor> standard = new ArrayList<>();
+        List<AnnotationWithTarget> targeted = new ArrayList<>();
 
         for (KtAnnotationEntry entryElement : annotationEntryElements) {
             AnnotationDescriptor descriptor = trace.get(BindingContext.ANNOTATION, entryElement);
@@ -92,13 +98,13 @@ public class AnnotationResolverImpl extends AnnotationResolver {
 
             KtAnnotationUseSiteTarget target = entryElement.getUseSiteTarget();
             if (target != null) {
-                result.add(new AnnotationWithTarget(descriptor, target.getAnnotationUseSiteTarget()));
+                targeted.add(new AnnotationWithTarget(descriptor, target.getAnnotationUseSiteTarget()));
             }
             else {
-                result.add(new AnnotationWithTarget(descriptor, null));
+                standard.add(descriptor);
             }
         }
-        return AnnotationsImpl.create(result);
+        return new TargetedAnnotations(CollectionsKt.toList(standard), CollectionsKt.toList(targeted));
     }
 
     @Override
@@ -148,6 +154,10 @@ public class AnnotationResolverImpl extends AnnotationResolver {
             @NotNull LexicalScope scope,
             @NotNull BindingTrace trace
     ) {
+        if (PsiTreeUtil.getParentOfType(annotationEntry, KtAnnotationEntry.class) != null) {
+            trace.report(ANNOTATION_USED_AS_ANNOTATION_ARGUMENT.on(annotationEntry));
+        }
+
         return callResolver.resolveFunctionCall(
                 trace, scope,
                 CallMaker.makeCall(null, null, annotationEntry),

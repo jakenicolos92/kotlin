@@ -22,7 +22,6 @@ import com.intellij.psi.PsiElement;
 import com.intellij.refactoring.ui.NameSuggestionsField;
 import com.intellij.ui.TitledSeparator;
 import com.intellij.util.ArrayUtil;
-import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.MultiMap;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function0;
@@ -30,22 +29,23 @@ import kotlin.jvm.functions.Function1;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.idea.KotlinFileType;
-import org.jetbrains.kotlin.idea.core.KotlinNameSuggester;
-import org.jetbrains.kotlin.idea.core.UtilsKt;
+import org.jetbrains.kotlin.idea.KotlinBundle;
 import org.jetbrains.kotlin.idea.refactoring.KotlinRefactoringUtilKt;
-import org.jetbrains.kotlin.idea.refactoring.KotlinRefactoringBundle;
 import org.jetbrains.kotlin.idea.refactoring.introduce.extractionEngine.*;
 import org.jetbrains.kotlin.idea.refactoring.introduce.ui.KotlinSignatureComponent;
 import org.jetbrains.kotlin.idea.util.IdeDescriptorRenderers;
+import org.jetbrains.kotlin.lexer.KtModifierKeywordToken;
 import org.jetbrains.kotlin.lexer.KtTokens;
+import org.jetbrains.kotlin.psi.psiUtil.KtPsiUtilKt;
 import org.jetbrains.kotlin.types.KotlinType;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
-import java.util.*;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class KotlinExtractFunctionDialog extends DialogWrapper {
     private JPanel contentPane;
@@ -78,7 +78,7 @@ public class KotlinExtractFunctionDialog extends DialogWrapper {
         this.onAccept = onAccept;
 
         setModal(true);
-        setTitle(KotlinRefactoringBundle.message("extract.function"));
+        setTitle(KotlinBundle.message("extract.function"));
         init();
         update();
     }
@@ -92,20 +92,21 @@ public class KotlinExtractFunctionDialog extends DialogWrapper {
     }
 
     private String getFunctionName() {
-        return UtilsKt.quoteIfNeeded(functionNameField.getEnteredName());
+        return KtPsiUtilKt.quoteIfNeeded(functionNameField.getEnteredName());
     }
 
-    private String getVisibility() {
-        if (!isVisibilitySectionAvailable()) return "";
+    @Nullable
+    private KtModifierKeywordToken getVisibility() {
+        if (!isVisibilitySectionAvailable()) return null;
 
-        String value = (String) visibilityBox.getSelectedItem();
-        return KtTokens.PUBLIC_KEYWORD.getValue().equals(value) ? "" : value;
+        KtModifierKeywordToken value = (KtModifierKeywordToken) visibilityBox.getSelectedItem();
+        return KtTokens.DEFAULT_VISIBILITY_KEYWORD.equals(value) ? null : value;
     }
 
     private boolean checkNames() {
-        if (!KotlinNameSuggester.INSTANCE.isIdentifier(getFunctionName())) return false;
+        if (!KtPsiUtilKt.isIdentifier(getFunctionName())) return false;
         for (ExtractFunctionParameterTablePanel.ParameterInfo parameterInfo : parameterTablePanel.getSelectedParameterInfos()) {
-            if (!KotlinNameSuggester.INSTANCE.isIdentifier(parameterInfo.getName())) return false;
+            if (!KtPsiUtilKt.isIdentifier(parameterInfo.getName())) return false;
         }
         return true;
     }
@@ -115,7 +116,7 @@ public class KotlinExtractFunctionDialog extends DialogWrapper {
 
         setOKActionEnabled(checkNames());
         signaturePreviewField.setText(
-                ExtractorUtilKt.getSignaturePreview(getCurrentConfiguration(), IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES)
+                ExtractorUtilKt.getSignaturePreview(getCurrentConfiguration(), IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_NO_ANNOTATIONS)
         );
     }
 
@@ -157,7 +158,7 @@ public class KotlinExtractFunctionDialog extends DialogWrapper {
                                 boolean cellHasFocus
                         ) {
                             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                            setText(IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES.renderType((KotlinType) value));
+                            setText(IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_NO_ANNOTATIONS.renderType((KotlinType) value));
                             return this;
                         }
                     }
@@ -175,13 +176,12 @@ public class KotlinExtractFunctionDialog extends DialogWrapper {
             returnTypePanel.getParent().remove(returnTypePanel);
         }
 
+        visibilityBox.setModel(new DefaultComboBoxModel(KtTokens.VISIBILITY_MODIFIERS.getTypes()));
+
         boolean enableVisibility = isVisibilitySectionAvailable();
         visibilityBox.setEnabled(enableVisibility);
         if (enableVisibility) {
-            String defaultVisibility = extractableCodeDescriptor.getVisibility();
-            if (defaultVisibility.isEmpty()) {
-                defaultVisibility = KtTokens.PUBLIC_KEYWORD.getValue();
-            }
+            KtModifierKeywordToken defaultVisibility = extractableCodeDescriptor.getVisibility();
             visibilityBox.setSelectedItem(defaultVisibility);
         }
         visibilityBox.addItemListener(
@@ -211,7 +211,7 @@ public class KotlinExtractFunctionDialog extends DialogWrapper {
         };
         parameterTablePanel.init(extractableCodeDescriptor.getReceiverParameter(), extractableCodeDescriptor.getParameters());
 
-        inputParametersPanel.setText("&Parameters");
+        inputParametersPanel.setText(KotlinBundle.message("text.parameters"));
         inputParametersPanel.setLabelFor(parameterTablePanel.getTable());
         inputParametersPanel.add(parameterTablePanel);
     }
@@ -244,7 +244,7 @@ public class KotlinExtractFunctionDialog extends DialogWrapper {
 
     @Override
     public JComponent getPreferredFocusedComponent() {
-        return functionNameField;
+        return functionNameField.getFocusableComponent();
     }
 
     @Override
@@ -276,12 +276,12 @@ public class KotlinExtractFunctionDialog extends DialogWrapper {
     public static ExtractableCodeDescriptor createNewDescriptor(
             @NotNull ExtractableCodeDescriptor originalDescriptor,
             @NotNull String newName,
-            @NotNull String newVisibility,
+            @Nullable KtModifierKeywordToken newVisibility,
             @Nullable ExtractFunctionParameterTablePanel.ParameterInfo newReceiverInfo,
             @NotNull List<ExtractFunctionParameterTablePanel.ParameterInfo> newParameterInfos,
             @Nullable KotlinType returnType
     ) {
-        Map<Parameter, Parameter> oldToNewParameters = ContainerUtil.newLinkedHashMap();
+        Map<Parameter, Parameter> oldToNewParameters = new LinkedHashMap<>();
         for (ExtractFunctionParameterTablePanel.ParameterInfo parameterInfo : newParameterInfos) {
             oldToNewParameters.put(parameterInfo.getOriginalParameter(), parameterInfo.toParameter());
         }

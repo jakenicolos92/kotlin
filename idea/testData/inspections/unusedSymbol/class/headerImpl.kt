@@ -1,9 +1,9 @@
 // No "unused symbol" should be reported here
-
-header class My
-
-impl class My
+expect class My
 
 // But this should be reported
-header val bar: String
+actual class My
+
+// And this too
+expect val bar: String
 

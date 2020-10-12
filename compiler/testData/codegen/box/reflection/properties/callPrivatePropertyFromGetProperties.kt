@@ -1,15 +1,15 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
 // WITH_REFLECT
 
-import kotlin.reflect.*
-import kotlin.reflect.jvm.*
+import kotlin.reflect.KProperty1
+import kotlin.reflect.full.*
+import kotlin.reflect.jvm.isAccessible
 
 class K(private val value: String)
 
 fun box(): String {
-    val p = K::class.java.kotlin.memberProperties.single() as KProperty1<K, String>
+    val p = K::class.memberProperties.single() as KProperty1<K, String>
 
     try {
         return p.get(K("Fail: private property should not be accessible by default"))

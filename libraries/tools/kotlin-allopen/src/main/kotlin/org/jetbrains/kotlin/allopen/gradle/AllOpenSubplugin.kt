@@ -16,89 +16,80 @@
 
 package org.jetbrains.kotlin.allopen.gradle
 
-import org.gradle.api.Plugin
+import org.gradle.api.GradleException
 import org.gradle.api.Project
-import org.gradle.api.artifacts.ResolvedArtifact
-import org.gradle.api.internal.AbstractTask
-import org.gradle.api.tasks.SourceSet
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.compile.AbstractCompile
-import org.jetbrains.kotlin.gradle.plugin.KotlinGradleSubplugin
-import org.jetbrains.kotlin.gradle.plugin.SubpluginOption
+import org.gradle.tooling.provider.model.ToolingModelBuilder
+import org.gradle.tooling.provider.model.ToolingModelBuilderRegistry
+import org.jetbrains.kotlin.allopen.gradle.model.builder.AllOpenModelBuilder
+import org.jetbrains.kotlin.gradle.dsl.KotlinCommonOptions
+import org.jetbrains.kotlin.gradle.plugin.*
+import javax.inject.Inject
 
-class AllOpenGradleSubplugin : Plugin<Project> {
+class AllOpenGradleSubplugin @Inject internal constructor(private val registry: ToolingModelBuilderRegistry) :
+    KotlinCompilerPluginSupportPlugin,
+    @Suppress("DEPRECATION") // implementing to fix KT-39809
+    KotlinGradleSubplugin<AbstractCompile> {
+
     companion object {
-        fun isEnabled(project: Project) = project.plugins.findPlugin(AllOpenGradleSubplugin::class.java) != null
-
         fun getAllOpenExtension(project: Project): AllOpenExtension {
             return project.extensions.getByType(AllOpenExtension::class.java)
         }
+
+        private const val ALLOPEN_ARTIFACT_NAME = "kotlin-allopen"
+
+        private const val ANNOTATION_ARG_NAME = "annotation"
+        private const val PRESET_ARG_NAME = "preset"
     }
 
-    fun Project.getBuildscriptArtifacts(): Set<ResolvedArtifact> =
-            buildscript.configurations.findByName("classpath")?.resolvedConfiguration?.resolvedArtifacts ?: emptySet()
+    override fun apply(target: Project) {
+        target.extensions.create("allOpen", AllOpenExtension::class.java)
+        registry.register(AllOpenModelBuilder())
+    }
 
-    override fun apply(project: Project) {
-        val allOpenExtension = project.extensions.create("allOpen", AllOpenExtension::class.java)
+    override fun isApplicable(kotlinCompilation: KotlinCompilation<*>): Boolean = true
 
-        project.afterEvaluate {
-            val fqNamesAsString = allOpenExtension.myAnnotations.joinToString(",")
-            val presetsAsString = allOpenExtension.myPresets.joinToString(",")
-            project.extensions.extraProperties.set("kotlinAllOpenAnnotations", fqNamesAsString)
+    override fun applyToCompilation(
+        kotlinCompilation: KotlinCompilation<*>
+    ): Provider<List<SubpluginOption>> {
+        val project = kotlinCompilation.target.project
 
-            val allBuildscriptArtifacts = project.getBuildscriptArtifacts() + project.rootProject.getBuildscriptArtifacts()
-            val allOpenCompilerPluginFile = allBuildscriptArtifacts.filter {
-                val id = it.moduleVersion.id
-                id.group == AllOpenKotlinGradleSubplugin.ALLOPEN_GROUP_NAME
-                        && id.name == AllOpenKotlinGradleSubplugin.ALLOPEN_ARTIFACT_NAME
-            }.firstOrNull()?.file?.absolutePath ?: ""
+        val allOpenExtension = project.extensions.getByType(AllOpenExtension::class.java)
 
-            open class TaskForAllOpen : AbstractTask()
-            project.tasks.add(project.tasks.create("allOpenDataStorageTask", TaskForAllOpen::class.java).apply {
-                isEnabled = false
-                description = "Supported annotations: $fqNamesAsString" +
-                        "; Presets: $presetsAsString" +
-                        "; Compiler plugin classpath: $allOpenCompilerPluginFile"
-            })
+        return project.provider {
+            val options = mutableListOf<SubpluginOption>()
+
+            for (anno in allOpenExtension.myAnnotations) {
+                options += SubpluginOption(ANNOTATION_ARG_NAME, anno)
+            }
+
+            for (preset in allOpenExtension.myPresets) {
+                options += SubpluginOption(PRESET_ARG_NAME, preset)
+            }
+
+            options
         }
     }
-}
 
-class AllOpenKotlinGradleSubplugin : KotlinGradleSubplugin<AbstractCompile> {
-    companion object {
-        val ALLOPEN_GROUP_NAME = "org.jetbrains.kotlin"
-        val ALLOPEN_ARTIFACT_NAME = "kotlin-allopen"
+    override fun getCompilerPluginId() = "org.jetbrains.kotlin.allopen"
+    override fun getPluginArtifact(): SubpluginArtifact =
+        JetBrainsSubpluginArtifact(artifactId = ALLOPEN_ARTIFACT_NAME)
 
-        private val ANNOTATION_ARG_NAME = "annotation"
-        private val PRESET_ARG_NAME = "preset"
-    }
+    //region Stub implementation for legacy API, KT-39809
+    internal constructor(): this(object : ToolingModelBuilderRegistry {
+        override fun register(p0: ToolingModelBuilder) = Unit
+        override fun getBuilder(p0: String): ToolingModelBuilder? = null
+    })
 
-    override fun isApplicable(project: Project, task: AbstractCompile) = AllOpenGradleSubplugin.isEnabled(project)
+    override fun isApplicable(project: Project, task: AbstractCompile): Boolean = true
 
     override fun apply(
-            project: Project,
-            kotlinCompile: AbstractCompile,
-            javaCompile: AbstractCompile,
-            variantData: Any?,
-            javaSourceSet: SourceSet?
-    ): List<SubpluginOption> {
-        if (!AllOpenGradleSubplugin.isEnabled(project)) return emptyList()
-
-        val allOpenExtension = project.extensions.findByType(AllOpenExtension::class.java) ?: return emptyList()
-
-        val options = mutableListOf<SubpluginOption>()
-
-        for (anno in allOpenExtension.myAnnotations) {
-            options += SubpluginOption(ANNOTATION_ARG_NAME, anno)
-        }
-
-        for (preset in allOpenExtension.myPresets) {
-            options += SubpluginOption(PRESET_ARG_NAME, preset)
-        }
-
-        return options
-    }
-
-    override fun getGroupName() = ALLOPEN_GROUP_NAME
-    override fun getArtifactName() = ALLOPEN_ARTIFACT_NAME
-    override fun getCompilerPluginId() = "org.jetbrains.kotlin.allopen"
+        project: Project, kotlinCompile: AbstractCompile, javaCompile: AbstractCompile?, variantData: Any?, androidProjectHandler: Any?,
+        kotlinCompilation: KotlinCompilation<KotlinCommonOptions>?
+    ): List<SubpluginOption> = throw GradleException(
+        "This version of the kotlin-allopen Gradle plugin is built for a newer Kotlin version. " +
+                "Please use an older version of kotlin-allopen or upgrade the Kotlin Gradle plugin version to make them match."
+    )
+    //endregion
 }

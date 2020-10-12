@@ -1,3 +1,8 @@
-val h = java.io.File(p<caret>0 = "")
+// IGNORE_FIR
 
-// REF: String var1
+lateinit var x: java.lang.Readable
+lateinit var y: java.nio.CharBuffer
+
+val h = x.read(p<caret>0 = y)
+
+// REF: java.nio.CharBuffer charBuffer

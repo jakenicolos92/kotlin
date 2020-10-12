@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.intentions.loopToCallChain
@@ -32,6 +21,7 @@ import org.jetbrains.kotlin.psi.psiUtil.siblings
  */
 interface ChainedCallGenerator {
     val receiver: KtExpression
+    val reformat: Boolean
 
     /**
      * @param pattern pattern string for generating the part of the call to the right from the dot
@@ -54,7 +44,7 @@ interface Transformation {
             presentation
     }
 
-    fun mergeWithPrevious(previousTransformation: SequenceTransformation): Transformation?
+    fun mergeWithPrevious(previousTransformation: SequenceTransformation, reformat: Boolean): Transformation?
 
     fun generateCode(chainedCallGenerator: ChainedCallGenerator): KtExpression
 
@@ -66,7 +56,7 @@ interface Transformation {
  * Represents a transformation of input sequence into another sequence
  */
 interface SequenceTransformation : Transformation {
-    override fun mergeWithPrevious(previousTransformation: SequenceTransformation): SequenceTransformation? = null
+    override fun mergeWithPrevious(previousTransformation: SequenceTransformation, reformat: Boolean): SequenceTransformation? = null
 
     val affectsIndex: Boolean
 }
@@ -75,7 +65,7 @@ interface SequenceTransformation : Transformation {
  * Represents a final transformation of sequence which produces the result of the whole loop (for example, assigning a found value into a variable).
  */
 interface ResultTransformation : Transformation {
-    override fun mergeWithPrevious(previousTransformation: SequenceTransformation): ResultTransformation? = null
+    override fun mergeWithPrevious(previousTransformation: SequenceTransformation, reformat: Boolean): ResultTransformation? = null
 
     val commentSavingRange: PsiChildRange
 
@@ -95,19 +85,20 @@ interface ResultTransformation : Transformation {
  * Represents a state when matching a part of the loop against known transformations
  */
 data class MatchingState(
-        val outerLoop: KtForExpression,
-        val innerLoop: KtForExpression,
-        val statements: List<KtExpression>,
-        val inputVariable: KtCallableDeclaration,
-        /**
-         * Matchers can assume that indexVariable is null if it's not used in the rest of the loop
-         */
-        val indexVariable: KtCallableDeclaration?,
-        val lazySequence: Boolean,
-        val pseudocodeProvider: () -> Pseudocode,
-        val initializationStatementsToDelete: Collection<KtExpression> = emptyList(),
-        val previousTransformations: MutableList<SequenceTransformation> = arrayListOf(),
-        val incrementExpressions: Collection<KtUnaryExpression> = emptyList()
+    val outerLoop: KtForExpression,
+    val innerLoop: KtForExpression,
+    val statements: List<KtExpression>,
+    val inputVariable: KtCallableDeclaration,
+    /**
+     * Matchers can assume that indexVariable is null if it's not used in the rest of the loop
+     */
+    val indexVariable: KtCallableDeclaration?,
+    val lazySequence: Boolean,
+    val pseudocodeProvider: () -> Pseudocode,
+    val reformat: Boolean,
+    val initializationStatementsToDelete: Collection<KtExpression> = emptyList(),
+    val previousTransformations: MutableList<SequenceTransformation> = arrayListOf(),
+    val incrementExpressions: Collection<KtUnaryExpression> = emptyList()
 )
 
 interface TransformationMatcher {
@@ -149,9 +140,12 @@ sealed class TransformationMatch(val sequenceTransformations: List<SequenceTrans
     /**
      * A match of the whole rest part of the loop
      */
-    class Result(val resultTransformation: ResultTransformation, sequenceTransformations: List<SequenceTransformation>) : TransformationMatch(sequenceTransformations) {
-        constructor(resultTransformation: ResultTransformation, vararg sequenceTransformations: SequenceTransformation)
-            : this(resultTransformation, sequenceTransformations.asList())
+    class Result(val resultTransformation: ResultTransformation, sequenceTransformations: List<SequenceTransformation>) :
+        TransformationMatch(sequenceTransformations) {
+        constructor(resultTransformation: ResultTransformation, vararg sequenceTransformations: SequenceTransformation) : this(
+            resultTransformation,
+            sequenceTransformations.asList()
+        )
 
         override val allTransformations = sequenceTransformations + resultTransformation
     }
@@ -175,12 +169,12 @@ class CommentSavingRangeHolder(range: PsiChildRange) {
 
         val rangeParent = range.first!!.parent
         val elementToAdd = element.parentsWithSelf.takeWhile { it != rangeParent }.last()
-        when (elementToAdd) {
+        range = when (elementToAdd) {
             in range -> return
 
-            in range.first!!.siblingsBefore() -> range = PsiChildRange(elementToAdd, range.last)
+            in range.first!!.siblingsBefore() -> PsiChildRange(elementToAdd, range.last)
 
-            else -> range = PsiChildRange(range.first, elementToAdd)
+            else -> PsiChildRange(range.first, elementToAdd)
         }
     }
 
@@ -193,32 +187,31 @@ class CommentSavingRangeHolder(range: PsiChildRange) {
 
             element == range.first -> {
                 val newFirst = element
-                        .siblings(forward = true, withItself = false)
-                        .takeWhile { it != range.last!!.nextSibling }
-                        .firstOrNull { it !is PsiWhiteSpace }
-                if (newFirst != null) {
-                    range = PsiChildRange(newFirst, range.last)
-                }
-                else {
-                    range = PsiChildRange.EMPTY
+                    .siblings(forward = true, withItself = false)
+                    .takeWhile { it != range.last!!.nextSibling }
+                    .firstOrNull { it !is PsiWhiteSpace }
+                range = if (newFirst != null) {
+                    PsiChildRange(newFirst, range.last)
+                } else {
+                    PsiChildRange.EMPTY
                 }
             }
 
             element == range.last -> {
                 val newLast = element
-                        .siblings(forward = false, withItself = false)
-                        .takeWhile { it != range.first!!.prevSibling }
-                        .firstOrNull { it !is PsiWhiteSpace }
-                if (newLast != null) {
-                    range = PsiChildRange(range.first, newLast)
-                }
-                else {
-                    range = PsiChildRange.EMPTY
+                    .siblings(forward = false, withItself = false)
+                    .takeWhile { it != range.first!!.prevSibling }
+                    .firstOrNull { it !is PsiWhiteSpace }
+                range = if (newLast != null) {
+                    PsiChildRange(range.first, newLast)
+                } else {
+                    PsiChildRange.EMPTY
                 }
             }
         }
     }
 
-    private fun PsiElement.siblingsBefore() = if (prevSibling != null) PsiChildRange(parent.firstChild, prevSibling) else PsiChildRange.EMPTY
+    private fun PsiElement.siblingsBefore() =
+        if (prevSibling != null) PsiChildRange(parent.firstChild, prevSibling) else PsiChildRange.EMPTY
 }
 

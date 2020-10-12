@@ -1,5 +1,5 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
+// IGNORE_BACKEND: ANDROID
 
 // WITH_RUNTIME
 // FULL_JDK
@@ -20,7 +20,7 @@ fun box(): String {
         return "Link error expected"
     }
     catch (e: java.lang.UnsatisfiedLinkError) {
-        if (e.message != "C.foo()V") return "Fail 1: " + e.message
+        if (e.message != "C.foo()V" && e.message != "'void C.foo()'") return "Fail 1: " + e.message
     }
 
     return "OK"

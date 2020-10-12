@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 // !DIAGNOSTICS: -UNUSED_VARIABLE
 annotation class Ann(vararg val i: Boolean)
 fun foo() {
@@ -7,10 +8,10 @@ fun foo() {
     val a4 = a1 > a2
 
     @Ann(
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>a1<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>a2<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>a3<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>a1 > a2<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>a1 == a2<!>
+            <!ANNOTATION_ARGUMENT_MUST_BE_CONST!>a1<!>,
+            <!ANNOTATION_ARGUMENT_MUST_BE_CONST!>a2<!>,
+            <!ANNOTATION_ARGUMENT_MUST_BE_CONST!>a3<!>,
+            <!ANNOTATION_ARGUMENT_MUST_BE_CONST!>a1 > a2<!>,
+            <!ANNOTATION_ARGUMENT_MUST_BE_CONST!>a1 == a2<!>
     ) val b = 1
 }

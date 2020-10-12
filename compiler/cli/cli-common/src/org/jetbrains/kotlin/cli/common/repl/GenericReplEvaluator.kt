@@ -22,10 +22,11 @@ import java.lang.reflect.InvocationTargetException
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
 
-open class GenericReplEvaluator(val baseClasspath: Iterable<File>,
-                                val baseClassloader: ClassLoader? = Thread.currentThread().contextClassLoader,
-                                protected val fallbackScriptArgs: ScriptArgsWithTypes? = null,
-                                protected val repeatingMode: ReplRepeatingMode = ReplRepeatingMode.REPEAT_ONLY_MOST_RECENT
+open class GenericReplEvaluator(
+        val baseClasspath: Iterable<File>,
+        val baseClassloader: ClassLoader? = Thread.currentThread().contextClassLoader,
+        protected val fallbackScriptArgs: ScriptArgsWithTypes? = null,
+        protected val repeatingMode: ReplRepeatingMode = ReplRepeatingMode.REPEAT_ONLY_MOST_RECENT
 ) : ReplEvaluator {
 
     override fun createState(lock: ReentrantReadWriteLock): IReplStageState<*> = GenericReplEvaluatorState(baseClasspath, baseClassloader, lock)
@@ -88,6 +89,9 @@ open class GenericReplEvaluator(val baseClasspath: Iterable<File>,
 
             historyActor.addPlaceholder(compileResult.lineId, EvalClassWithInstanceAndLoader(scriptClass.kotlin, null, classLoader, invokeWrapper))
 
+            val savedClassLoader = Thread.currentThread().contextClassLoader
+            Thread.currentThread().contextClassLoader = classLoader
+
             val scriptInstance =
                     try {
                         if (invokeWrapper != null) invokeWrapper.invoke { scriptInstanceConstructor.newInstance(*constructorArgs) }
@@ -103,22 +107,23 @@ open class GenericReplEvaluator(val baseClasspath: Iterable<File>,
                     }
                     finally {
                         historyActor.removePlaceholder(compileResult.lineId)
+                        Thread.currentThread().contextClassLoader = savedClassLoader
                     }
 
             historyActor.addFinal(compileResult.lineId, EvalClassWithInstanceAndLoader(scriptClass.kotlin, scriptInstance, classLoader, invokeWrapper))
 
-            val resultField = scriptClass.getDeclaredField(SCRIPT_RESULT_FIELD_NAME).apply { isAccessible = true }
-            val resultValue: Any? = resultField.get(scriptInstance)
+            return if (compileResult.hasResult) {
+                val resultFieldName = scriptResultFieldName(compileResult.lineId.no)
+                val resultField = scriptClass.declaredFields.find { it.name == resultFieldName }?.apply { isAccessible = true }
+                assert(resultField != null) { "compileResult.hasResult == true but resultField is null" }
+                val resultValue: Any? = resultField!!.get(scriptInstance)
 
-            return if (compileResult.hasResult) ReplEvalResult.ValueResult(resultValue)
-            else ReplEvalResult.UnitResult()
+                ReplEvalResult.ValueResult(resultFieldName, resultValue, compileResult.type)
+            } else {
+                ReplEvalResult.UnitResult()
+            }
         }
     }
-
-    companion object {
-        private val SCRIPT_RESULT_FIELD_NAME = "\$\$result"
-    }
-
 }
 
 private open class HistoryActionsForNoRepeat(val state: GenericReplEvaluatorState) {

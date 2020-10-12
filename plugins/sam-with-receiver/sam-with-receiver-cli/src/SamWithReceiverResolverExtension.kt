@@ -19,10 +19,12 @@ package org.jetbrains.kotlin.samWithReceiver
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.extensions.AnnotationBasedExtension
-import org.jetbrains.kotlin.load.java.sam.SamWithReceiverResolver
+import org.jetbrains.kotlin.resolve.sam.SamWithReceiverResolver
 import org.jetbrains.kotlin.psi.KtModifierListOwner
 
-class SamWithReceiverResolverExtension(val annotations: List<String>) : SamWithReceiverResolver.Extension, AnnotationBasedExtension {
+class SamWithReceiverResolverExtension(
+        private val annotations: List<String>
+) : SamWithReceiverResolver, AnnotationBasedExtension {
     override fun getAnnotationFqNames(modifierListOwner: KtModifierListOwner?) = annotations
 
     override fun shouldConvertFirstSamParameterToReceiver(function: FunctionDescriptor): Boolean {

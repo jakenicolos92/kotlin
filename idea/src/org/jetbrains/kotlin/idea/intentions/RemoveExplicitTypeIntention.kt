@@ -1,69 +1,104 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.intentions
 
-import com.intellij.codeInspection.ProblemHighlightType
+import com.intellij.codeInsight.intention.HighPriorityAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.util.TextRange
-import org.jetbrains.kotlin.idea.inspections.IntentionBasedInspection
+import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+import org.jetbrains.kotlin.idea.KotlinBundle
+import org.jetbrains.kotlin.idea.caches.resolve.resolveToDescriptorIfAny
+import org.jetbrains.kotlin.idea.project.languageVersionSettings
+import org.jetbrains.kotlin.idea.refactoring.addTypeArgumentsIfNeeded
+import org.jetbrains.kotlin.idea.refactoring.getQualifiedTypeArgumentList
+import org.jetbrains.kotlin.idea.references.mainReference
+import org.jetbrains.kotlin.idea.search.usagesSearch.descriptor
+import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.endOffset
 import org.jetbrains.kotlin.psi.psiUtil.startOffset
-
-class RemoveSetterParameterTypeInspection : IntentionBasedInspection<KtCallableDeclaration>(
-        RemoveExplicitTypeIntention::class,
-        { it -> RemoveExplicitTypeIntention.isSetterParameter(it) }
-) {
-    override fun problemHighlightType(element: KtCallableDeclaration) = ProblemHighlightType.LIKE_UNUSED_SYMBOL
-
-    override fun inspectionTarget(element: KtCallableDeclaration) = (element as? KtParameter)?.typeReference
-}
+import org.jetbrains.kotlin.resolve.checkers.ExplicitApiDeclarationChecker
+import org.jetbrains.kotlin.types.typeUtil.isUnit
 
 class RemoveExplicitTypeIntention : SelfTargetingRangeIntention<KtCallableDeclaration>(
-        KtCallableDeclaration::class.java,
-        "Remove explicit type specification"
-) {
+    KtCallableDeclaration::class.java,
+    KotlinBundle.lazyMessage("remove.explicit.type.specification")
+), HighPriorityAction {
 
-    override fun applicabilityRange(element: KtCallableDeclaration): TextRange? {
-        if (element.containingFile is KtCodeFragment) return null
-        if (element.typeReference == null) return null
+    override fun applicabilityRange(element: KtCallableDeclaration): TextRange? = getRange(element)
 
-        if (element is KtParameter && (element.isLoopParameter || element.isSetterParameter)) {
-            return element.textRange
-        }
-
-        val initializer = (element as? KtDeclarationWithInitializer)?.initializer
-        if (element !is KtProperty && (element !is KtNamedFunction || element.hasBlockBody())) return null
-
-        return when {
-            initializer != null -> TextRange(element.startOffset, initializer.startOffset - 1)
-            element is KtProperty && element.getter != null -> TextRange(element.startOffset, element.typeReference!!.endOffset)
-            else -> null
-        }
-    }
-
-    override fun applyTo(element: KtCallableDeclaration, editor: Editor?) {
-        element.typeReference = null
-    }
+    override fun applyTo(element: KtCallableDeclaration, editor: Editor?) = removeExplicitType(element)
 
     companion object {
-        fun isSetterParameter(element: KtCallableDeclaration) =
-                element is KtParameter && element.isSetterParameter
+        fun removeExplicitType(element: KtCallableDeclaration) {
+            val initializer = (element as? KtProperty)?.initializer
+            val typeArgumentList = initializer?.let { getQualifiedTypeArgumentList(it) }
+            element.typeReference = null
+            if (typeArgumentList != null) addTypeArgumentsIfNeeded(initializer, typeArgumentList)
+        }
 
-        private val KtParameter.isSetterParameter: Boolean get() = (parent.parent as? KtPropertyAccessor)?.isSetter ?: false
+        fun getRange(element: KtCallableDeclaration): TextRange? {
+            if (element.containingFile is KtCodeFragment) return null
+            val typeReference = element.typeReference ?: return null
+            if (typeReference.annotationEntries.isNotEmpty()) return null
+
+            if (element is KtParameter) {
+                if (element.isLoopParameter) return element.textRange
+                if (element.isSetterParameter) return typeReference.textRange
+            }
+
+            if (element !is KtProperty && element !is KtNamedFunction) return null
+
+            if (element is KtNamedFunction
+                && element.hasBlockBody()
+                && (element.descriptor as? FunctionDescriptor)?.returnType?.isUnit()?.not() != false
+            ) return null
+
+            val initializer = (element as? KtDeclarationWithInitializer)?.initializer
+
+            if (ExplicitApiDeclarationChecker.publicReturnTypeShouldBePresentInApiMode(
+                    element,
+                    element.languageVersionSettings,
+                    element.resolveToDescriptorIfAny()
+                )
+            ) return null
+            if (!redundantTypeSpecification(element.typeReference, initializer)) return null
+
+            return when {
+                initializer != null -> TextRange(element.startOffset, initializer.startOffset - 1)
+                element is KtProperty && element.getter != null -> TextRange(element.startOffset, typeReference.endOffset)
+                element is KtNamedFunction -> TextRange(element.startOffset, typeReference.endOffset)
+                else -> null
+            }
+        }
+
+        tailrec fun redundantTypeSpecification(typeReference: KtTypeReference?, initializer: KtExpression?): Boolean {
+            if (initializer == null || typeReference == null) return true
+            if (initializer !is KtLambdaExpression && initializer !is KtNamedFunction) return true
+            val typeElement = typeReference.typeElement ?: return true
+            if (typeReference.hasModifier(KtTokens.SUSPEND_KEYWORD)) return false
+            return when (typeElement) {
+                is KtFunctionType -> {
+                    if (typeElement.receiver != null) return false
+                    if (typeElement.parameters.isEmpty()) return true
+                    val valueParameters = when (initializer) {
+                        is KtLambdaExpression -> initializer.valueParameters
+                        is KtNamedFunction -> initializer.valueParameters
+                        else -> emptyList()
+                    }
+                    valueParameters.isNotEmpty() && valueParameters.none { it.typeReference == null }
+                }
+                is KtUserType -> {
+                    val typeAlias = typeElement.referenceExpression?.mainReference?.resolve() as? KtTypeAlias ?: return true
+                    return redundantTypeSpecification(typeAlias.getTypeReference(), initializer)
+                }
+                else -> true
+            }
+        }
     }
 }
+
+internal val KtParameter.isSetterParameter: Boolean get() = (parent.parent as? KtPropertyAccessor)?.isSetter ?: false

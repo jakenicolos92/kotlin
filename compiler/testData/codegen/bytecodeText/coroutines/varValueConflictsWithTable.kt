@@ -1,10 +1,14 @@
-// WITH_RUNTIME
+// IGNORE_BACKEND_FIR: JVM_IR
+// This test checks, that different variables occupy the same slot
+// In JVM_IR, however, loop variable's lifetime goes beyond the loop itself, thus the test has no sense in JVM_IR
+// IGNORE_BACKEND: JVM_IR
 // WITH_COROUTINES
+
 import helpers.*
 // TREAT_AS_ONE_FILE
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
-suspend fun suspendHere(): String = suspendCoroutineOrReturn { x ->
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
+suspend fun suspendHere(): String = suspendCoroutineUninterceptedOrReturn { x ->
     x.resume("OK")
 }
 
@@ -41,8 +45,8 @@ fun box(): String {
     return result
 }
 
-// 1 LOCALVARIABLE i I L.* 3
-// 1 LOCALVARIABLE s Ljava/lang/String; L.* 3
+// 1 LOCALVARIABLE i I L.* 2
+// 1 LOCALVARIABLE s Ljava/lang/String; L.* 2
 // 0 PUTFIELD VarValueConflictsWithTableKt\$box\$1.I\$0 : I
 /* 2 loads in cycle */
-// 2 ILOAD 3
+// 2 ILOAD 2

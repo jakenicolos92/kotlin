@@ -16,80 +16,60 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
-import org.jetbrains.kotlin.descriptors.FunctionDescriptor
-import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
 import org.jetbrains.kotlin.ir.expressions.IrCall
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
+import org.jetbrains.kotlin.ir.expressions.typeParametersCount
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
-import org.jetbrains.kotlin.ir.symbols.IrFunctionSymbol
-import org.jetbrains.kotlin.ir.symbols.impl.createClassSymbolOrNull
-import org.jetbrains.kotlin.ir.symbols.impl.createFunctionSymbol
+import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
+import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.util.render
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.types.KotlinType
 
 class IrCallImpl(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val symbol: IrSimpleFunctionSymbol,
+    typeArgumentsCount: Int,
+    valueArgumentsCount: Int,
+    override val origin: IrStatementOrigin? = null,
+    override val superQualifierSymbol: IrClassSymbol? = null
+) : IrCall(typeArgumentsCount, valueArgumentsCount) {
+    init {
+        if (symbol is IrConstructorSymbol) {
+            throw AssertionError("Should be IrConstructorCall: ${this.render()}")
+        }
+    }
+
+    @ObsoleteDescriptorBasedAPI
+    constructor(
         startOffset: Int,
         endOffset: Int,
-        type: KotlinType,
-        override val symbol: IrFunctionSymbol,
-        override val descriptor: FunctionDescriptor,
-        typeArguments: Map<TypeParameterDescriptor, KotlinType>?,
-        override val origin: IrStatementOrigin? = null,
-        override val superQualifierSymbol: IrClassSymbol? = null
-) : IrCall,
-        IrCallWithIndexedArgumentsBase(startOffset, endOffset, type, symbol.descriptor.valueParameters.size, typeArguments)
-{
-    @Deprecated("Creates unbound symbols")
-    constructor(
-            startOffset: Int,
-            endOffset: Int,
-            type: KotlinType,
-            calleeDescriptor: FunctionDescriptor,
-            typeArguments: Map<TypeParameterDescriptor, KotlinType>? = null,
-            origin: IrStatementOrigin? = null,
-            superQualifierDescriptor: ClassDescriptor? = null
+        type: IrType,
+        symbol: IrSimpleFunctionSymbol,
+        origin: IrStatementOrigin? = null,
+        superQualifierSymbol: IrClassSymbol? = null
     ) : this(
-            startOffset, endOffset,
-            type,
-            createFunctionSymbol(calleeDescriptor),
-            calleeDescriptor,
-            typeArguments, origin,
-            createClassSymbolOrNull(superQualifierDescriptor)
+        startOffset, endOffset, type, symbol, symbol.descriptor.typeParametersCount, symbol.descriptor.valueParameters.size,
+        origin, superQualifierSymbol
     )
 
-    @Deprecated("Creates unbound symbols")
+    @ObsoleteDescriptorBasedAPI
     constructor(
-            startOffset: Int,
-            endOffset: Int,
-            calleeDescriptor: FunctionDescriptor,
-            typeArguments: Map<TypeParameterDescriptor, KotlinType>? = null,
-            origin: IrStatementOrigin? = null,
-            superQualifierDescriptor: ClassDescriptor? = null
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrSimpleFunctionSymbol,
+        typeArgumentsCount: Int,
+        origin: IrStatementOrigin? = null,
+        superQualifierSymbol: IrClassSymbol? = null
     ) : this(
-            startOffset, endOffset,
-            calleeDescriptor.returnType!!,
-            createFunctionSymbol(calleeDescriptor),
-            calleeDescriptor,
-            typeArguments, origin,
-            createClassSymbolOrNull(superQualifierDescriptor)
+        startOffset, endOffset, type, symbol, typeArgumentsCount, symbol.descriptor.valueParameters.size,
+        origin, superQualifierSymbol
     )
-
-    constructor(
-            startOffset: Int, endOffset: Int,
-            symbol: IrFunctionSymbol,
-            descriptor: FunctionDescriptor,
-            typeArguments: Map<TypeParameterDescriptor, KotlinType>? = null,
-            origin: IrStatementOrigin? = null,
-            superQualifierSymbol: IrClassSymbol? = null
-    ) : this(startOffset, endOffset, descriptor.returnType!!, symbol, descriptor, typeArguments, origin, superQualifierSymbol)
-
-    constructor(startOffset: Int, endOffset: Int, symbol: IrFunctionSymbol) :
-            this(startOffset, endOffset, symbol, symbol.descriptor)
-
-
-    override val superQualifier: ClassDescriptor? = superQualifierSymbol?.descriptor
 
     override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-            visitor.visitCall(this, data)
+        visitor.visitCall(this, data)
 }

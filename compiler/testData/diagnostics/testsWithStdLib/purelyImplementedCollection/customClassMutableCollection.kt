@@ -1,6 +1,8 @@
 // !DIAGNOSTICS: -UNUSED_VARIABLE
+// !WITH_NEW_INFERENCE
+// JAVAC_EXPECTED_FILE
 
-import java.util.*
+import java.util.*;
 
 // FILE: A.java
 @kotlin.jvm.PurelyImplements("kotlin.collections.MutableCollection")

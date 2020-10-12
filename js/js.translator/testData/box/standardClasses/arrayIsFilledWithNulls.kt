@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 491
+// EXPECTED_REACHABLE_NODES: 1366
 package foo
 
 val a = arrayOfNulls<Int>(3)

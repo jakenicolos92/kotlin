@@ -17,12 +17,13 @@
 package org.jetbrains.kotlin.resolve.lazy;
 
 import com.google.common.collect.Lists;
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.util.containers.ContainerUtil;
+import kotlin.annotations.jvm.ReadOnly;
 import kotlin.jvm.functions.Function1;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.ReadOnly;
 import org.jetbrains.kotlin.config.LanguageVersionSettings;
 import org.jetbrains.kotlin.context.GlobalContext;
 import org.jetbrains.kotlin.descriptors.*;
@@ -34,18 +35,19 @@ import org.jetbrains.kotlin.name.FqName;
 import org.jetbrains.kotlin.name.Name;
 import org.jetbrains.kotlin.psi.*;
 import org.jetbrains.kotlin.resolve.*;
+import org.jetbrains.kotlin.resolve.checkers.PlatformDiagnosticSuppressor;
 import org.jetbrains.kotlin.resolve.extensions.SyntheticResolveExtension;
-import org.jetbrains.kotlin.resolve.lazy.data.KtClassOrObjectInfo;
-import org.jetbrains.kotlin.resolve.lazy.data.KtScriptInfo;
 import org.jetbrains.kotlin.resolve.lazy.declarations.DeclarationProviderFactory;
 import org.jetbrains.kotlin.resolve.lazy.declarations.PackageMemberDeclarationProvider;
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyAnnotations;
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyAnnotationsContextImpl;
 import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyPackageDescriptor;
+import org.jetbrains.kotlin.resolve.sam.SamConversionResolver;
 import org.jetbrains.kotlin.resolve.scopes.LexicalScope;
 import org.jetbrains.kotlin.resolve.scopes.MemberScope;
 import org.jetbrains.kotlin.storage.*;
 import org.jetbrains.kotlin.types.WrappedTypeFactory;
+import org.jetbrains.kotlin.types.checker.NewKotlinTypeChecker;
 import org.jetbrains.kotlin.utils.SmartList;
 
 import javax.inject.Inject;
@@ -62,13 +64,12 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
     private final BindingTrace trace;
     private final DeclarationProviderFactory declarationProviderFactory;
 
-    private final MemoizedFunctionToNullable<FqName, LazyPackageDescriptor> packages;
+    private final CacheWithNotNullValues<FqName, LazyPackageDescriptor> packages;
     private final PackageFragmentProvider packageFragmentProvider;
 
     private final MemoizedFunctionToNotNull<KtFile, LazyAnnotations> fileAnnotations;
     private final MemoizedFunctionToNotNull<KtFile, LazyAnnotations> danglingAnnotations;
 
-    private KtImportsFactory jetImportFactory;
     private AnnotationResolver annotationResolver;
     private DescriptorResolver descriptorResolver;
     private FunctionDescriptorResolver functionDescriptorResolver;
@@ -82,13 +83,14 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
     private LanguageVersionSettings languageVersionSettings;
     private DelegationFilter delegationFilter;
     private WrappedTypeFactory wrappedTypeFactory;
+    private PlatformDiagnosticSuppressor platformDiagnosticSuppressor;
+    private SamConversionResolver samConversionResolver;
 
     private final SyntheticResolveExtension syntheticResolveExtension;
 
-    @Inject
-    public void setJetImportFactory(KtImportsFactory jetImportFactory) {
-        this.jetImportFactory = jetImportFactory;
-    }
+    private final NewKotlinTypeChecker kotlinTypeChecker;
+
+    private Project project;
 
     @Inject
     public void setAnnotationResolve(AnnotationResolver annotationResolver) {
@@ -135,15 +137,24 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
         this.languageVersionSettings = languageVersionSettings;
     }
 
-
     @Inject
-    public void setDelegationFilter(@NotNull  DelegationFilter delegationFilter) {
+    public void setDelegationFilter(@NotNull DelegationFilter delegationFilter) {
         this.delegationFilter = delegationFilter;
     }
 
     @Inject
-    public void setWrappedTypeFactory(WrappedTypeFactory wrappedTypeFactory) {
+    public void setWrappedTypeFactory(@NotNull WrappedTypeFactory wrappedTypeFactory) {
         this.wrappedTypeFactory = wrappedTypeFactory;
+    }
+
+    @Inject
+    public void setPlatformDiagnosticSuppressor(@NotNull PlatformDiagnosticSuppressor platformDiagnosticSuppressor) {
+        this.platformDiagnosticSuppressor = platformDiagnosticSuppressor;
+    }
+
+    @Inject
+    public void setSamConversionResolver(@NotNull SamConversionResolver samConversionResolver) {
+        this.samConversionResolver = samConversionResolver;
     }
 
     // Only calls from injectors expected
@@ -153,7 +164,8 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
             @NotNull GlobalContext globalContext,
             @NotNull ModuleDescriptor rootDescriptor,
             @NotNull DeclarationProviderFactory declarationProviderFactory,
-            @NotNull BindingTrace delegationTrace
+            @NotNull BindingTrace delegationTrace,
+            @NotNull NewKotlinTypeChecker kotlinTypeChecker
     ) {
         LockBasedLazyResolveStorageManager lockBasedLazyResolveStorageManager =
                 new LockBasedLazyResolveStorageManager(globalContext.getStorageManager());
@@ -163,11 +175,21 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
         this.trace = lockBasedLazyResolveStorageManager.createSafeTrace(delegationTrace);
         this.module = rootDescriptor;
 
-        this.packages = storageManager.createMemoizedFunctionWithNullableValues(this::createPackage);
+        this.packages = storageManager.createCacheWithNotNullValues();
 
         this.declarationProviderFactory = declarationProviderFactory;
 
         this.packageFragmentProvider = new PackageFragmentProvider() {
+            @Override
+            public void collectPackageFragments(
+                    @NotNull FqName fqName, @NotNull Collection<PackageFragmentDescriptor> packageFragments
+            ) {
+                LazyPackageDescriptor fragment = getPackageFragment(fqName);
+                if (fragment != null) {
+                    packageFragments.add(fragment);
+                }
+            }
+
             @NotNull
             @Override
             public List<PackageFragmentDescriptor> getPackageFragments(@NotNull FqName fqName) {
@@ -192,6 +214,9 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
         danglingAnnotations = storageManager.createMemoizedFunction(file -> createAnnotations(file, file.getDanglingAnnotations()));
 
         syntheticResolveExtension = SyntheticResolveExtension.Companion.getInstance(project);
+
+        this.project = project;
+        this.kotlinTypeChecker = kotlinTypeChecker;
     }
 
     private LazyAnnotations createAnnotations(KtFile file, List<KtAnnotationEntry> annotationEntries) {
@@ -210,16 +235,27 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
     @Override
     @Nullable
     public LazyPackageDescriptor getPackageFragment(@NotNull FqName fqName) {
-        return packages.invoke(fqName);
-    }
-
-    @Nullable
-    private LazyPackageDescriptor createPackage(FqName fqName) {
         PackageMemberDeclarationProvider provider = declarationProviderFactory.getPackageMemberDeclarationProvider(fqName);
         if (provider == null) {
             return null;
         }
-        return new LazyPackageDescriptor(module, fqName, this, provider);
+
+        return packages.computeIfAbsent(
+                fqName,
+                () -> new LazyPackageDescriptor(module, fqName, this, provider)
+        );
+    }
+
+
+    @NotNull
+    @Override
+    public LazyPackageDescriptor getPackageFragmentOrDiagnoseFailure(@NotNull FqName fqName, @Nullable KtFile from) {
+        LazyPackageDescriptor packageDescriptor = getPackageFragment(fqName);
+        if (packageDescriptor == null) {
+            declarationProviderFactory.diagnoseMissingPackageFragment(fqName, from);
+            assert false : "diagnoseMissingPackageFragment should throw!";
+        }
+        return packageDescriptor;
     }
 
     @NotNull
@@ -252,20 +288,12 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
 
         result.addAll(ContainerUtil.mapNotNull(
                 provider.getClassOrObjectDeclarations(fqName.shortName()),
-                classLikeInfo -> {
-                    if (classLikeInfo instanceof KtClassOrObjectInfo) {
-                        //noinspection RedundantCast
-                        return getClassDescriptor(((KtClassOrObjectInfo) classLikeInfo).getCorrespondingClassOrObject(), location);
-                    }
-                    else if (classLikeInfo instanceof KtScriptInfo) {
-                        return getScriptDescriptor(((KtScriptInfo) classLikeInfo).getScript());
-                    }
-                    else {
-                        throw new IllegalStateException(
-                                "Unexpected " + classLikeInfo + " of type " + classLikeInfo.getClass().getName()
-                        );
-                    }
-                }
+                classOrObjectInfo -> getClassDescriptor(classOrObjectInfo.getCorrespondingClassOrObject(), location)
+        ));
+
+        result.addAll(ContainerUtil.mapNotNull(
+                provider.getScriptDeclarations(fqName.shortName()),
+                scriptInfo -> getScriptDescriptor(scriptInfo.getScript())
         ));
 
         result.addAll(ContainerUtil.map(
@@ -283,7 +311,7 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
     }
 
     @NotNull
-    public ScriptDescriptor getScriptDescriptor(@NotNull KtScript script) {
+    public ClassDescriptorWithResolutionScopes getScriptDescriptor(@NotNull KtScript script) {
         return lazyDeclarationResolver.getScriptDescriptor(script, NoLookupLocation.FOR_SCRIPT);
     }
 
@@ -308,13 +336,15 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
     @Override
     @NotNull
     public DeclarationDescriptor resolveToDescriptor(@NotNull KtDeclaration declaration) {
+        assertValid();
         if (!areDescriptorsCreatedForDeclaration(declaration)) {
             throw new IllegalStateException(
                     "No descriptors are created for declarations of type " + declaration.getClass().getSimpleName()
                     + "\n. Change the caller accordingly"
             );
         }
-        if (!KtPsiUtil.isLocal(declaration)) {
+        final boolean isLocal = ReadAction.compute(() -> KtPsiUtil.isLocal(declaration));
+        if (!isLocal){
             return lazyDeclarationResolver.resolveToDescriptor(declaration);
         }
         return localDescriptorResolver.resolveLocalDeclaration(declaration);
@@ -349,8 +379,7 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
     ) {
         result.add(current);
         for (FqName subPackage : packageFragmentProvider.getSubPackagesOf(current.getFqName(), MemberScope.Companion.getALL_NAME_FILTER())) {
-            LazyPackageDescriptor fragment = getPackageFragment(subPackage);
-            assert fragment != null : "Couldn't find fragment for " + subPackage;
+            LazyPackageDescriptor fragment = getPackageFragmentOrDiagnoseFailure(subPackage, null);
             collectAllPackages(result, fragment);
         }
         return result;
@@ -361,11 +390,6 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
         for (LazyPackageDescriptor lazyPackage : getAllPackages()) {
             ForceResolveUtil.forceResolveAllContents(lazyPackage);
         }
-    }
-
-    @NotNull
-    public KtImportsFactory getJetImportsFactory() {
-        return jetImportFactory;
     }
 
     @Override
@@ -448,5 +472,32 @@ public class ResolveSession implements KotlinCodeAnalyzer, LazyClassContext {
     @Override
     public WrappedTypeFactory getWrappedTypeFactory() {
         return wrappedTypeFactory;
+    }
+
+    @NotNull
+    public PlatformDiagnosticSuppressor getPlatformDiagnosticSuppressor() {
+        return platformDiagnosticSuppressor;
+    }
+
+    @NotNull
+    public Project getProject() {
+        return project;
+    }
+
+    @Override
+    public void assertValid() {
+        module.assertValid();
+    }
+
+    @NotNull
+    @Override
+    public NewKotlinTypeChecker getKotlinTypeChecker() {
+        return kotlinTypeChecker;
+    }
+
+    @NotNull
+    @Override
+    public SamConversionResolver getSamConversionResolver() {
+        return samConversionResolver;
     }
 }

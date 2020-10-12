@@ -4,17 +4,28 @@ apply plugin: 'kotlin-platform-js'
 
 configurePublishing(project)
 
+configurations {
+    distJs
+    distLibrary
+}
+
 dependencies {
-    implement project(':kotlin-test:kotlin-test-common')
-    compile project(':kotlin-stdlib-js')
+    expectedBy project(':kotlin-test:kotlin-test-common')
+    expectedBy project(':kotlin-test:kotlin-test-annotations-common')
+    compile kotlinStdlib("js")
 }
 
 compileKotlin2Js {
-    // TODO: Why "-Xmulti-platfrom" ?
-    kotlinOptions.freeCompilerArgs = ["-Xallow-kotlin-package", "-Xmulti-platform"]
+    kotlinOptions.freeCompilerArgs = [
+            "-Xallow-kotlin-package",
+            "-Xopt-in=kotlin.contracts.ExperimentalContracts",
+    ]
     kotlinOptions {
         moduleKind = "umd"
         outputFile = "${buildDir}/classes/main/kotlin-test.js"
+        sourceMap = true
+        sourceMapPrefix = "./"
+        sourceMapEmbedSources = "always"
     }
 }
 
@@ -22,6 +33,7 @@ compileTestKotlin2Js {
     kotlinOptions.freeCompilerArgs = ["-Xallow-kotlin-package"]
     kotlinOptions {
         metaInfo = false
+        moduleKind = "umd"
     }
 }
 
@@ -29,8 +41,32 @@ compileTestKotlin2Js {
 archivesBaseName = 'kotlin-test-js'
 
 jar {
+    enabled false
+}
+
+task libraryJarWithoutIr(type: Jar, dependsOn: compileKotlin2Js) {
+    classifier = null
+    destinationDirectory = file("$buildDir/lib/dist")
+    from("$buildDir/classes/main")
     manifestAttributes(manifest, project, 'Test')
 }
+
+task libraryJarWithIr(type: Zip, dependsOn: libraryJarWithoutIr) {
+    archiveExtension = "jar"
+    destinationDirectory = file("$buildDir/libs")
+
+    duplicatesStrategy DuplicatesStrategy.FAIL
+
+    from zipTree(libraryJarWithoutIr.archiveFile)
+
+    dependsOn(":kotlin-test:kotlin-test-js-ir:compileKotlinJs")
+    from {
+        def irKlib = tasks.getByPath(":kotlin-test:kotlin-test-js-ir:compileKotlinJs")
+        fileTree(irKlib.outputs.files.first().path)
+    }
+}
+
+jar.dependsOn(libraryJarWithIr)
 
 task sourcesJar(type: Jar, dependsOn: classes) {
     classifier = 'sources'
@@ -38,16 +74,16 @@ task sourcesJar(type: Jar, dependsOn: classes) {
 }
 
 artifacts {
+    runtime libraryJarWithIr
+    archives libraryJarWithIr
+    publishedRuntime libraryJarWithIr
+    distLibrary libraryJarWithIr
     archives sourcesJar
-    archives javadocJar
+    distJs(file(compileKotlin2Js.kotlinOptions.outputFile)) {
+        builtBy(compileKotlin2Js)
+    }
 }
 
-task distJs(type: Copy) {
-    from(compileKotlin2Js.kotlinOptions.outputFile)
-    into "$distDir/js"
-}
+configureSourcesJar()
 
-dist {
-    dependsOn distJs
-    from (jar, sourcesJar)
-}
+configureJavadocJar()

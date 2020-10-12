@@ -27,15 +27,15 @@ import org.jetbrains.uast.UastSpecialExpressionKind
 import org.jetbrains.uast.kotlin.kinds.KotlinSpecialExpressionKinds
 
 open class KotlinUExpressionList(
-        override val psi: PsiElement?,
+        override val sourcePsi: PsiElement?,
         override val kind: UastSpecialExpressionKind, // original element
-        override val uastParent: UElement?
-) : KotlinAbstractUExpression(), UExpressionList, KotlinUElementWithType, KotlinEvaluatableUElement {
+        givenParent: UElement?
+) : KotlinAbstractUExpression(givenParent), UExpressionList, KotlinUElementWithType, KotlinEvaluatableUElement {
     override lateinit var expressions: List<UExpression>
         internal set
 
     override fun evaluate(): Any? {
-        val ktElement = psi as? KtExpression ?: return null
+        val ktElement = sourcePsi as? KtExpression ?: return null
         val compileTimeConst = ktElement.analyze()[BindingContext.COMPILE_TIME_VALUE, ktElement]
         return compileTimeConst?.getValue(TypeUtils.NO_EXPECTED_TYPE)
     }

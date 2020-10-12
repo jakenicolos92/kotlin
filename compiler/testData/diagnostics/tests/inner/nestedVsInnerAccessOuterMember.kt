@@ -1,3 +1,5 @@
+// NI_EXPECTED_FILE
+
 class Outer {
     fun function() = 42
     val property = ""
@@ -5,8 +7,8 @@ class Outer {
     class Nested {
         fun f() = <!UNRESOLVED_REFERENCE!>function<!>()
         fun g() = <!UNRESOLVED_REFERENCE!>property<!>
-        fun h() = this<!UNRESOLVED_REFERENCE!>@Outer<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>function<!>()
-        fun i() = this<!UNRESOLVED_REFERENCE!>@Outer<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>property<!>
+        fun h() = this<!UNRESOLVED_REFERENCE!>@Outer<!>.<!DEBUG_INFO_MISSING_UNRESOLVED!>function<!>()
+        fun i() = this<!UNRESOLVED_REFERENCE!>@Outer<!>.<!DEBUG_INFO_MISSING_UNRESOLVED!>property<!>
     }
     
     inner class Inner {

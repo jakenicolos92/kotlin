@@ -25,6 +25,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
 import org.jetbrains.kotlin.idea.caches.resolve.ResolutionUtils;
+import org.jetbrains.kotlin.idea.core.surroundWith.KotlinExpressionSurrounder;
 import org.jetbrains.kotlin.psi.KtExpression;
 import org.jetbrains.kotlin.psi.KtParenthesizedExpression;
 import org.jetbrains.kotlin.psi.KtPrefixExpression;
@@ -40,6 +41,7 @@ public class KotlinNotSurrounder extends KotlinExpressionSurrounder {
 
     @Override
     public boolean isApplicable(@NotNull KtExpression expression) {
+        if (!super.isApplicable(expression)) return false;
         KotlinType type = ResolutionUtils.analyze(expression, BodyResolveMode.PARTIAL).getType(expression);
         return type != null && KotlinBuiltIns.isBoolean(type);
     }

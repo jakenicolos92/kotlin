@@ -28,6 +28,8 @@ import org.jetbrains.kotlin.idea.KotlinLanguage;
 import org.jetbrains.kotlin.psi.KtTypeParameter;
 import org.jetbrains.kotlin.psi.KtTypeParameterListOwner;
 
+import java.util.List;
+
 public class KtLightTypeParameter
         extends AbstractLightClass implements PsiTypeParameter, KtLightDeclaration<KtTypeParameter, PsiTypeParameter> {
     private final PsiTypeParameterListOwner owner;
@@ -37,7 +39,8 @@ public class KtLightTypeParameter
     public KtLightTypeParameter(
             @NotNull PsiTypeParameterListOwner owner,
             int index,
-            @NotNull String name) {
+            @NotNull String name
+    ) {
         super(owner.getManager(), KotlinLanguage.INSTANCE);
         this.owner = owner;
         this.index = index;
@@ -171,5 +174,11 @@ public class KtLightTypeParameter
             }
         }
         return false;
+    }
+
+    @Nullable
+    @Override
+    public List<KtLightAbstractAnnotation> getGivenAnnotations() {
+        return null;
     }
 }

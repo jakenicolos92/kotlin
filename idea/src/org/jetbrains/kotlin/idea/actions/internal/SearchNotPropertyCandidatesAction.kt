@@ -20,6 +20,7 @@ package org.jetbrains.kotlin.idea.actions.internal
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.ProgressManager.progress
 import com.intellij.openapi.project.Project
@@ -27,6 +28,7 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.psi.PsiMethod
 import com.intellij.psi.PsiModifier
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.caches.resolve.findModuleDescriptor
 import org.jetbrains.kotlin.idea.codeInsight.DescriptorToSourceUtilsIde
 import org.jetbrains.kotlin.idea.util.application.runReadAction
@@ -37,41 +39,46 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameUnsafe
 
 
 class SearchNotPropertyCandidatesAction : AnAction() {
-    override fun actionPerformed(e: AnActionEvent?) {
-        val project = e?.project!!
+    override fun actionPerformed(e: AnActionEvent) {
+        val project = e.project!!
         val psiFile = e.getData(CommonDataKeys.PSI_FILE) as? KtFile ?: return
 
         val desc = psiFile.findModuleDescriptor()
-        val result = Messages.showInputDialog("Enter package FqName", "Search for Not Property candidates", Messages.getQuestionIcon())
+        val result = Messages.showInputDialog(
+            KotlinBundle.message("enter.package.fqname"),
+            KotlinBundle.message("search.for.not.property.candidates"), Messages.getQuestionIcon())
         val packageDesc = try {
             val fqName = FqName.fromSegments(result!!.split('.'))
             desc.getPackage(fqName)
-        }
-        catch (e: Exception) {
+        } catch (e: Exception) {
             return
         }
 
         ProgressManager.getInstance().runProcessWithProgressSynchronously(
-                {
-                    runReadAction {
-                        ProgressManager.getInstance().progressIndicator.isIndeterminate = true
-                        processAllDescriptors(packageDesc, project)
-                    }
-                },
-                "Searching for Not Property candidates",
-                true,
-                project)
+            {
+                runReadAction {
+                    ProgressManager.getInstance().progressIndicator!!.isIndeterminate = true
+                    processAllDescriptors(packageDesc, project)
+                }
+            },
+            KotlinBundle.message("searching.for.not.property.candidates"),
+            true,
+            project
+        )
     }
 
 
-    fun processAllDescriptors(desc: DeclarationDescriptor, project: Project) {
+    private fun processAllDescriptors(desc: DeclarationDescriptor, project: Project) {
         val processed = mutableSetOf<DeclarationDescriptor>()
         var pFunctions = 0
         val matchedDescriptors = mutableSetOf<FunctionDescriptor>()
 
         fun recursive(desc: DeclarationDescriptor) {
             if (desc in processed) return
-            progress("Step 1: Collecting ${processed.size}:$pFunctions:${matchedDescriptors.size}", "$desc")
+            progress(
+                KotlinBundle.message("step.1.collecting.0.1.2", processed.size, pFunctions, matchedDescriptors.size),
+                "$desc"
+            )
             when (desc) {
 
                 is ModuleDescriptor -> recursive(desc.getPackage(FqName("java")))
@@ -83,7 +90,8 @@ class SearchNotPropertyCandidatesAction : AnAction() {
                         val name = desc.fqNameUnsafe.shortName().asString()
                         if (name.length > 3 &&
                             ((name.startsWith("get") && desc.valueParameters.isEmpty() && desc.returnType != null) ||
-                             (name.startsWith("set") && desc.valueParameters.size == 1))) {
+                                    (name.startsWith("set") && desc.valueParameters.size == 1))
+                        ) {
                             if (desc in matchedDescriptors) return
                             matchedDescriptors += desc
                         }
@@ -107,10 +115,7 @@ class SearchNotPropertyCandidatesAction : AnAction() {
             val t = this.text
             val s = t.indexOf('{')
             val e = t.lastIndexOf('}')
-            if (s != e && s != -1) {
-                return t.substring(s, e).lines().size <= 3
-            }
-            else return true
+            return if (s != e && s != -1) t.substring(s, e).lines().size <= 3 else true
         }
 
 
@@ -118,23 +123,23 @@ class SearchNotPropertyCandidatesAction : AnAction() {
 
 
         var i = 0
-        resultDescriptors.forEach { desc ->
-            progress("Step 2: ${i++} of ${resultDescriptors.size}", "$desc")
-            val source = DescriptorToSourceUtilsIde.getAllDeclarations(project, desc)
-                                 .filterIsInstance<PsiMethod>()
-                                 .firstOrNull() ?: return@forEach
+        resultDescriptors.forEach { functionDescriptor ->
+            progress(KotlinBundle.message("step.2.0.of.1", i++, resultDescriptors.size), "$functionDescriptor")
+            val source = DescriptorToSourceUtilsIde.getAllDeclarations(project, functionDescriptor)
+                .filterIsInstance<PsiMethod>()
+                .firstOrNull() ?: return@forEach
             val abstract = source.modifierList.hasModifierProperty(PsiModifier.ABSTRACT)
             if (!abstract) {
                 if (!source.isTrivial()) {
-                    descriptorToPsiBinding[desc] = source
+                    descriptorToPsiBinding[functionDescriptor] = source
                 }
             }
         }
 
         val nonTrivial = mutableSetOf<FunctionDescriptor>()
         i = 0
-        descriptorToPsiBinding.forEach { t, u ->
-            progress("Step 3: ${i++} of ${descriptorToPsiBinding.size}", "$t")
+        descriptorToPsiBinding.forEach { (t, u) ->
+            progress(KotlinBundle.message("step.3.0.of.1", i++, descriptorToPsiBinding.size), "$t")
             val descriptors = t.overriddenDescriptors
             var impl = false
             descriptors.forEach {
@@ -154,11 +159,10 @@ class SearchNotPropertyCandidatesAction : AnAction() {
     }
 
     override fun update(e: AnActionEvent) {
-        if (!KotlinInternalMode.enabled) {
+        if (!ApplicationManager.getApplication().isInternal) {
             e.presentation.isVisible = false
             e.presentation.isEnabled = false
-        }
-        else {
+        } else {
             e.presentation.isVisible = true
             e.presentation.isEnabled = e.getData(CommonDataKeys.PSI_FILE) is KtFile
         }

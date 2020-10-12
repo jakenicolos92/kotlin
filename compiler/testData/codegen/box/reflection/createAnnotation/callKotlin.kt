@@ -1,10 +1,9 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
 // WITH_REFLECT
 
 import kotlin.reflect.KClass
-import kotlin.reflect.primaryConstructor
+import kotlin.reflect.full.primaryConstructor
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 

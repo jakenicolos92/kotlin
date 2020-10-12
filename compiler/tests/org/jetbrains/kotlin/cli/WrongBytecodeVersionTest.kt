@@ -21,8 +21,7 @@ import org.jetbrains.kotlin.cli.common.ExitCode
 import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
 import org.jetbrains.kotlin.jvm.compiler.LoadDescriptorUtil
 import org.jetbrains.kotlin.load.java.JvmAnnotationNames
-import org.jetbrains.kotlin.load.java.JvmBytecodeBinaryVersion
-import org.jetbrains.kotlin.load.kotlin.JvmMetadataVersion
+import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmBytecodeBinaryVersion
 import org.jetbrains.kotlin.test.KotlinTestUtils
 import org.jetbrains.kotlin.test.testFramework.KtUsefulTestCase
 import org.jetbrains.org.objectweb.asm.*
@@ -31,7 +30,7 @@ import java.io.File
 class WrongBytecodeVersionTest : KtUsefulTestCase() {
     private val incompatibleVersion = JvmBytecodeBinaryVersion(42, 0, 0).toArray()
 
-    private fun doTest(relativeDirectory: String) {
+    private fun doTest(relativeDirectory: String, version: IntArray = incompatibleVersion) {
         val directory = KotlinTestUtils.getTestDataPathBase() + relativeDirectory
         val librarySource = File(directory, "A.kt")
         val usageSource = File(directory, "B.kt")
@@ -43,7 +42,7 @@ class WrongBytecodeVersionTest : KtUsefulTestCase() {
 
         for (classFile in File(tmpdir, "library").listFiles { file -> file.extension == JavaClassFileType.INSTANCE.defaultExtension }) {
             classFile.writeBytes(transformMetadataInClassFile(classFile.readBytes()) { name, _ ->
-                if (name == JvmAnnotationNames.BYTECODE_VERSION_FIELD_NAME) incompatibleVersion else null
+                if (name == JvmAnnotationNames.BYTECODE_VERSION_FIELD_NAME) version else null
             })
         }
 
@@ -68,11 +67,11 @@ class WrongBytecodeVersionTest : KtUsefulTestCase() {
     companion object {
         fun transformMetadataInClassFile(bytes: ByteArray, transform: (fieldName: String, value: Any?) -> Any?): ByteArray {
             val writer = ClassWriter(0)
-            ClassReader(bytes).accept(object : ClassVisitor(Opcodes.ASM5, writer) {
+            ClassReader(bytes).accept(object : ClassVisitor(Opcodes.API_VERSION, writer) {
                 override fun visitAnnotation(desc: String, visible: Boolean): AnnotationVisitor {
                     val superVisitor = super.visitAnnotation(desc, visible)
                     if (desc == JvmAnnotationNames.METADATA_DESC) {
-                        return object : AnnotationVisitor(Opcodes.ASM5, superVisitor) {
+                        return object : AnnotationVisitor(Opcodes.API_VERSION, superVisitor) {
                             override fun visit(name: String, value: Any) {
                                 super.visit(name, transform(name, value) ?: value)
                             }
@@ -80,7 +79,7 @@ class WrongBytecodeVersionTest : KtUsefulTestCase() {
                             override fun visitArray(name: String): AnnotationVisitor {
                                 val entries = arrayListOf<String>()
                                 val arrayVisitor = { super.visitArray(name) }
-                                return object : AnnotationVisitor(Opcodes.ASM5) {
+                                return object : AnnotationVisitor(Opcodes.API_VERSION) {
                                     override fun visit(name: String?, value: Any) {
                                         entries.add(value as String)
                                     }

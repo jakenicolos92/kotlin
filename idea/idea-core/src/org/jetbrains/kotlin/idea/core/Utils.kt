@@ -1,42 +1,35 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.core
 
 import com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.idea.FrontendInternals
 import org.jetbrains.kotlin.idea.analysis.computeTypeInContext
 import org.jetbrains.kotlin.idea.caches.resolve.analyze
 import org.jetbrains.kotlin.idea.caches.resolve.getResolutionFacade
-import org.jetbrains.kotlin.idea.caches.resolve.resolveToDescriptor
+import org.jetbrains.kotlin.idea.caches.resolve.unsafeResolveToDescriptor
 import org.jetbrains.kotlin.idea.references.mainReference
+import org.jetbrains.kotlin.idea.references.resolveToDescriptors
 import org.jetbrains.kotlin.idea.resolve.ResolutionFacade
 import org.jetbrains.kotlin.idea.resolve.frontendService
+import org.jetbrains.kotlin.idea.resolve.getDataFlowValueFactory
+import org.jetbrains.kotlin.idea.resolve.getLanguageVersionSettings
 import org.jetbrains.kotlin.idea.util.getImplicitReceiversWithInstanceToExpression
 import org.jetbrains.kotlin.idea.util.getResolutionScope
 import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.parentOrNull
 import org.jetbrains.kotlin.psi.*
-import org.jetbrains.kotlin.psi.psiUtil.containingClassOrObject
-import org.jetbrains.kotlin.psi.psiUtil.getQualifiedElementSelector
-import org.jetbrains.kotlin.psi.psiUtil.getQualifiedExpressionForSelectorOrThis
+import org.jetbrains.kotlin.psi.psiUtil.*
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
-import org.jetbrains.kotlin.resolve.bindingContextUtil.getDataFlowInfoAfter
+import org.jetbrains.kotlin.resolve.QualifiedExpressionResolver
 import org.jetbrains.kotlin.resolve.bindingContextUtil.getDataFlowInfoBefore
 import org.jetbrains.kotlin.resolve.calls.CallResolver
+import org.jetbrains.kotlin.resolve.calls.components.isVararg
 import org.jetbrains.kotlin.resolve.calls.context.BasicCallResolutionContext
 import org.jetbrains.kotlin.resolve.calls.context.CheckArgumentTypesMode
 import org.jetbrains.kotlin.resolve.calls.context.ContextDependency
@@ -51,37 +44,40 @@ import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
 import org.jetbrains.kotlin.types.typeUtil.isSubtypeOf
 import java.util.*
 
+/**
+ * See `ArgumentsToParametersMapper` class in the compiler.
+ */
 fun Call.mapArgumentsToParameters(targetDescriptor: CallableDescriptor): Map<ValueArgument, ValueParameterDescriptor> {
     val parameters = targetDescriptor.valueParameters
     if (parameters.isEmpty()) return emptyMap()
 
     val map = HashMap<ValueArgument, ValueParameterDescriptor>()
-    val parametersByName = parameters.associateBy { it.name }
+    val parametersByName = if (targetDescriptor.hasStableParameterNames()) parameters.associateBy { it.name } else emptyMap()
 
     var positionalArgumentIndex: Int? = 0
 
     for (argument in valueArguments) {
         if (argument is LambdaArgument) {
             map[argument] = parameters.last()
-        }
-        else {
+        } else {
             val argumentName = argument.getArgumentName()?.asName
 
             if (argumentName != null) {
-                if (targetDescriptor.hasStableParameterNames()) {
-                    val parameter = parametersByName[argumentName]
-                    if (parameter != null) {
-                        map[argument] = parameter
+                val parameter = parametersByName[argumentName]
+                if (parameter != null) {
+                    map[argument] = parameter
+                    if (parameter.index == positionalArgumentIndex) {
+                        positionalArgumentIndex++
+                        continue
                     }
                 }
                 positionalArgumentIndex = null
-            }
-            else {
+            } else {
                 if (positionalArgumentIndex != null && positionalArgumentIndex < parameters.size) {
                     val parameter = parameters[positionalArgumentIndex]
                     map[argument] = parameter
 
-                    if (parameter.varargElementType == null) {
+                    if (!parameter.isVararg) {
                         positionalArgumentIndex++
                     }
                 }
@@ -94,9 +90,9 @@ fun Call.mapArgumentsToParameters(targetDescriptor: CallableDescriptor): Map<Val
 
 fun ImplicitReceiver.asExpression(resolutionScope: LexicalScope, psiFactory: KtPsiFactory): KtExpression? {
     val expressionFactory = resolutionScope.getImplicitReceiversWithInstanceToExpression()
-                                    .entries
-                                    .firstOrNull { it.key.containingDeclaration == this.declarationDescriptor }
-                                    ?.value ?: return null
+        .entries
+        .firstOrNull { it.key.containingDeclaration == this.declarationDescriptor }
+        ?.value ?: return null
     return expressionFactory.createExpression(psiFactory)
 }
 
@@ -108,11 +104,11 @@ fun KtImportDirective.targetDescriptors(resolutionFacade: ResolutionFacade = thi
 }
 
 fun Call.resolveCandidates(
-        bindingContext: BindingContext,
-        resolutionFacade: ResolutionFacade,
-        expectedType: KotlinType = expectedType(this, bindingContext),
-        filterOutWrongReceiver: Boolean = true,
-        filterOutByVisibility: Boolean = true
+    bindingContext: BindingContext,
+    resolutionFacade: ResolutionFacade,
+    expectedType: KotlinType = expectedType(this, bindingContext),
+    filterOutWrongReceiver: Boolean = true,
+    filterOutByVisibility: Boolean = true
 ): Collection<ResolvedCall<FunctionDescriptor>> {
     val resolutionScope = callElement.getResolutionScope(bindingContext, resolutionFacade)
     val inDescriptor = resolutionScope.ownerDescriptor
@@ -120,10 +116,13 @@ fun Call.resolveCandidates(
     val dataFlowInfo = bindingContext.getDataFlowInfoBefore(callElement)
     val bindingTrace = DelegatingBindingTrace(bindingContext, "Temporary trace")
     val callResolutionContext = BasicCallResolutionContext.create(
-            bindingTrace, resolutionScope, this, expectedType, dataFlowInfo,
-            ContextDependency.INDEPENDENT, CheckArgumentTypesMode.CHECK_VALUE_ARGUMENTS,
-            false
+        bindingTrace, resolutionScope, this, expectedType, dataFlowInfo,
+        ContextDependency.INDEPENDENT, CheckArgumentTypesMode.CHECK_VALUE_ARGUMENTS,
+        false, resolutionFacade.getLanguageVersionSettings(),
+        resolutionFacade.getDataFlowValueFactory()
     ).replaceCollectAllCandidates(true)
+
+    @OptIn(FrontendInternals::class)
     val callResolver = resolutionFacade.frontendService<CallResolver>()
 
     val results = callResolver.resolveFunctionCall(callResolutionContext)
@@ -136,12 +135,14 @@ fun Call.resolveCandidates(
     }
 
     if (filterOutWrongReceiver) {
-        candidates = candidates.filter { it.status != ResolutionStatus.RECEIVER_TYPE_ERROR && it.status != ResolutionStatus.RECEIVER_PRESENCE_ERROR }
+        candidates = candidates.filter {
+            it.status != ResolutionStatus.RECEIVER_TYPE_ERROR && it.status != ResolutionStatus.RECEIVER_PRESENCE_ERROR
+        }
     }
 
     if (filterOutByVisibility) {
         candidates = candidates.filter {
-            Visibilities.isVisible(it.getDispatchReceiverWithSmartCast(), it.resultingDescriptor, inDescriptor)
+            DescriptorVisibilities.isVisible(it.getDispatchReceiverWithSmartCast(), it.resultingDescriptor, inDescriptor)
         }
     }
 
@@ -155,7 +156,7 @@ private fun expectedType(call: Call, bindingContext: BindingContext): KotlinType
 }
 
 fun KtCallableDeclaration.canOmitDeclaredType(initializerOrBodyExpression: KtExpression, canChangeTypeToSubtype: Boolean): Boolean {
-    val declaredType = (resolveToDescriptor() as? CallableDescriptor)?.returnType ?: return false
+    val declaredType = (unsafeResolveToDescriptor() as? CallableDescriptor)?.returnType ?: return false
     val bindingContext = initializerOrBodyExpression.analyze()
     val scope = initializerOrBodyExpression.getResolutionScope(bindingContext, initializerOrBodyExpression.getResolutionFacade())
     val expressionType = initializerOrBodyExpression.computeTypeInContext(scope) ?: return false
@@ -163,15 +164,24 @@ fun KtCallableDeclaration.canOmitDeclaredType(initializerOrBodyExpression: KtExp
     return canChangeTypeToSubtype && expressionType.isSubtypeOf(declaredType)
 }
 
-fun String.quoteIfNeeded(): String = if (KotlinNameSuggester.isIdentifier(this)) this else "`$this`"
-
-fun String.unquote(): String = KtPsiUtil.unquoteIdentifier(this)
-
 fun FqName.quoteSegmentsIfNeeded(): String {
-    return pathSegments().map { it.asString().quoteIfNeeded() }.joinToString(".")
+    return pathSegments().joinToString(".") { it.asString().quoteIfNeeded() }
 }
 
 fun FqName.quoteIfNeeded() = FqName(quoteSegmentsIfNeeded())
+
+fun FqName.withRootPrefixIfNeeded(targetElement: KtElement? = null) =
+    if (canAddRootPrefix() && targetElement?.canAddRootPrefix() != false)
+        FqName(QualifiedExpressionResolver.ROOT_PREFIX_FOR_IDE_RESOLUTION_MODE_WITH_DOT + asString())
+    else
+        this
+
+fun FqName.canAddRootPrefix(): Boolean =
+    !asString().startsWith(QualifiedExpressionResolver.ROOT_PREFIX_FOR_IDE_RESOLUTION_MODE_WITH_DOT) && !thisOrParentIsRoot()
+
+fun FqName.thisOrParentIsRoot(): Boolean = parentOrNull()?.isRoot != false
+
+fun KtElement.canAddRootPrefix(): Boolean = getParentOfTypes2<KtImportDirective, KtPackageDirective>() == null
 
 fun isEnumCompanionPropertyWithEntryConflict(element: PsiElement, expectedName: String): Boolean {
     if (element !is KtProperty) return false

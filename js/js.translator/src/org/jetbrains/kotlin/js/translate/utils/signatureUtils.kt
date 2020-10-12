@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.js.translate.utils
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.js.naming.encodeSignature
 import org.jetbrains.kotlin.resolve.DescriptorUtils
+import org.jetbrains.kotlin.resolve.descriptorUtil.module
 
 // Unfortunately, our descriptor serializer can't serialize references to descriptors.
 // We have to serialize entire class or package to serialize function or property.
@@ -32,13 +33,18 @@ import org.jetbrains.kotlin.resolve.DescriptorUtils
 // it's hard to do it unintentionally.
 fun generateSignature(descriptor: DeclarationDescriptor): String? {
     if (DescriptorUtils.isDescriptorWithLocalVisibility(descriptor)) return null
-    if (descriptor is DeclarationDescriptorWithVisibility && descriptor.visibility == Visibilities.PRIVATE &&
+    if (descriptor is DeclarationDescriptorWithVisibility && descriptor.visibility == DescriptorVisibilities.PRIVATE &&
         !AnnotationsUtils.isNativeObject(descriptor) && !AnnotationsUtils.isLibraryObject(descriptor)
     ) {
         return null
     }
     return when (descriptor) {
         is CallableDescriptor -> {
+            // Should correspond to inner name generation
+            if (descriptor is ConstructorDescriptor && descriptor.isPrimary) {
+                return generateSignature(descriptor.constructedClass)
+            }
+
             val parent = generateSignature(descriptor.containingDeclaration) ?: return null
             if (descriptor !is VariableAccessorDescriptor && descriptor !is ConstructorDescriptor && descriptor.name.isSpecial) {
                 return null
@@ -50,7 +56,9 @@ fun generateSignature(descriptor: DeclarationDescriptor): String? {
             parent + separator + escape(descriptor.name.asString()) + "|" + encodeSignature(descriptor)
         }
         is PackageFragmentDescriptor -> {
-            if (descriptor.fqName.isRoot) "" else escape(descriptor.fqName.pathSegments().map { escape(it.identifier) }.joinToString("."))
+            val module = descriptor.module.name.asString()
+            val parts = sequenceOf(module) + descriptor.fqName.pathSegments().map { it.identifier }
+            parts.joinToString(".") { escape(it) }
         }
         is ClassDescriptor -> {
             val parent = generateSignature(descriptor.containingDeclaration) ?: return null

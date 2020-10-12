@@ -1,30 +1,21 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.util
 
 import com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.idea.FrontendInternals
 import org.jetbrains.kotlin.idea.imports.importableFqName
 import org.jetbrains.kotlin.idea.resolve.ResolutionFacade
 import org.jetbrains.kotlin.idea.resolve.frontendService
+import org.jetbrains.kotlin.idea.resolve.getDataFlowValueFactory
+import org.jetbrains.kotlin.idea.resolve.getLanguageVersionSettings
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
-import org.jetbrains.kotlin.resolve.bindingContextUtil.getDataFlowInfoAfter
 import org.jetbrains.kotlin.resolve.bindingContextUtil.getDataFlowInfoBefore
 import org.jetbrains.kotlin.resolve.calls.CallResolver
 import org.jetbrains.kotlin.resolve.calls.context.BasicCallResolutionContext
@@ -39,17 +30,17 @@ import org.jetbrains.kotlin.util.descriptorsEqualWithSubstitution
 import java.util.*
 
 class ShadowedDeclarationsFilter(
-        private val bindingContext: BindingContext,
-        private val resolutionFacade: ResolutionFacade,
-        private val context: PsiElement,
-        private val explicitReceiverValue: ReceiverValue?
+    private val bindingContext: BindingContext,
+    private val resolutionFacade: ResolutionFacade,
+    private val context: PsiElement,
+    private val explicitReceiverValue: ReceiverValue?
 ) {
     companion object {
         fun create(
-                bindingContext: BindingContext,
-                resolutionFacade: ResolutionFacade,
-                context: PsiElement,
-                callTypeAndReceiver: CallTypeAndReceiver<*, *>
+            bindingContext: BindingContext,
+            resolutionFacade: ResolutionFacade,
+            context: PsiElement,
+            callTypeAndReceiver: CallTypeAndReceiver<*, *>
         ): ShadowedDeclarationsFilter? {
             val receiverExpression = when (callTypeAndReceiver) {
                 is CallTypeAndReceiver.DEFAULT -> null
@@ -72,20 +63,16 @@ class ShadowedDeclarationsFilter(
     private val psiFactory = KtPsiFactory(resolutionFacade.project)
     private val dummyExpressionFactory = DummyExpressionFactory(psiFactory)
 
-    fun <TDescriptor : DeclarationDescriptor> filter(declarations: Collection<TDescriptor>): Collection<TDescriptor> {
-        return declarations
-                .groupBy { signature(it) }
-                .values
-                .flatMap { group -> filterEqualSignatureGroup(group) }
-    }
+    fun <TDescriptor : DeclarationDescriptor> filter(declarations: Collection<TDescriptor>): Collection<TDescriptor> =
+        declarations.groupBy { signature(it) }.values.flatMap { group -> filterEqualSignatureGroup(group) }
 
     fun <TDescriptor : DeclarationDescriptor> createNonImportedDeclarationsFilter(
-            importedDeclarations: Collection<DeclarationDescriptor>
+        importedDeclarations: Collection<DeclarationDescriptor>
     ): (Collection<TDescriptor>) -> Collection<TDescriptor> {
         val importedDeclarationsSet = importedDeclarations.toSet()
         val importedDeclarationsBySignature = importedDeclarationsSet.groupBy { signature(it) }
 
-        return filter@ { declarations ->
+        return filter@{ declarations ->
             // optimization
             if (declarations.size == 1 && importedDeclarationsBySignature[signature(declarations.single())] == null) return@filter declarations
 
@@ -102,31 +89,34 @@ class ShadowedDeclarationsFilter(
         }
     }
 
-    private fun signature(descriptor: DeclarationDescriptor): Any {
-        return when (descriptor) {
-            is SimpleFunctionDescriptor -> FunctionSignature(descriptor)
-            is VariableDescriptor -> descriptor.name
-            is ClassDescriptor -> descriptor.importableFqName ?: descriptor
-            else -> descriptor
-        }
+    private fun signature(descriptor: DeclarationDescriptor): Any = when (descriptor) {
+        is SimpleFunctionDescriptor -> FunctionSignature(descriptor)
+        is VariableDescriptor -> descriptor.name
+        is ClassDescriptor -> descriptor.importableFqName ?: descriptor
+        else -> descriptor
     }
 
     private fun packageName(descriptor: DeclarationDescriptor) = descriptor.importableFqName?.parent()
 
     private fun <TDescriptor : DeclarationDescriptor> filterEqualSignatureGroup(
-            descriptors: Collection<TDescriptor>,
-            descriptorsToImport: Collection<TDescriptor> = emptyList()
+        descriptors: Collection<TDescriptor>,
+        descriptorsToImport: Collection<TDescriptor> = emptyList()
     ): Collection<TDescriptor> {
         if (descriptors.size == 1) return descriptors
 
-        val first = descriptors.first()
+        val first = descriptors.firstOrNull {
+            it is ClassDescriptor || it is ConstructorDescriptor || it is CallableDescriptor && !it.name.isSpecial
+        } ?: return descriptors
 
         if (first is ClassDescriptor) { // for classes with the same FQ-name we simply take the first one
-            return listOf<TDescriptor>(first)
+            return listOf(first)
         }
 
         val isFunction = first is FunctionDescriptor
-        val name = first.name
+        val name = when (first) {
+            is ConstructorDescriptor -> first.constructedClass.name
+            else -> first.name
+        }
         val parameters = (first as CallableDescriptor).valueParameters
 
         val dummyArgumentExpressions = dummyExpressionFactory.createDummyExpressions(parameters.size)
@@ -138,7 +128,8 @@ class ShadowedDeclarationsFilter(
         }
 
         val firstVarargIndex = parameters.withIndex().firstOrNull { it.value.varargElementType != null }?.index
-        val useNamedFromIndex = if (firstVarargIndex != null && firstVarargIndex != parameters.lastIndex) firstVarargIndex else parameters.size
+        val useNamedFromIndex =
+            if (firstVarargIndex != null && firstVarargIndex != parameters.lastIndex) firstVarargIndex else parameters.size
 
         class DummyArgument(val index: Int) : ValueArgument {
             private val expression = dummyArgumentExpressions[index]
@@ -148,8 +139,7 @@ class ShadowedDeclarationsFilter(
                     override val asName = parameters[index].name
                     override val referenceExpression = null
                 }
-            }
-            else {
+            } else {
                 null
             }
 
@@ -201,16 +191,25 @@ class ShadowedDeclarationsFilter(
         }
 
         val dataFlowInfo = bindingContext.getDataFlowInfoBefore(context)
-        val context = BasicCallResolutionContext.create(bindingTrace, scope, newCall, TypeUtils.NO_EXPECTED_TYPE, dataFlowInfo,
-                                                        ContextDependency.INDEPENDENT, CheckArgumentTypesMode.CHECK_VALUE_ARGUMENTS,
-                                                        false)
+        val context = BasicCallResolutionContext.create(
+            bindingTrace, scope, newCall, TypeUtils.NO_EXPECTED_TYPE, dataFlowInfo,
+            ContextDependency.INDEPENDENT, CheckArgumentTypesMode.CHECK_VALUE_ARGUMENTS,
+            false, resolutionFacade.getLanguageVersionSettings(),
+            resolutionFacade.getDataFlowValueFactory()
+        )
+
+        @OptIn(FrontendInternals::class)
         val callResolver = resolutionFacade.frontendService<CallResolver>()
         val results = if (isFunction) callResolver.resolveFunctionCall(context) else callResolver.resolveSimpleProperty(context)
         val resultingDescriptors = results.resultingCalls.map { it.resultingDescriptor }
         val resultingOriginals = resultingDescriptors.mapTo(HashSet<DeclarationDescriptor>()) { it.original }
         val filtered = descriptors.filter { candidateDescriptor ->
-            candidateDescriptor.original in resultingOriginals /* optimization */
-            && resultingDescriptors.any { descriptorsEqualWithSubstitution(it, candidateDescriptor) }
+            candidateDescriptor.original in resultingOriginals /* optimization */ && resultingDescriptors.any {
+                descriptorsEqualWithSubstitution(
+                    it,
+                    candidateDescriptor
+                )
+            }
         }
         return if (filtered.isNotEmpty()) filtered else descriptors /* something went wrong, none of our declarations among resolve candidates, let's not filter anything */
     }
@@ -239,6 +238,15 @@ class ShadowedDeclarationsFilter(
                 val p2 = parameters2[i]
                 if (p1.varargElementType != p2.varargElementType) return false // both should be vararg or or both not
                 if (p1.type != p2.type) return false
+            }
+
+            val typeParameters1 = function.typeParameters
+            val typeParameters2 = other.function.typeParameters
+            if (typeParameters1.size != typeParameters2.size) return false
+            for (i in typeParameters1.indices) {
+                val t1 = typeParameters1[i]
+                val t2 = typeParameters2[i]
+                if (t1.upperBounds != t2.upperBounds) return false
             }
             return true
         }

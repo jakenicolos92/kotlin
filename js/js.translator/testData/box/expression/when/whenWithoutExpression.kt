@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 487
+// EXPECTED_REACHABLE_NODES: 1280
 package foo
 
 fun box() = when {

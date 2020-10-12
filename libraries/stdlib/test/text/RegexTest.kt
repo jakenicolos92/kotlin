@@ -1,11 +1,26 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+@file:Suppress("NAMED_ARGUMENTS_NOT_ALLOWED") // for common tests
+
 package test.text
 
-import kotlin.text.*
-
 import kotlin.test.*
-import org.junit.Test
 
 class RegexTest {
+
+    @Test fun properties() {
+        val pattern = "\\s+$"
+        val regex1 = Regex(pattern, RegexOption.IGNORE_CASE)
+        assertEquals(pattern, regex1.pattern)
+        assertEquals(setOf(RegexOption.IGNORE_CASE), regex1.options)
+
+        val options2 = setOf(RegexOption.MULTILINE, RegexOption.IGNORE_CASE)
+        val regex2 = Regex(pattern, options2)
+        assertEquals(options2, regex2.options)
+    }
 
     @Test fun matchResult() {
         val p = "\\d+".toRegex()
@@ -17,7 +32,7 @@ class RegexTest {
         assertTrue(p in input)
 
         val first = p.find(input)
-        assertTrue(first != null); first!!
+        assertNotNull(first)
         assertEquals("123", first.value)
 
         val second1 = first.next()!!
@@ -33,6 +48,10 @@ class RegexTest {
 
         val noMatch = last.next()
         assertEquals(null, noMatch)
+
+        assertFailsWith<IndexOutOfBoundsException> { p.find(input, -1) }
+        assertFailsWith<IndexOutOfBoundsException> { p.find(input, input.length + 1) }
+        assertEquals(null, p.find(input, input.length))
     }
 
     @Test fun matchIgnoreCase() {
@@ -52,6 +71,10 @@ class RegexTest {
         assertEquals(expected.drop(1), pattern.findAll(input, startIndex = 3).map { it.value }.toList())
 
         assertEquals(listOf(0..2, 4..6, 8..10), matches.map { it.range }.toList())
+
+        assertFailsWith<IndexOutOfBoundsException> { pattern.findAll(input, -1) }
+        assertFailsWith<IndexOutOfBoundsException> { pattern.findAll(input, input.length + 1) }
+        assertEquals(emptyList(), pattern.findAll(input, input.length).toList())
     }
 
     @Test fun matchAllSequence() {
@@ -61,6 +84,9 @@ class RegexTest {
         assertEquals(input, matches[0].value)
         assertEquals(input, matches.joinToString("") { it.value })
         assertEquals(2, matches.size)
+
+        assertEquals("", pattern.findAll(input, input.length).single().value)
+        assertEquals("", pattern.find(input, input.length)?.value)
     }
 
     @Test fun matchGroups() {
@@ -171,7 +197,7 @@ class RegexTest {
     @Test fun replaceEvaluator() {
         val input = "/12/456/7890/"
         val pattern = "\\d+".toRegex()
-        assertEquals("/2/3/4/", pattern.replace(input, { it.value.length.toString() } ))
+        assertEquals("/2/3/4/", pattern.replace(input, { it.value.length.toString() }))
     }
 
 
@@ -185,6 +211,24 @@ class RegexTest {
 
         assertEquals(listOf("name", "value=5"), "=".toRegex().split("name=value=5", limit = 2))
 
+    }
+
+    @Test fun splitByEmptyMatch() {
+        val input = "test"
+
+        val emptyMatch = "".toRegex()
+
+        assertEquals(input.split(""), input.split(emptyMatch))
+        assertEquals(input.split("", limit = 3), input.split(emptyMatch, limit = 3))
+
+        assertEquals("".split(""), "".split(emptyMatch))
+
+        val emptyMatchBeforeT = "(?=t)".toRegex()
+
+        assertEquals(listOf("", "tes", "t"), input.split(emptyMatchBeforeT))
+        assertEquals(listOf("", "test"), input.split(emptyMatchBeforeT, limit = 2))
+
+        assertEquals(listOf("", "tee"), "tee".split(emptyMatchBeforeT))
     }
 
 

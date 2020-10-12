@@ -1,5 +1,6 @@
 // FILE: 1.kt
 
+
 package builders
 //TODO there is a bug in asm it's skips linenumber on same line on reading bytecode
 inline fun call(crossinline init: () -> Unit) {

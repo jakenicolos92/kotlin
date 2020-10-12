@@ -1,7 +1,7 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
 // WITH_REFLECT
+package test
 
 var lambda = {}
 
@@ -20,7 +20,7 @@ fun box(): String {
     if (enclosingMethod?.getName() != "run") return "method: $enclosingMethod"
 
     val enclosingClass = javaClass.getEnclosingClass()!!.getName()
-    if (enclosingClass != "A\$prop\$1") return "enclosing class: $enclosingClass"
+    if (enclosingClass != "test.A\$prop\$1") return "enclosing class: $enclosingClass"
 
     val declaringClass = javaClass.getDeclaringClass()
     if (declaringClass != null) return "anonymous function has a declaring class: $declaringClass"

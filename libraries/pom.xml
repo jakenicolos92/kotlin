@@ -7,12 +7,12 @@
 
     <groupId>org.jetbrains.kotlin</groupId>
     <artifactId>kotlin-project</artifactId>
-    <version>1.1-SNAPSHOT</version>
+    <version>1.4.255-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>Kotlin</name>
     <description>Kotlin is a statically typed programming language that compiles to JVM byte codes and JavaScript</description>
-    <url>http://kotlinlang.org/</url>
+    <url>https://kotlinlang.org/</url>
 
     <licenses>
         <license>
@@ -34,7 +34,7 @@
             <id>JetBrains</id>
             <name>JetBrains Team</name>
             <organization>JetBrains</organization>
-            <organizationUrl>http://www.jetbrains.com</organizationUrl>
+            <organizationUrl>https://www.jetbrains.com</organizationUrl>
         </developer>
     </developers>
 
@@ -46,7 +46,7 @@
         <pegdown.version>1.1.0</pegdown.version>
         <surefire-version>2.16</surefire-version>
         <exec-maven-plugin.version>1.2.1</exec-maven-plugin.version>
-        <selenium.version>2.52.0</selenium.version>
+        <selenium.version>2.53.1</selenium.version>
         <htmlunit.version>2.24</htmlunit.version>
 
         <kotlin-dist>${project-root}/dist</kotlin-dist>
@@ -73,48 +73,27 @@
     </distributionManagement>
 
     <modules>
-        <module>tools/kotlin-compiler</module>
-        <module>tools/kotlin-compiler-embeddable</module>
-        <module>tools/kotlin-compiler-client-embeddable</module>
-        <module>tools/kotlin-compiler-client-embeddable-test</module>
-        <module>tools/native-platform</module>
-        <module>tools/kotlin-compiler-runner</module>
-        <module>tools/kotlin-daemon-client</module>
-        <module>tools/kotlin-build-common-test</module>
         <module>tools/kotlin-maven-plugin</module>
 
         <module>tools/kotlin-osgi-bundle</module>
 
         <module>tools/maven-archetypes</module>
 
-
-        <module>tools/idl2k</module>
-        <module>tools/kotlin-annotation-processing</module>
         <module>tools/kotlin-annotation-processing-maven</module>
         <module>tools/kotlin-maven-allopen</module>
         <module>tools/kotlin-maven-noarg</module>
-        <module>tools/kotlin-sam-with-receiver-compiler-plugin</module>
-        <module>tools/kotlin-source-sections-compiler-plugin</module>
+        <module>tools/kotlin-maven-sam-with-receiver</module>
+        <module>tools/kotlin-maven-serialization</module>
 
-        <module>tools/kotlin-script-util</module>
-        <module>tools/kotlin-android-extensions</module>
+        <module>tools/kotlin-bom</module>
+
         <module>tools/kotlin-maven-plugin-test</module>
 
-        <module>examples/annotation-processor-example</module>
         <module>examples/kotlin-java-example</module>
         <module>examples/js-example</module>
         <module>examples/kotlin-js-library-example</module>
         <module>examples/browser-example</module>
         <module>examples/browser-example-with-library</module>
-        <module>examples/kotlin-jsr223-local-example</module>
-        <module>examples/kotlin-jsr223-daemon-local-eval-example</module>
-
-        <!-- <module>tools/kotlin-allopen</module> -->
-        <!-- <module>tools/kotlin-noarg</module> -->
-        <!-- <module>tools/kotlin-gradle-plugin</module> -->
-        <!-- <module>tools/kotlin-gradle-plugin-api</module> -->
-        <!-- <module>examples/kotlin-gradle-subplugin-example</module> -->
-        <!-- <module>tools/kotlin-gradle-plugin-integration-tests</module> -->
     </modules>
 
     <dependencies>
@@ -229,7 +208,7 @@
             <plugin>
                 <groupId>org.commonjava.maven.plugins</groupId>
                 <artifactId>directory-maven-plugin</artifactId>
-                <version>0.1</version>
+                <version>0.3.1</version>
                 <executions>
                     <execution>
                         <id>directories</id>
@@ -264,7 +243,7 @@
                 <plugins>
                     <plugin>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.4</version>
+                        <version>1.6</version>
                         <configuration>
                             <passphrase>${kotlin.key.passphrase}</passphrase>
                             <keyname>${kotlin.key.name}</keyname>
@@ -277,6 +256,12 @@
                                 <goals>
                                     <goal>sign</goal>
                                 </goals>
+                                <configuration>
+                                    <gpgArguments>
+                                        <arg>--pinentry-mode</arg>
+                                        <arg>loopback</arg>
+                                    </gpgArguments>
+                                </configuration>
                             </execution>
                         </executions>
                     </plugin>

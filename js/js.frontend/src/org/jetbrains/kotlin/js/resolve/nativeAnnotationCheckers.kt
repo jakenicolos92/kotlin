@@ -19,46 +19,41 @@ package org.jetbrains.kotlin.js.resolve
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
-import org.jetbrains.kotlin.descriptors.Visibilities
+import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
 import org.jetbrains.kotlin.diagnostics.DiagnosticSink
 import org.jetbrains.kotlin.js.PredefinedAnnotation
 import org.jetbrains.kotlin.js.resolve.diagnostics.ErrorsJs
 import org.jetbrains.kotlin.js.translate.utils.AnnotationsUtils
 import org.jetbrains.kotlin.psi.KtDeclaration
 import org.jetbrains.kotlin.psi.KtNamedFunction
-import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.DescriptorUtils
-import org.jetbrains.kotlin.resolve.checkers.SimpleDeclarationChecker
+import org.jetbrains.kotlin.resolve.checkers.DeclarationChecker
+import org.jetbrains.kotlin.resolve.checkers.DeclarationCheckerContext
 import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
 import org.jetbrains.kotlin.types.TypeUtils
 import org.jetbrains.kotlin.types.typeUtil.isSubtypeOf
 
-internal abstract class AbstractNativeAnnotationsChecker(private val requiredAnnotation: PredefinedAnnotation) : SimpleDeclarationChecker {
+internal abstract class AbstractNativeAnnotationsChecker(private val requiredAnnotation: PredefinedAnnotation) : DeclarationChecker {
 
     open fun additionalCheck(declaration: KtNamedFunction, descriptor: FunctionDescriptor, diagnosticHolder: DiagnosticSink) {}
 
-    override fun check(
-            declaration: KtDeclaration,
-            descriptor: DeclarationDescriptor,
-            diagnosticHolder: DiagnosticSink,
-            bindingContext: BindingContext
-    ) {
+    override fun check(declaration: KtDeclaration, descriptor: DeclarationDescriptor, context: DeclarationCheckerContext) {
         val annotationDescriptor = descriptor.annotations.findAnnotation(requiredAnnotation.fqName) ?: return
 
         if (declaration !is KtNamedFunction || descriptor !is FunctionDescriptor) {
             return
         }
 
-        val isMember = !DescriptorUtils.isTopLevelDeclaration(descriptor) && descriptor.visibility != Visibilities.LOCAL
+        val isMember = !DescriptorUtils.isTopLevelDeclaration(descriptor) && descriptor.visibility != DescriptorVisibilities.LOCAL
         val isExtension = DescriptorUtils.isExtension(descriptor)
 
         if (isMember && (isExtension || !AnnotationsUtils.isNativeObject(descriptor)) ||
             !isMember && !isExtension
         ) {
-            diagnosticHolder.report(ErrorsJs.NATIVE_ANNOTATIONS_ALLOWED_ONLY_ON_MEMBER_OR_EXTENSION_FUN.on(declaration, annotationDescriptor.type))
+            context.trace.report(ErrorsJs.NATIVE_ANNOTATIONS_ALLOWED_ONLY_ON_MEMBER_OR_EXTENSION_FUN.on(declaration, annotationDescriptor.type))
         }
 
-        additionalCheck(declaration, descriptor, diagnosticHolder)
+        additionalCheck(declaration, descriptor, context.trace)
     }
 }
 
@@ -73,12 +68,12 @@ internal abstract class AbstractNativeIndexerChecker(
     override fun additionalCheck(declaration: KtNamedFunction, descriptor: FunctionDescriptor, diagnosticHolder: DiagnosticSink) {
         val parameters = descriptor.valueParameters
         val builtIns = descriptor.builtIns
-        if (parameters.size > 0) {
-            val firstParamClassDescriptor = DescriptorUtils.getClassDescriptorForType(parameters.get(0).type)
-            if (firstParamClassDescriptor != builtIns.string &&
-                !DescriptorUtils.isSubclass(firstParamClassDescriptor, builtIns.number)
-            ) {
-                diagnosticHolder.report(ErrorsJs.NATIVE_INDEXER_KEY_SHOULD_BE_STRING_OR_NUMBER.on(declaration.valueParameters.first(), indexerKind))
+        if (parameters.isNotEmpty()) {
+            val firstParamType = parameters.first().type
+            if (!KotlinBuiltIns.isString(firstParamType) && !firstParamType.isSubtypeOf(builtIns.number.defaultType)) {
+                diagnosticHolder.report(
+                    ErrorsJs.NATIVE_INDEXER_KEY_SHOULD_BE_STRING_OR_NUMBER.on(declaration.valueParameters.first(), indexerKind)
+                )
             }
         }
 

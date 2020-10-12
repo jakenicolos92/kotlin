@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.intentions.loopToCallChain.sequence
@@ -22,8 +11,8 @@ import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.*
 
 interface Condition {
-    fun asExpression(): KtExpression
-    fun asNegatedExpression(): KtExpression
+    fun asExpression(reformat: Boolean): KtExpression
+    fun asNegatedExpression(reformat: Boolean): KtExpression
     fun toAtomicConditions(): List<AtomicCondition>
 
     companion object {
@@ -39,8 +28,7 @@ interface Condition {
                         return CompositeCondition.create(leftCondition.toAtomicConditions() + rightCondition.toAtomicConditions())
                     }
                 }
-            }
-            else {
+            } else {
                 if (expression is KtBinaryExpression && expression.operationToken == KtTokens.ANDAND) {
                     //TODO: check Boolean type for operands
                     val left = expression.left
@@ -57,33 +45,33 @@ interface Condition {
     }
 }
 
-class AtomicCondition(val expression: KtExpression, val isNegated: Boolean = false) : Condition {
+class AtomicCondition(val expression: KtExpression, private val isNegated: Boolean = false) : Condition {
     init {
         assert(expression.isPhysical)
     }
 
-    override fun asExpression() = if (isNegated) expression.negate() else expression
-    override fun asNegatedExpression() = if (isNegated) expression else expression.negate()
+    override fun asExpression(reformat: Boolean) = if (isNegated) expression.negate(reformat) else expression
+    override fun asNegatedExpression(reformat: Boolean) = if (isNegated) expression else expression.negate(reformat)
     override fun toAtomicConditions() = listOf(this)
 
     fun negate() = AtomicCondition(expression, !isNegated)
 }
 
 class CompositeCondition private constructor(val conditions: List<AtomicCondition>) : Condition {
-    override fun asExpression(): KtExpression {
+    override fun asExpression(reformat: Boolean): KtExpression {
         val factory = KtPsiFactory(conditions.first().expression)
-        return factory.buildExpression {
+        return factory.buildExpression(reformat = reformat) {
             for ((index, condition) in conditions.withIndex()) {
                 if (index > 0) {
                     appendFixedText("&&")
                 }
-                appendExpression(condition.asExpression())
+                appendExpression(condition.asExpression(reformat))
             }
         }
     }
 
-    override fun asNegatedExpression(): KtExpression {
-        return asExpression().negate()
+    override fun asNegatedExpression(reformat: Boolean): KtExpression {
+        return asExpression(reformat).negate()
     }
 
     override fun toAtomicConditions() = conditions

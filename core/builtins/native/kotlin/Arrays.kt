@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 // Auto-generated file. DO NOT EDIT!
@@ -25,13 +14,27 @@ package kotlin
 public class ByteArray(size: Int) {
     /**
      * Creates a new array of the specified [size], where each element is calculated by calling the specified
-     * [init] function. The [init] function returns an array element given its index.
+     * [init] function.
+     *
+     * The function [init] is called for each array element sequentially starting from the first one.
+     * It should return the value for an array element given its index.
      */
     public inline constructor(size: Int, init: (Int) -> Byte)
 
-    /** Returns the array element at the given [index]. This method can be called using the index operator. */
+    /**
+     * Returns the array element at the given [index].  This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun get(index: Int): Byte
-    /** Sets the element at the given [index] to the given [value]. This method can be called using the index operator. */
+
+    /**
+     * Sets the element at the given [index] to the given [value]. This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun set(index: Int, value: Byte): Unit
 
     /** Returns the number of elements in the array. */
@@ -43,18 +46,32 @@ public class ByteArray(size: Int) {
 
 /**
  * An array of chars. When targeting the JVM, instances of this class are represented as `char[]`.
- * @constructor Creates a new array of the specified [size], with all elements initialized to zero.
+ * @constructor Creates a new array of the specified [size], with all elements initialized to null char (`\u0000').
  */
 public class CharArray(size: Int) {
     /**
      * Creates a new array of the specified [size], where each element is calculated by calling the specified
-     * [init] function. The [init] function returns an array element given its index.
+     * [init] function.
+     *
+     * The function [init] is called for each array element sequentially starting from the first one.
+     * It should return the value for an array element given its index.
      */
     public inline constructor(size: Int, init: (Int) -> Char)
 
-    /** Returns the array element at the given [index]. This method can be called using the index operator. */
+    /**
+     * Returns the array element at the given [index].  This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun get(index: Int): Char
-    /** Sets the element at the given [index] to the given [value]. This method can be called using the index operator. */
+
+    /**
+     * Sets the element at the given [index] to the given [value]. This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun set(index: Int, value: Char): Unit
 
     /** Returns the number of elements in the array. */
@@ -71,13 +88,27 @@ public class CharArray(size: Int) {
 public class ShortArray(size: Int) {
     /**
      * Creates a new array of the specified [size], where each element is calculated by calling the specified
-     * [init] function. The [init] function returns an array element given its index.
+     * [init] function.
+     *
+     * The function [init] is called for each array element sequentially starting from the first one.
+     * It should return the value for an array element given its index.
      */
     public inline constructor(size: Int, init: (Int) -> Short)
 
-    /** Returns the array element at the given [index]. This method can be called using the index operator. */
+    /**
+     * Returns the array element at the given [index].  This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun get(index: Int): Short
-    /** Sets the element at the given [index] to the given [value]. This method can be called using the index operator. */
+
+    /**
+     * Sets the element at the given [index] to the given [value]. This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun set(index: Int, value: Short): Unit
 
     /** Returns the number of elements in the array. */
@@ -94,13 +125,27 @@ public class ShortArray(size: Int) {
 public class IntArray(size: Int) {
     /**
      * Creates a new array of the specified [size], where each element is calculated by calling the specified
-     * [init] function. The [init] function returns an array element given its index.
+     * [init] function.
+     *
+     * The function [init] is called for each array element sequentially starting from the first one.
+     * It should return the value for an array element given its index.
      */
     public inline constructor(size: Int, init: (Int) -> Int)
 
-    /** Returns the array element at the given [index]. This method can be called using the index operator. */
+    /**
+     * Returns the array element at the given [index].  This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun get(index: Int): Int
-    /** Sets the element at the given [index] to the given [value]. This method can be called using the index operator. */
+
+    /**
+     * Sets the element at the given [index] to the given [value]. This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun set(index: Int, value: Int): Unit
 
     /** Returns the number of elements in the array. */
@@ -117,13 +162,27 @@ public class IntArray(size: Int) {
 public class LongArray(size: Int) {
     /**
      * Creates a new array of the specified [size], where each element is calculated by calling the specified
-     * [init] function. The [init] function returns an array element given its index.
+     * [init] function.
+     *
+     * The function [init] is called for each array element sequentially starting from the first one.
+     * It should return the value for an array element given its index.
      */
     public inline constructor(size: Int, init: (Int) -> Long)
 
-    /** Returns the array element at the given [index]. This method can be called using the index operator. */
+    /**
+     * Returns the array element at the given [index].  This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun get(index: Int): Long
-    /** Sets the element at the given [index] to the given [value]. This method can be called using the index operator. */
+
+    /**
+     * Sets the element at the given [index] to the given [value]. This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun set(index: Int, value: Long): Unit
 
     /** Returns the number of elements in the array. */
@@ -140,13 +199,27 @@ public class LongArray(size: Int) {
 public class FloatArray(size: Int) {
     /**
      * Creates a new array of the specified [size], where each element is calculated by calling the specified
-     * [init] function. The [init] function returns an array element given its index.
+     * [init] function.
+     *
+     * The function [init] is called for each array element sequentially starting from the first one.
+     * It should return the value for an array element given its index.
      */
     public inline constructor(size: Int, init: (Int) -> Float)
 
-    /** Returns the array element at the given [index]. This method can be called using the index operator. */
+    /**
+     * Returns the array element at the given [index].  This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun get(index: Int): Float
-    /** Sets the element at the given [index] to the given [value]. This method can be called using the index operator. */
+
+    /**
+     * Sets the element at the given [index] to the given [value]. This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun set(index: Int, value: Float): Unit
 
     /** Returns the number of elements in the array. */
@@ -163,13 +236,27 @@ public class FloatArray(size: Int) {
 public class DoubleArray(size: Int) {
     /**
      * Creates a new array of the specified [size], where each element is calculated by calling the specified
-     * [init] function. The [init] function returns an array element given its index.
+     * [init] function.
+     *
+     * The function [init] is called for each array element sequentially starting from the first one.
+     * It should return the value for an array element given its index.
      */
     public inline constructor(size: Int, init: (Int) -> Double)
 
-    /** Returns the array element at the given [index]. This method can be called using the index operator. */
+    /**
+     * Returns the array element at the given [index].  This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun get(index: Int): Double
-    /** Sets the element at the given [index] to the given [value]. This method can be called using the index operator. */
+
+    /**
+     * Sets the element at the given [index] to the given [value]. This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun set(index: Int, value: Double): Unit
 
     /** Returns the number of elements in the array. */
@@ -181,18 +268,32 @@ public class DoubleArray(size: Int) {
 
 /**
  * An array of booleans. When targeting the JVM, instances of this class are represented as `boolean[]`.
- * @constructor Creates a new array of the specified [size], with all elements initialized to false.
+ * @constructor Creates a new array of the specified [size], with all elements initialized to `false`.
  */
 public class BooleanArray(size: Int) {
     /**
      * Creates a new array of the specified [size], where each element is calculated by calling the specified
-     * [init] function. The [init] function returns an array element given its index.
+     * [init] function.
+     *
+     * The function [init] is called for each array element sequentially starting from the first one.
+     * It should return the value for an array element given its index.
      */
     public inline constructor(size: Int, init: (Int) -> Boolean)
 
-    /** Returns the array element at the given [index]. This method can be called using the index operator. */
+    /**
+     * Returns the array element at the given [index].  This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun get(index: Int): Boolean
-    /** Sets the element at the given [index] to the given [value]. This method can be called using the index operator. */
+
+    /**
+     * Sets the element at the given [index] to the given [value]. This method can be called using the index operator.
+     *
+     * If the [index] is out of bounds of this array, throws an [IndexOutOfBoundsException] except in Kotlin/JS
+     * where the behavior is unspecified.
+     */
     public operator fun set(index: Int, value: Boolean): Unit
 
     /** Returns the number of elements in the array. */

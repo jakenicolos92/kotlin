@@ -5,16 +5,17 @@ class A {
         var element = element
         element = JetPsiUtil.ascendIfPropertyAccessor(element)
         if (element is JetNamedFunction || element is JetProperty) {
-            val bindingContext = AnalyzerFacadeWithCache.analyzeFileWithCache(element.getContainingJetFile()).getBindingContext()
+            val bindingContext =
+                AnalyzerFacadeWithCache.analyzeFileWithCache(element.getContainingJetFile()).getBindingContext()
 
             val declarationDescriptor = bindingContext.get(BindingContext.DECLARATION_TO_DESCRIPTOR, element)
             if (declarationDescriptor is CallableMemberDescriptor) {
                 val containingDescriptor = declarationDescriptor.getContainingDeclaration()
                 if (containingDescriptor is ClassDescriptor) {
                     return JetBundle.message(
-                            "x.in.y",
-                            DescriptorRenderer.COMPACT.render(declarationDescriptor),
-                            IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES.render(containingDescriptor)
+                        "override.declaration.x.in.y",
+                        DescriptorRenderer.COMPACT.render(declarationDescriptor),
+                        IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_NO_ANNOTATIONS.render(containingDescriptor)
                     )
                 }
             }
@@ -30,7 +31,7 @@ class A {
 
     fun getSelected(): ArrayList<UsageInfo> {
         val result = ArrayList<UsageInfo>()
-        for (i in 0..myChecked.length - 1) {
+        for (i in 0 until myChecked.length) {
             if (myChecked[i]) {
                 result.add(myOverridingMethods.get(i))
             }

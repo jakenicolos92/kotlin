@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 // FILE: p/Super.java
 package p;
 
@@ -13,7 +14,7 @@ public interface Sub extends Super {}
 package p;
 
 public abstract class Util {
-    public abstract void foo(String s, Super sup)
+    public abstract void foo(String s, Super sup);
     public void foo(String s, Sub sub) {}
 }
 

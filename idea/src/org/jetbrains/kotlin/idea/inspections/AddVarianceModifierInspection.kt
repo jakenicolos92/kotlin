@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.inspections
@@ -24,7 +13,8 @@ import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
 import org.jetbrains.kotlin.descriptors.MemberDescriptor
 import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
 import org.jetbrains.kotlin.diagnostics.DiagnosticSink
-import org.jetbrains.kotlin.idea.caches.resolve.analyzeFully
+import org.jetbrains.kotlin.idea.KotlinBundle
+import org.jetbrains.kotlin.idea.caches.resolve.analyzeWithContent
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.addRemoveModifier.addModifier
@@ -43,10 +33,9 @@ class AddVarianceModifierInspection : AbstractKotlinInspection() {
         }
         for (member in klass.declarations + klass.primaryConstructorParameters) {
             val descriptor = when (member) {
-                                 is KtParameter -> context.get(BindingContext.PRIMARY_CONSTRUCTOR_PARAMETER, member)
-                                 is KtDeclaration -> context.get(BindingContext.DECLARATION_TO_DESCRIPTOR, member)
-                                 else -> null
-                             } as? MemberDescriptor ?: continue
+                is KtParameter -> context.get(BindingContext.PRIMARY_CONSTRUCTOR_PARAMETER, member)
+                else -> context.get(BindingContext.DECLARATION_TO_DESCRIPTOR, member)
+            } as? MemberDescriptor ?: continue
             when (member) {
                 is KtClassOrObject -> {
                     if (!checkClassOrObject(member)) return false
@@ -61,52 +50,51 @@ class AddVarianceModifierInspection : AbstractKotlinInspection() {
     }
 
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
-        return object : KtVisitorVoid() {
-
-            private fun variancePossible(
-                    klass: KtClassOrObject,
-                    parameterDescriptor: TypeParameterDescriptor,
-                    variance: Variance,
-                    context: BindingContext
-            ) = VarianceCheckerCore(
-                    context,
-                    DiagnosticSink.DO_NOTHING,
-                    ManualVariance(parameterDescriptor, variance)
-            ).checkClassOrObject(klass)
-
-            override fun visitClassOrObject(klass: KtClassOrObject) {
-                val context = klass.analyzeFully()
-                for (typeParameter in klass.typeParameters) {
-                    if (typeParameter.variance != Variance.INVARIANT) continue
-                    val parameterDescriptor =
-                            context.get(BindingContext.DECLARATION_TO_DESCRIPTOR, typeParameter) as? TypeParameterDescriptor ?: continue
-                    val variances = listOf(Variance.IN_VARIANCE, Variance.OUT_VARIANCE).filter {
-                        variancePossible(klass, parameterDescriptor, it, context)
-                    }
-                    if (variances.size == 1) {
-                        val suggested = variances.first()
-                        val fixes = variances.map(::AddVarianceFix)
-                        holder.registerProblem(
-                                typeParameter,
-                                "Type parameter can have $suggested variance",
-                                ProblemHighlightType.WEAK_WARNING,
-                                *fixes.toTypedArray()
-                        )
-                    }
+        return classOrObjectVisitor { klass ->
+            if (klass.typeParameters.isEmpty()) return@classOrObjectVisitor
+            val context = klass.analyzeWithContent()
+            for (typeParameter in klass.typeParameters) {
+                if (typeParameter.variance != Variance.INVARIANT) continue
+                val parameterDescriptor =
+                    context.get(BindingContext.DECLARATION_TO_DESCRIPTOR, typeParameter) as? TypeParameterDescriptor ?: continue
+                val variances = listOf(Variance.IN_VARIANCE, Variance.OUT_VARIANCE).filter {
+                    variancePossible(klass, parameterDescriptor, it, context)
+                }
+                if (variances.size == 1) {
+                    val suggested = variances.first()
+                    val fixes = variances.map(::AddVarianceFix)
+                    holder.registerProblem(
+                        typeParameter,
+                        KotlinBundle.message("type.parameter.can.have.0.variance", suggested),
+                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                        *fixes.toTypedArray()
+                    )
                 }
             }
         }
     }
 
-    class AddVarianceFix(val variance: Variance) : LocalQuickFix {
-        override fun getName() = "Add '$variance' variance"
+    private fun variancePossible(
+        klass: KtClassOrObject,
+        parameterDescriptor: TypeParameterDescriptor,
+        variance: Variance,
+        context: BindingContext
+    ) = VarianceCheckerCore(
+        context,
+        DiagnosticSink.DO_NOTHING,
+        ManualVariance(parameterDescriptor, variance)
+    ).checkClassOrObject(klass)
 
-        override fun getFamilyName() = "Add variance"
+
+    class AddVarianceFix(val variance: Variance) : LocalQuickFix {
+        override fun getName() = KotlinBundle.message("add.variance.fix.text", variance)
+
+        override fun getFamilyName() = KotlinBundle.message("add.variance.fix.family.name")
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
             if (!FileModificationService.getInstance().preparePsiElementForWrite(descriptor.psiElement)) return
             val typeParameter = descriptor.psiElement as? KtTypeParameter
-                                ?: throw AssertionError("Add variance fix is used on ${descriptor.psiElement.text}")
+                ?: throw AssertionError("Add variance fix is used on ${descriptor.psiElement.text}")
             addModifier(typeParameter, if (variance == Variance.IN_VARIANCE) KtTokens.IN_KEYWORD else KtTokens.OUT_KEYWORD)
         }
 

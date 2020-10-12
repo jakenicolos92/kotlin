@@ -29,15 +29,13 @@ import org.jetbrains.kotlin.util.ModuleVisibilityHelper
 import java.io.File
 
 class ModuleVisibilityHelperImpl : ModuleVisibilityHelper {
-
     override fun isInFriendModule(what: DeclarationDescriptor, from: DeclarationDescriptor): Boolean {
         val fromSource = getSourceElement(from)
         // We should check accessibility of 'from' in current module (some set of source files, which are compiled together),
         // so we can assume that 'from' should have sources or is a LazyPackageDescriptor with some package files.
         val project: Project = if (fromSource is KotlinSourceElement) {
             fromSource.psi.project
-        }
-        else {
+        } else {
             (from as? LazyPackageDescriptor)?.declarationProvider?.getPackageFiles()?.firstOrNull()?.project ?: return true
         }
 
@@ -68,13 +66,12 @@ class ModuleVisibilityHelperImpl : ModuleVisibilityHelper {
 
     private fun findModule(descriptor: DeclarationDescriptor, modules: Collection<Module>): Module? {
         val sourceElement = getSourceElement(descriptor)
-        if (sourceElement is KotlinSourceElement) {
-            return modules.singleOrNull() ?: modules.firstOrNull { sourceElement.psi.containingKtFile.virtualFile.path in it.getSourceFiles() }
-        }
-        else {
-            return modules.firstOrNull { module ->
+        return if (sourceElement is KotlinSourceElement) {
+            modules.singleOrNull() ?: modules.firstOrNull { sourceElement.psi.containingKtFile.virtualFile.path in it.getSourceFiles() }
+        } else {
+            modules.firstOrNull { module ->
                 isContainedByCompiledPartOfOurModule(descriptor, File(module.getOutputDirectory())) ||
-                module.getFriendPaths().any { isContainedByCompiledPartOfOurModule(descriptor, File(it)) }
+                        module.getFriendPaths().any { isContainedByCompiledPartOfOurModule(descriptor, File(it)) }
             }
         }
     }
@@ -86,14 +83,14 @@ class ModuleVisibilityHelperImpl : ModuleVisibilityHelper {
  */
 class CliModuleVisibilityManagerImpl(override val enabled: Boolean) : ModuleVisibilityManager, Disposable {
     override val chunk: MutableList<Module> = arrayListOf()
-    override val friendPaths: MutableList <String> = arrayListOf()
+    override val friendPaths: MutableList<String> = arrayListOf()
 
     override fun addModule(module: Module) {
         chunk.add(module)
     }
 
     override fun addFriendPath(path: String) {
-        friendPaths.add(path)
+        friendPaths.add(File(path).absolutePath)
     }
 
     override fun dispose() {

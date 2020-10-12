@@ -1,10 +1,10 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
 // WITH_REFLECT
 // KT-8131 Cannot find backing field in ancestor class via reflection
 
 import kotlin.reflect.*
+import kotlin.reflect.full.*
 import kotlin.reflect.jvm.*
 
 open class TestBase {

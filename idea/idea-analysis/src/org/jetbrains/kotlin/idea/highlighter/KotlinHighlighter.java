@@ -51,6 +51,8 @@ public class KotlinHighlighter extends SyntaxHighlighterBase {
 
         fillMap(keys1, KtTokens.KEYWORDS, KotlinHighlightingColors.KEYWORD);
 
+        keys1.put(KtTokens.VAL_KEYWORD, KotlinHighlightingColors.VAL_KEYWORD);
+        keys1.put(KtTokens.VAR_KEYWORD, KotlinHighlightingColors.VAR_KEYWORD);
         keys1.put(KtTokens.AS_SAFE, KotlinHighlightingColors.KEYWORD);
         keys1.put(KtTokens.INTEGER_LITERAL, KotlinHighlightingColors.NUMBER);
         keys1.put(KtTokens.FLOAT_LITERAL, KotlinHighlightingColors.NUMBER);
@@ -70,6 +72,9 @@ public class KotlinHighlighter extends SyntaxHighlighterBase {
         keys1.put(KtTokens.RBRACKET, KotlinHighlightingColors.BRACKETS);
         keys1.put(KtTokens.COMMA, KotlinHighlightingColors.COMMA);
         keys1.put(KtTokens.SEMICOLON, KotlinHighlightingColors.SEMICOLON);
+        keys1.put(KtTokens.COLON, KotlinHighlightingColors.COLON);
+        keys1.put(KtTokens.COLONCOLON, KotlinHighlightingColors.DOUBLE_COLON);
+        keys1.put(KtTokens.QUEST, KotlinHighlightingColors.QUEST);
         keys1.put(KtTokens.DOT, KotlinHighlightingColors.DOT);
         keys1.put(KtTokens.ARROW, KotlinHighlightingColors.ARROW);
 

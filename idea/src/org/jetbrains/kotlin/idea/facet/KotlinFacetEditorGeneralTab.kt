@@ -1,140 +1,213 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.facet
 
-import com.intellij.facet.impl.ui.libraries.DelegatingLibrariesValidatorContext
 import com.intellij.facet.ui.*
-import com.intellij.facet.ui.libraries.FrameworkLibraryValidator
 import com.intellij.ide.actions.ShowSettingsUtilImpl
 import com.intellij.openapi.project.Project
-import com.intellij.ui.DocumentAdapter
+import com.intellij.openapi.ui.ComboBox
 import com.intellij.ui.HoverHyperlinkLabel
 import com.intellij.util.ui.FormBuilder
 import com.intellij.util.ui.ThreeStateCheckBox
 import org.jetbrains.kotlin.cli.common.arguments.*
-import org.jetbrains.kotlin.config.*
+import org.jetbrains.kotlin.config.CompilerSettings
+import org.jetbrains.kotlin.config.createArguments
+import org.jetbrains.kotlin.config.splitArgumentString
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.compiler.configuration.*
-import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
+import org.jetbrains.kotlin.idea.core.util.onTextChange
+import org.jetbrains.kotlin.platform.*
+import org.jetbrains.kotlin.platform.js.isJs
+import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
+import org.jetbrains.kotlin.platform.jvm.isJvm
 import java.awt.BorderLayout
+import java.awt.Component
 import javax.swing.*
 import javax.swing.border.EmptyBorder
-import javax.swing.event.DocumentEvent
+import kotlin.reflect.full.findAnnotation
 
 class KotlinFacetEditorGeneralTab(
-        private val configuration: KotlinFacetConfiguration,
-        private val editorContext: FacetEditorContext,
-        private val validatorsManager: FacetValidatorsManager
+    private val configuration: KotlinFacetConfiguration,
+    private val editorContext: FacetEditorContext,
+    private val validatorsManager: FacetValidatorsManager
 ) : FacetEditorTab() {
+
+    //TODO(auskov): remove this hack as far as inconsistent equals in JdkPlatform is removed
+    // what it actually does: if version of JVM target platform changed the TargetPlatform will
+    // return true because equals in JvmPlatform is declared in the following way:
+    // override fun equals(other: Any?): Boolean = other is JdkPlatform
+    class TargetPlatformWrapper(val targetPlatform: TargetPlatform) {
+
+        override fun equals(other: Any?): Boolean {
+            if (other is TargetPlatformWrapper) {
+                if (this.targetPlatform == other.targetPlatform) {
+                    return if (this.targetPlatform.size == 1) {
+                        this.targetPlatform.componentPlatforms.singleOrNull() === other.targetPlatform.componentPlatforms.singleOrNull()
+                    } else {
+                        true
+                    }
+                }
+            }
+            return false
+        }
+    }
+
     class EditorComponent(
-            private val project: Project,
-            configuration: KotlinFacetConfiguration?
+        private val project: Project,
+        private val configuration: KotlinFacetConfiguration?
     ) : JPanel(BorderLayout()) {
-        private val isMultiEditor = configuration == null
+        private val isMultiEditor: Boolean
+            get() = configuration == null
 
-        var editableCommonArguments: CommonCompilerArguments
-        var editableJvmArguments: K2JVMCompilerArguments
-        var editableJsArguments: K2JSCompilerArguments
-        var editableCompilerSettings: CompilerSettings
+        private lateinit var editableCommonArguments: CommonCompilerArguments
+        private lateinit var editableJvmArguments: K2JVMCompilerArguments
+        private lateinit var editableJsArguments: K2JSCompilerArguments
+        private lateinit var editableCompilerSettings: CompilerSettings
 
-        val compilerConfigurable: KotlinCompilerConfigurableTab
+        lateinit var compilerConfigurable: KotlinCompilerConfigurableTab
+            private set
 
-        init {
+        lateinit var useProjectSettingsCheckBox: ThreeStateCheckBox
+
+        // UI components related to MPP target platforms
+        lateinit var targetPlatformSelectSingleCombobox: ComboBox<TargetPlatformWrapper>
+        lateinit var dependsOnLabel: JLabel
+        lateinit var targetPlatformWrappers: List<TargetPlatformWrapper>
+        lateinit var targetPlatformLabel: JLabel //JTextField?
+        var targetPlatformsCurrentlySelected: TargetPlatform? = null
+
+        private lateinit var projectSettingsLink: HoverHyperlinkLabel
+
+        private fun FormBuilder.addTargetPlatformComponents(): FormBuilder {
+            return if (configuration?.settings?.isHmppEnabled == true) {
+                targetPlatformLabel.toolTipText =
+                    KotlinBundle.message("facet.label.text.the.project.is.imported.from.external.build.system.and.could.not.be.edited")
+                this.addLabeledComponent(
+                    KotlinBundle.message("facet.label.text.selected.target.platforms"), targetPlatformLabel)
+            } else {
+                this.addLabeledComponent(
+                    KotlinBundle.message("facet.label.text.target.platform"), targetPlatformSelectSingleCombobox)
+            }
+        }
+
+        // Fixes sorting of JVM versions.
+        // JVM 1.6, ... JVM 1.8 -> unchanged
+        // JVM 9 -> JVM 1.9
+        // JVM 11.. -> unchanged
+        // As result JVM 1.8 < JVM 1.9 < JVM 11 in UI representation
+        private fun unifyJvmVersion(version: String) = if (version.equals("JVM 9")) "JVM 1.9" else version
+
+        // Returns maxRowsCount for combobox.
+        // Try to show whole the list at one, but do not show more than 15 elements at once. 10 elements returned otherwise
+        private fun targetPlatformsComboboxRowsCount(targetPlatforms: Int) =
+            if (targetPlatforms <= 15) {
+                targetPlatforms
+            } else {
+                10
+            }
+
+        fun initialize() {
             if (isMultiEditor) {
                 editableCommonArguments = object : CommonCompilerArguments() {}
                 editableJvmArguments = K2JVMCompilerArguments()
                 editableJsArguments = K2JSCompilerArguments()
                 editableCompilerSettings = CompilerSettings()
-
-
-            }
-            else {
+            } else {
                 editableCommonArguments = configuration!!.settings.compilerArguments!!
                 editableJvmArguments = editableCommonArguments as? K2JVMCompilerArguments
-                                       ?: Kotlin2JvmCompilerArgumentsHolder.getInstance(project).settings
+                    ?: Kotlin2JvmCompilerArgumentsHolder.getInstance(project).settings.unfrozen() as K2JVMCompilerArguments
                 editableJsArguments = editableCommonArguments as? K2JSCompilerArguments
-                                      ?: Kotlin2JsCompilerArgumentsHolder.getInstance(project).settings
+                    ?: Kotlin2JsCompilerArgumentsHolder.getInstance(project).settings.unfrozen() as K2JSCompilerArguments
                 editableCompilerSettings = configuration.settings.compilerSettings!!
             }
 
             compilerConfigurable = KotlinCompilerConfigurableTab(
-                    project,
-                    editableCommonArguments,
-                    editableJsArguments,
-                    editableJvmArguments,
-                    editableCompilerSettings,
-                    null,
-                    false,
-                    isMultiEditor
+                project,
+                editableCommonArguments,
+                editableJsArguments,
+                editableJvmArguments,
+                editableCompilerSettings,
+                null,
+                false,
+                isMultiEditor
             )
-        }
 
-        val useProjectSettingsCheckBox = ThreeStateCheckBox("Use project settings").apply { isThirdStateEnabled = isMultiEditor }
+            useProjectSettingsCheckBox = ThreeStateCheckBox(KotlinBundle.message("facet.checkbox.text.use.project.settings")).apply { isThirdStateEnabled = isMultiEditor }
+            dependsOnLabel = JLabel()
 
-        val targetPlatformComboBox =
-                JComboBox<TargetPlatformKind<*>>(TargetPlatformKind.ALL_PLATFORMS.toTypedArray()).apply {
-                    setRenderer(DescriptionListCellRenderer())
+            targetPlatformWrappers = CommonPlatforms.allDefaultTargetPlatforms.sortedBy { unifyJvmVersion(it.oldFashionedDescription) }
+                .map { TargetPlatformWrapper(it) }
+            targetPlatformLabel = JLabel() //JTextField()? targetPlatformLabel.isEditable = false
+            targetPlatformSelectSingleCombobox =
+                ComboBox(targetPlatformWrappers.toTypedArray()).apply {
+                    setRenderer(object : DefaultListCellRenderer() {
+                        override fun getListCellRendererComponent(
+                            list: JList<*>?,
+                            value: Any?,
+                            index: Int,
+                            isSelected: Boolean,
+                            cellHasFocus: Boolean
+                        ): Component {
+                            return super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus).apply {
+                                text =
+                                    (value as? TargetPlatformWrapper)?.targetPlatform?.componentPlatforms?.singleOrNull()
+                                        ?.oldFashionedDescription
+                                        ?: KotlinBundle.message("facet.text.multiplatform")
+                            }
+                        }
+                    })
                 }
-
-        private val projectSettingsLink = HoverHyperlinkLabel("Edit project settings").apply {
-            addHyperlinkListener {
-                ShowSettingsUtilImpl.showSettingsDialog(project, compilerConfigurable.id, "")
-                if (useProjectSettingsCheckBox.isSelected) {
-                    updateCompilerConfigurable()
+            targetPlatformSelectSingleCombobox.maximumRowCount =
+                targetPlatformsComboboxRowsCount(targetPlatformWrappers.size)
+            projectSettingsLink = HoverHyperlinkLabel(KotlinBundle.message("facet.link.text.edit.project.settings")).apply {
+                addHyperlinkListener {
+                    ShowSettingsUtilImpl.showSettingsDialog(project, compilerConfigurable.id, "")
+                    if (useProjectSettingsCheckBox.isSelected) {
+                        updateCompilerConfigurable()
+                    }
                 }
             }
-        }
 
-        init {
             val contentPanel = FormBuilder
-                    .createFormBuilder()
-                    .addComponent(JPanel(BorderLayout()).apply {
-                        add(useProjectSettingsCheckBox, BorderLayout.WEST)
-                        add(projectSettingsLink, BorderLayout.EAST)
-                    })
-                    .addLabeledComponent("&Target platform: ", targetPlatformComboBox)
-                    .addComponent(compilerConfigurable.createComponent()!!.apply {
-                        border = null
-                    })
-                    .panel
-                    .apply {
-                        border = EmptyBorder(10, 10, 10, 10)
-                    }
+                .createFormBuilder()
+                .addComponent(JPanel(BorderLayout()).apply {
+                    add(useProjectSettingsCheckBox, BorderLayout.WEST)
+                    add(projectSettingsLink, BorderLayout.EAST)
+                }).addTargetPlatformComponents()
+                .addComponent(dependsOnLabel)
+                .addComponent(compilerConfigurable.createComponent()!!.apply {
+                    border = null
+                })
+                .panel
+                .apply {
+                    border = EmptyBorder(10, 10, 10, 10)
+                }
             add(contentPanel, BorderLayout.NORTH)
 
             useProjectSettingsCheckBox.addActionListener {
                 updateCompilerConfigurable()
             }
-
-            targetPlatformComboBox.addActionListener {
+            targetPlatformSelectSingleCombobox.addActionListener {
                 updateCompilerConfigurable()
             }
         }
 
         internal fun updateCompilerConfigurable() {
             val useProjectSettings = useProjectSettingsCheckBox.isSelected
-            compilerConfigurable.setTargetPlatform(chosenPlatform)
+            compilerConfigurable.setTargetPlatform(getChosenPlatform()?.idePlatformKind)
             compilerConfigurable.setEnabled(!useProjectSettings)
             if (useProjectSettings) {
-                compilerConfigurable.commonCompilerArguments = KotlinCommonCompilerArgumentsHolder.getInstance(project).settings
-                compilerConfigurable.k2jvmCompilerArguments = Kotlin2JvmCompilerArgumentsHolder.getInstance(project).settings
-                compilerConfigurable.k2jsCompilerArguments = Kotlin2JsCompilerArgumentsHolder.getInstance(project).settings
-                compilerConfigurable.compilerSettings = KotlinCompilerSettings.getInstance(project).settings
-            }
-            else {
+                compilerConfigurable.commonCompilerArguments =
+                    KotlinCommonCompilerArgumentsHolder.getInstance(project).settings.unfrozen() as CommonCompilerArguments?
+                compilerConfigurable.k2jvmCompilerArguments =
+                    Kotlin2JvmCompilerArgumentsHolder.getInstance(project).settings.unfrozen() as K2JVMCompilerArguments?
+                compilerConfigurable.k2jsCompilerArguments =
+                    Kotlin2JsCompilerArgumentsHolder.getInstance(project).settings.unfrozen() as K2JSCompilerArguments?
+                compilerConfigurable.compilerSettings = KotlinCompilerSettings.getInstance(project).settings.unfrozen() as CompilerSettings?
+            } else {
                 compilerConfigurable.commonCompilerArguments = editableCommonArguments
                 compilerConfigurable.k2jvmCompilerArguments = editableJvmArguments
                 compilerConfigurable.k2jsCompilerArguments = editableJsArguments
@@ -143,55 +216,67 @@ class KotlinFacetEditorGeneralTab(
             compilerConfigurable.reset()
         }
 
-        val chosenPlatform: TargetPlatformKind<*>?
-            get() = targetPlatformComboBox.selectedItem as TargetPlatformKind<*>?
+        fun getChosenPlatform(): TargetPlatform? {
+            return if (configuration?.settings?.isHmppEnabled == true) {
+                targetPlatformsCurrentlySelected
+            } else {
+                targetPlatformSelectSingleCombobox.selectedItemTyped?.targetPlatform
+            }
+        }
     }
 
     inner class ArgumentConsistencyValidator : FacetEditorValidator() {
         override fun check(): ValidationResult {
-            val platform = editor.targetPlatformComboBox.selectedItem as TargetPlatformKind<*>? ?: return ValidationResult.OK
-            val primaryArguments = platform.createCompilerArguments().apply {
+            val platform = editor.getChosenPlatform() ?: return ValidationResult(
+                KotlinBundle.message("facet.error.text.at.least.one.target.platform.should.be.selected"))
+            val primaryArguments = platform.createArguments {
                 editor.compilerConfigurable.applyTo(
-                        this,
-                        this as? K2JVMCompilerArguments ?: K2JVMCompilerArguments(),
-                        this as? K2JSCompilerArguments ?: K2JSCompilerArguments(),
-                        CompilerSettings()
+                    this,
+                    this as? K2JVMCompilerArguments ?: K2JVMCompilerArguments(),
+                    this as? K2JSCompilerArguments ?: K2JSCompilerArguments(),
+                    CompilerSettings()
                 )
             }
             val argumentClass = primaryArguments.javaClass
             val additionalArguments = argumentClass.newInstance().apply {
-                parseCommandLineArguments(
-                        splitArgumentString(editor.compilerConfigurable.additionalArgsOptionsField.text).toTypedArray(), this
-                )
+                parseCommandLineArguments(splitArgumentString(editor.compilerConfigurable.additionalArgsOptionsField.text), this)
                 validateArguments(errors)?.let { message -> return ValidationResult(message) }
             }
             val emptyArguments = argumentClass.newInstance()
-            val fieldNamesToCheck = when (platform) {
-                is TargetPlatformKind.Jvm -> jvmUIExposedFields
-                is TargetPlatformKind.JavaScript -> jsUIExposedFields
+            val fieldNamesToCheck = when {
+                platform.isJvm() -> jvmUIExposedFields
+                platform.isJs() -> jsUIExposedFields
+                platform.isCommon() -> metadataUIExposedFields
                 else -> commonUIExposedFields
             }
-            val fieldsToCheck = collectFieldsToCopy(argumentClass, false).filter { it.name in fieldNamesToCheck }
+
+            val propertiesToCheck = collectProperties(argumentClass.kotlin, false).filter { it.name in fieldNamesToCheck }
             val overridingArguments = ArrayList<String>()
             val redundantArguments = ArrayList<String>()
-            for (field in fieldsToCheck) {
-                val additionalValue = field[additionalArguments]
-                if (additionalValue != field[emptyArguments]) {
-                    val argumentInfo = field.annotations.firstIsInstanceOrNull<Argument>() ?: continue
-                    val addTo = if (additionalValue != field[primaryArguments]) overridingArguments else redundantArguments
+            for (property in propertiesToCheck) {
+                val additionalValue = property.get(additionalArguments)
+                if (additionalValue != property.get(emptyArguments)) {
+                    val argumentInfo = property.findAnnotation<Argument>() ?: continue
+                    val addTo = if (additionalValue != property.get(primaryArguments)) overridingArguments else redundantArguments
                     addTo += "<strong>" + argumentInfo.value.first() + "</strong>"
                 }
             }
             if (overridingArguments.isNotEmpty() || redundantArguments.isNotEmpty()) {
                 val message = buildString {
                     if (overridingArguments.isNotEmpty()) {
-                        append("Following arguments override facet settings: ${overridingArguments.joinToString()}")
+                        append(
+                            KotlinBundle.message(
+                                "facet.text.following.arguments.override.facet.settings",
+                                overridingArguments.joinToString()
+                            )
+                        )
                     }
                     if (redundantArguments.isNotEmpty()) {
                         if (isNotEmpty()) {
                             append("<br/>")
                         }
-                        append("Following arguments are redundant: ${redundantArguments.joinToString()}")
+                        append(
+                            KotlinBundle.message("facet.text.following.arguments.are.redundant", redundantArguments.joinToString()))
                     }
                 }
                 return ValidationResult(message)
@@ -201,61 +286,19 @@ class KotlinFacetEditorGeneralTab(
         }
     }
 
-    val editor = EditorComponent(editorContext.project, configuration)
-
-    private val libraryValidator: FrameworkLibraryValidator
-    private val coroutineValidator = ArgumentConsistencyValidator()
+    private var isInitialized = false
+    val editor by lazy { EditorComponent(editorContext.project, configuration) }
 
     private var enableValidation = false
 
-    init {
-        libraryValidator = FrameworkLibraryValidatorWithDynamicDescription(
-                DelegatingLibrariesValidatorContext(editorContext),
-                validatorsManager,
-                "kotlin"
-        ) { editor.targetPlatformComboBox.selectedItem as TargetPlatformKind<*> }
-
-        validatorsManager.registerValidator(libraryValidator)
-        validatorsManager.registerValidator(coroutineValidator)
-
+    private fun onLanguageLevelChanged() {
         with(editor.compilerConfigurable) {
-            reportWarningsCheckBox.validateOnChange()
-            additionalArgsOptionsField.textField.validateOnChange()
-            generateSourceMapsCheckBox.validateOnChange()
-            outputPrefixFile.textField.validateOnChange()
-            outputPostfixFile.textField.validateOnChange()
-            outputDirectory.textField.validateOnChange()
-            copyRuntimeFilesCheckBox.validateOnChange()
-            moduleKindComboBox.validateOnChange()
-            languageVersionComboBox.addActionListener {
-                restrictAPIVersions()
-                doValidate()
-            }
-            apiVersionComboBox.validateOnChange()
-            coroutineSupportComboBox.validateOnChange()
-        }
-        editor.targetPlatformComboBox.validateOnChange()
-
-        editor.updateCompilerConfigurable()
-    }
-
-    private fun restrictAPIVersions() {
-        with(editor.compilerConfigurable) {
-            val targetPlatform = editor.targetPlatformComboBox.selectedItem as TargetPlatformKind<*>?
-            val libraryLevel = getLibraryLanguageLevel(editorContext.module, editorContext.rootModel, targetPlatform)
-            val versionUpperBound = minOf(selectedLanguageVersion, libraryLevel)
-            restrictAPIVersions(versionUpperBound)
+            onLanguageLevelChanged(selectedLanguageVersionView)
         }
     }
 
     private fun JTextField.validateOnChange() {
-        document.addDocumentListener(
-                object : DocumentAdapter() {
-                    override fun textChanged(e: DocumentEvent) {
-                        doValidate()
-                    }
-                }
-        )
+        onTextChange { doValidate() }
     }
 
     private fun AbstractButton.validateOnChange() {
@@ -279,52 +322,133 @@ class KotlinFacetEditorGeneralTab(
         }
     }
 
+    fun initializeIfNeeded() {
+        if (isInitialized) return
+
+        editor.initialize()
+
+        for (creator in KotlinFacetValidatorCreator.EP_NAME.getExtensions()) {
+            validatorsManager.registerValidator(creator.create(editor, validatorsManager, editorContext))
+        }
+
+        validatorsManager.registerValidator(ArgumentConsistencyValidator())
+
+        with(editor.compilerConfigurable) {
+            reportWarningsCheckBox.validateOnChange()
+            additionalArgsOptionsField.textField.validateOnChange()
+            generateSourceMapsCheckBox.validateOnChange()
+            outputPrefixFile.textField.validateOnChange()
+            outputPostfixFile.textField.validateOnChange()
+            outputDirectory.textField.validateOnChange()
+            copyRuntimeFilesCheckBox.validateOnChange()
+            moduleKindComboBox.validateOnChange()
+            languageVersionComboBox.addActionListener {
+                onLanguageLevelChanged()
+                doValidate()
+            }
+            apiVersionComboBox.validateOnChange()
+            coroutineSupportComboBox.validateOnChange()
+        }
+        editor.targetPlatformSelectSingleCombobox.validateOnChange()
+
+        editor.updateCompilerConfigurable()
+        isInitialized = true
+
+        reset()
+    }
+
+    override fun onTabEntering() {
+        initializeIfNeeded()
+    }
+
     override fun isModified(): Boolean {
+        if (!isInitialized) return false
         if (editor.useProjectSettingsCheckBox.isSelected != configuration.settings.useProjectSettings) return true
-        if (editor.targetPlatformComboBox.selectedItem != configuration.settings.targetPlatformKind) return true
+        val chosenPlatform = editor.getChosenPlatform()
+        if (chosenPlatform != configuration.settings.targetPlatform) return true
+
+        // work-around for hacked equals in JvmPlatform
+        if (!configuration.settings.isHmppEnabled) {
+            if (configuration.settings.targetPlatform?.let { TargetPlatformWrapper(it) } != editor.targetPlatformSelectSingleCombobox
+                    .selectedItemTyped) {
+                return true
+            }
+        }
+        val chosenSingle = chosenPlatform?.componentPlatforms?.singleOrNull()
+        if (chosenSingle != null && chosenSingle == JvmPlatforms.defaultJvmPlatform) {
+            if (chosenSingle !== configuration.settings.targetPlatform) {
+                return true
+            }
+        }
         return !editor.useProjectSettingsCheckBox.isSelected && editor.compilerConfigurable.isModified
     }
 
     override fun reset() {
+        if (!isInitialized) return
         validateOnce {
             editor.useProjectSettingsCheckBox.isSelected = configuration.settings.useProjectSettings
-            editor.targetPlatformComboBox.selectedItem = configuration.settings.targetPlatformKind
+            editor.targetPlatformsCurrentlySelected = configuration.settings.targetPlatform
+            editor.targetPlatformLabel.text =
+                editor.targetPlatformsCurrentlySelected?.componentPlatforms?.map { it.oldFashionedDescription.trim() }?.joinToString(", ")
+                    ?: "<none>"
+            editor.dependsOnLabel.isVisible = configuration.settings.dependsOnModuleNames.isNotEmpty()
+            editor.dependsOnLabel.text = configuration.settings.dependsOnModuleNames.joinToString(", ", "Depends on: ", ".")
+
+            editor.targetPlatformSelectSingleCombobox.selectedItem = configuration.settings.targetPlatform?.let {
+                val index = editor.targetPlatformWrappers.indexOf(TargetPlatformWrapper(it))
+                if (index >= 0) {
+                    editor.targetPlatformWrappers.get(index)
+                } else {
+                    null
+                }
+            }
             editor.compilerConfigurable.reset()
             editor.updateCompilerConfigurable()
         }
     }
 
     override fun apply() {
+        initializeIfNeeded()
         validateOnce {
             editor.compilerConfigurable.apply()
             with(configuration.settings) {
                 useProjectSettings = editor.useProjectSettingsCheckBox.isSelected
-                (editor.targetPlatformComboBox.selectedItem as TargetPlatformKind<*>?)?.let {
-                    if (it != targetPlatformKind) {
-                        val newCompilerArguments = it.createCompilerArguments()
-                        val platformArguments = when (it) {
-                            is TargetPlatformKind.Jvm -> editor.compilerConfigurable.k2jvmCompilerArguments
-                            is TargetPlatformKind.JavaScript -> editor.compilerConfigurable.k2jsCompilerArguments
+                editor.getChosenPlatform()?.let {
+                    if (it != targetPlatform ||
+                        isModified // work-around due to hacked equals
+                    ) {
+                        val platformArguments = when {
+                            it.isJvm() -> editor.compilerConfigurable.k2jvmCompilerArguments
+                            it.isJs() -> editor.compilerConfigurable.k2jsCompilerArguments
                             else -> null
                         }
-                        if (platformArguments != null) {
-                            mergeBeans(platformArguments, newCompilerArguments)
+                        compilerArguments = it.createArguments {
+                            if (platformArguments != null) {
+                                mergeBeans(platformArguments, this)
+                            }
+                            copyInheritedFields(compilerArguments!!, this)
                         }
-                        copyInheritedFields(compilerArguments!!, newCompilerArguments)
-                        compilerArguments = newCompilerArguments
                     }
                 }
+                configuration.settings.targetPlatform = editor.getChosenPlatform()
+                updateMergedArguments()
             }
         }
     }
 
-    override fun getDisplayName() = "General"
+    override fun getDisplayName() = KotlinBundle.message("facet.name.general")
 
     override fun createComponent(): JComponent {
         return editor
     }
 
     override fun disposeUIResources() {
-        editor.compilerConfigurable.disposeUIResources()
+        if (isInitialized) {
+            editor.compilerConfigurable.disposeUIResources()
+        }
     }
 }
+
+@Suppress("UNCHECKED_CAST")
+val <T> ComboBox<T>.selectedItemTyped: T?
+    get() = selectedItem as T?

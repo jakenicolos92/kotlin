@@ -25,10 +25,13 @@ interface DescriptorsRemapper {
     fun remapDeclaredExternalPackageFragment(descriptor: PackageFragmentDescriptor): PackageFragmentDescriptor = descriptor
     fun remapDeclaredField(descriptor: PropertyDescriptor): PropertyDescriptor = descriptor
     fun remapDeclaredFilePackageFragment(descriptor: PackageFragmentDescriptor): PackageFragmentDescriptor = descriptor
+    fun remapDeclaredProperty(descriptor: PropertyDescriptor): PropertyDescriptor = descriptor
     fun remapDeclaredSimpleFunction(descriptor: FunctionDescriptor): FunctionDescriptor = descriptor
     fun remapDeclaredTypeParameter(descriptor: TypeParameterDescriptor): TypeParameterDescriptor = descriptor
     fun remapDeclaredValueParameter(descriptor: ParameterDescriptor): ParameterDescriptor = descriptor
     fun remapDeclaredVariable(descriptor: VariableDescriptor): VariableDescriptor = descriptor
+    fun remapDeclaredLocalDelegatedProperty(descriptor: VariableDescriptorWithAccessors): VariableDescriptorWithAccessors = descriptor
+    fun remapDeclaredTypeAlias(descriptor: TypeAliasDescriptor): TypeAliasDescriptor = descriptor
 
-    object DEFAULT : DescriptorsRemapper
+    object Default : DescriptorsRemapper
 }

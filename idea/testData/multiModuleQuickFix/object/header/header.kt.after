@@ -1,5 +1,0 @@
-// "Create header class implementation for platform JVM" "true"
-
-header object Object {
-    fun foo(): String
-}

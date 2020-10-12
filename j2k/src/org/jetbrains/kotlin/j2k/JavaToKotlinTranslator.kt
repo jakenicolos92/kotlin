@@ -27,7 +27,7 @@ object JavaToKotlinTranslator {
         return PsiFileFactory.getInstance(project).createFileFromText("test.java", JavaLanguage.INSTANCE, text)
     }
 
-    fun prettify(code: String?): String {
+    private fun prettify(code: String?): String {
         if (code == null) {
             return ""
         }
@@ -45,7 +45,7 @@ object JavaToKotlinTranslator {
     fun generateKotlinCode(javaCode: String, project: Project): String {
         val file = createFile(javaCode, project)
         if (file is PsiJavaFile) {
-            val converter = JavaToKotlinConverter(file.project, ConverterSettings.defaultSettings, EmptyJavaToKotlinServices)
+            val converter = OldJavaToKotlinConverter(file.project, ConverterSettings.defaultSettings, EmptyJavaToKotlinServices)
             return prettify(converter.elementsToKotlin(listOf(file)).results.single()!!.text) //TODO: imports
         }
         return ""

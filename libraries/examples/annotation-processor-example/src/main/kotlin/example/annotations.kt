@@ -16,3 +16,7 @@ annotation class ExampleBinaryAnnotation
 @Inherited
 @Retention(AnnotationRetention.RUNTIME)
 annotation class ExampleRuntimeAnnotation
+
+annotation class GenError
+
+annotation class KotlinFilerGenerated

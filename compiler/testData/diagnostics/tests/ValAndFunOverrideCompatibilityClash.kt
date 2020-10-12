@@ -1,4 +1,5 @@
-
+// FIR_IDENTICAL
+// JAVAC_EXPECTED_FILE
 class Foo1() : java.util.ArrayList<Int>()
 
 open class Bar() {

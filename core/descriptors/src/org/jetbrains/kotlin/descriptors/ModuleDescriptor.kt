@@ -19,11 +19,21 @@ package org.jetbrains.kotlin.descriptors
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.platform.TargetPlatform
 
 interface ModuleDescriptor : DeclarationDescriptor {
     override fun getContainingDeclaration(): DeclarationDescriptor? = null
 
     val builtIns: KotlinBuiltIns
+
+    /**
+     * Stable name of *Kotlin* module. Can be used for ABI (e.g. for mangling of declarations)
+     */
+    val stableName: Name?
+
+    // NB: this field should actually be non-null, but making it so implies a LOT of work, so we postpone it for a moment
+    // TODO: make it non-null
+    val platform: TargetPlatform?
 
     fun shouldSeeInternalsOf(targetModule: ModuleDescriptor): Boolean
 
@@ -40,12 +50,15 @@ interface ModuleDescriptor : DeclarationDescriptor {
      */
     val allDependencyModules: List<ModuleDescriptor>
 
-    // All platform-specific modules depending on common 'this' module (result is empty if this is platform-specific itself)
-    val allImplementingModules: Set<ModuleDescriptor>
+    val expectedByModules: List<ModuleDescriptor>
 
-    fun <T> getCapability(capability: Capability<T>): T?
+    fun <T> getCapability(capability: ModuleCapability<T>): T?
 
     class Capability<T>(val name: String) {
         override fun toString() = name
     }
+
+    val isValid: Boolean
+
+    fun assertValid()
 }

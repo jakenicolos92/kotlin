@@ -1,5 +1,6 @@
+// FIR_IDENTICAL
 // FILE: a.kt
-fun main(args: Array<String>) {}
+fun main() {}
 
 // FILE: b.kt
-fun main(args: Array<String>) {}
+fun main() {}

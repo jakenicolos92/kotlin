@@ -21,7 +21,6 @@
     </inspection_tool>
     <inspection_tool class="BooleanMethodIsAlwaysInverted" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="BusyWait" enabled="true" level="WARNING" enabled_by_default="true" />
-    <inspection_tool class="CStyleArrayDeclaration" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="CastConflictsWithInstanceof" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="CastToIncompatibleInterface" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="ChainedEquality" enabled="false" level="WARNING" enabled_by_default="true" />
@@ -55,9 +54,6 @@
     <inspection_tool class="DoubleCheckedLocking" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="ignoreOnVolatileVariables" value="true" />
     </inspection_tool>
-    <inspection_tool class="DuplicateCondition" enabled="true" level="WARNING" enabled_by_default="true">
-      <option name="ignoreMethodCalls" value="false" />
-    </inspection_tool>
     <inspection_tool class="EmptyStatementBody" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="m_reportEmptyBlocks" value="false" />
     </inspection_tool>
@@ -79,6 +75,7 @@
       <option name="m_ignoreLoopsWithoutConditions" value="false" />
     </inspection_tool>
     <inspection_tool class="ForLoopThatDoesntUseLoopVariable" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="GrPackage" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="HtmlUnknownTag" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="myValues">
         <value>
@@ -98,6 +95,15 @@
       <option name="insideTryAllowed" value="false" />
     </inspection_tool>
     <inspection_tool class="IfStatementWithIdenticalBranches" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="IncompatibleAPI" enabled="true" level="ERROR" enabled_by_default="true">
+      <option name="problems">
+        <list>
+          <Problem reference="com.intellij.util.JdomKt#element" reason="Removed in 191" />
+          <Problem reference="org.jetbrains.kotlin.idea.reporter.ITNReporterCompat#submit" reason="parentComponent is nullable in AS" />
+          <Problem reference="com.intellij.diagnostic.ITNReporter#submit" reason="parentComponent is nullable in AS" />
+        </list>
+      </option>
+    </inspection_tool>
     <inspection_tool class="InnerClassMayBeStatic" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="InstanceofCatchParameter" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="InstanceofIncompatibleInterface" enabled="true" level="WARNING" enabled_by_default="true" />
@@ -235,7 +241,6 @@
       <scope name="idea openapi" level="WARNING" enabled="true" />
       <scope name="runtime.classes" level="ERROR" enabled="true" />
     </inspection_tool>
-    <inspection_tool class="LoopToCallChain" enabled="false" level="INFO" enabled_by_default="false" />
     <inspection_tool class="MethodMayBeStatic" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="m_onlyPrivateOrFinal" value="false" />
       <option name="m_ignoreEmptyMethods" value="true" />
@@ -247,6 +252,10 @@
     <inspection_tool class="MissingOverrideAnnotation" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="ignoreObjectMethods" value="true" />
       <option name="ignoreAnonymousClassMethods" value="false" />
+    </inspection_tool>
+    <inspection_tool class="MissingRecentApi" enabled="true" level="ERROR" enabled_by_default="true">
+      <option name="sinceBuildString" value="183.3284" />
+      <option name="untilBuildString" value="192.SNAPSHOT" />
     </inspection_tool>
     <inspection_tool class="MisspelledCompareTo" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="MisspelledEquals" enabled="true" level="WARNING" enabled_by_default="true" />
@@ -276,11 +285,17 @@
     <inspection_tool class="PackageDirectoryMismatch" enabled="true" level="WARNING" enabled_by_default="false">
       <scope name="all except testData" level="WARNING" enabled="true" />
     </inspection_tool>
+    <inspection_tool class="PackageName" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="namePattern" value="[a-z_][a-z\d_]*(\.[a-z_][a-zA-Z\d_]*)*" />
+    </inspection_tool>
     <inspection_tool class="ProtectedMemberInFinalClass" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="PublicFieldAccessedInSynchronizedContext" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="PyCompatibilityInspection" enabled="true" level="ERROR" enabled_by_default="true">
       <option name="fromVersion" value="2.4" />
       <option name="toVersion" value="3.1" />
+    </inspection_tool>
+    <inspection_tool class="Reformat" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="processChangedFilesOnly" value="true" />
     </inspection_tool>
     <inspection_tool class="ReplaceAssignmentWithOperatorAssignment" enabled="true" level="WARNING" enabled_by_default="true">
       <option name="ignoreLazyOperators" value="true" />
@@ -288,16 +303,11 @@
     </inspection_tool>
     <inspection_tool class="SSBasedInspection" enabled="true" level="WARNING" enabled_by_default="true">
       <searchConfiguration name="SwingUtilities.invokeLater" text="SwingUtilities.invokeLater($runnable$)" recursive="false" caseInsensitive="false" type="JAVA">
-        <constraint name="Instance" regexp="SwingUtilities" minCount="0" target="true" within="" contains="" />
-        <constraint name="MethodCall" within="" contains="" />
-        <constraint name="Parameter" minCount="0" maxCount="2147483647" within="" contains="" />
         <constraint name="__context__" within="" contains="" />
         <constraint name="runnable" within="" contains="" />
       </searchConfiguration>
       <replaceConfiguration name="DirectCallOfDispose" text="$Instance$.dispose()" recursive="false" caseInsensitive="false" type="JAVA" reformatAccordingToStyle="true" shortenFQN="true" replacement="Disposer.dispose($Instance$)">
         <constraint name="Instance" regexp="super" nameOfExprType="Disposable" withinHierarchy="true" exprTypeWithinHierarchy="true" minCount="0" negateName="true" within="" contains="" />
-        <constraint name="MethodCall" target="true" within="" contains="" />
-        <constraint name="Parameter" minCount="0" maxCount="2147483647" within="" contains="" />
         <constraint name="__context__" within="" contains="" />
       </replaceConfiguration>
       <replaceConfiguration name="new Object[0]" text="new Object[0]" recursive="false" caseInsensitive="true" type="JAVA" reformatAccordingToStyle="true" shortenFQN="true" replacement="com.intellij.util.ArrayUtil.EMPTY_OBJECT_ARRAY" />
@@ -361,6 +371,7 @@
     </inspection_tool>
     <inspection_tool class="StringEquality" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="StringEqualsEmptyString" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="StringOperationCanBeSimplifiedMerged" />
     <inspection_tool class="SwitchStatementWithConfusingDeclaration" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="SynchronizeOnThis" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="SystemOutErr" enabled="true" level="WARNING" enabled_by_default="true">
@@ -403,13 +414,30 @@
     <inspection_tool class="UnnecessaryFullyQualifiedName" enabled="true" level="WARNING" enabled_by_default="true">
       <scope name="IDEA Test Sources" level="WARNING" enabled="false">
         <option name="m_ignoreJavadoc" value="true" />
+        <option name="ignoreInModuleStatements" value="true" />
       </scope>
       <option name="m_ignoreJavadoc" value="true" />
+      <option name="ignoreInModuleStatements" value="true" />
     </inspection_tool>
     <inspection_tool class="UnnecessaryLabelOnBreakStatement" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="UnnecessaryLabelOnContinueStatement" enabled="false" level="WARNING" enabled_by_default="false" />
     <inspection_tool class="UnnecessaryQualifierForThis" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="UnnecessaryUnboxing" enabled="false" level="WARNING" enabled_by_default="false" />
+    <inspection_tool class="UnstableApiUsage" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="unstableApiAnnotations">
+        <set>
+          <option value="com.google.common.annotations.Beta" />
+          <option value="io.reactivex.annotations.Beta" />
+          <option value="io.reactivex.annotations.Experimental" />
+          <option value="org.apache.http.annotation.Beta" />
+          <option value="org.jetbrains.annotations.ApiStatus.Experimental" />
+          <option value="org.jetbrains.annotations.ApiStatus.Internal" />
+          <option value="org.jetbrains.annotations.ApiStatus.ScheduledForRemoval" />
+          <option value="rx.annotations.Beta" />
+          <option value="rx.annotations.Experimental" />
+        </set>
+      </option>
+    </inspection_tool>
     <inspection_tool class="UseOfPropertiesAsHashtable" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="UtilityClassWithPublicConstructor" enabled="true" level="WARNING" enabled_by_default="true" />
     <inspection_tool class="VolatileLongOrDoubleField" enabled="true" level="WARNING" enabled_by_default="true" />

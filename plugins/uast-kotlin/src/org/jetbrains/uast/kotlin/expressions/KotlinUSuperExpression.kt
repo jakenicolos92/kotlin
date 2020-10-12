@@ -21,16 +21,18 @@ import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.uast.UElement
 import org.jetbrains.uast.UIdentifier
 import org.jetbrains.uast.USuperExpression
+import org.jetbrains.uast.kotlin.declarations.KotlinUIdentifier
+import org.jetbrains.uast.kotlin.internal.DelegatedMultiResolve
 
 class KotlinUSuperExpression(
-        override val psi: KtSuperExpression,
-        override val uastParent: UElement?
-) : KotlinAbstractUExpression(), USuperExpression, KotlinUElementWithType, KotlinEvaluatableUElement {
+        override val sourcePsi: KtSuperExpression,
+        givenParent: UElement?
+) : KotlinAbstractUExpression(givenParent), USuperExpression, DelegatedMultiResolve, KotlinUElementWithType, KotlinEvaluatableUElement {
     override val label: String?
-        get() = psi.getLabelName()
+        get() = sourcePsi.getLabelName()
 
     override val labelIdentifier: UIdentifier?
-        get() = psi.getTargetLabel()?.let { UIdentifier(it, this) }
+        get() = sourcePsi.getTargetLabel()?.let { KotlinUIdentifier(it, this) }
 
-    override fun resolve() = psi.analyze()[BindingContext.LABEL_TARGET, psi.getTargetLabel()]
+    override fun resolve() = sourcePsi.analyze()[BindingContext.LABEL_TARGET, sourcePsi.getTargetLabel()]
 }

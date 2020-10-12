@@ -1,3 +1,5 @@
+// !LANGUAGE: -ProhibitVisibilityOfNestedClassifiersFromSupertypesOfCompanion
+
 open class A {
     inner class B {
         fun foo() {}
@@ -28,16 +30,16 @@ class E: A() {
         B().<!UNRESOLVED_REFERENCE!>bar<!>()
 
         D()
-        C()
+        <!DEPRECATED_ACCESS_BY_SHORT_NAME!>C()<!>
     }
 
     object Z {
         init {
-            <!RESOLUTION_TO_CLASSIFIER!>B<!>().<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>foo<!>()
-            <!RESOLUTION_TO_CLASSIFIER!>B<!>().<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>bar<!>()
+            <!RESOLUTION_TO_CLASSIFIER!>B<!>().<!DEBUG_INFO_MISSING_UNRESOLVED!>foo<!>()
+            <!RESOLUTION_TO_CLASSIFIER!>B<!>().<!DEBUG_INFO_MISSING_UNRESOLVED!>bar<!>()
 
             <!RESOLUTION_TO_CLASSIFIER!>D<!>()
-            C()
+            <!DEPRECATED_ACCESS_BY_SHORT_NAME!>C()<!>
         }
     }
 }
@@ -58,7 +60,7 @@ class F: A() {
     companion object {
         init {
             B().fas()
-            <!RESOLUTION_TO_CLASSIFIER!>D<!>().<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>f<!>()
+            <!RESOLUTION_TO_CLASSIFIER!>D<!>().<!DEBUG_INFO_MISSING_UNRESOLVED!>f<!>()
         }
     }
 }

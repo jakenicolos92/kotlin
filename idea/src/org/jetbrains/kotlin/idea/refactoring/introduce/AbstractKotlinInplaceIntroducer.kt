@@ -24,23 +24,23 @@ import com.intellij.refactoring.introduce.inplace.AbstractInplaceIntroducer
 import com.intellij.refactoring.rename.inplace.InplaceRefactoring
 import com.intellij.util.ui.FormBuilder
 import org.jetbrains.kotlin.idea.KotlinFileType
-import org.jetbrains.kotlin.idea.core.KotlinNameSuggester
-import org.jetbrains.kotlin.idea.core.quoteIfNeeded
 import org.jetbrains.kotlin.idea.core.replaced
 import org.jetbrains.kotlin.idea.util.application.executeWriteCommand
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.getNonStrictParentOfType
 import org.jetbrains.kotlin.psi.psiUtil.getParentOfTypeAndBranch
+import org.jetbrains.kotlin.psi.psiUtil.isIdentifier
+import org.jetbrains.kotlin.psi.psiUtil.quoteIfNeeded
 import java.awt.BorderLayout
 
-abstract class AbstractKotlinInplaceIntroducer<D: KtNamedDeclaration>(
-        localVariable: D?,
-        expression: KtExpression?,
-        occurrences: Array<KtExpression>,
-        title: String,
-        project: Project,
-        editor: Editor
-): AbstractInplaceIntroducer<D, KtExpression>(project, editor, expression, localVariable, occurrences, title, KotlinFileType.INSTANCE) {
+abstract class AbstractKotlinInplaceIntroducer<D : KtNamedDeclaration>(
+    localVariable: D?,
+    expression: KtExpression?,
+    occurrences: Array<KtExpression>,
+    title: String,
+    project: Project,
+    editor: Editor
+) : AbstractInplaceIntroducer<D, KtExpression>(project, editor, expression, localVariable, occurrences, title, KotlinFileType.INSTANCE) {
     protected fun initFormComponents(init: FormBuilder.() -> Unit) {
         myWholePanel.layout = BorderLayout()
 
@@ -58,15 +58,14 @@ abstract class AbstractKotlinInplaceIntroducer<D: KtNamedDeclaration>(
             // myExprMarker was invalidated by stopIntroduce()
             myExprMarker = myExpr?.let { createMarker(it) }
             startInplaceIntroduceTemplate()
-        }
-        finally {
+        } finally {
             myEditor.putUserData(InplaceRefactoring.INTRODUCE_RESTART, false)
         }
     }
 
     protected fun updateVariableName() {
         val currentName = inputName.quoteIfNeeded()
-        if (KotlinNameSuggester.isIdentifier(currentName)) {
+        if (currentName.isIdentifier()) {
             localVariable.setName(currentName)
         }
     }
@@ -74,10 +73,10 @@ abstract class AbstractKotlinInplaceIntroducer<D: KtNamedDeclaration>(
     override fun getActionName(): String? = null
 
     override fun restoreExpression(
-            containingFile: PsiFile,
-            declaration: D,
-            marker: RangeMarker,
-            exprText: String?
+        containingFile: PsiFile,
+        declaration: D,
+        marker: RangeMarker,
+        exprText: String?
     ): KtExpression? {
         if (exprText == null || !declaration.isValid) return null
 
@@ -89,8 +88,8 @@ abstract class AbstractKotlinInplaceIntroducer<D: KtNamedDeclaration>(
 
         val occurrenceExprText = (myExpr as? KtProperty)?.name ?: exprText
         return leaf
-                .getNonStrictParentOfType<KtSimpleNameExpression>()
-                ?.replaced(KtPsiFactory(myProject).createExpression(occurrenceExprText))
+            .getNonStrictParentOfType<KtSimpleNameExpression>()
+            ?.replaced(KtPsiFactory(myProject).createExpression(occurrenceExprText))
     }
 
     override fun updateTitle(declaration: D?) = updateTitle(declaration, null)

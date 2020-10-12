@@ -18,8 +18,8 @@ package org.jetbrains.kotlin.idea.inspections
 
 import com.intellij.codeInspection.IntentionWrapper
 import com.intellij.codeInspection.LocalQuickFix
-import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ui.MultipleCheckboxOptionsPanel
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.intentions.SpecifyTypeExplicitlyIntention
 import org.jetbrains.kotlin.idea.intentions.isFlexibleRecursive
 import org.jetbrains.kotlin.idea.quickfix.AddExclExclCallFix
@@ -30,29 +30,34 @@ import org.jetbrains.kotlin.types.TypeUtils
 import javax.swing.JComponent
 
 class HasPlatformTypeInspection(
-        @JvmField var publicAPIOnly: Boolean = true,
-        @JvmField var reportPlatformArguments: Boolean = false
-) : IntentionBasedInspection<KtCallableDeclaration>(
-        SpecifyTypeExplicitlyIntention::class,
-        { element, inspection ->
-            with(inspection as HasPlatformTypeInspection) {
-                SpecifyTypeExplicitlyIntention.dangerousFlexibleTypeOrNull(element, this.publicAPIOnly, this.reportPlatformArguments) != null
-            }
+    @JvmField var publicAPIOnly: Boolean = true,
+    @JvmField var reportPlatformArguments: Boolean = false
+) : AbstractImplicitTypeInspection(
+    { element, inspection ->
+        with(inspection as HasPlatformTypeInspection) {
+            SpecifyTypeExplicitlyIntention.dangerousFlexibleTypeOrNull(
+                element,
+                this.publicAPIOnly,
+                this.reportPlatformArguments
+            ) != null
         }
+    }
 ) {
 
-    override fun problemHighlightType(element: KtCallableDeclaration) = ProblemHighlightType.WEAK_WARNING
-
-    override val problemText = "Declaration has type inferred from a platform call, which can lead to unchecked nullability issues. " +
-                               "Specify type explicitly as nullable or non-nullable."
+    override val problemText = KotlinBundle.message(
+        "declaration.has.type.inferred.from.a.platform.call.which.can.lead.to.unchecked.nullability.issues"
+    )
 
     override fun additionalFixes(element: KtCallableDeclaration): List<LocalQuickFix>? {
-        val type = SpecifyTypeExplicitlyIntention.dangerousFlexibleTypeOrNull(element, publicAPIOnly, reportPlatformArguments) ?: return null
+        val type = SpecifyTypeExplicitlyIntention.dangerousFlexibleTypeOrNull(
+            element, publicAPIOnly, reportPlatformArguments
+        ) ?: return null
 
         if (TypeUtils.isNullableType(type)) {
             val expression = element.node.findChildByType(KtTokens.EQ)?.psi?.getNextSiblingIgnoringWhitespaceAndComments()
             if (expression != null &&
-                (!reportPlatformArguments || !TypeUtils.makeNotNullable(type).isFlexibleRecursive())) {
+                (!reportPlatformArguments || !TypeUtils.makeNotNullable(type).isFlexibleRecursive())
+            ) {
                 return listOf(IntentionWrapper(AddExclExclCallFix(expression), element.containingFile))
             }
         }
@@ -60,12 +65,10 @@ class HasPlatformTypeInspection(
         return null
     }
 
-    override fun inspectionTarget(element: KtCallableDeclaration) = element.nameIdentifier
-
     override fun createOptionsPanel(): JComponent? {
         val panel = MultipleCheckboxOptionsPanel(this)
-        panel.addCheckbox("Apply only to public or protected members", "publicAPIOnly")
-        panel.addCheckbox("Report for types with platform arguments", "reportPlatformArguments")
+        panel.addCheckbox(KotlinBundle.message("apply.only.to.public.or.protected.members"), "publicAPIOnly")
+        panel.addCheckbox(KotlinBundle.message("report.for.types.with.platform.arguments"), "reportPlatformArguments")
         return panel
     }
 }

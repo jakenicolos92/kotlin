@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.js.naming
 
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+import org.jetbrains.kotlin.builtins.isSuspendFunctionType
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.resolve.DescriptorUtils
 import org.jetbrains.kotlin.types.KotlinType
@@ -32,7 +33,8 @@ fun encodeSignature(descriptor: CallableDescriptor): String {
     val usedTypeParameters = currentParameters.toMutableSet()
     val typeParameterNamer = { typeParameter: TypeParameterDescriptor ->
         usedTypeParameters += typeParameter.original
-        typeParameterNames[typeParameter.original]!!
+        typeParameterNames[typeParameter.original]
+            ?: error("${typeParameter.original} is not found when encode the signature of $descriptor.")
     }
 
     val receiverParameter = descriptor.extensionReceiverParameter
@@ -80,7 +82,11 @@ private fun StringBuilder.encodeForSignature(
         return append(typeParameterNamer(declaration))
     }
 
-    append(DescriptorUtils.getFqName(declaration).asString())
+    if (type.isSuspendFunctionType) {
+        append(DescriptorUtils.getFqName(declaration).asString().replace("kotlin.coroutines.SuspendFunction", "kotlin.SuspendFunction"))
+    } else {
+        append(DescriptorUtils.getFqName(declaration).asString())
+    }
 
     val parameters = declaration.typeConstructor.parameters
     if (type.arguments.isNotEmpty() && parameters.isNotEmpty()) {
@@ -106,8 +112,8 @@ private fun StringBuilder.encodeForSignature(
         parameter: TypeParameterDescriptor,
         typeParameterNamer: (TypeParameterDescriptor) -> String
 ): StringBuilder {
-    if (projection.isStarProjection) {
-        return append("*")
+    return if (projection.isStarProjection) {
+        append("*")
     }
     else {
         when (getEffectiveVariance(parameter.variance, projection.projectionKind)) {
@@ -115,7 +121,7 @@ private fun StringBuilder.encodeForSignature(
             Variance.OUT_VARIANCE -> append("+")
             Variance.INVARIANT -> {}
         }
-        return encodeForSignature(projection.type, typeParameterNamer)
+        encodeForSignature(projection.type, typeParameterNamer)
     }
 }
 

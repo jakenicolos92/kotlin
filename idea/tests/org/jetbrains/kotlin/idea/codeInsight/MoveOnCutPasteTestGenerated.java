@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.codeInsight;
@@ -19,7 +8,6 @@ package org.jetbrains.kotlin.idea.codeInsight;
 import com.intellij.testFramework.TestDataPath;
 import org.jetbrains.kotlin.test.JUnit3RunnerWithInners;
 import org.jetbrains.kotlin.test.KotlinTestUtils;
-import org.jetbrains.kotlin.test.TargetBackend;
 import org.jetbrains.kotlin.test.TestMetadata;
 import org.junit.runner.RunWith;
 
@@ -32,31 +20,51 @@ import java.util.regex.Pattern;
 @TestDataPath("$PROJECT_ROOT")
 @RunWith(JUnit3RunnerWithInners.class)
 public class MoveOnCutPasteTestGenerated extends AbstractMoveOnCutPasteTest {
+    private void runTest(String testDataFilePath) throws Exception {
+        KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
+    }
+
     public void testAllFilesPresentInMoveDeclarations() throws Exception {
-        KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("idea/testData/copyPaste/moveDeclarations"), Pattern.compile("^([^.]+)\\.kt$"), TargetBackend.ANY, true);
+        KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("idea/testData/copyPaste/moveDeclarations"), Pattern.compile("^([^.]+)\\.kt$"), null, true);
     }
 
     @TestMetadata("ChangePackage.kt")
     public void testChangePackage() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/copyPaste/moveDeclarations/ChangePackage.kt");
-        doTest(fileName);
+        runTest("idea/testData/copyPaste/moveDeclarations/ChangePackage.kt");
     }
 
     @TestMetadata("Copy.kt")
     public void testCopy() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/copyPaste/moveDeclarations/Copy.kt");
-        doTest(fileName);
+        runTest("idea/testData/copyPaste/moveDeclarations/Copy.kt");
+    }
+
+    @TestMetadata("FromAnonymousObject.kt")
+    public void testFromAnonymousObject() throws Exception {
+        runTest("idea/testData/copyPaste/moveDeclarations/FromAnonymousObject.kt");
+    }
+
+    @TestMetadata("FromCompanionObjectToTopLevel.kt")
+    public void testFromCompanionObjectToTopLevel() throws Exception {
+        runTest("idea/testData/copyPaste/moveDeclarations/FromCompanionObjectToTopLevel.kt");
+    }
+
+    @TestMetadata("FromObjectToSameFile.kt")
+    public void testFromObjectToSameFile() throws Exception {
+        runTest("idea/testData/copyPaste/moveDeclarations/FromObjectToSameFile.kt");
+    }
+
+    @TestMetadata("FromObjectToTopLevel.kt")
+    public void testFromObjectToTopLevel() throws Exception {
+        runTest("idea/testData/copyPaste/moveDeclarations/FromObjectToTopLevel.kt");
     }
 
     @TestMetadata("OptimizeImportsAfterCut.kt")
     public void testOptimizeImportsAfterCut() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/copyPaste/moveDeclarations/OptimizeImportsAfterCut.kt");
-        doTest(fileName);
+        runTest("idea/testData/copyPaste/moveDeclarations/OptimizeImportsAfterCut.kt");
     }
 
     @TestMetadata("SamePackage.kt")
     public void testSamePackage() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/copyPaste/moveDeclarations/SamePackage.kt");
-        doTest(fileName);
+        runTest("idea/testData/copyPaste/moveDeclarations/SamePackage.kt");
     }
 }

@@ -1,3 +1,6 @@
+// FIR_IDENTICAL
+// NI_EXPECTED_FILE
+
 interface In<in E>
 class A : In<A>
 class B : In<B>

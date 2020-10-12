@@ -1,26 +1,14 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.core
 
-import org.jetbrains.kotlin.builtins.DefaultBuiltIns
+import org.jetbrains.kotlin.builtins.jvm.JavaToKotlinClassMap
 import org.jetbrains.kotlin.idea.util.ImportInsertHelper
 import org.jetbrains.kotlin.load.java.components.JavaAnnotationMapper
 import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.platform.JavaToKotlinClassMap
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.resolve.ImportPath
 import java.util.*
@@ -35,14 +23,13 @@ class ImportableFqNameClassifier(private val file: KtFile) {
         for (import in file.importDirectives) {
             val importPath = import.importPath ?: continue
             val fqName = importPath.fqName
-            if (importPath.isAllUnder) {
-                allUnderImports.add(fqName)
-            }
-            else if (!importPath.hasAlias()) {
-                preciseImports.add(fqName)
-                preciseImportPackages.add(fqName.parent())
-            } else {
-                excludedImports.add(fqName)
+            when {
+                importPath.isAllUnder -> allUnderImports.add(fqName)
+                !importPath.hasAlias() -> {
+                    preciseImports.add(fqName)
+                    preciseImportPackages.add(fqName.parent())
+                }
+                else -> excludedImports.add(fqName)
                 // TODO: support aliased imports in completion
             }
         }
@@ -92,5 +79,5 @@ class ImportableFqNameClassifier(private val file: KtFile) {
     private fun hasPreciseImportFromPackage(packageName: FqName) = packageName in preciseImportPackages
 }
 
-fun isJavaClassNotToBeUsedInKotlin(fqName: FqName): Boolean
-        = JavaToKotlinClassMap.isJavaPlatformClass(fqName) || JavaAnnotationMapper.javaToKotlinNameMap[fqName] != null
+fun isJavaClassNotToBeUsedInKotlin(fqName: FqName): Boolean =
+    JavaToKotlinClassMap.isJavaPlatformClass(fqName) || JavaAnnotationMapper.javaToKotlinNameMap[fqName] != null

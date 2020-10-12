@@ -19,6 +19,7 @@ public final class C : java.util.ArrayList<kotlin.String?> {
     invisible_fake open override /*1*/ /*fake_override*/ fun elementData(/*0*/ p0: kotlin.Int): kotlin.String?
     public open override /*1*/ /*fake_override*/ fun ensureCapacity(/*0*/ p0: kotlin.Int): kotlin.Unit
     invisible_fake open override /*1*/ /*fake_override*/ fun ensureCapacityInternal(/*0*/ p0: kotlin.Int): kotlin.Unit
+    invisible_fake open override /*1*/ /*fake_override*/ fun ensureExplicitCapacity(/*0*/ p0: kotlin.Int): kotlin.Unit
     invisible_fake open override /*1*/ /*fake_override*/ fun fastRemove(/*0*/ p0: kotlin.Int): kotlin.Unit
     public open override /*1*/ /*fake_override*/ fun get(/*0*/ index: kotlin.Int): kotlin.String?
     invisible_fake open override /*1*/ /*fake_override*/ fun grow(/*0*/ p0: kotlin.Int): kotlin.Unit

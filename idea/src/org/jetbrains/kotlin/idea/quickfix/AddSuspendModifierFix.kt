@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.quickfix
@@ -19,30 +8,60 @@ package org.jetbrains.kotlin.idea.quickfix
 import com.intellij.codeInsight.intention.IntentionAction
 import org.jetbrains.kotlin.builtins.isFunctionType
 import org.jetbrains.kotlin.cfg.pseudocode.containingDeclarationForPseudocode
+import org.jetbrains.kotlin.codegen.inline.isInlineOrInsideInline
 import org.jetbrains.kotlin.descriptors.ValueDescriptor
 import org.jetbrains.kotlin.diagnostics.Diagnostic
-import org.jetbrains.kotlin.idea.caches.resolve.analyze
+import org.jetbrains.kotlin.idea.KotlinBundle
+import org.jetbrains.kotlin.idea.caches.resolve.resolveToCall
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.*
-import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
 import org.jetbrains.kotlin.resolve.DescriptorToSourceUtils
-import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 
-class AddSuspendModifierFix(element: KtModifierListOwner, private val name: String?): AddModifierFix(element, KtTokens.SUSPEND_KEYWORD) {
+class AddSuspendModifierFix(
+    element: KtModifierListOwner,
+    private val declarationName: String?
+) : AddModifierFix(element, KtTokens.SUSPEND_KEYWORD) {
 
-    override fun getText() =
-            when (element) {
-                is KtNamedFunction -> "Make ${name ?: "containing function"} suspend"
-                is KtTypeReference -> "Make ${name ?: "receiver"} type suspend"
-                else -> super.getText()
+    override fun getText() = when (element) {
+        is KtNamedFunction -> {
+            if (declarationName != null) {
+                KotlinBundle.message("fix.add.suspend.modifier.function", declarationName)
+            } else {
+                KotlinBundle.message("fix.add.suspend.modifier.function.generic")
             }
+        }
+        is KtTypeReference -> {
+            if (declarationName != null) {
+                KotlinBundle.message("fix.add.suspend.modifier.receiver", declarationName)
+            } else {
+                KotlinBundle.message("fix.add.suspend.modifier.receiver.generic")
+            }
+        }
+        else -> super.getText()
+    }
 
     companion object : KotlinSingleIntentionActionFactory() {
         override fun createAction(diagnostic: Diagnostic): IntentionAction? {
-            val element = diagnostic.psiElement
-            val function = (element as? KtElement)?.containingDeclarationForPseudocode as? KtNamedFunction ?: return null
+            val element = diagnostic.psiElement as? KtElement ?: return null
+            val function = element.containingFunction() ?: return null
+            val functionName = function.name ?: return null
 
-            return AddSuspendModifierFix(function, function.name)
+            return AddSuspendModifierFix(function, functionName)
+        }
+
+        private fun KtElement.containingFunction(): KtNamedFunction? {
+            val containingDeclaration = containingDeclarationForPseudocode
+            return if (containingDeclaration is KtFunctionLiteral) {
+                val call = containingDeclaration.getStrictParentOfType<KtCallExpression>()
+                if (call?.resolveToCall()?.resultingDescriptor?.isInlineOrInsideInline() == true) {
+                    containingDeclaration.containingFunction()
+                } else {
+                    null
+                }
+            } else {
+                containingDeclaration as? KtNamedFunction
+            }
         }
     }
 
@@ -59,11 +78,10 @@ class AddSuspendModifierFix(element: KtModifierListOwner, private val name: Stri
             if (callParent !== qualifiedGrandParent.selectorExpression || refExpr !== callParent.calleeExpression) return null
             val receiver = qualifiedGrandParent.receiverExpression as? KtNameReferenceExpression ?: return null
 
-            val context = receiver.analyze(BodyResolveMode.PARTIAL)
-            val receiverDescriptor = context[BindingContext.REFERENCE_TARGET, receiver] as? ValueDescriptor ?: return null
+            val receiverDescriptor = receiver.resolveToCall()?.resultingDescriptor as? ValueDescriptor ?: return null
             if (!receiverDescriptor.type.isFunctionType) return null
             val declaration = DescriptorToSourceUtils.descriptorToDeclaration(receiverDescriptor) as? KtCallableDeclaration
-                              ?: return null
+                ?: return null
             if (declaration is KtFunction) return null
             val variableTypeReference = declaration.typeReference ?: return null
 

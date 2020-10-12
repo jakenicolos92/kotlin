@@ -1,36 +1,41 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.android.inspection
 
-import com.intellij.codeInsight.FileModificationService
-import com.intellij.codeInspection.*
-import com.intellij.ide.DataManager
+import com.android.builder.model.AndroidProject.ARTIFACT_UNIT_TEST
+import com.android.tools.idea.AndroidPsiUtils
+import com.android.tools.idea.gradle.project.model.AndroidModuleModel
+import com.intellij.codeInspection.LocalInspectionToolSession
+import com.intellij.codeInspection.ProblemHighlightType
+import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.project.Project
+import com.intellij.openapi.module.Module
+import com.intellij.openapi.roots.ProjectRootModificationTracker
+import com.intellij.openapi.util.Key
+import com.intellij.openapi.util.SystemInfo
+import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
-import com.intellij.refactoring.rename.RenameHandlerRegistry
+import com.intellij.psi.util.CachedValuesManager
+import org.jetbrains.android.facet.AndroidFacet
 import org.jetbrains.kotlin.android.getAndroidFacetForFile
 import org.jetbrains.kotlin.idea.inspections.AbstractKotlinInspection
+import org.jetbrains.kotlin.idea.quickfix.RenameIdentifierFix
 import org.jetbrains.kotlin.lexer.KtTokens
-import org.jetbrains.kotlin.psi.*
+import org.jetbrains.kotlin.psi.KtPsiUtil
+import org.jetbrains.kotlin.psi.KtVisitorVoid
+import org.jetbrains.kotlin.resolve.jvm.checkers.isValidDalvikIdentifier
+import java.io.File
 
 class IllegalIdentifierInspection : AbstractKotlinInspection() {
+    private class JunitPaths(val paths: List<File>, val generationId: Long) {
+        companion object : Key<JunitPaths>("AndroidModuleJunitPaths")
+    }
+
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean, session: LocalInspectionToolSession): PsiElementVisitor {
         return object : KtVisitorVoid() {
             override fun visitElement(element: PsiElement) {
@@ -44,55 +49,59 @@ class IllegalIdentifierInspection : AbstractKotlinInspection() {
                 // This is already an error
                 if (unquotedName.isEmpty()) return
 
-                if (!unquotedName.all { isValidDalvikCharacter(it) } && checkAndroidFacet(element)) {
-                    holder.registerProblem(element,
-                                           "Identifier not allowed in Android projects",
-                                           ProblemHighlightType.GENERIC_ERROR,
-                                           RenameIdentifierFix())
+                if (!isValidDalvikIdentifier(unquotedName) && checkAndroidFacet(element)) {
+                    if (element.isInUnitTests()) {
+                        return
+                    }
+
+                    holder.registerProblem(
+                        element,
+                        "Identifier not allowed in Android projects",
+                        ProblemHighlightType.GENERIC_ERROR,
+                        RenameIdentifierFix()
+                    )
                 }
             }
 
-            fun checkAndroidFacet(element: PsiElement): Boolean {
-                return element.getAndroidFacetForFile() != null || ApplicationManager.getApplication().isUnitTestMode
+            private fun PsiElement.isInUnitTests(): Boolean {
+                val containingFile = containingFile?.virtualFile?.let { getIoFile(it) }
+                val module = AndroidPsiUtils.getModuleSafely(this)
+
+                if (module != null && containingFile != null) {
+                    val currentGenerationId = ProjectRootModificationTracker.getInstance(module.project).modificationCount
+                    val junitTestPaths = module.getUserData(JunitPaths)
+                        ?.takeIf { it.generationId == currentGenerationId }
+                        ?: JunitPaths(getJunitTestPaths(module), currentGenerationId).also { module.putUserData(JunitPaths, it) }
+
+                    if (junitTestPaths.paths.any { containingFile.startsWith(it) }) {
+                        return true
+                    }
+                }
+
+                return false
             }
 
-            // https://source.android.com/devices/tech/dalvik/dex-format.html#string-syntax
-            fun isValidDalvikCharacter(c: Char) = when (c) {
-                in 'A'..'Z' -> true
-                in 'a'..'z' -> true
-                in '0'..'9' -> true
-                '$', '-', '_' -> true
-                in '\u00a1' .. '\u1fff' -> true
-                in '\u2010' .. '\u2027' -> true
-                in '\u2030' .. '\ud7ff' -> true
-                in '\ue000' .. '\uffef' -> true
-                else -> false
+            private fun checkAndroidFacet(element: PsiElement): Boolean {
+                return element.getAndroidFacetForFile() != null || ApplicationManager.getApplication().isUnitTestMode
             }
         }
     }
 
-    class RenameIdentifierFix : LocalQuickFix {
-        override fun getName() = "Rename"
-        override fun getFamilyName() = name
+    private fun getJunitTestPaths(module: Module): List<File> {
+        val androidFacet = AndroidFacet.getInstance(module) ?: return emptyList()
+        val androidModuleModel = AndroidModuleModel.get(androidFacet) ?: return emptyList()
 
-        override fun startInWriteAction(): Boolean = false
+        return androidModuleModel.getTestSourceProviders(ARTIFACT_UNIT_TEST).flatMap { it.javaDirectories }
+    }
 
-        override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-            val element = descriptor.psiElement ?: return
-            val file = element.containingFile ?: return
-            if (!FileModificationService.getInstance().prepareFileForWrite(file)) return
-            val editorManager = FileEditorManager.getInstance(project)
-            val fileEditor = editorManager.getSelectedEditor(file.virtualFile) ?: return
-            val dataContext = DataManager.getInstance().getDataContext(fileEditor.component)
-            val renameHandler = RenameHandlerRegistry.getInstance().getRenameHandler(dataContext)
+    private fun getIoFile(virtualFile: VirtualFile): File? {
+        var path = virtualFile.path
 
-            val editor = editorManager.selectedTextEditor
-            if (editor != null) {
-                renameHandler?.invoke(project, editor, file, dataContext)
-            }
-            else {
-                renameHandler?.invoke(project, arrayOf(element.parent), dataContext)
-            }
+        // Taken from LocalFileSystemBase.convertToIOFile
+        if (StringUtil.endsWithChar(path, ':') && path.length == 2 && SystemInfo.isWindows) {
+            path += "/"
         }
+
+        return File(path).takeIf { it.exists() }
     }
 }

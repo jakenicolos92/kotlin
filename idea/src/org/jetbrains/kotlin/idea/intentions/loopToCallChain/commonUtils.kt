@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.intentions.loopToCallChain
@@ -22,6 +11,7 @@ import com.intellij.psi.search.searches.ReferencesSearch
 import org.jetbrains.kotlin.KtNodeTypes
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.idea.caches.resolve.analyze
+import org.jetbrains.kotlin.idea.caches.resolve.resolveToCall
 import org.jetbrains.kotlin.idea.imports.importableFqName
 import org.jetbrains.kotlin.idea.references.KtSimpleNameReference
 import org.jetbrains.kotlin.idea.references.mainReference
@@ -34,7 +24,6 @@ import org.jetbrains.kotlin.psi.psiUtil.getQualifiedExpressionForSelector
 import org.jetbrains.kotlin.psi.psiUtil.parents
 import org.jetbrains.kotlin.psi.psiUtil.siblings
 import org.jetbrains.kotlin.resolve.BindingContext
-import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
 import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator
 import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstance
@@ -45,11 +34,9 @@ fun KtExpression.isConstant(): Boolean {
     return ConstantExpressionEvaluator.getConstant(this, bindingContext) != null
 }
 
-fun KtExpression?.isTrueConstant()
-        = this != null && node?.elementType == KtNodeTypes.BOOLEAN_CONSTANT && text == "true"
+fun KtExpression?.isTrueConstant() = this != null && node?.elementType == KtNodeTypes.BOOLEAN_CONSTANT && text == "true"
 
-fun KtExpression?.isFalseConstant()
-        = this != null && node?.elementType == KtNodeTypes.BOOLEAN_CONSTANT && text == "false"
+fun KtExpression?.isFalseConstant() = this != null && node?.elementType == KtNodeTypes.BOOLEAN_CONSTANT && text == "false"
 
 private val ZERO_VALUES = setOf(0, 0L, 0f, 0.0)
 
@@ -135,12 +122,11 @@ fun KtCallableDeclaration.hasDifferentSetsOfUsages(elements1: Collection<KtEleme
 
 fun KtExpressionWithLabel.targetLoop(): KtLoopExpression? {
     val label = getTargetLabel()
-    if (label == null) {
-        return parents.firstIsInstance<KtLoopExpression>()
-    }
-    else {
+    return if (label == null) {
+        parents.firstIsInstance<KtLoopExpression>()
+    } else {
         //TODO: does PARTIAL always work here?
-        return analyze(BodyResolveMode.PARTIAL)[BindingContext.LABEL_TARGET, label] as? KtLoopExpression
+        analyze(BodyResolveMode.PARTIAL)[BindingContext.LABEL_TARGET, label] as? KtLoopExpression
     }
 }
 
@@ -190,8 +176,7 @@ fun KtExpression?.extractStaticFunctionCallArguments(functionFqName: String): Li
         else -> null
     } ?: return null
 
-    val bindingContext = callExpression.analyze(BodyResolveMode.PARTIAL)
-    val resolvedCall = callExpression.getResolvedCall(bindingContext) ?: return null
+    val resolvedCall = callExpression.resolveToCall() ?: return null
     val functionDescriptor = resolvedCall.resultingDescriptor as? FunctionDescriptor ?: return null
     if (functionDescriptor.dispatchReceiverParameter != null || functionDescriptor.extensionReceiverParameter != null) return null
     if (functionDescriptor.importableFqName?.asString() != functionFqName) return null

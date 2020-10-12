@@ -24,7 +24,9 @@ import org.jetbrains.org.objectweb.asm.Opcodes;
 import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter;
 import org.jetbrains.org.objectweb.asm.tree.FieldInsnNode;
 
-public class RemapVisitor extends MethodBodyVisitor {
+import static org.jetbrains.kotlin.codegen.inline.InlineCodegenUtilsKt.CAPTURED_FIELD_FOLD_PREFIX;
+
+public class RemapVisitor extends SkipMaxAndEndVisitor {
     private final LocalVarRemapper remapper;
     private final FieldRemapper nodeRemapper;
     private final InstructionAdapter instructionAdapter;
@@ -59,16 +61,16 @@ public class RemapVisitor extends MethodBodyVisitor {
 
     @Override
     public void visitFieldInsn(int opcode, @NotNull String owner, @NotNull String name, @NotNull String desc) {
-        if (name.startsWith(InlineCodegenUtil.CAPTURED_FIELD_FOLD_PREFIX) &&
+        if (name.startsWith(CAPTURED_FIELD_FOLD_PREFIX) &&
             (nodeRemapper instanceof RegeneratedLambdaFieldRemapper || nodeRemapper.isRoot())) {
             FieldInsnNode fin = new FieldInsnNode(opcode, owner, name, desc);
             StackValue inline = nodeRemapper.getFieldForInline(fin, null);
             assert inline != null : "Captured field should have not null stackValue " + fin;
             if (Opcodes.PUTSTATIC == opcode) {
-                inline.store(StackValue.onStack(inline.type), this);
+                inline.store(StackValue.onStack(inline.type, inline.kotlinType), this);
             }
             else {
-                inline.put(inline.type, this);
+                inline.put(inline.type, inline.kotlinType, this);
             }
             return;
         }

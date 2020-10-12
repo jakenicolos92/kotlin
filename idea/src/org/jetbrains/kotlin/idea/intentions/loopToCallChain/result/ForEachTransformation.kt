@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.intentions.loopToCallChain.result
@@ -20,27 +9,24 @@ import org.jetbrains.kotlin.idea.intentions.loopToCallChain.*
 import org.jetbrains.kotlin.idea.references.ReferenceAccess
 import org.jetbrains.kotlin.idea.references.mainReference
 import org.jetbrains.kotlin.idea.references.readWriteAccess
-import org.jetbrains.kotlin.psi.KtCallableDeclaration
-import org.jetbrains.kotlin.psi.KtExpression
-import org.jetbrains.kotlin.psi.KtForExpression
-import org.jetbrains.kotlin.psi.KtNameReferenceExpression
+import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.anyDescendantOfType
 import org.jetbrains.kotlin.psi.psiUtil.getQualifiedExpressionForSelector
 
 class ForEachTransformation(
-        loop: KtForExpression,
-        private val inputVariable: KtCallableDeclaration,
-        private val indexVariable: KtCallableDeclaration?,
-        private val statement: KtExpression
+    loop: KtForExpression,
+    private val inputVariable: KtCallableDeclaration,
+    private val indexVariable: KtCallableDeclaration?,
+    private val statement: KtExpression
 ) : ReplaceLoopResultTransformation(loop) {
 
     private val functionName = if (indexVariable != null) "forEachIndexed" else "forEach"
 
     override val presentation: String
-        get() = functionName + "{}"
+        get() = "$functionName{}"
 
     override fun generateCode(chainedCallGenerator: ChainedCallGenerator): KtExpression {
-        val lambda = generateLambda(inputVariable, indexVariable, statement)
+        val lambda = generateLambda(inputVariable, indexVariable, statement, chainedCallGenerator.reformat)
         return chainedCallGenerator.generate("$functionName $0:'{}'", lambda)
     }
 
@@ -59,9 +45,11 @@ class ForEachTransformation(
             get() = false
 
         override fun match(state: MatchingState): TransformationMatch.Result? {
-            if (state.previousTransformations.isEmpty()) return null // do not suggest conversion to just ".forEach{}" or ".forEachIndexed{}"
+            // do not suggest conversion to just ".forEach{}" or ".forEachIndexed{}"
+            if (state.previousTransformations.isEmpty()) return null
 
             val statement = state.statements.singleOrNull() ?: return null
+            if (statement is KtReturnExpression) return null
 
             if (!state.lazySequence) {
                 // check if it changes any variable that has other usages in the loop - then only lazy sequence is correct

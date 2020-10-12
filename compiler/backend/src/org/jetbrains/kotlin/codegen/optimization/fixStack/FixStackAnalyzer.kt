@@ -17,69 +17,89 @@
 package org.jetbrains.kotlin.codegen.optimization.fixStack
 
 import com.intellij.util.containers.Stack
-import org.jetbrains.kotlin.codegen.inline.InlineCodegenUtil
+import org.jetbrains.kotlin.codegen.inline.isAfterInlineMarker
+import org.jetbrains.kotlin.codegen.inline.isBeforeInlineMarker
+import org.jetbrains.kotlin.codegen.inline.isMarkedReturn
 import org.jetbrains.kotlin.codegen.optimization.common.MethodAnalyzer
 import org.jetbrains.kotlin.codegen.optimization.common.OptimizationBasicInterpreter
 import org.jetbrains.kotlin.codegen.pseudoInsns.PseudoInsn
+import org.jetbrains.kotlin.utils.SmartList
 import org.jetbrains.org.objectweb.asm.Opcodes
-import org.jetbrains.org.objectweb.asm.tree.*
+import org.jetbrains.org.objectweb.asm.tree.AbstractInsnNode
+import org.jetbrains.org.objectweb.asm.tree.JumpInsnNode
+import org.jetbrains.org.objectweb.asm.tree.LabelNode
+import org.jetbrains.org.objectweb.asm.tree.MethodNode
 import org.jetbrains.org.objectweb.asm.tree.analysis.BasicValue
 import org.jetbrains.org.objectweb.asm.tree.analysis.Frame
 import org.jetbrains.org.objectweb.asm.tree.analysis.Interpreter
+import kotlin.math.max
 
 internal class FixStackAnalyzer(
-        owner: String,
-        val method: MethodNode,
-        val context: FixStackContext
+    owner: String,
+    val method: MethodNode,
+    val context: FixStackContext,
+    private val skipBreakContinueGotoEdges: Boolean = true
 ) {
     companion object {
         // Stack size is always non-negative
         const val DEAD_CODE_STACK_SIZE = -1
     }
 
-    private val expectedStackNode = hashMapOf<LabelNode, AbstractInsnNode>()
+    private val loopEntryPointMarkers = hashMapOf<LabelNode, SmartList<AbstractInsnNode>>()
 
     val maxExtraStackSize: Int get() = analyzer.maxExtraStackSize
 
     fun getStackToSpill(location: AbstractInsnNode) = analyzer.spilledStacks[location]
     fun getActualStack(location: AbstractInsnNode) = getFrame(location)?.getStackContent()
     fun getActualStackSize(location: AbstractInsnNode) = getFrame(location)?.stackSizeWithExtra ?: DEAD_CODE_STACK_SIZE
-    fun getExpectedStackSize(location: AbstractInsnNode) = getExpectedStackFrame(location)?.stackSizeWithExtra ?: DEAD_CODE_STACK_SIZE
 
-    private fun getExpectedStackFrame(location: AbstractInsnNode) = getFrame(expectedStackNode[location] ?: location)
+    fun getExpectedStackSize(location: AbstractInsnNode): Int {
+        // We should look for expected stack size at loop entry point markers if available,
+        // otherwise at location itself.
+        val expectedStackSizeNodes = loopEntryPointMarkers[location] ?: listOf(location)
+
+        // Find 1st live node among expected stack size nodes and return corresponding stack size
+        for (node in expectedStackSizeNodes) {
+            val frame = getFrame(node) ?: continue
+            return frame.stackSizeWithExtra
+        }
+
+        // No live nodes found
+        // => loop entry point is unreachable or node itself is unreachable
+        return DEAD_CODE_STACK_SIZE
+    }
+
     private fun getFrame(location: AbstractInsnNode) = analyzer.getFrame(location) as? InternalAnalyzer.FixStackFrame
 
     fun analyze() {
-        preprocess()
+        recordLoopEntryPointMarkers()
         analyzer.analyze()
     }
 
-    private fun preprocess() {
+    private fun recordLoopEntryPointMarkers() {
+        // NB JVM_IR can generate nested loops with same exit labels (see kt37370.kt)
         for (marker in context.fakeAlwaysFalseIfeqMarkers) {
             val next = marker.next
             if (next is JumpInsnNode) {
-                expectedStackNode[next.label] = marker
+                loopEntryPointMarkers.getOrPut(next.label) { SmartList() }.add(marker)
             }
         }
     }
 
-    private val analyzer = InternalAnalyzer(owner, method, context)
+    private val analyzer = InternalAnalyzer(owner)
 
-    private class InternalAnalyzer(
-            owner: String,
-            method: MethodNode,
-            val context: FixStackContext
-    ) : MethodAnalyzer<BasicValue>(owner, method, OptimizationBasicInterpreter()) {
+    private inner class InternalAnalyzer(owner: String) : MethodAnalyzer<BasicValue>(owner, method, OptimizationBasicInterpreter()) {
         val spilledStacks = hashMapOf<AbstractInsnNode, List<BasicValue>>()
         var maxExtraStackSize = 0; private set
 
         override fun visitControlFlowEdge(insn: Int, successor: Int): Boolean {
+            if (!skipBreakContinueGotoEdges) return true
             val insnNode = instructions[insn]
             return !(insnNode is JumpInsnNode && context.breakContinueGotoNodes.contains(insnNode))
         }
 
         override fun newFrame(nLocals: Int, nStack: Int): Frame<BasicValue> =
-                FixStackFrame(nLocals, nStack)
+            FixStackFrame(nLocals, nStack)
 
         private fun indexOf(node: AbstractInsnNode) = method.instructions.indexOf(node)
 
@@ -103,11 +123,11 @@ internal class FixStackAnalyzer(
                         executeSaveStackBeforeTry(insn)
                     PseudoInsn.RESTORE_STACK_IN_TRY_CATCH.isa(insn) ->
                         executeRestoreStackInTryCatch(insn)
-                    InlineCodegenUtil.isBeforeInlineMarker(insn) ->
+                    isBeforeInlineMarker(insn) ->
                         executeBeforeInlineCallMarker(insn)
-                    InlineCodegenUtil.isAfterInlineMarker(insn) ->
+                    isAfterInlineMarker(insn) ->
                         executeAfterInlineCallMarker(insn)
-                    InlineCodegenUtil.isMarkedReturn(insn) -> {
+                    isMarkedReturn(insn) -> {
                         // KT-9644: might throw "Incompatible return type" on non-local return, in fact we don't care.
                         if (insn.opcode == Opcodes.RETURN) return
                     }
@@ -128,10 +148,9 @@ internal class FixStackAnalyzer(
             override fun push(value: BasicValue) {
                 if (super.getStackSize() < maxStackSize) {
                     super.push(value)
-                }
-                else {
+                } else {
                     extraStack.add(value)
-                    maxExtraStackSize = Math.max(maxExtraStackSize, extraStack.size)
+                    maxExtraStackSize = max(maxExtraStackSize, extraStack.size)
                 }
             }
 
@@ -140,20 +159,18 @@ internal class FixStackAnalyzer(
             }
 
             override fun pop(): BasicValue {
-                if (extraStack.isNotEmpty()) {
-                    return extraStack.pop()
-                }
-                else {
-                    return super.pop()
+                return if (extraStack.isNotEmpty()) {
+                    extraStack.pop()
+                } else {
+                    super.pop()
                 }
             }
 
             override fun getStack(i: Int): BasicValue {
-                if (i < super.getMaxStackSize()) {
-                    return super.getStack(i)
-                }
-                else {
-                    return extraStack[i - maxStackSize]
+                return if (i < super.getMaxStackSize()) {
+                    super.getStack(i)
+                } else {
+                    extraStack[i - maxStackSize]
                 }
             }
         }
@@ -176,8 +193,7 @@ internal class FixStackAnalyzer(
                 val savedValues = spilledStacks[beforeInlineMarker]
                 pushAll(savedValues!!)
                 push(returnValue)
-            }
-            else {
+            } else {
                 val savedValues = spilledStacks[beforeInlineMarker]
                 pushAll(savedValues!!)
             }
@@ -195,7 +211,6 @@ internal class FixStackAnalyzer(
             saveStackAndClear(insn)
         }
     }
-
 
 
 }

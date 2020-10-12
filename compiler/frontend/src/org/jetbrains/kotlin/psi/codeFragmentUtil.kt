@@ -20,16 +20,13 @@ import com.intellij.openapi.util.Key
 import org.jetbrains.kotlin.psi.KtCodeFragment
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFile
-import org.jetbrains.kotlin.psi.KtTypeReference
-import org.jetbrains.kotlin.types.KotlinType
 
 val SUPPRESS_DIAGNOSTICS_IN_DEBUG_MODE: Key<Boolean> = Key.create<Boolean>("SUPPRESS_DIAGNOSTICS_IN_DEBUG_MODE")
 
 fun KtElement.suppressDiagnosticsInDebugMode(): Boolean {
     return if (this is KtFile) {
         this.suppressDiagnosticsInDebugMode
-    }
-    else {
+    } else {
         val file = this.containingFile
         file is KtFile && file.suppressDiagnosticsInDebugMode
     }
@@ -38,20 +35,10 @@ fun KtElement.suppressDiagnosticsInDebugMode(): Boolean {
 var KtFile.suppressDiagnosticsInDebugMode: Boolean
     get() = when (this) {
         is KtCodeFragment -> true
-        is KtFile -> getUserData(SUPPRESS_DIAGNOSTICS_IN_DEBUG_MODE) ?: false
-        else -> false
+        else -> getUserData(SUPPRESS_DIAGNOSTICS_IN_DEBUG_MODE) ?: false
     }
     set(skip) {
         putUserData(SUPPRESS_DIAGNOSTICS_IN_DEBUG_MODE, skip)
     }
 
 val DEBUG_TYPE_REFERENCE_STRING: String = "DebugTypeKotlinRulezzzz"
-
-val DEBUG_TYPE_INFO: Key<KotlinType> = Key.create<KotlinType>("DEBUG_TYPE_INFO")
-var KtTypeReference.debugTypeInfo: KotlinType?
-    get() = getUserData(DEBUG_TYPE_INFO)
-    set(type) {
-        if (type != null && this.text == DEBUG_TYPE_REFERENCE_STRING) {
-            putUserData(DEBUG_TYPE_INFO, type)
-        }
-    }

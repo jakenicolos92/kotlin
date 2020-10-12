@@ -1,29 +1,34 @@
 description = 'Kotlin Test JUnit'
 
-apply plugin: 'kotlin'
+apply plugin: 'kotlin-platform-jvm'
 
-configureJvmProject(project)
+configureJvm6Project(project)
 configurePublishing(project)
 
+def includeJava9 = BuildPropertiesExtKt.getIncludeJava9(project.kotlinBuildProperties)
+
+sourceSets {
+    if (includeJava9) {
+        java9
+    }
+}
 
 dependencies {
+    expectedBy project(':kotlin-test:kotlin-test-annotations-common')
     compile project(':kotlin-test:kotlin-test-jvm')
     compile('junit:junit:4.12')
 }
 
 
 jar {
-    manifestAttributes(manifest, project, 'Test')
+    manifestAttributes(manifest, project, 'Test', true)
+    if (includeJava9) {
+        from sourceSets.java9.output
+    }
 }
 
-artifacts {
-    archives sourcesJar
-    archives javadocJar
-}
-
-dist {
-    from (jar, sourcesJar)
-}
+configureSourcesJar()
+configureJavadocJar()
 
 compileKotlin {
     kotlinOptions.freeCompilerArgs = ["-Xallow-kotlin-package", "-module-name", project.name]
@@ -31,4 +36,8 @@ compileKotlin {
 
 compileTestKotlin {
     kotlinOptions.freeCompilerArgs = ["-Xallow-kotlin-package"]
+}
+
+if (includeJava9) {
+    compileJava9Sources(project, 'kotlin.test.junit')
 }

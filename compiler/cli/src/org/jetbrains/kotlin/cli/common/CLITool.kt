@@ -17,46 +17,41 @@
 package org.jetbrains.kotlin.cli.common
 
 import org.fusesource.jansi.AnsiConsole
-import org.jetbrains.kotlin.cli.common.arguments.ArgumentParseErrors
 import org.jetbrains.kotlin.cli.common.arguments.CommonToolArguments
+import org.jetbrains.kotlin.cli.common.arguments.ManualLanguageFeatureSetting
 import org.jetbrains.kotlin.cli.common.arguments.parseCommandLineArguments
 import org.jetbrains.kotlin.cli.common.arguments.validateArguments
 import org.jetbrains.kotlin.cli.common.messages.*
-import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity.INFO
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity.STRONG_WARNING
 import org.jetbrains.kotlin.cli.jvm.compiler.CompileEnvironmentException
+import org.jetbrains.kotlin.cli.jvm.compiler.setupIdeaStandaloneExecution
 import org.jetbrains.kotlin.config.KotlinCompilerVersion
+import org.jetbrains.kotlin.config.LanguageFeature.Kind.BUG_FIX
+import org.jetbrains.kotlin.config.LanguageFeature.State.ENABLED
 import org.jetbrains.kotlin.config.Services
 import java.io.PrintStream
+import java.net.URL
+import java.net.URLConnection
 import java.util.function.Predicate
+import kotlin.system.exitProcess
 
 abstract class CLITool<A : CommonToolArguments> {
     fun exec(errStream: PrintStream, vararg args: String): ExitCode {
-        return exec(errStream, Services.EMPTY, MessageRenderer.PLAIN_RELATIVE_PATHS, args)
+        return exec(errStream, Services.EMPTY, defaultMessageRenderer(), args)
     }
 
+    fun exec(errStream: PrintStream,  messageRenderer: MessageRenderer, vararg args: String): ExitCode
+        = exec(errStream, Services.EMPTY, messageRenderer, args)
+
     protected fun exec(
-            errStream: PrintStream,
-            services: Services,
-            messageRenderer: MessageRenderer,
-            args: Array<out String>
+        errStream: PrintStream,
+        services: Services,
+        messageRenderer: MessageRenderer,
+        args: Array<out String>
     ): ExitCode {
-        K2JVMCompiler.resetInitStartTime()
-
-        val parseArgumentsCollector = PrintingMessageCollector(errStream, messageRenderer, false)
-        val arguments = try {
-            parseArguments(parseArgumentsCollector, args) ?: return ExitCode.INTERNAL_ERROR
-        }
-        catch (e: IllegalArgumentException) {
-            parseArgumentsCollector.report(CompilerMessageSeverity.ERROR, e.message!!, null)
-            parseArgumentsCollector.report(CompilerMessageSeverity.INFO, "Use -help for more information", null)
-            return ExitCode.COMPILATION_ERROR
-        }
-
-        if (arguments.help || arguments.extraHelp) {
-            Usage.print(errStream, this, arguments)
-            return ExitCode.OK
-        }
-
+        val arguments = createArguments()
+        parseCommandLineArguments(args.asList(), arguments)
         val collector = PrintingMessageCollector(errStream, messageRenderer, arguments.verbose)
 
         try {
@@ -65,9 +60,21 @@ abstract class CLITool<A : CommonToolArguments> {
             }
 
             errStream.print(messageRenderer.renderPreamble())
+
+            val errorMessage = validateArguments(arguments.errors)
+            if (errorMessage != null) {
+                collector.report(CompilerMessageSeverity.ERROR, errorMessage, null)
+                collector.report(CompilerMessageSeverity.INFO, "Use -help for more information", null)
+                return ExitCode.COMPILATION_ERROR
+            }
+
+            if (arguments.help || arguments.extraHelp) {
+                errStream.print(messageRenderer.renderUsage(Usage.render(this, arguments)))
+                return ExitCode.OK
+            }
+
             return exec(collector, services, arguments)
-        }
-        finally {
+        } finally {
             errStream.print(messageRenderer.renderConclusion())
 
             if (PlainTextMessageRenderer.COLOR_ENABLED) {
@@ -77,80 +84,117 @@ abstract class CLITool<A : CommonToolArguments> {
     }
 
     fun exec(messageCollector: MessageCollector, services: Services, arguments: A): ExitCode {
+        disableURLConnectionCaches()
+
         printVersionIfNeeded(messageCollector, arguments)
 
-        val fixedMessageCollector = if (arguments.suppressWarnings) {
+        val fixedMessageCollector = if (arguments.suppressWarnings && !arguments.allWarningsAsErrors) {
             FilteringMessageCollector(messageCollector, Predicate.isEqual(CompilerMessageSeverity.WARNING))
-        }
-        else {
+        } else {
             messageCollector
         }
 
-        reportArgumentParseProblems(fixedMessageCollector, arguments.errors)
+        fixedMessageCollector.reportArgumentParseProblems(arguments)
         return execImpl(fixedMessageCollector, services, arguments)
+    }
+
+    private fun disableURLConnectionCaches() {
+        // We disable caches to avoid problems with compiler under daemon, see https://youtrack.jetbrains.com/issue/KT-22513
+        // For some inexplicable reason, URLConnection.setDefaultUseCaches is an instance method modifying a static field,
+        // so we have to create a dummy instance to call that method
+
+        object : URLConnection(URL("file:.")) {
+            override fun connect() = throw UnsupportedOperationException()
+        }.defaultUseCaches = false
     }
 
     // Used in kotlin-maven-plugin (KotlinCompileMojoBase)
     protected abstract fun execImpl(messageCollector: MessageCollector, services: Services, arguments: A): ExitCode
 
-    private fun parseArguments(messageCollector: MessageCollector, args: Array<out String>): A? {
-        return try {
-            createArguments().also { parseArguments(args, it) }
-        }
-        catch (e: IllegalArgumentException) {
-            throw e
-        }
-        catch (t: Throwable) {
-            messageCollector.report(CompilerMessageSeverity.EXCEPTION, OutputMessageUtil.renderException(t), null)
-            null
-        }
-    }
-
-    protected abstract fun createArguments(): A
+    abstract fun createArguments(): A
 
     // Used in kotlin-maven-plugin (KotlinCompileMojoBase) and in kotlin-gradle-plugin (KotlinJvmOptionsImpl, KotlinJsOptionsImpl)
     fun parseArguments(args: Array<out String>, arguments: A) {
-        parseCommandLineArguments(args, arguments)
+        parseCommandLineArguments(args.asList(), arguments)
         val message = validateArguments(arguments.errors)
         if (message != null) {
             throw IllegalArgumentException(message)
         }
     }
 
-    private fun reportArgumentParseProblems(collector: MessageCollector, errors: ArgumentParseErrors) {
+    private fun reportArgumentParseProblems(collector: MessageCollector, arguments: A) {
+        reportUnsafeInternalArgumentsIfAny(arguments, collector)
+
+        val errors = arguments.errors ?: return
+
         for (flag in errors.unknownExtraFlags) {
-            collector.report(
-                    CompilerMessageSeverity.STRONG_WARNING,
-                    "Flag is not supported by this version of the compiler: " + flag, null)
+            collector.report(STRONG_WARNING, "Flag is not supported by this version of the compiler: $flag")
         }
         for (argument in errors.extraArgumentsPassedInObsoleteForm) {
             collector.report(
-                    CompilerMessageSeverity.STRONG_WARNING,
-                    "Advanced option value is passed in an obsolete form. Please use the '=' character " +
-                    "to specify the value: " + argument + "=...", null)
+                STRONG_WARNING, "Advanced option value is passed in an obsolete form. Please use the '=' character " +
+                        "to specify the value: $argument=..."
+            )
         }
         for ((key, value) in errors.duplicateArguments) {
-            collector.report(
-                    CompilerMessageSeverity.STRONG_WARNING,
-                    "Argument $key is passed multiple times. Only the last value will be used: $value", null)
+            collector.report(STRONG_WARNING, "Argument $key is passed multiple times. Only the last value will be used: $value")
+        }
+        for ((deprecatedName, newName) in errors.deprecatedArguments) {
+            collector.report(STRONG_WARNING, "Argument $deprecatedName is deprecated. Please use $newName instead")
+        }
+
+        for (argfileError in errors.argfileErrors) {
+            collector.report(STRONG_WARNING, argfileError)
+        }
+
+        for (internalArgumentsError in errors.internalArgumentsParsingProblems) {
+            collector.report(STRONG_WARNING, internalArgumentsError)
         }
     }
 
-    protected fun <A : CommonToolArguments> printVersionIfNeeded(messageCollector: MessageCollector, arguments: A) {
-        if (!arguments.version) return
+    private fun reportUnsafeInternalArgumentsIfAny(arguments: A, collector: MessageCollector) {
+        val unsafeArguments = arguments.internalArguments.filterNot {
+            // -XXLanguage which turns on BUG_FIX considered safe
+            it is ManualLanguageFeatureSetting && it.languageFeature.kind == BUG_FIX && it.state == ENABLED
+        }
 
+        if (unsafeArguments.isNotEmpty()) {
+            val unsafeArgumentsString = unsafeArguments.joinToString(prefix = "\n", postfix = "\n\n", separator = "\n") {
+                it.stringRepresentation
+            }
+
+            collector.report(
+                STRONG_WARNING,
+                "ATTENTION!\n" +
+                        "This build uses unsafe internal compiler arguments:\n" +
+                        unsafeArgumentsString +
+                        "This mode is not recommended for production use,\n" +
+                        "as no stability/compatibility guarantees are given on\n" +
+                        "compiler or generated code. Use it at your own risk!\n"
+            )
+        }
+    }
+
+    private fun <A : CommonToolArguments> printVersionIfNeeded(messageCollector: MessageCollector, arguments: A) {
         if (arguments.version) {
             val jreVersion = System.getProperty("java.runtime.version")
-            messageCollector.report(CompilerMessageSeverity.INFO,
-                                    "${executableScriptFileName()} ${KotlinCompilerVersion.VERSION} (JRE $jreVersion)",
-                                    null
-            )
+            messageCollector.report(INFO, "${executableScriptFileName()} ${KotlinCompilerVersion.VERSION} (JRE $jreVersion)")
         }
     }
 
     abstract fun executableScriptFileName(): String
 
     companion object {
+
+        private fun defaultMessageRenderer(): MessageRenderer =
+                when (System.getProperty(MessageRenderer.PROPERTY_KEY)) {
+                    MessageRenderer.XML.name -> MessageRenderer.XML
+                    MessageRenderer.GRADLE_STYLE.name -> MessageRenderer.GRADLE_STYLE
+                    MessageRenderer.WITHOUT_PATHS.name -> MessageRenderer.WITHOUT_PATHS
+                    MessageRenderer.PLAIN_FULL_PATHS.name -> MessageRenderer.PLAIN_FULL_PATHS
+                    else -> MessageRenderer.PLAIN_RELATIVE_PATHS
+                }
+
         /**
          * Useful main for derived command line tools
          */
@@ -158,22 +202,32 @@ abstract class CLITool<A : CommonToolArguments> {
         fun doMain(compiler: CLITool<*>, args: Array<String>) {
             // We depend on swing (indirectly through PSI or something), so we want to declare headless mode,
             // to avoid accidentally starting the UI thread
-            System.setProperty("java.awt.headless", "true")
+            if (System.getProperty("java.awt.headless") == null) {
+                System.setProperty("java.awt.headless", "true")
+            }
+            if (System.getProperty(PlainTextMessageRenderer.KOTLIN_COLORS_ENABLED_PROPERTY) == null) {
+                System.setProperty(PlainTextMessageRenderer.KOTLIN_COLORS_ENABLED_PROPERTY, "true")
+            }
+
+            setupIdeaStandaloneExecution()
+
             val exitCode = doMainNoExit(compiler, args)
             if (exitCode != ExitCode.OK) {
-                System.exit(exitCode.code)
+                exitProcess(exitCode.code)
             }
         }
 
         @JvmStatic
-        fun doMainNoExit(compiler: CLITool<*>, args: Array<String>): ExitCode {
-            try {
-                return compiler.exec(System.err, *args)
-            }
-            catch (e: CompileEnvironmentException) {
-                System.err.println(e.message)
-                return ExitCode.INTERNAL_ERROR
-            }
+        @JvmOverloads
+        fun doMainNoExit(
+                compiler: CLITool<*>,
+                args: Array<String>,
+                messageRenderer: MessageRenderer = defaultMessageRenderer()
+        ): ExitCode = try {
+            compiler.exec(System.err, messageRenderer, *args)
+        } catch (e: CompileEnvironmentException) {
+            System.err.println(e.message)
+            ExitCode.INTERNAL_ERROR
         }
     }
 }

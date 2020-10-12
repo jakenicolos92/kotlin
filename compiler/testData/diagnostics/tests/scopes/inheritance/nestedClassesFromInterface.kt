@@ -1,6 +1,7 @@
+// FIR_IDENTICAL
 // FILE: A.java
 public interface A {
-    public class A_
+    public class A_ {}
 }
 
 // FILE: 1.kt

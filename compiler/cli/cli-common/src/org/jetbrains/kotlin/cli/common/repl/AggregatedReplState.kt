@@ -20,8 +20,11 @@ import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 
-open class AggregatedReplStateHistory<T1, T2>(val history1: IReplStageHistory<T1>, val history2: IReplStageHistory<T2>, override val lock: ReentrantReadWriteLock = ReentrantReadWriteLock())
-    : IReplStageHistory<Pair<T1, T2>>, AbstractList<ReplHistoryRecord<Pair<T1, T2>>>()
+open class AggregatedReplStateHistory<T1, T2>(
+        private val history1: IReplStageHistory<T1>,
+        private val history2: IReplStageHistory<T2>,
+        override val lock: ReentrantReadWriteLock = ReentrantReadWriteLock()
+) : IReplStageHistory<Pair<T1, T2>>, AbstractList<ReplHistoryRecord<Pair<T1, T2>>>()
 {
     override val size: Int
         get() = minOf(history1.size, history2.size)
@@ -83,14 +86,21 @@ open class AggregatedReplStageState<T1, T2>(val state1: IReplStageState<T1>, val
     override val history: IReplStageHistory<Pair<T1, T2>> = AggregatedReplStateHistory(state1.history, state2.history, lock)
 
     override fun <StateT : IReplStageState<*>> asState(target: Class<out StateT>): StateT =
-            when {
-                target.isAssignableFrom(state1::class.java) -> state1 as StateT
-                target.isAssignableFrom(state2::class.java) -> state2 as StateT
-                else -> super.asState(target)
-            }
+        @Suppress("UNCHECKED_CAST")
+        when {
+            target.isAssignableFrom(state1::class.java) -> state1 as StateT
+            target.isAssignableFrom(state2::class.java) -> state2 as StateT
+            else -> super.asState(target)
+        }
 
     override fun getNextLineNo() = state1.getNextLineNo()
 
     override val currentGeneration: Int get() = state1.currentGeneration
+
+    override fun dispose() {
+        state2.dispose()
+        state1.dispose()
+        super.dispose()
+    }
 }
 

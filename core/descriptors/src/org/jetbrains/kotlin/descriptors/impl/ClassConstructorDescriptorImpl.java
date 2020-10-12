@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -67,7 +67,7 @@ public class ClassConstructorDescriptorImpl extends FunctionDescriptorImpl imple
 
     public ClassConstructorDescriptorImpl initialize(
             @NotNull List<ValueParameterDescriptor> unsubstitutedValueParameters,
-            @NotNull Visibility visibility,
+            @NotNull DescriptorVisibility visibility,
             @NotNull List<TypeParameterDescriptor> typeParameterDescriptors
     ) {
         super.initialize(
@@ -80,7 +80,7 @@ public class ClassConstructorDescriptorImpl extends FunctionDescriptorImpl imple
 
     public ClassConstructorDescriptorImpl initialize(
             @NotNull List<ValueParameterDescriptor> unsubstitutedValueParameters,
-            @NotNull Visibility visibility
+            @NotNull DescriptorVisibility visibility
     ) {
         initialize(unsubstitutedValueParameters, visibility, getContainingDeclaration().getDeclaredTypeParameters());
         return this;
@@ -175,7 +175,7 @@ public class ClassConstructorDescriptorImpl extends FunctionDescriptorImpl imple
     public ClassConstructorDescriptor copy(
             DeclarationDescriptor newOwner,
             Modality modality,
-            Visibility visibility,
+            DescriptorVisibility visibility,
             Kind kind,
             boolean copyOverrides
     ) {

@@ -1,14 +1,15 @@
+// FIR_IDENTICAL
 // FILE: DocumentedAnnotations.java
 
 import java.lang.annotation.*;
 
 public class DocumentedAnnotations {
 
-    @Documented public @interface DocAnn;
+    @Documented public @interface DocAnn {};
 
-    public @interface NotDocAnn;
+    public @interface NotDocAnn {};
 
-    @Documented @Retention(RetentionPolicy.RUNTIME) public @interface RunDocAnn;
+    @Documented @Retention(RetentionPolicy.RUNTIME) public @interface RunDocAnn {};
 }
 
 // FILE: DocumentedAnnotations.kt

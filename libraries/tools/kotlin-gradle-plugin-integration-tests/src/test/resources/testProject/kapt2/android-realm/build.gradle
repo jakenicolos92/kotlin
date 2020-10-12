@@ -3,19 +3,18 @@ buildscript {
 
     repositories {
         mavenLocal()
+        maven { url 'https://maven.google.com' }
         jcenter()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle:1.5.+'
+        classpath "com.android.tools.build:gradle:$android_tools_version"
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath("io.realm:realm-gradle-plugin:$realm_version") {
             exclude group: 'com.android.tools.build', module: 'gradle'
         }
-        classpath "com.jakewharton.sdkmanager:gradle-plugin:0.12.+"
     }
 }
 
-apply plugin: 'android-sdk-manager'
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 apply plugin: 'kotlin-kapt'
@@ -24,7 +23,7 @@ apply plugin: 'realm-android'
 
 android {
     compileSdkVersion 23
-    buildToolsVersion "23.0.1"
+    buildToolsVersion "25.0.2"
     defaultConfig {
         applicationId 'io.realm.examples.kotlin'
         minSdkVersion 14
@@ -42,12 +41,26 @@ android {
     dexOptions {
         incremental false
     }
+
+    packagingOptions {
+        // Workaround for org.jetbrains.kotlin.gradle.Kapt3Android33IT#testRealm
+        // Android Plugin 3.3.2 fails with:
+        // Execution failed for task ':transformResourcesWithMergeJavaResForDebug'.
+        // com.android.builder.merge.DuplicateRelativeFileException: (these appear one by one if you exclude single files)
+        // - More than one file was found with OS independent path 'kotlin/reflect/reflect.kotlin_builtins'
+        // - More than one file was found with OS independent path 'kotlin/coroutines/coroutines.kotlin_builtins'
+        // - More than one file was found with OS independent path 'kotlin/collections/collections.kotlin_builtins'
+        // - More than one file was found with OS independent path 'kotlin/internal/internal.kotlin_builtins'
+        // (maybe more)
+        exclude '**/*.kotlin_builtins'
+    }
 }
 
 repositories {
     mavenLocal()
+    maven { url 'https://maven.google.com' }
     maven {
-        url 'http://oss.jfrog.org/artifactory/oss-snapshot-local'
+        url 'https://oss.jfrog.org/artifactory/oss-snapshot-local'
     }
     mavenCentral()
 }

@@ -20,23 +20,25 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.org.objectweb.asm.Label;
 import org.jetbrains.org.objectweb.asm.MethodVisitor;
+import org.jetbrains.org.objectweb.asm.Opcodes;
 import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.jetbrains.kotlin.codegen.inline.InlineCodegenUtil.getLoadStoreArgSize;
+import static org.jetbrains.kotlin.codegen.inline.InlineCodegenUtilsKt.GENERATE_SMAP;
+import static org.jetbrains.kotlin.codegen.inline.InlineCodegenUtilsKt.getLoadStoreArgSize;
 
 public class InlineAdapter extends InstructionAdapter {
-    private final SourceMapper sourceMapper;
+    private final SourceMapCopier sourceMapper;
     private final List<CatchBlock> blocks = new ArrayList<>();
 
     private boolean isLambdaInlining = false;
     private int nextLocalIndex = 0;
     private int nextLocalIndexBeforeInline = -1;
 
-    public InlineAdapter(@NotNull MethodVisitor mv, int localsSize, @NotNull SourceMapper sourceMapper) {
-        super(InlineCodegenUtil.API, mv);
+    public InlineAdapter(@NotNull MethodVisitor mv, int localsSize, @NotNull SourceMapCopier sourceMapper) {
+        super(Opcodes.API_VERSION, mv);
         this.nextLocalIndex = localsSize;
         this.sourceMapper = sourceMapper;
     }
@@ -86,7 +88,7 @@ public class InlineAdapter extends InstructionAdapter {
 
     @Override
     public void visitLineNumber(int line, @NotNull Label start) {
-        if (InlineCodegenUtil.GENERATE_SMAP) {
+        if (GENERATE_SMAP) {
             line = sourceMapper.mapLineNumber(line);
         }
         //skip not mapped lines

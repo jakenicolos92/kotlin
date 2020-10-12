@@ -17,11 +17,12 @@
 package org.jetbrains.kotlin.resolve;
 
 import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
+import com.intellij.openapi.progress.ProgressManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.util.containers.Queue;
 import kotlin.Unit;
+import kotlin.collections.CollectionsKt;
 import kotlin.jvm.functions.Function1;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -36,12 +37,14 @@ import org.jetbrains.kotlin.lexer.KtTokens;
 import org.jetbrains.kotlin.psi.*;
 import org.jetbrains.kotlin.psi.psiUtil.PsiUtilsKt;
 import org.jetbrains.kotlin.resolve.calls.CallResolver;
+import org.jetbrains.kotlin.resolve.calls.components.InferenceSession;
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall;
 import org.jetbrains.kotlin.resolve.calls.results.OverloadResolutionResults;
 import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo;
 import org.jetbrains.kotlin.resolve.calls.util.CallMaker;
 import org.jetbrains.kotlin.resolve.descriptorUtil.DescriptorUtilsKt;
 import org.jetbrains.kotlin.resolve.lazy.ForceResolveUtil;
+import org.jetbrains.kotlin.resolve.multiplatform.ExpectedActualResolver;
 import org.jetbrains.kotlin.resolve.scopes.*;
 import org.jetbrains.kotlin.types.*;
 import org.jetbrains.kotlin.types.expressions.ExpressionTypingServices;
@@ -133,7 +136,7 @@ public class BodyResolver {
             resolveSecondaryConstructorBody(c.getOuterDataFlowInfo(), trace, entry.getKey(), entry.getValue(), declaringScope);
         }
         if (c.getSecondaryConstructors().isEmpty()) return;
-        Set<ConstructorDescriptor> visitedConstructors = Sets.newHashSet();
+        Set<ConstructorDescriptor> visitedConstructors = new HashSet<>();
         for (Map.Entry<KtSecondaryConstructor, ClassConstructorDescriptor> entry : c.getSecondaryConstructors().entrySet()) {
             checkCyclicConstructorDelegationCall(entry.getValue(), visitedConstructors);
         }
@@ -166,8 +169,8 @@ public class BodyResolver {
             @NotNull KtSecondaryConstructor constructor,
             @NotNull ClassConstructorDescriptor descriptor
     ) {
-        if (descriptor.isHeader() || isEffectivelyExternal(descriptor)) {
-            // For header and external classes, we do not resolve constructor delegation calls because they are prohibited
+        if (descriptor.isExpect() || isEffectivelyExternal(descriptor)) {
+            // For expected and external classes, we do not resolve constructor delegation calls because they are prohibited
             return DataFlowInfo.Companion.getEMPTY();
         }
 
@@ -191,9 +194,11 @@ public class BodyResolver {
 
         // if visit constructor that is already in current chain
         // such constructor is on cycle
-        Set<ConstructorDescriptor> visitedInCurrentChain = Sets.newHashSet();
+        Set<ConstructorDescriptor> visitedInCurrentChain = new HashSet<>();
         ConstructorDescriptor currentConstructorDescriptor = constructorDescriptor;
         while (true) {
+            ProgressManager.checkCanceled();
+
             visitedInCurrentChain.add(currentConstructorDescriptor);
             ConstructorDescriptor delegatedConstructorDescriptor = getDelegatedConstructor(currentConstructorDescriptor);
             if (delegatedConstructorDescriptor == null) break;
@@ -265,6 +270,8 @@ public class BodyResolver {
             @NotNull LexicalScope scopeForConstructorResolution,
             @NotNull LexicalScope scopeForMemberResolution
     ) {
+        ProgressManager.checkCanceled();
+
         LexicalScope scopeForConstructor =
                 primaryConstructor == null
                 ? null
@@ -302,9 +309,15 @@ public class BodyResolver {
                 if (delegateExpression != null) {
                     LexicalScope scope = scopeForConstructor == null ? scopeForMemberResolution : scopeForConstructor;
                     KotlinType expectedType = supertype != null ? supertype : NO_EXPECTED_TYPE;
-                    typeInferrer.getType(scope, delegateExpression, expectedType, outerDataFlowInfo, trace);
+                    typeInferrer.getType(
+                            scope, delegateExpression, expectedType, outerDataFlowInfo, InferenceSession.Companion.getDefault(), trace
+                    );
                 }
-                if (primaryConstructor == null) {
+
+                if (descriptor.isExpect()) {
+                    trace.report(IMPLEMENTATION_BY_DELEGATION_IN_EXPECT_CLASS.on(specifier));
+                }
+                else if (primaryConstructor == null) {
                     trace.report(UNSUPPORTED.on(specifier, "Delegation without primary constructor is not supported"));
                 }
             }
@@ -315,6 +328,9 @@ public class BodyResolver {
                 PsiElement elementToMark = valueArgumentList == null ? call : valueArgumentList;
                 if (descriptor.getKind() == ClassKind.INTERFACE) {
                     trace.report(SUPERTYPE_INITIALIZED_IN_INTERFACE.on(elementToMark));
+                }
+                if (descriptor.isExpect()) {
+                    trace.report(SUPERTYPE_INITIALIZED_IN_EXPECTED_CLASS.on(elementToMark));
                 }
                 KtTypeReference typeReference = call.getTypeReference();
                 if (typeReference == null) return;
@@ -328,7 +344,7 @@ public class BodyResolver {
                 OverloadResolutionResults<FunctionDescriptor> results = callResolver.resolveFunctionCall(
                         trace, scopeForConstructor,
                         CallMaker.makeConstructorCallWithoutTypeArguments(call), NO_EXPECTED_TYPE, outerDataFlowInfo, false);
-                if (results.isSuccess()) {
+                if (results.isSingleResult()) {
                     KotlinType supertype = results.getResultingDescriptor().getReturnType();
                     recordSupertype(typeReference, supertype);
                     ClassDescriptor classDescriptor = TypeUtils.getClassDescriptor(supertype);
@@ -366,8 +382,7 @@ public class BodyResolver {
                 if (descriptor.getKind() != ClassKind.INTERFACE &&
                     descriptor.getUnsubstitutedPrimaryConstructor() != null &&
                     superClass.getKind() != ClassKind.INTERFACE &&
-                    !superClass.getConstructors().isEmpty() &&
-                    !descriptor.isHeader() && !isEffectivelyExternal(descriptor) &&
+                    !descriptor.isExpect() && !isEffectivelyExternal(descriptor) &&
                     !ErrorUtils.isError(superClass)
                 ) {
                     trace.report(SUPERTYPE_NOT_INITIALIZED.on(specifier));
@@ -382,10 +397,15 @@ public class BodyResolver {
 
         if (ktClass instanceof KtEnumEntry && DescriptorUtils.isEnumEntry(descriptor) && ktClass.getSuperTypeListEntries().isEmpty()) {
             assert scopeForConstructor != null : "Scope for enum class constructor should be non-null: " + descriptor;
-            resolveConstructorCallForEnumEntryWithoutInitializer((KtEnumEntry) ktClass, descriptor, scopeForConstructor, outerDataFlowInfo);
+            resolveConstructorCallForEnumEntryWithoutInitializer(
+                    (KtEnumEntry) ktClass, descriptor,
+                    scopeForConstructor, outerDataFlowInfo, primaryConstructorDelegationCall
+            );
         }
 
         for (KtSuperTypeListEntry delegationSpecifier : ktClass.getSuperTypeListEntries()) {
+            ProgressManager.checkCanceled();
+
             delegationSpecifier.accept(visitor);
         }
 
@@ -423,14 +443,15 @@ public class BodyResolver {
             @NotNull KtEnumEntry ktEnumEntry,
             @NotNull ClassDescriptor enumEntryDescriptor,
             @NotNull LexicalScope scopeForConstructor,
-            @NotNull DataFlowInfo outerDataFlowInfo
+            @NotNull DataFlowInfo outerDataFlowInfo,
+            @NotNull ResolvedCall<?>[] primaryConstructorDelegationCall
     ) {
         assert enumEntryDescriptor.getKind() == ClassKind.ENUM_ENTRY : "Enum entry expected: " + enumEntryDescriptor;
         ClassDescriptor enumClassDescriptor = (ClassDescriptor) enumEntryDescriptor.getContainingDeclaration();
         if (enumClassDescriptor.getKind() != ClassKind.ENUM_CLASS) return;
-        if (enumClassDescriptor.isHeader()) return;
+        if (enumClassDescriptor.isExpect()) return;
 
-        List<ClassConstructorDescriptor> applicableConstructors = DescriptorUtilsKt.getConstructorForEmptyArgumentsList(enumClassDescriptor);
+        List<ClassConstructorDescriptor> applicableConstructors = getConstructorForEmptyArgumentsList(enumClassDescriptor);
         if (applicableConstructors.size() != 1) {
             trace.report(ENUM_ENTRY_SHOULD_BE_INITIALIZED.on(ktEnumEntry));
             return;
@@ -441,7 +462,22 @@ public class BodyResolver {
         Call call = CallMaker.makeConstructorCallWithoutTypeArguments(ktCallEntry);
         trace.record(BindingContext.TYPE, ktCallEntry.getTypeReference(), enumClassDescriptor.getDefaultType());
         trace.record(BindingContext.CALL, ktEnumEntry, call);
-        callResolver.resolveFunctionCall(trace, scopeForConstructor, call, NO_EXPECTED_TYPE, outerDataFlowInfo, false);
+        OverloadResolutionResults<FunctionDescriptor> results =
+                callResolver.resolveFunctionCall(trace, scopeForConstructor, call, NO_EXPECTED_TYPE, outerDataFlowInfo, false);
+        if (primaryConstructorDelegationCall[0] == null) {
+            primaryConstructorDelegationCall[0] = results.getResultingCall();
+        }
+    }
+
+    @NotNull
+    private static List<ClassConstructorDescriptor> getConstructorForEmptyArgumentsList(@NotNull ClassDescriptor descriptor) {
+        return CollectionsKt.filter(
+                descriptor.getConstructors(),
+                (constructor) -> CollectionsKt.all(
+                        constructor.getValueParameters(),
+                        (parameter) -> parameter.declaresDefaultValue() || parameter.getVarargElementType() != null
+                )
+        );
     }
 
     // Returns a set of enum or sealed types of which supertypeOwner is an entry or a member
@@ -473,18 +509,28 @@ public class BodyResolver {
                         parentEnumOrSealed = new HashSet<>();
                     }
                     parentEnumOrSealed.add(currentDescriptor.getTypeConstructor());
+                    if (currentDescriptor.isExpect()) {
+                        List<MemberDescriptor> actualDescriptors = ExpectedActualResolver.INSTANCE.findCompatibleActualForExpected(
+                                currentDescriptor, DescriptorUtilsKt.getModule( currentDescriptor)
+                        );
+                        for (MemberDescriptor actualDescriptor: actualDescriptors) {
+                            if (actualDescriptor instanceof TypeAliasDescriptor) {
+                                parentEnumOrSealed.add(((TypeAliasDescriptor) actualDescriptor).getExpandedType().getConstructor());
+                            }
+                        }
+                    }
                 }
             }
         }
         return parentEnumOrSealed;
     }
 
+    @SuppressWarnings("unchecked")
     private static void recordConstructorDelegationCall(
             @NotNull BindingTrace trace,
             @NotNull ConstructorDescriptor constructor,
             @NotNull ResolvedCall<?> call
     ) {
-        //noinspection unchecked
         trace.record(CONSTRUCTOR_RESOLVED_DELEGATION_CALL, constructor, (ResolvedCall<ConstructorDescriptor>) call);
     }
 
@@ -494,7 +540,7 @@ public class BodyResolver {
             @NotNull KtClassOrObject ktClassOrObject
     ) {
         Set<TypeConstructor> allowedFinalSupertypes = getAllowedFinalSupertypes(supertypeOwner, supertypes, ktClassOrObject);
-        Set<TypeConstructor> typeConstructors = Sets.newHashSet();
+        Set<TypeConstructor> typeConstructors = new HashSet<>();
         boolean classAppeared = false;
         for (Map.Entry<KtTypeReference, KotlinType> entry : supertypes.entrySet()) {
             KtTypeReference typeReference = entry.getKey();
@@ -523,6 +569,9 @@ public class BodyResolver {
                 else if (FunctionTypesKt.isSuspendFunctionType(supertype)) {
                     trace.report(SUPERTYPE_IS_SUSPEND_FUNCTION_TYPE.on(typeReference));
                 }
+                else if (FunctionTypesKt.isKSuspendFunctionType(supertype)) {
+                    trace.report(SUPERTYPE_IS_KSUSPEND_FUNCTION_TYPE.on(typeReference));
+                }
 
                 if (classDescriptor.getKind() != ClassKind.INTERFACE) {
                     if (supertypeOwner.getKind() == ClassKind.ENUM_CLASS) {
@@ -539,10 +588,21 @@ public class BodyResolver {
                         trace.report(DATA_CLASS_CANNOT_HAVE_CLASS_SUPERTYPES.on(typeReference));
                         addSupertype = false;
                     }
-                    else if (DescriptorUtils.isSubclass(classDescriptor, builtIns.getThrowable()) &&
-                             !supertypeOwner.getDeclaredTypeParameters().isEmpty()) {
-                        trace.report(GENERIC_THROWABLE_SUBCLASS.on(ktClassOrObject.getTypeParameterList()));
-                        addSupertype = false;
+                    else if (DescriptorUtils.isSubclass(classDescriptor, builtIns.getThrowable())) {
+                        if (!supertypeOwner.getDeclaredTypeParameters().isEmpty()) {
+                            trace.report(GENERIC_THROWABLE_SUBCLASS.on(ktClassOrObject.getTypeParameterList()));
+                            addSupertype = false;
+                        }
+                        else if (!supertypeOwner.getTypeConstructor().getParameters().isEmpty()) {
+                            if (languageVersionSettings
+                                    .supportsFeature(LanguageFeature.ProhibitInnerClassesOfGenericClassExtendingThrowable)) {
+                                trace.report(INNER_CLASS_OF_GENERIC_THROWABLE_SUBCLASS.on(ktClassOrObject));
+                                addSupertype = false;
+                            }
+                            else {
+                                trace.report(INNER_CLASS_OF_GENERIC_THROWABLE_SUBCLASS_WARNING.on(ktClassOrObject));
+                            }
+                        }
                     }
 
                     if (classAppeared) {
@@ -581,7 +641,7 @@ public class BodyResolver {
                         trace.report(SEALED_SUPERTYPE_IN_LOCAL_CLASS.on(typeReference));
                     }
                 }
-                else if (ModalityKt.isFinalOrEnum(classDescriptor)) {
+                else if (ModalityUtilsKt.isFinalOrEnum(classDescriptor)) {
                     trace.report(FINAL_SUPERTYPE.on(typeReference));
                 }
                 else if (KotlinBuiltIns.isEnum(classDescriptor)) {
@@ -604,21 +664,24 @@ public class BodyResolver {
             @NotNull KtAnonymousInitializer anonymousInitializer,
             @NotNull ClassDescriptorWithResolutionScopes classDescriptor
     ) {
+        ProgressManager.checkCanceled();
+
         LexicalScope scopeForInitializers = classDescriptor.getScopeForInitializerResolution();
         KtExpression body = anonymousInitializer.getBody();
         if (body != null) {
             PreliminaryDeclarationVisitor.Companion.createForDeclaration(
-                    (KtDeclaration) anonymousInitializer.getParent().getParent(), trace);
+                    (KtDeclaration) anonymousInitializer.getParent().getParent(), trace, languageVersionSettings);
             expressionTypingServices.getTypeInfo(
-                    scopeForInitializers, body, NO_EXPECTED_TYPE, outerDataFlowInfo, trace, /*isStatement = */true
+                    scopeForInitializers, body, NO_EXPECTED_TYPE, outerDataFlowInfo,
+                    InferenceSession.Companion.getDefault(), trace, /*isStatement = */true
             );
         }
         processModifiersOnInitializer(anonymousInitializer, scopeForInitializers);
         if (classDescriptor.getConstructors().isEmpty()) {
             trace.report(ANONYMOUS_INITIALIZER_IN_INTERFACE.on(anonymousInitializer));
         }
-        if (classDescriptor.isHeader()) {
-            trace.report(HEADER_DECLARATION_WITH_BODY.on(anonymousInitializer));
+        if (classDescriptor.isExpect()) {
+            trace.report(EXPECTED_DECLARATION_WITH_BODY.on(anonymousInitializer));
         }
     }
 
@@ -655,6 +718,18 @@ public class BodyResolver {
             PropertyDescriptor descriptor = trace.getBindingContext().get(BindingContext.PRIMARY_CONSTRUCTOR_PARAMETER, parameter);
             if (descriptor != null) {
                 ForceResolveUtil.forceResolveAllContents(descriptor.getAnnotations());
+
+                if (languageVersionSettings.supportsFeature(LanguageFeature.ProhibitErroneousExpressionsInAnnotationsWithUseSiteTargets)) {
+                    PropertyGetterDescriptor getterDescriptor = descriptor.getGetter();
+                    if (getterDescriptor != null) {
+                        ForceResolveUtil.forceResolveAllContents(getterDescriptor.getAnnotations());
+                    }
+
+                    PropertySetterDescriptor setterDescriptor = descriptor.getSetter();
+                    if (setterDescriptor != null) {
+                        ForceResolveUtil.forceResolveAllContents(setterDescriptor.getAnnotations());
+                    }
+                }
             }
         }
     }
@@ -680,7 +755,7 @@ public class BodyResolver {
     ) {
         computeDeferredType(propertyDescriptor.getReturnType());
 
-        PreliminaryDeclarationVisitor.Companion.createForDeclaration(property, trace);
+        PreliminaryDeclarationVisitor.Companion.createForDeclaration(property, trace, languageVersionSettings);
         KtExpression initializer = property.getInitializer();
         LexicalScope propertyHeaderScope = ScopeUtils.makeScopeForPropertyHeader(getScopeForProperty(c, property), propertyDescriptor);
 
@@ -695,12 +770,14 @@ public class BodyResolver {
         }
 
         resolvePropertyAccessors(c, property, propertyDescriptor);
+
+        ForceResolveUtil.forceResolveAllContents(propertyDescriptor.getAnnotations());
     }
 
     private void resolvePropertyDeclarationBodies(@NotNull BodiesResolveContext c) {
 
         // Member properties
-        Set<KtProperty> processed = Sets.newHashSet();
+        Set<KtProperty> processed = new HashSet<>();
         for (Map.Entry<KtClassOrObject, ClassDescriptorWithResolutionScopes> entry : c.getDeclaredClasses().entrySet()) {
             if (!(entry.getKey() instanceof KtClass)) continue;
             KtClass ktClass = (KtClass) entry.getKey();
@@ -745,18 +822,33 @@ public class BodyResolver {
 
         KtPropertyAccessor getter = property.getGetter();
         PropertyGetterDescriptor getterDescriptor = propertyDescriptor.getGetter();
-        if (getter != null && getterDescriptor != null) {
-            LexicalScope accessorScope = makeScopeForPropertyAccessor(c, getter, propertyDescriptor);
-            ForceResolveUtil.forceResolveAllContents(getterDescriptor.getAnnotations());
-            resolveFunctionBody(c.getOuterDataFlowInfo(), fieldAccessTrackingTrace, getter, getterDescriptor, accessorScope);
+
+        boolean forceResolveAnnotations =
+                languageVersionSettings.supportsFeature(LanguageFeature.ProhibitErroneousExpressionsInAnnotationsWithUseSiteTargets);
+
+        if (getterDescriptor != null) {
+            if (getter != null) {
+                LexicalScope accessorScope = makeScopeForPropertyAccessor(c, getter, propertyDescriptor);
+                resolveFunctionBody(c.getOuterDataFlowInfo(), fieldAccessTrackingTrace, getter, getterDescriptor, accessorScope);
+            }
+
+            if (getter != null || forceResolveAnnotations) {
+                ForceResolveUtil.forceResolveAllContents(getterDescriptor.getAnnotations());
+            }
         }
 
         KtPropertyAccessor setter = property.getSetter();
         PropertySetterDescriptor setterDescriptor = propertyDescriptor.getSetter();
-        if (setter != null && setterDescriptor != null) {
-            LexicalScope accessorScope = makeScopeForPropertyAccessor(c, setter, propertyDescriptor);
-            ForceResolveUtil.forceResolveAllContents(setterDescriptor.getAnnotations());
-            resolveFunctionBody(c.getOuterDataFlowInfo(), fieldAccessTrackingTrace, setter, setterDescriptor, accessorScope);
+
+        if (setterDescriptor != null) {
+            if (setter != null) {
+                LexicalScope accessorScope = makeScopeForPropertyAccessor(c, setter, propertyDescriptor);
+                resolveFunctionBody(c.getOuterDataFlowInfo(), fieldAccessTrackingTrace, setter, setterDescriptor, accessorScope);
+            }
+
+            if (setter != null || forceResolveAnnotations) {
+                ForceResolveUtil.forceResolveAllContents(setterDescriptor.getAnnotations());
+            }
         }
     }
 
@@ -785,6 +877,7 @@ public class BodyResolver {
                                                           propertyDescriptor,
                                                           delegateExpression,
                                                           propertyHeaderScope,
+                                                          InferenceSession.Companion.getDefault(),
                                                           trace);
     }
 
@@ -799,7 +892,7 @@ public class BodyResolver {
         KotlinType expectedTypeForInitializer = property.getTypeReference() != null ? propertyDescriptor.getType() : NO_EXPECTED_TYPE;
         if (propertyDescriptor.getCompileTimeInitializer() == null) {
             expressionTypingServices.getType(propertyDeclarationInnerScope, initializer, expectedTypeForInitializer,
-                                             outerDataFlowInfo, trace);
+                                             outerDataFlowInfo, InferenceSession.Companion.getDefault(), trace);
         }
     }
 
@@ -851,7 +944,9 @@ public class BodyResolver {
             // Creates wrapper scope for header resolution if necessary (see resolveSecondaryConstructorBody)
             @Nullable Function1<LexicalScope, LexicalScope> headerScopeFactory
     ) {
-        PreliminaryDeclarationVisitor.Companion.createForDeclaration(function, trace);
+        ProgressManager.checkCanceled();
+
+        PreliminaryDeclarationVisitor.Companion.createForDeclaration(function, trace, languageVersionSettings);
         LexicalScope innerScope = FunctionDescriptorUtil.getFunctionInnerScope(scope, functionDescriptor, trace, overloadChecker);
         List<KtParameter> valueParameters = function.getValueParameters();
         List<ValueParameterDescriptor> valueParameterDescriptors = functionDescriptor.getValueParameters();

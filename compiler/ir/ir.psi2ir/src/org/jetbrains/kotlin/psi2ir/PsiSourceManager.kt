@@ -16,12 +16,18 @@
 
 package org.jetbrains.kotlin.psi2ir
 
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiFile
+import com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.SourceManager
 import org.jetbrains.kotlin.ir.SourceRangeInfo
+import org.jetbrains.kotlin.ir.declarations.IrDeclaration
 import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.ir.util.fileOrNull
 import org.jetbrains.kotlin.psi.KtFile
 import java.util.*
+import kotlin.reflect.KClass
 
 class PsiSourceManager : SourceManager {
     class PsiFileEntry(psiFile: PsiFile) : SourceManager.FileEntry {
@@ -29,15 +35,12 @@ class PsiSourceManager : SourceManager {
 
         override val maxOffset: Int
         private val lineStartOffsets: IntArray
+        private val fileViewProvider = psiFile.viewProvider
 
         init {
-            val document = psiFile.viewProvider.document ?: throw AssertionError("No document for $psiFile")
-
+            val document = fileViewProvider.document ?: throw AssertionError("No document for $psiFile")
             maxOffset = document.textLength
-
-            lineStartOffsets = (0 .. document.lineCount - 1)
-                    .map { document.getLineStartOffset(it) }
-                    .toIntArray()
+            lineStartOffsets = IntArray(document.lineCount) { document.getLineStartOffset(it) }
         }
 
         override fun getLineNumber(offset: Int): Int {
@@ -53,28 +56,42 @@ class PsiSourceManager : SourceManager {
         }
 
         override fun getSourceRangeInfo(beginOffset: Int, endOffset: Int): SourceRangeInfo =
-                SourceRangeInfo(
-                        filePath = getRecognizableName(),
-                        startOffset = beginOffset,
-                        startLineNumber = getLineNumber(beginOffset),
-                        startColumnNumber = getColumnNumber(beginOffset),
-                        endOffset = endOffset,
-                        endLineNumber = getLineNumber(endOffset),
-                        endColumnNumber = getColumnNumber(endOffset)
-                )
+            SourceRangeInfo(
+                filePath = getRecognizableName(),
+                startOffset = beginOffset,
+                startLineNumber = getLineNumber(beginOffset),
+                startColumnNumber = getColumnNumber(beginOffset),
+                endOffset = endOffset,
+                endLineNumber = getLineNumber(endOffset),
+                endColumnNumber = getColumnNumber(endOffset)
+            )
 
-        fun getRecognizableName(): String = psiFileName
+        private fun getRecognizableName(): String = psiFileName
 
         override val name: String get() = getRecognizableName()
 
         override fun toString(): String = getRecognizableName()
+
+        fun findPsiElement(irElement: IrElement): PsiElement? {
+            var psiElement = fileViewProvider.findElementAt(irElement.startOffset)
+            while (psiElement != null) {
+                if (irElement.endOffset == psiElement.textRange?.endOffset) break
+                psiElement = psiElement.parent
+            }
+            return psiElement
+        }
+
+        fun <E : PsiElement> findPsiElement(irElement: IrElement, psiElementClass: KClass<E>): E? =
+            findPsiElement(irElement)?.let {
+                PsiTreeUtil.getParentOfType(it, psiElementClass.java, false)
+            }
     }
 
     private val fileEntriesByKtFile = HashMap<KtFile, PsiFileEntry>()
     private val fileEntriesByIrFile = HashMap<IrFile, PsiFileEntry>()
     private val ktFileByFileEntry = HashMap<PsiFileEntry, KtFile>()
 
-    fun createFileEntry(ktFile: KtFile): PsiFileEntry {
+    private fun createFileEntry(ktFile: KtFile): PsiFileEntry {
         if (ktFile in fileEntriesByKtFile) error("PsiFileEntry is already created for $ktFile")
         val newEntry = PsiFileEntry(ktFile)
         fileEntriesByKtFile[ktFile] = newEntry
@@ -87,14 +104,40 @@ class PsiSourceManager : SourceManager {
     }
 
     fun getOrCreateFileEntry(ktFile: KtFile): PsiFileEntry =
-            fileEntriesByKtFile.getOrElse(ktFile) { createFileEntry(ktFile) }
+        fileEntriesByKtFile.getOrElse(ktFile) { createFileEntry(ktFile) }
 
     fun getKtFile(fileEntry: PsiFileEntry): KtFile? =
-            ktFileByFileEntry[fileEntry]
+        ktFileByFileEntry[fileEntry]
 
     fun getKtFile(irFile: IrFile): KtFile? =
-            (irFile.fileEntry as? PsiFileEntry)?.let { ktFileByFileEntry[it] }
+        (irFile.fileEntry as? PsiFileEntry)?.let { ktFileByFileEntry[it] }
 
-    override fun getFileEntry(irFile: IrFile): SourceManager.FileEntry =
-            fileEntriesByIrFile[irFile]!!
+    override fun getFileEntry(irFile: IrFile): SourceManager.FileEntry? =
+        fileEntriesByIrFile[irFile] ?: irFile.fileEntry
+
+    fun <E : PsiElement> findPsiElement(irElement: IrElement, irFile: IrFile, psiElementClass: KClass<E>): E? {
+        val psiFileEntry = fileEntriesByIrFile[irFile] ?: return null
+        return psiFileEntry.findPsiElement(irElement, psiElementClass)
+    }
+
+    fun findPsiElement(irElement: IrElement, irFile: IrFile): PsiElement? {
+        val psiFileEntry = fileEntriesByIrFile[irFile] ?: return null
+        return psiFileEntry.findPsiElement(irElement)
+    }
+
+    fun <E : PsiElement> findPsiElement(irElement: IrElement, irDeclaration: IrDeclaration, psiElementClass: KClass<E>): E? {
+        val irFile = irDeclaration.fileOrNull ?: return null
+        return findPsiElement(irElement, irFile, psiElementClass)
+    }
+
+    fun findPsiElement(irElement: IrElement, irDeclaration: IrDeclaration): PsiElement? {
+        val irFile = irDeclaration.fileOrNull ?: return null
+        return findPsiElement(irElement, irFile)
+    }
+
+    fun <E : PsiElement> findPsiElement(irDeclaration: IrDeclaration, psiElementClass: KClass<E>): E? =
+        findPsiElement(irDeclaration, irDeclaration, psiElementClass)
+
+    fun findPsiElement(irDeclaration: IrDeclaration): PsiElement? =
+        findPsiElement(irDeclaration, irDeclaration)
 }

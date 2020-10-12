@@ -25,6 +25,7 @@ import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.resolve.*
 import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
+import org.jetbrains.kotlin.resolve.descriptorUtil.isAnnotationConstructor
 import org.jetbrains.kotlin.resolve.lazy.DeclarationScopeProvider
 import org.jetbrains.kotlin.resolve.lazy.ForceResolveUtil
 import org.jetbrains.kotlin.resolve.lazy.ResolveSession
@@ -32,8 +33,11 @@ import org.jetbrains.kotlin.resolve.scopes.LexicalScope
 import org.jetbrains.kotlin.resolve.scopes.utils.memberScopeAsImportingScope
 
 open class PartialAnalysisHandlerExtension : AnalysisHandlerExtension {
-    protected open val analyzePartially: Boolean
+    open val analyzePartially: Boolean
         get() = true
+
+    open val analyzeDefaultParameterValues: Boolean
+        get() = false
 
     override fun doAnalysis(
             project: Project,
@@ -50,12 +54,14 @@ open class PartialAnalysisHandlerExtension : AnalysisHandlerExtension {
         val resolveSession = componentProvider.get<ResolveSession>()
         val bodyResolver = componentProvider.get<BodyResolver>()
         val declarationScopeProvider = componentProvider.get<DeclarationScopeProvider>()
+        val topDownAnalyzer = componentProvider.get<LazyTopDownAnalyzer>()
 
         val topDownAnalysisContext = TopDownAnalysisContext(
                 TopDownAnalysisMode.TopLevelDeclarations, DataFlowInfo.EMPTY, declarationScopeProvider)
 
         for (file in files) {
             ForceResolveUtil.forceResolveAllContents(resolveSession.getFileAnnotations(file))
+            topDownAnalyzer.resolveImportsInFile(file)
         }
 
         doForEachDeclaration(files) { declaration ->
@@ -81,20 +87,17 @@ open class PartialAnalysisHandlerExtension : AnalysisHandlerExtension {
                          * val a: Runnable = object : Runnable { ... } */
                         bodyResolver.resolveProperty(topDownAnalysisContext, declaration, descriptor)
                     }
-                    else if (declaration is KtParameter) { // Annotation parameter
-                        val ownerElement = declaration.ownerFunction
-                        val ownerDescriptor = bindingTrace[BindingContext.VALUE_PARAMETER, declaration]?.containingDeclaration
-                        val containingScope = ownerDescriptor?.containingScope
-
-                        if (ownerElement is KtPrimaryConstructor && ownerDescriptor is ConstructorDescriptor && containingScope != null) {
-                            bodyResolver.resolveConstructorParameterDefaultValues(
-                                    topDownAnalysisContext.outerDataFlowInfo, bindingTrace, ownerElement, ownerDescriptor, containingScope)
-                        }
-                    }
                 }
                 is FunctionDescriptor -> {
-                    // is body expression (not unit)
-                    if (declaration is KtFunction && !declaration.hasDeclaredReturnType() && !declaration.hasBlockBody()) {
+                    if (declaration is KtPrimaryConstructor && (analyzeDefaultParameterValues || descriptor.isAnnotationConstructor())) {
+                        val containingScope = descriptor.containingScope
+                        if (containingScope != null) {
+                            bodyResolver.resolveConstructorParameterDefaultValues(
+                                topDownAnalysisContext.outerDataFlowInfo, bindingTrace,
+                                declaration, descriptor as ConstructorDescriptor, containingScope
+                            )
+                        }
+                    } else if (declaration is KtFunction && !declaration.hasDeclaredReturnType() && !declaration.hasBlockBody()) {
                         ForceResolveUtil.forceResolveAllContents(descriptor)
                     }
                 }
@@ -109,7 +112,7 @@ open class PartialAnalysisHandlerExtension : AnalysisHandlerExtension {
             val containingDescriptor = containingDeclaration ?: return null
             return when (containingDescriptor) {
                 is ClassDescriptorWithResolutionScopes -> containingDescriptor.scopeForInitializerResolution
-                is PackageFragmentDescriptor -> LexicalScope.Empty(containingDescriptor.getMemberScope().memberScopeAsImportingScope(), this)
+                is PackageFragmentDescriptor -> LexicalScope.Base(containingDescriptor.getMemberScope().memberScopeAsImportingScope(), this)
                 else -> null
             }
         }
@@ -120,11 +123,12 @@ open class PartialAnalysisHandlerExtension : AnalysisHandlerExtension {
         }
 
         if (declaration is KtClassOrObject) {
-            declaration.declarations.forEach { doForEachDeclaration(it, f) }
-        }
+            val primaryConstructor = declaration.primaryConstructor
+            if (primaryConstructor != null) {
+                f(primaryConstructor)
+            }
 
-        if (declaration is KtClass && declaration.isAnnotation()) {
-            declaration.primaryConstructorParameters.forEach { doForEachDeclaration(it, f) }
+            declaration.declarations.forEach { doForEachDeclaration(it, f) }
         }
     }
 

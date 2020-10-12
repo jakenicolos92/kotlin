@@ -1,3 +1,7 @@
+// !LANGUAGE: -ProperIeee754Comparisons
+// DONT_TARGET_EXACT_BACKEND: JS_IR
+// DONT_TARGET_EXACT_BACKEND: JS_IR_ES6
+
 fun equals1(a: Double, b: Double) = a == b
 
 fun equals2(a: Double?, b: Double?) = a!! == b!!
@@ -15,7 +19,9 @@ fun box(): String {
     if (!equals2(-0.0, 0.0)) return "fail 2"
     if (!equals3(-0.0, 0.0)) return "fail 3"
     if (!equals4(-0.0, 0.0)) return "fail 4"
-    if (!equals5(-0.0, 0.0)) return "fail 5"
+
+    // Smart casts behavior in 1.2
+    if (equals5(-0.0, 0.0)) return "fail 5"
 
     return "OK"
 }

@@ -1,5 +1,8 @@
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
 // IGNORE_BACKEND: JS
+// IGNORE_BACKEND: NATIVE
 
 // WITH_RUNTIME
 
@@ -14,7 +17,7 @@ class M {
 fun topLevelFun() {}
 val topLevelProp = ""
 
-fun checkEquals(x: KCallable<*>, y: KCallable<*>) {
+fun <T> checkEquals(x: KCallable<T>, y: KCallable<T>) {
     assertEquals(x, y)
     assertEquals(y, x)
     assertEquals(x.hashCode(), y.hashCode())

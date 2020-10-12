@@ -5,7 +5,7 @@ fun test1() {
 }
 
 fun test2() {
-    listOf(1).forEach lit@ {
+    listOf(1).forEach lit@{
         if (it == 0) return@lit
         print(it)
     }
@@ -37,4 +37,8 @@ fun test4() {
     {
 
     }
+}
+
+fun test5() {
+    L1@ val x: Int = 42
 }

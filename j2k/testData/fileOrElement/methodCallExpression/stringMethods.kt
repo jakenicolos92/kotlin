@@ -1,9 +1,5 @@
-// ERROR: Too many arguments for public constructor String() defined in kotlin.String
-// ERROR: Too many arguments for public constructor String() defined in kotlin.String
-// ERROR: Too many arguments for public constructor String() defined in kotlin.String
-// ERROR: Too many arguments for public constructor String() defined in kotlin.String
-// ERROR: Too many arguments for public constructor String() defined in kotlin.String
-// ERROR: Too many arguments for public constructor String() defined in kotlin.String
+// ERROR: Type mismatch: inferred type is String but Charset was expected
+// ERROR: Type mismatch: inferred type is String but Charset was expected
 import java.nio.charset.Charset
 import java.util.*
 
@@ -64,7 +60,7 @@ internal class A {
         s.toUpperCase()
         s.toUpperCase(Locale.FRENCH)
 
-        s.toString()
+        s
         s.toCharArray()
     }
 
@@ -73,19 +69,19 @@ internal class A {
         val s = "test string"
         s == "test"
         s.equals(
-                "tesT", ignoreCase = true
+            "tesT", ignoreCase = true
         )
         s.compareTo("Test", ignoreCase = true)
         s.regionMatches(
-                0,
-                "TE",
-                0,
-                2, ignoreCase = true
+            0,
+            "TE",
+            0,
+            2, ignoreCase = true
         )
         s.regionMatches(0, "st", 1, 2)
         s.matches("\\w+".toRegex())
         s.replace("\\w+".toRegex(), "---")
-                .replaceFirst("([s-t])".toRegex(), "A$1")
+            .replaceFirst("([s-t])".toRegex(), "A$1")
         useSplit(s.split("\\s+".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray())
         useSplit(s.split("\\s+".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray())
         useSplit(s.split("\\s+".toRegex()).toTypedArray())
@@ -93,7 +89,7 @@ internal class A {
         val limit = 5
         useSplit(s.split("\\s+".toRegex(), limit.coerceAtLeast(0)).toTypedArray())
         s.trim { it <= ' ' }
-        s + " another"
+        "$s another"
 
         s.toByteArray()
         s.toByteArray(Charset.forName("utf-8"))
@@ -113,9 +109,9 @@ internal class A {
         Any().toString()
 
         String.format(
-                Locale.FRENCH,
-                "Je ne mange pas %d jours",
-                6
+            Locale.FRENCH,
+            "Je ne mange pas %d jours",
+            6
         )
         String.format("Operation completed with %s", "success")
 

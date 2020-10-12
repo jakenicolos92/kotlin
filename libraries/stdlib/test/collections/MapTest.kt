@@ -1,8 +1,12 @@
+/*
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 package test.collections
 
 import kotlin.test.*
 import test.*
-import org.junit.Test
 
 class MapTest {
 
@@ -97,6 +101,18 @@ class MapTest {
         assertEquals("beverage,beer,location,Mells,name,James", list.joinToString(","))
     }
 
+    @Test fun iterateAndMutate() {
+        val map = mutableMapOf("beverage" to "beer", "location" to "Mells", "name" to "James")
+        val it = map.iterator()
+        for (e in it) {
+            when (e.key) {
+                "beverage" -> e.setValue("juice")
+                "location" -> it.remove()
+            }
+        }
+        assertEquals(mapOf("beverage" to "juice", "name" to "James"), map)
+    }
+
 
     @Test
     fun onEach() {
@@ -109,6 +125,20 @@ class MapTest {
         // static types test
         assertStaticTypeIs<HashMap<String, String>>(
                 hashMapOf("a" to "b").onEach {  }
+        )
+    }
+
+    @Test
+    fun onEachIndexed() {
+        val map = mutableMapOf("beverage" to "beer", "location" to "Mells")
+        val result = StringBuilder()
+        val newMap = map.onEachIndexed { i, e -> result.append(i + 1).append('.').append(e.key).append("=").append(e.value).append(";") }
+        assertEquals("1.beverage=beer;2.location=Mells;", result.toString())
+        assertTrue(map === newMap)
+
+        // static types test
+        assertStaticTypeIs<HashMap<String, String>>(
+            hashMapOf("a" to "b").onEachIndexed { _, _ -> }
         )
     }
 
@@ -184,6 +214,21 @@ class MapTest {
         val m3 = m1p.mapKeysTo(mutableMapOf()) { it.key.length }
         assertStaticTypeIs<MutableMap<Int, String>>(m3)
         assertEquals(mapOf(8 to "Mells"), m3)
+    }
+
+    @Test fun flatMap() {
+        fun <T> list(entry: Map.Entry<T, T>): List<T> = listOf(entry.key, entry.value)
+        fun <T> seq(entry: Map.Entry<T, T>): Sequence<T> = sequenceOf(entry.key, entry.value)
+        val m = mapOf("x" to 1, "y" to 0)
+        val result1 = m.flatMap { list(it) }
+        val result2 = m.flatMap { seq(it) }
+        val result3 = m.flatMap(::list)
+        val result4 = m.flatMap(::seq)
+        val expected = listOf("x", 1, "y", 0)
+        assertEquals(expected, result1)
+        assertEquals(expected, result2)
+        assertEquals(expected, result3)
+        assertEquals(expected, result4)
     }
 
     @Test fun createFrom() {

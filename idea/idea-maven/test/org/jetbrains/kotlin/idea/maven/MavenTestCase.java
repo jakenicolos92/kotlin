@@ -41,18 +41,41 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.idea.maven.indices.MavenIndicesManager;
 import org.jetbrains.idea.maven.project.*;
 import org.jetbrains.idea.maven.server.MavenServerManager;
+import org.jetbrains.kotlin.test.KotlinTestUtils;
 
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public abstract class MavenTestCase extends UsefulTestCase {
-    private File ourTempDir;
+
+    private static final String mavenMirrorUrl = System.getProperty("idea.maven.test.mirror",
+                                                                    // use JB maven proxy server for internal use by default, see details at
+                                                                    // https://confluence.jetbrains.com/display/JBINT/Maven+proxy+server
+                                                                    "https://maven.labs.intellij.net/repo1");
+    private static boolean mirrorDiscoverable = false;
+
+    static {
+        try {
+            URL url = new URL(mavenMirrorUrl);
+            HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();
+            urlConnection.setConnectTimeout(1000);
+            int responseCode = urlConnection.getResponseCode();
+            if (responseCode < 400) {
+                mirrorDiscoverable = true;
+            }
+        }
+        catch (Exception e) {
+            mirrorDiscoverable = false;
+        }
+    }
 
     protected IdeaProjectTestFixture myTestFixture;
 
@@ -68,11 +91,8 @@ public abstract class MavenTestCase extends UsefulTestCase {
     protected void setUp() throws Exception {
         super.setUp();
 
-        ensureTempDirCreated();
-
-        myDir = new File(ourTempDir, getTestName(false));
-        FileUtil.ensureExists(myDir);
-
+        myDir = KotlinTestUtils.tmpDir(getTestName(false));
+        
         setUpFixtures();
 
         myProject = myTestFixture.getProject();
@@ -113,15 +133,6 @@ public abstract class MavenTestCase extends UsefulTestCase {
                 });
             }
         });
-
-    }
-
-    private void ensureTempDirCreated() throws IOException {
-        if (ourTempDir != null) return;
-
-        ourTempDir = new File(FileUtil.getTempDirectory(), "mavenTests");
-        FileUtil.delete(ourTempDir);
-        FileUtil.ensureExists(ourTempDir);
     }
 
     protected void setUpFixtures() throws Exception {
@@ -130,8 +141,7 @@ public abstract class MavenTestCase extends UsefulTestCase {
     }
 
     protected void setUpInWriteAction() throws Exception {
-        File projectDir = new File(myDir, "project");
-        projectDir.mkdirs();
+        File projectDir = FileUtil.createTempDirectory("project", "", false);
         myProjectRoot = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(projectDir);
     }
 
@@ -157,14 +167,6 @@ public abstract class MavenTestCase extends UsefulTestCase {
         }
         finally {
             super.tearDown();
-            FileUtil.delete(myDir);
-            // cannot use reliably the result of the com.intellij.openapi.util.io.FileUtil.delete() method
-            // because com.intellij.openapi.util.io.FileUtilRt.deleteRecursivelyNIO() does not honor this contract
-            if (myDir.exists()) {
-                System.err.println("Cannot delete " + myDir);
-                //printDirectoryContent(myDir);
-                myDir.deleteOnExit();
-            }
             resetClassFields(getClass());
         }
     }
@@ -253,7 +255,9 @@ public abstract class MavenTestCase extends UsefulTestCase {
     }
 
     protected static String getEnvVar() {
-        if (SystemInfo.isWindows) return "TEMP";
+        if (SystemInfo.isWindows) {
+            return "TEMP";
+        }
         else if (SystemInfo.isLinux) return "HOME";
         return "TMPDIR";
     }
@@ -319,16 +323,22 @@ public abstract class MavenTestCase extends UsefulTestCase {
     }
 
     private static String createSettingsXmlContent(String content) {
-        String mirror = System.getProperty("idea.maven.test.mirror",
-                                           // use JB maven proxy server for internal use by default, see details at
-                                           // https://confluence.jetbrains.com/display/JBINT/Maven+proxy+server
-                                           "http://maven.labs.intellij.net/repo1");
+
+        if (!mirrorDiscoverable) {
+            System.err.println("Maven mirror at " + mavenMirrorUrl + " not reachable, so not using it.");
+
+            return "<settings>" +
+                   content +
+                   "</settings>";
+        }
+
+        System.out.println("Using Maven mirror at " + mavenMirrorUrl);
         return "<settings>" +
                content +
                "<mirrors>" +
                "  <mirror>" +
                "    <id>jb-central-proxy</id>" +
-               "    <url>" + mirror + "</url>" +
+               "    <url>" + mavenMirrorUrl + "</url>" +
                "    <mirrorOf>external:*</mirrorOf>" +
                "  </mirror>" +
                "</mirrors>" +
@@ -379,8 +389,9 @@ public abstract class MavenTestCase extends UsefulTestCase {
         return f;
     }
 
-    @NonNls @Language(value="XML")
-    public static String createPomXml(@NonNls @Language(value="XML", prefix="<xml>", suffix="</xml>") String xml) {
+    @NonNls
+    @Language(value = "XML")
+    public static String createPomXml(@NonNls @Language(value = "XML", prefix = "<xml>", suffix = "</xml>") String xml) {
         return "<?xml version=\"1.0\"?>" +
                "<project xmlns=\"http://maven.apache.org/POM/4.0.0\"" +
                "         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"" +
@@ -512,6 +523,7 @@ public abstract class MavenTestCase extends UsefulTestCase {
     protected static <T> void assertUnorderedElementsAreEqual(Collection<T> actual, Collection<T> expected) {
         assertEquals(new HashSet<T>(expected), new HashSet<T>(actual));
     }
+
     protected static void assertUnorderedPathsAreEqual(Collection<String> actual, Collection<String> expected) {
         assertEquals(new SetWithToString<String>(new THashSet<String>(expected, FileUtil.PATH_HASHING_STRATEGY)),
                      new SetWithToString<String>(new THashSet<String>(actual, FileUtil.PATH_HASHING_STRATEGY)));
@@ -611,5 +623,4 @@ public abstract class MavenTestCase extends UsefulTestCase {
             return myDelegate.hashCode();
         }
     }
-
 }

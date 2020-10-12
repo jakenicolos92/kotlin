@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.codeInsight.smartEnter
@@ -21,38 +10,38 @@ import com.intellij.testFramework.LightProjectDescriptor
 import com.intellij.testFramework.fixtures.LightCodeInsightFixtureTestCase
 import org.jetbrains.kotlin.idea.KotlinFileType
 import org.jetbrains.kotlin.idea.test.KotlinLightCodeInsightFixtureTestCase
+import org.jetbrains.kotlin.test.JUnit3WithIdeaConfigurationRunner
+import org.junit.runner.RunWith
 
+@RunWith(JUnit3WithIdeaConfigurationRunner::class)
 class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     fun testIfCondition() = doFunTest(
-            """
+        """
             if <caret>
-            """
-            ,
-            """
+            """,
+        """
             if (<caret>) {
             }
             """
     )
 
     fun testIfCondition2() = doFunTest(
-            """
+        """
             if<caret>
-            """
-            ,
-            """
+            """,
+        """
             if (<caret>) {
             }
             """
     )
 
     fun testIfWithFollowingCode() = doFunTest(
-            """
+        """
             if<caret>
 
             return true
-            """
-            ,
-            """
+            """,
+        """
             if (<caret>) {
             }
 
@@ -61,23 +50,21 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testIfCondition3() = doFunTest(
-            """
+        """
             if (<caret>
-            """
-            ,
-            """
+            """,
+        """
             if (<caret>) {
             }
             """
     )
 
     fun testIfCondition4() = doFunTest(
-            """
+        """
             if (true<caret>) {
             }
-            """
-            ,
-            """
+            """,
+        """
             if (true) {
                 <caret>
             }
@@ -85,11 +72,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testIfCondition5() = doFunTest(
-            """
+        """
             if (true) {<caret>
-            """
-            ,
-            """
+            """,
+        """
             if (true) {
                 <caret>
             }
@@ -97,13 +83,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testIfCondition6() = doFunTest(
-            """
+        """
             if (true<caret>) {
                 println()
             }
-            """
-            ,
-            """
+            """,
+        """
             if (true) {
                 <caret>
                 println()
@@ -112,34 +97,31 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testIfThenOneLine1() = doFunTest(
-            """
+        """
             if (true) println()<caret>
-            """
-            ,
-            """
+            """,
+        """
             if (true) println()
             <caret>
             """
     )
 
     fun testIfThenOneLine2() = doFunTest(
-            """
+        """
             if (true) <caret>println()
-            """
-            ,
-            """
+            """,
+        """
             if (true) println()
             <caret>
             """
     )
 
     fun testIfThenMultiLine1() = doFunTest(
-            """
+        """
             if (true)
                 println()<caret>
-            """
-            ,
-            """
+            """,
+        """
             if (true)
                 println()
             <caret>
@@ -147,12 +129,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testIfThenMultiLine2() = doFunTest(
-            """
+        """
             if (true)
                 println()<caret>
-            """
-            ,
-            """
+            """,
+        """
             if (true)
                 println()
             <caret>
@@ -161,12 +142,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
 
     // TODO: indent for println
     fun testIfThenMultiLine3() = doFunTest(
-            """
+        """
             if (true<caret>)
                 println()
-            """
-            ,
-            """
+            """,
+        """
             if (true) {
                 <caret>
             }
@@ -175,11 +155,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testIfWithReformat() = doFunTest(
-            """
+        """
             if     (true<caret>) {
             }
             """,
-            """
+        """
             if (true) {
                 <caret>
             }
@@ -187,11 +167,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testElse() = doFunTest(
-            """
+        """
             if (true) {
             } else<caret>
             """,
-            """
+        """
             if (true) {
             } else {
                 <caret>
@@ -200,11 +180,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testElseOneLine1() = doFunTest(
-            """
+        """
             if (true) {
             } else println()<caret>
             """,
-            """
+        """
             if (true) {
             } else println()
             <caret>
@@ -212,11 +192,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testElseOneLine2() = doFunTest(
-            """
+        """
             if (true) {
             } else <caret>println()
             """,
-            """
+        """
             if (true) {
             } else println()
             <caret>
@@ -224,12 +204,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testElseTwoLines1() = doFunTest(
-            """
+        """
             if (true) {
             } else
                 <caret>println()
             """,
-            """
+        """
             if (true) {
             } else
                 println()
@@ -238,12 +218,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testElseTwoLines2() = doFunTest(
-            """
+        """
             if (true) {
             } else
                 println()<caret>
             """,
-            """
+        """
             if (true) {
             } else
                 println()
@@ -253,11 +233,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
 
     // TODO: remove space in expected data
     fun testElseWithSpace() = doFunTest(
-            """
+        """
             if (true) {
             } else <caret>
             """,
-            """
+        """
             if (true) {
             } else {
                 <caret>
@@ -267,45 +247,41 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
 
 
     fun testWhile() = doFunTest(
-            """
+        """
             while <caret>
-            """
-            ,
-            """
+            """,
+        """
             while (<caret>) {
             }
             """
     )
 
     fun testWhile2() = doFunTest(
-            """
+        """
             while<caret>
-            """
-            ,
-            """
+            """,
+        """
             while (<caret>) {
             }
             """
     )
 
     fun testWhile3() = doFunTest(
-            """
+        """
             while (<caret>
-            """
-            ,
-            """
+            """,
+        """
             while (<caret>) {
             }
             """
     )
 
     fun testWhile4() = doFunTest(
-            """
+        """
             while (true<caret>) {
             }
-            """
-            ,
-            """
+            """,
+        """
             while (true) {
                 <caret>
             }
@@ -313,11 +289,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testWhile5() = doFunTest(
-            """
+        """
             while (true) {<caret>
-            """
-            ,
-            """
+            """,
+        """
             while (true) {
                 <caret>
             }
@@ -325,13 +300,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testWhile6() = doFunTest(
-            """
+        """
             while (true<caret>) {
                 println()
             }
-            """
-            ,
-            """
+            """,
+        """
             while (true) {
                 <caret>
                 println()
@@ -340,31 +314,31 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testWhile7() = doFunTest(
-            """
+        """
             while ()<caret>
             """,
-            """
+        """
             while (<caret>) {
             }
             """
     )
 
     fun testWhileSingle() = doFunTest(
-            """
+        """
             <caret>while    (true) println()
             """,
-            """
+        """
             while (true) println()
             <caret>
             """
     )
 
     fun testWhileMultiLine1() = doFunTest(
-            """
+        """
             while (true)
                 println()<caret>
             """,
-            """
+        """
             while (true)
                 println()
             <caret>
@@ -372,11 +346,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testWhileMultiLine2() = doFunTest(
-            """
+        """
             while (<caret>true)
                 println()
             """,
-            """
+        """
             while (true) {
                 <caret>
             }
@@ -385,34 +359,31 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testForStatement() = doFunTest(
-            """
+        """
             for <caret>
-            """
-            ,
-            """
+            """,
+        """
             for (<caret>) {
             }
             """
     )
 
     fun testForStatement2() = doFunTest(
-            """
+        """
             for<caret>
-            """
-            ,
-            """
+            """,
+        """
             for (<caret>) {
             }
             """
     )
 
     fun testForStatement4() = doFunTest(
-            """
+        """
             for (i in 1..10<caret>) {
             }
-            """
-            ,
-            """
+            """,
+        """
             for (i in 1..10) {
                 <caret>
             }
@@ -420,11 +391,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testForStatement5() = doFunTest(
-            """
+        """
             for (i in 1..10) {<caret>
-            """
-            ,
-            """
+            """,
+        """
             for (i in 1..10) {
                 <caret>
             }
@@ -432,13 +402,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testForStatement6() = doFunTest(
-            """
+        """
             for (i in 1..10<caret>) {
                 println()
             }
-            """
-            ,
-            """
+            """,
+        """
             for (i in 1..10) {
                 <caret>
                 println()
@@ -447,33 +416,30 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testForStatementSingle() = doFunTest(
-            """
+        """
             for (i in 1..10<caret>) println()
-            """
-            ,
-            """
+            """,
+        """
             for (i in 1..10) println()
             <caret>
             """
     )
 
     fun testForStatementSingleEmpty() = doFunTest(
-            """
+        """
             for (<caret>) println()
-            """
-            ,
-            """
+            """,
+        """
             for (<caret>) println()
             """
     )
 
     fun testForStatementOnLoopParameter() = doFunTest(
-            """
+        """
             for (som<caret>e)
             println()
-            """
-            ,
-            """
+            """,
+        """
             for (some) {
                 <caret>
             }
@@ -482,11 +448,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testForMultiLine1() = doFunTest(
-            """
+        """
             for (i in 1..10<caret>)
                 println()
             """,
-            """
+        """
             for (i in 1..10) {
                 <caret>
             }
@@ -495,11 +461,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testForMultiLine2() = doFunTest(
-            """
+        """
             for (i in 1..10)
                 println()<caret>
             """,
-            """
+        """
             for (i in 1..10)
                 println()
             <caret>
@@ -507,11 +473,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testWhen() = doFunTest(
-            """
+        """
             when <caret>
-            """
-            ,
-            """
+            """,
+        """
             when {
                 <caret>
             }
@@ -519,11 +484,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testWhen1() = doFunTest(
-            """
+        """
             when<caret>
-            """
-            ,
-            """
+            """,
+        """
             when {
                 <caret>
             }
@@ -531,12 +495,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testWhen2() = doFunTest(
-            """
+        """
             when (true<caret>) {
             }
-            """
-            ,
-            """
+            """,
+        """
             when (true) {
                 <caret>
             }
@@ -544,11 +507,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testWhen3() = doFunTest(
-            """
+        """
             when (true) {<caret>
-            """
-            ,
-            """
+            """,
+        """
             when (true) {
                 <caret>
             }
@@ -556,13 +518,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testWhen4() = doFunTest(
-            """
+        """
             when (true<caret>) {
                 false -> println("false")
             }
-            """
-            ,
-            """
+            """,
+        """
             when (true) {
                 <caret>
                 false -> println("false")
@@ -571,22 +532,20 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testWhen5() = doFunTest(
-            """
+        """
             when (<caret>)
-            """
-            ,
-            """
+            """,
+        """
             when (<caret>) {
             }
             """
     )
 
     fun testWhen6() = doFunTest(
-            """
+        """
             when (true<caret>)
-            """
-            ,
-            """
+            """,
+        """
             when (true) {
                 <caret>
             }
@@ -595,12 +554,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
 
     // Check that no addition {} inserted
     fun testWhenBadParsed() = doFunTest(
-            """
+        """
             when ({<caret>
             }
-            """
-            ,
-            """
+            """,
+        """
             when ({
                 <caret>
             }
@@ -608,35 +566,32 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhile() = doFunTest(
-            """
+        """
             do <caret>
-            """
-            ,
-            """
+            """,
+        """
             do {
             } while (<caret>)${' '}
             """
     )
 
     fun testDoWhile2() = doFunTest(
-            """
+        """
             do<caret>
-            """
-            ,
-            """
+            """,
+        """
             do {
             } while (<caret>)
             """
     )
 
     fun testDoWhile3() = doFunTest(
-            """
+        """
             do<caret> {
                 println(hi)
             }
-            """
-            ,
-            """
+            """,
+        """
             do {
                 println(hi)
             } while (<caret>)
@@ -644,24 +599,22 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhile5() = doFunTest(
-            """
+        """
             do<caret> {
             } while ()
-            """
-            ,
-            """
+            """,
+        """
             do {
             } while (<caret>)
             """
     )
 
     fun testDoWhile6() = doFunTest(
-            """
+        """
             do<caret> {
             } while (true)
-            """
-            ,
-            """
+            """,
+        """
             do {
                 <caret>
             } while (true)
@@ -669,12 +622,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhile7() = doFunTest(
-            """
+        """
             do {
             } <caret>while (true)
-            """
-            ,
-            """
+            """,
+        """
             do {
                 <caret>
             } while (true)
@@ -682,12 +634,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhile8() = doFunTest(
-            """
+        """
             do {
             } while (<caret>true)
-            """
-            ,
-            """
+            """,
+        """
             do {
                 <caret>
             } while (true)
@@ -695,22 +646,20 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhile9() = doFunTest(
-            """
+        """
             do while<caret>
-            """
-            ,
-            """
+            """,
+        """
             do {
             } while (<caret>)
             """
     )
 
     fun testDoWhile10() = doFunTest(
-            """
+        """
             do while (true<caret>)
-            """
-            ,
-            """
+            """,
+        """
             do {
                 <caret>
             } while (true)
@@ -718,13 +667,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhile11() = doFunTest(
-            """
+        """
             do {
                 println("some")
             } while<caret>
-            """
-            ,
-            """
+            """,
+        """
             do {
                 println("some")
             } while (<caret>)
@@ -732,13 +680,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhile12() = doFunTest(
-            """
+        """
             do {
                 println("some")
             } while (true<caret>
-            """
-            ,
-            """
+            """,
+        """
             do {
                 <caret>
                 println("some")
@@ -747,12 +694,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhile13() = doFunTest(
-            """
+        """
             do<caret>
             println("some")
-            """
-            ,
-            """
+            """,
+        """
             do {
                 println("some")
             } while (<caret>)
@@ -760,12 +706,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhile14() = doFunTest(
-            """
+        """
             do <caret>
             println("some")
-            """
-            ,
-            """
+            """,
+        """
             do {
                 println("some")
             } while (<caret>)
@@ -773,12 +718,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhileOneLine1() = doFunTest(
-            """
+        """
             do println("some") while (true<caret>)
             println("hi")
-            """
-            ,
-            """
+            """,
+        """
             do println("some") while (true)
             <caret>
             println("hi")
@@ -786,12 +730,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhileOneLine2() = doFunTest(
-            """
+        """
             do <caret>println("some") while (true)
             println("hi")
-            """
-            ,
-            """
+            """,
+        """
             do println("some") while (true)
             <caret>
             println("hi")
@@ -799,12 +742,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhileMultiLine1() = doFunTest(
-            """
+        """
             do
                 println()<caret>
             while (true)
             """,
-            """
+        """
             do
                 println()
                 <caret>
@@ -813,12 +756,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhileMultiLine2() = doFunTest(
-            """
+        """
             do<caret>
                 println()
             while (true)
             """,
-            """
+        """
             do {
                 <caret>
                 println()
@@ -827,12 +770,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testDoWhileMultiLine3() = doFunTest(
-            """
+        """
             do
                 println()
             while <caret>(true)
             """,
-            """
+        """
             do {
                 <caret>
                 println()
@@ -841,11 +784,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testFunBody() = doFileTest(
-            """
+        """
             fun test<caret>()
-            """
-            ,
-            """
+            """,
+        """
             fun test() {
                 <caret>
             }
@@ -853,11 +795,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testFunBody1() = doFileTest(
-            """
+        """
             fun test<caret>
-            """
-            ,
-            """
+            """,
+        """
             fun test() {
                 <caret>
             }
@@ -865,11 +806,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testFunBody2() = doFileTest(
-            """
+        """
             fun (p: Int, s: String<caret>
-            """
-            ,
-            """
+            """,
+        """
             fun(p: Int, s: String) {
                 <caret>
             }
@@ -877,13 +817,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testFunBody3() = doFileTest(
-            """
+        """
             interface Some {
                 fun (<caret>p: Int)
             }
-            """
-            ,
-            """
+            """,
+        """
             interface Some {
                 fun(p: Int)
                 <caret>
@@ -892,13 +831,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testFunBody4() = doFileTest(
-            """
+        """
             class Some {
                 abstract fun (<caret>p: Int)
             }
-            """
-            ,
-            """
+            """,
+        """
             class Some {
                 abstract fun(p: Int)
                 <caret>
@@ -907,13 +845,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testFunBody5() = doFileTest(
-            """
+        """
             class Some {
                 fun test(<caret>p: Int) = 1
             }
-            """
-            ,
-            """
+            """,
+        """
             class Some {
                 fun test(p: Int) = 1
                 <caret>
@@ -922,12 +859,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testFunBody6() = doFileTest(
-            """
+        """
             fun test(<caret>p: Int) {
             }
-            """
-            ,
-            """
+            """,
+        """
             fun test(p: Int) {
                 <caret>
             }
@@ -935,12 +871,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testFunBody7() = doFileTest(
-            """
+        """
             trait T
 
             fun <U> other() where U: T<caret>
             """,
-            """
+        """
             trait T
 
             fun <U> other() where U : T {
@@ -950,10 +886,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testFunBody8() = doFileTest(
-            """
+        """
             fun Int.other<caret>
             """,
-            """
+        """
             fun Int.other() {
                 <caret>
             }
@@ -961,22 +897,22 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testFunBody9() = doFileTest(
-            """
+        """
             fun test(){<caret>}
             """,
-            """
+        """
             fun test() {}
             <caret>
             """
     )
 
     fun testInLambda1() = doFunTest(
-            """
+        """
             some {
                 p -><caret>
             }
             """,
-            """
+        """
             some {
                 p ->
                 <caret>
@@ -985,54 +921,48 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testInLambda2() = doFunTest(
-            """
-            some {
-                p<caret> ->
+        """
+            some { p<caret> ->
             }
             """,
-            """
-            some {
-                p ->
+        """
+            some { p ->
                 <caret>
             }
             """
     )
 
     fun testInLambda3() = doFunTest(
-            """
-            some {
-                (<caret>p: Int) : Int ->
+        """
+            some { (<caret>p: Int) : Int ->
             }
             """,
-            """
-            some {
-                (p: Int) : Int ->
+        """
+            some { (p: Int): Int ->
                 <caret>
             }
             """
     )
 
     fun testInLambda4() = doFunTest(
-            """
+        """
             some {
                 (p: <caret>Int) : Int ->
             }
             """,
-            """
-            some {
-                (p: Int) : Int ->
+        """
+            some { (p: Int): Int ->
                 <caret>
             }
             """
     )
 
     fun testSetter1() = doFileTest(
-            """
+        """
             var a : Int = 0
                 set<caret>
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 set
             <caret>
@@ -1040,12 +970,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetter2() = doFileTest(
-            """
+        """
             var a : Int = 0
                 set(<caret>
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 set(value) {
                     <caret>
@@ -1054,12 +983,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetter3() = doFileTest(
-            """
+        """
             var a : Int = 0
                 set(<caret>)
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 set(value) {
                     <caret>
@@ -1068,12 +996,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetter4() = doFileTest(
-            """
+        """
             var a : Int = 0
                 set(v<caret>)
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 set(v) {
                     <caret>
@@ -1082,13 +1009,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetter5() = doFileTest(
-            """
+        """
             var a : Int = 0
                 set(<caret>) {
                 }
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 set(value) {
                     <caret>
@@ -1097,13 +1023,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetter6() = doFileTest(
-            """
+        """
             var a : Int = 0
                 set(v<caret>) {
                 }
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 set(v) {
                     <caret>
@@ -1112,12 +1037,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetter7() = doFileTest(
-            """
+        """
             var a : Int = 0
                 set(value){<caret>}
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 set(value) {}
             <caret>
@@ -1125,12 +1049,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetterPrivate1() = doFileTest(
-            """
+        """
             var a : Int = 0
                 private set<caret>
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 private set
             <caret>
@@ -1138,12 +1061,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetterPrivate2() = doFileTest(
-            """
+        """
             var a : Int = 0
                 private set(<caret>
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 private set(value) {
                     <caret>
@@ -1152,12 +1074,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetterPrivate3() = doFileTest(
-            """
+        """
             var a : Int = 0
                 private set(<caret>)
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 private set(value) {
                     <caret>
@@ -1166,12 +1087,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetterPrivate4() = doFileTest(
-            """
+        """
             var a : Int = 0
                 private set(v<caret>)
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 private set(v) {
                     <caret>
@@ -1180,13 +1100,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetterPrivate5() = doFileTest(
-            """
+        """
             var a : Int = 0
                 private set(<caret>) {
                 }
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 private set(value) {
                     <caret>
@@ -1195,13 +1114,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testSetterPrivate6() = doFileTest(
-            """
+        """
             var a : Int = 0
                 private set(v<caret>) {
                 }
-            """
-            ,
-            """
+            """,
+        """
             var a : Int = 0
                 private set(v) {
                     <caret>
@@ -1209,12 +1127,82 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
             """
     )
 
+    fun testGetter1() = doFileTest(
+        """
+            var a: Int = 0
+                get<caret>
+        """
+        ,
+        """
+            var a: Int = 0
+                get
+            <caret>
+            """
+    )
+
+    fun testGetter2() = doFileTest(
+        """
+            var a: Int = 0
+                get(<caret>
+            """
+        ,
+        """
+            var a: Int = 0
+                get() {
+                    <caret>
+                }
+            """
+    )
+
+    fun testGetter3() = doFileTest(
+        """
+            var a: Int = 0
+                get(<caret>)
+            """
+        ,
+        """
+            var a: Int = 0
+                get() {
+                    <caret>
+                }
+            """
+    )
+
+    fun testGetter4() = doFileTest(
+        """
+            var a: Int = 0
+                get(<caret>) = 1
+            """
+        ,
+        """
+            var a: Int = 0
+                get() = 1
+            <caret>
+            """
+    )
+
+    fun testGetter5() = doFileTest(
+        """
+            var a: Int = 0
+                get(<caret>) {
+                    return 1
+                }
+            """
+        ,
+        """
+            var a: Int = 0
+                get() {
+                    <caret>
+                    return 1
+                }
+            """
+    )
+
     fun testTryBody() = doFunTest(
-            """
+        """
             try<caret>
-            """
-            ,
-            """
+            """,
+        """
             try {
                 <caret>
             }
@@ -1222,82 +1210,76 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testCatchBody() = doFunTest(
-            """
+        """
             try {
             } catch(e: Exception) <caret>
-            """
-            ,
-            """
+            """,
+        """
             try {
-            } catch(e: Exception) {
+            } catch (e: Exception) {
                 <caret>
             }${" "}
             """
     )
 
     fun testCatchParameter1() = doFunTest(
-            """
+        """
             try {
             } catch<caret>
-            """
-            ,
-            """
+            """,
+        """
             try {
-            } catch(<caret>) {
+            } catch (<caret>) {
             }
             """
     )
 
     fun testCatchParameter2() = doFunTest(
-            """
+        """
             try {
             } catch(<caret>
-            """
-            ,
-            """
+            """,
+        """
             try {
-            } catch(<caret>) {
+            } catch (<caret>) {
             }
             """
     )
 
     fun testCatchParameter3() = doFunTest(
-            """
+        """
             try {
             } catch(<caret> {}
-            """
-            ,
-            """
+            """,
+        """
             try {
-            } catch(<caret>) {
+            } catch (<caret>) {
             }
             """
     )
 
     fun testCatchParameter4() = doFunTest(
-            """
+        """
             try {
             } catch(e: Exception<caret>
-            """
-            ,
-            """
+            """,
+        """
             try {
-            } catch(e: Exception) {
+            } catch (e: Exception) {
                 <caret>
             }
             """
     )
 
     fun testFinallyBody() = doFunTest(
-            """
+        """
             try {
             } catch(e: Exception) {
             } finally<caret>
-            """
-            ,
-            """
+            """,
+        """
             try {
-            } catch(e: Exception) {
+            } catch (e: Exception) {
             } finally {
                 <caret>
             }
@@ -1305,15 +1287,14 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testLambdaParam() = doFileTest(
-            """
+        """
             fun foo(a: Any, block: () -> Unit) {
             }
             fun test() {
                 foo(Any()<caret>)
             }
-            """
-            ,
-            """
+            """,
+        """
             fun foo(a: Any, block: () -> Unit) {
             }
             fun test() {
@@ -1323,15 +1304,14 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testExtensionLambdaParam() = doFileTest(
-            """
+        """
             fun foo(a: Any, block: Any.() -> Unit) {
             }
             fun test() {
                 foo(Any()<caret>)
             }
-            """
-            ,
-            """
+            """,
+        """
             fun foo(a: Any, block: Any.() -> Unit) {
             }
             fun test() {
@@ -1341,13 +1321,12 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testClassInit() = doFileTest(
-            """
+        """
             class Foo {
                 init<caret>
             }
-            """
-            ,
-            """
+            """,
+        """
             class Foo {
                 init {
                     <caret>
@@ -1357,11 +1336,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testClassBody1() = doFileTest(
-            """
+        """
             class Foo<caret>
-            """
-            ,
-            """
+            """,
+        """
             class Foo {
                 <caret>
             }
@@ -1369,11 +1347,10 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testClassBody2() = doFileTest(
-            """
+        """
             class <caret>Foo
-            """
-            ,
-            """
+            """,
+        """
             class Foo {
                 <caret>
             }
@@ -1381,12 +1358,11 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testObjectExpressionBody1() = doFileTest(
-            """
+        """
             interface I
             val a = object : I<caret>
-            """
-            ,
-            """
+            """,
+        """
             interface I
             val a = object : I {
                 <caret>
@@ -1395,14 +1371,13 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
     )
 
     fun testObjectExpressionBody2() = doFileTest(
-            """
+        """
             interface I
             val a = object : I<caret>
 
             val b = ""
-            """
-            ,
-            """
+            """,
+        """
             interface I
             val a = object : I {
                 <caret>
@@ -1410,6 +1385,178 @@ class SmartEnterTest : KotlinLightCodeInsightFixtureTestCase() {
 
             val b = ""
             """
+    )
+
+    fun testClassBodyHasInitializedSuperType() = doFileTest(
+        """
+            open class A
+            class B : A()<caret>
+        """,
+        """
+            open class A
+            class B : A() {
+                <caret>
+            }
+        """
+    )
+
+    fun testClassBodyHasNotInitializedSuperType() = doFileTest(
+        """
+            open class A
+            class B : A<caret>
+        """,
+        """
+            open class A
+            class B : A() {
+                <caret>
+            }
+        """
+    )
+
+    fun testClassBodyHasNotInitializedSuperType2() = doFileTest(
+        """
+            sealed class A(val s: String)
+            class B : A<caret>
+        """,
+        """
+            sealed class A(val s: String)
+            class B : A() {
+                <caret>
+            }
+        """
+    )
+
+    fun testClassBodyHasNotInitializedSuperType3() = doFileTest(
+        """
+            interface I
+            interface J
+            abstract class A
+            class B : I, A, J<caret>
+        """,
+        """
+            interface I
+            interface J
+            abstract class A
+            class B : I, A(), J {
+                <caret>
+            }
+        """
+    )
+
+    fun testEmptyLine() = doFileTest(
+        """fun foo() {}
+<caret>""",
+        """fun foo() {}
+
+<caret>"""
+    )
+
+    fun testValueArgumentList1() = doFileTest(
+        """
+        fun foo(i: Int) = 1
+        fun test1() {
+            foo(1<caret>
+        }
+        """,
+        """
+        fun foo(i: Int) = 1
+        fun test1() {
+            foo(1)<caret>
+        }
+        """
+    )
+
+    fun testValueArgumentList2() = doFileTest(
+        """
+        fun foo(i: Int) = 1
+        fun test2() {
+            foo(foo(1<caret>
+        }
+        """,
+        """
+        fun foo(i: Int) = 1
+        fun test2() {
+            foo(foo(1))<caret>
+        }
+        """
+    )
+
+    fun testValueArgumentList3() = doFileTest(
+        """
+        fun foo(i: Int) = 1
+        fun test3() {
+            foo(<caret>
+        }
+        """,
+        """
+        fun foo(i: Int) = 1
+        fun test3() {
+            foo(<caret>)
+        }
+        """
+    )
+
+    fun testValueArgumentList4() = doFileTest(
+        """
+        fun foo(i: Int) = 1
+        fun test4() {
+            foo(1,<caret>
+        }
+        """,
+        """
+        fun foo(i: Int) = 1
+        fun test4() {
+            foo(1<caret>)
+        }
+        """
+    )
+
+    fun testValueArgumentList5() = doFileTest(
+        """
+        class Foo(i: Int)
+        fun test5() {
+            Foo(1<caret>
+        }
+        """,
+        """
+        class Foo(i: Int)
+        fun test5() {
+            Foo(1)<caret>
+        }
+        """
+    )
+
+    fun testValueArgumentList6() = doFileTest(
+        """
+        fun foo(s: String) = 1
+        fun test() {
+            foo(""<caret>
+            val aValue = ""
+        }
+        """,
+        """
+        fun foo(s: String) = 1
+        fun test() {
+            foo("")<caret>
+            val aValue = ""
+        }
+        """
+    )
+
+    fun testValueArgumentList7() = doFileTest(
+        """
+        fun test() {
+            String.to("123"<caret>
+            val aValue = ""
+        }
+        """,
+        """
+        fun test() {
+            String.to("123")
+            <caret>
+            val aValue = ""
+        }
+        """
     )
 
     fun doFunTest(before: String, after: String) {

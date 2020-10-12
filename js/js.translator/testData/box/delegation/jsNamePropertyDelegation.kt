@@ -1,8 +1,9 @@
-// EXPECTED_REACHABLE_NODES: 502
+// EXPECTED_REACHABLE_NODES: 1295
 package foo
 
 import kotlin.reflect.KProperty
 
+@JsExport
 class A {
     @JsName("xx") val x: Int by B(23)
 

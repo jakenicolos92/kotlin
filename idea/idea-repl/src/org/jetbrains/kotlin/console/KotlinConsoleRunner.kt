@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.console
@@ -42,48 +31,55 @@ import com.intellij.openapi.module.Module
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.vfs.CharsetToolkit
-import com.intellij.openapi.vfs.VirtualFile
-import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiManager
 import com.intellij.psi.impl.PsiFileFactoryImpl
 import com.intellij.testFramework.LightVirtualFile
+import com.intellij.util.containers.ContainerUtil
 import org.jetbrains.annotations.TestOnly
+import org.jetbrains.kotlin.KotlinIdeaReplBundle
 import org.jetbrains.kotlin.console.actions.BuildAndRestartConsoleAction
 import org.jetbrains.kotlin.console.actions.KtExecuteCommandAction
 import org.jetbrains.kotlin.console.gutter.ConsoleGutterContentProvider
 import org.jetbrains.kotlin.console.gutter.ConsoleIndicatorRenderer
 import org.jetbrains.kotlin.console.gutter.IconWithTooltip
 import org.jetbrains.kotlin.console.gutter.ReplIcons
+import org.jetbrains.kotlin.descriptors.ScriptDescriptor
 import org.jetbrains.kotlin.idea.KotlinLanguage
-import org.jetbrains.kotlin.idea.caches.resolve.ModuleTestSourceInfo
-import org.jetbrains.kotlin.idea.caches.resolve.resolveToDescriptor
-import org.jetbrains.kotlin.idea.util.application.runReadAction
+import org.jetbrains.kotlin.idea.caches.project.NotUnderContentRootModuleInfo
+import org.jetbrains.kotlin.idea.caches.project.forcedModuleInfo
+import org.jetbrains.kotlin.idea.caches.project.productionSourceInfo
+import org.jetbrains.kotlin.idea.caches.project.testSourceInfo
+import org.jetbrains.kotlin.idea.caches.resolve.unsafeResolveToDescriptor
+import org.jetbrains.kotlin.idea.caches.trackers.KOTLIN_CONSOLE_KEY
+import org.jetbrains.kotlin.idea.core.script.ScriptDefinitionContributor
+import org.jetbrains.kotlin.idea.core.script.ScriptDefinitionSourceAsContributor
+import org.jetbrains.kotlin.idea.core.script.ScriptDefinitionsManager
+import org.jetbrains.kotlin.idea.util.runReadActionInSmartMode
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.parsing.KotlinParserDefinition
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtScript
-import org.jetbrains.kotlin.psi.moduleInfo
 import org.jetbrains.kotlin.resolve.lazy.ForceResolveUtil
-import org.jetbrains.kotlin.resolve.lazy.descriptors.LazyScriptDescriptor
 import org.jetbrains.kotlin.resolve.repl.ReplState
-import org.jetbrains.kotlin.script.KotlinScriptDefinition
-import org.jetbrains.kotlin.script.KotlinScriptDefinitionProvider
+import org.jetbrains.kotlin.scripting.definitions.KotlinScriptDefinition
+import org.jetbrains.kotlin.scripting.definitions.ScriptDefinition
 import java.awt.Color
 import java.awt.Font
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.properties.Delegates
+import kotlin.script.experimental.jvm.defaultJvmScriptingHostConfiguration
 
-private val KOTLIN_SHELL_EXECUTE_ACTION_ID = "KotlinShellExecute"
+private const val KOTLIN_SHELL_EXECUTE_ACTION_ID = "KotlinShellExecute"
 
 class KotlinConsoleRunner(
-        val module: Module,
-        private val cmdLine: GeneralCommandLine,
-        internal val previousCompilationFailed: Boolean,
-        myProject: Project,
-        title: String,
-        path: String?
+    val module: Module,
+    private val cmdLine: GeneralCommandLine,
+    internal val previousCompilationFailed: Boolean,
+    myProject: Project,
+    title: String,
+    path: String?
 ) : AbstractConsoleRunnerWithHistory<LanguageConsoleView>(myProject, title, path) {
 
     private val replState = ReplState()
@@ -91,7 +87,9 @@ class KotlinConsoleRunner(
 
     override fun finishConsole() {
         KotlinConsoleKeeper.getInstance(project).removeConsole(consoleView.virtualFile)
-        KotlinScriptDefinitionProvider.getInstance(project)!!.removeScriptDefinition(consoleScriptDefinition)
+        val consoleContributor = ScriptDefinitionContributor.find<ConsoleScriptDefinitionContributor>(project)!!
+        consoleContributor.unregisterDefinition(consoleScriptDefinition)
+        ScriptDefinitionsManager.getInstance(project).reloadDefinitionsBy(consoleContributor)
 
         if (ApplicationManager.getApplication().isUnitTestMode) {
             consoleTerminated.countDown()
@@ -125,15 +123,8 @@ class KotlinConsoleRunner(
     var compilerHelper: ConsoleCompilerHelper by Delegates.notNull()
 
     private val consoleScriptDefinition = object : KotlinScriptDefinition(Any::class) {
-        override val name = "Kotlin REPL"
-        override fun <TF: Any> isScript(file: TF): Boolean {
-            val vf = when (file) {
-                is PsiFile -> file.originalFile.virtualFile
-                is VirtualFile -> file
-                else -> return false
-            }
-            return vf == consoleView.virtualFile
-        }
+        override val name get() = KotlinIdeaReplBundle.message("name.kotlin.repl")
+        override fun isScript(fileName: String): Boolean = fileName.startsWith(consoleView.virtualFile.name)
         override fun getScriptName(script: KtScript) = Name.identifier("REPL")
     }
 
@@ -143,6 +134,11 @@ class KotlinConsoleRunner(
         val builder = LanguageConsoleBuilder()
 
         val consoleView = builder.gutterContentProvider(ConsoleGutterContentProvider()).build(project, KotlinLanguage.INSTANCE)
+
+        // This rename is needed to parse file in console as script
+        consoleView.virtualFile.rename(this, consoleView.virtualFile.name + KotlinParserDefinition.STD_SCRIPT_EXT)
+
+        consoleView.virtualFile.putUserData(KOTLIN_CONSOLE_KEY, true)
 
 
         consoleView.prompt = null
@@ -157,22 +153,27 @@ class KotlinConsoleRunner(
         val executeAction = KtExecuteCommandAction(consoleView.virtualFile)
         executeAction.registerCustomShortcutSet(CommonShortcuts.CTRL_ENTER, consoleView.consoleEditor.component)
 
-        KotlinScriptDefinitionProvider.getInstance(project)!!.addScriptDefinition(consoleScriptDefinition)
+        val consoleContributor = ScriptDefinitionContributor.find<ConsoleScriptDefinitionContributor>(project)!!
+        consoleContributor.registerDefinition(consoleScriptDefinition)
+        ScriptDefinitionsManager.getInstance(project).reloadDefinitionsBy(consoleContributor)
+
         enableCompletion(consoleView)
+
+        setupGutters(consoleView)
 
         return consoleView
     }
 
     private fun enableCompletion(consoleView: LanguageConsoleView) {
         val consoleKtFile = PsiManager.getInstance(project).findFile(consoleView.virtualFile) as? KtFile ?: return
-        consoleKtFile.moduleInfo = ModuleTestSourceInfo(module)
+        configureFileDependencies(consoleKtFile)
     }
 
     override fun createProcessHandler(process: Process): OSProcessHandler {
         val processHandler = ReplOutputHandler(
-                this,
-                process,
-                cmdLine.commandLineString
+            this,
+            process,
+            cmdLine.commandLineString
         )
         val consoleFile = consoleView.virtualFile
         val keeper = KotlinConsoleKeeper.getInstance(project)
@@ -186,32 +187,33 @@ class KotlinConsoleRunner(
         override fun runExecuteAction(consoleView: LanguageConsoleView) = executor.executeCommand()
     }
 
-    override fun fillToolBarActions(toolbarActions: DefaultActionGroup,
-                                    defaultExecutor: Executor,
-                                    contentDescriptor: RunContentDescriptor
+    override fun fillToolBarActions(
+        toolbarActions: DefaultActionGroup,
+        defaultExecutor: Executor,
+        contentDescriptor: RunContentDescriptor
     ): List<AnAction> {
         disposableDescriptor = contentDescriptor
         compilerHelper = ConsoleCompilerHelper(project, module, defaultExecutor, contentDescriptor)
 
         val actionList = arrayListOf<AnAction>(
-                BuildAndRestartConsoleAction(this),
-                createConsoleExecAction(consoleExecuteActionHandler),
-                createCloseAction(defaultExecutor, contentDescriptor)
+            BuildAndRestartConsoleAction(this),
+            createConsoleExecAction(consoleExecuteActionHandler),
+            createCloseAction(defaultExecutor, contentDescriptor)
         )
         toolbarActions.addAll(actionList)
         return actionList
     }
 
-    override fun createConsoleExecAction(consoleExecuteActionHandler: ProcessBackedConsoleExecuteActionHandler)
-            = ConsoleExecuteAction(consoleView, consoleExecuteActionHandler, KOTLIN_SHELL_EXECUTE_ACTION_ID, consoleExecuteActionHandler)
+    override fun createConsoleExecAction(consoleExecuteActionHandler: ProcessBackedConsoleExecuteActionHandler) =
+        ConsoleExecuteAction(consoleView, consoleExecuteActionHandler, KOTLIN_SHELL_EXECUTE_ACTION_ID, consoleExecuteActionHandler)
 
-    override fun constructConsoleTitle(title: String) = "$title (in module ${module.name})"
+    override fun constructConsoleTitle(title: String) = KotlinIdeaReplBundle.message("constructor.title.0.in.module.1", title, module.name)
 
     private fun setupPlaceholder(editor: EditorEx) {
         val executeCommandAction = ActionManager.getInstance().getAction(KOTLIN_SHELL_EXECUTE_ACTION_ID)
         val executeCommandActionShortcutText = KeymapUtil.getFirstKeyboardShortcutText(executeCommandAction)
 
-        editor.setPlaceholder("<$executeCommandActionShortcutText> to execute")
+        editor.setPlaceholder(KotlinIdeaReplBundle.message("command.0.to.execute", executeCommandActionShortcutText))
         editor.setShowPlaceholderWhenFocused(true)
 
         val placeholderAttrs = TextAttributes()
@@ -220,7 +222,7 @@ class KotlinConsoleRunner(
         editor.setPlaceholderAttributes(placeholderAttrs)
     }
 
-    fun setupGutters() {
+    fun setupGutters(consoleView: LanguageConsoleView) {
         fun configureEditorGutter(editor: EditorEx, color: Color, iconWithTooltip: IconWithTooltip): RangeHighlighter {
             editor.settings.isLineMarkerAreaShown = true // hack to show gutter
             editor.settings.isFoldingOutlineShown = true
@@ -249,31 +251,41 @@ class KotlinConsoleRunner(
         val indicator = ConsoleIndicatorRenderer(iconWithTooltip)
         val editorMarkup = editor.markupModel
         val indicatorHighlighter = editorMarkup.addRangeHighlighter(
-                0, editor.document.textLength, HighlighterLayer.LAST, null, HighlighterTargetArea.LINES_IN_RANGE
+            0, editor.document.textLength, HighlighterLayer.LAST, null, HighlighterTargetArea.LINES_IN_RANGE
         )
 
         return indicatorHighlighter.apply { gutterIconRenderer = indicator }
     }
 
-    @TestOnly fun dispose() {
+    @TestOnly
+    fun dispose() {
         processHandler.destroyProcess()
         consoleTerminated.await(1, TimeUnit.SECONDS)
         Disposer.dispose(disposableDescriptor)
     }
 
     fun successfulLine(text: String) {
-        runReadAction {
+        project.runReadActionInSmartMode {
             val lineNumber = replState.successfulLinesCount + 1
             val virtualFile =
-                    LightVirtualFile("line$lineNumber${KotlinParserDefinition.STD_SCRIPT_EXT}", KotlinLanguage.INSTANCE, text).apply {
-                        charset = CharsetToolkit.UTF8_CHARSET
-                    }
-            val psiFile = (PsiFileFactory.getInstance(project) as PsiFileFactoryImpl).trySetupPsiForFile(virtualFile, KotlinLanguage.INSTANCE, true, false) as KtFile?
-                          ?: error("Failed to setup PSI for file:\n$text")
+                LightVirtualFile(
+                    "${consoleView.virtualFile.name}$lineNumber${KotlinParserDefinition.STD_SCRIPT_EXT}",
+                    KotlinLanguage.INSTANCE, text
+                ).apply {
+                    charset = CharsetToolkit.UTF8_CHARSET
+                    isWritable = false
+                }
+            val psiFile = (PsiFileFactory.getInstance(project) as PsiFileFactoryImpl).trySetupPsiForFile(
+                virtualFile,
+                KotlinLanguage.INSTANCE,
+                true,
+                false
+            ) as KtFile? ?: error("Failed to setup PSI for file:\n$text")
 
             replState.submitLine(psiFile)
-            psiFile.moduleInfo = ModuleTestSourceInfo(module)
-            val scriptDescriptor = psiFile.script!!.resolveToDescriptor() as? LazyScriptDescriptor ?: error("Failed to analyze line:\n$text")
+            configureFileDependencies(psiFile)
+            val scriptDescriptor =
+                psiFile.script!!.unsafeResolveToDescriptor() as? ScriptDescriptor ?: error("Failed to analyze line:\n$text")
             ForceResolveUtil.forceResolveAllContents(scriptDescriptor)
             replState.lineSuccess(psiFile, scriptDescriptor)
 
@@ -286,4 +298,27 @@ class KotlinConsoleRunner(
             val consoleFile = consoleView.virtualFile
             return PsiManager.getInstance(project).findFile(consoleFile) as KtFile
         }
+
+    private fun configureFileDependencies(psiFile: KtFile) {
+        psiFile.forcedModuleInfo = module.testSourceInfo() ?: module.productionSourceInfo() ?: NotUnderContentRootModuleInfo
+    }
+}
+
+class ConsoleScriptDefinitionContributor : ScriptDefinitionSourceAsContributor {
+
+    val definitionsSet = ContainerUtil.newConcurrentSet<ScriptDefinition>()
+
+    override val definitions: Sequence<ScriptDefinition>
+        get() = definitionsSet.asSequence()
+
+    override val id: String = "IDEA Console"
+
+    // TODO: rewrite to ScriptDefinition
+    fun registerDefinition(definition: KotlinScriptDefinition) {
+        definitionsSet.add(ScriptDefinition.FromLegacy(defaultJvmScriptingHostConfiguration, definition))
+    }
+
+    fun unregisterDefinition(definition: KotlinScriptDefinition) {
+        definitionsSet.removeIf { it.asLegacyOrNull<KotlinScriptDefinition>() == definition }
+    }
 }

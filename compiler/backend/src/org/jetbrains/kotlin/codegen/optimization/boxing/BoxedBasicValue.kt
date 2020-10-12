@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.codegen.optimization.boxing
 import com.intellij.openapi.util.Pair
 import org.jetbrains.kotlin.codegen.AsmUtil
 import org.jetbrains.kotlin.codegen.optimization.common.StrictBasicValue
+import org.jetbrains.kotlin.codegen.state.GenerationState
 import org.jetbrains.kotlin.resolve.jvm.AsmTypes
 import org.jetbrains.org.objectweb.asm.Type
 import org.jetbrains.org.objectweb.asm.tree.AbstractInsnNode
@@ -34,18 +35,19 @@ abstract class BoxedBasicValue(type: Type) : StrictBasicValue(type) {
 
 
 class CleanBoxedValue(
-        boxedType: Type,
-        boxingInsn: AbstractInsnNode,
-        progressionIterator: ProgressionIteratorBasicValue?
+    boxedType: Type,
+    boxingInsn: AbstractInsnNode,
+    progressionIterator: ProgressionIteratorBasicValue?,
+    val generationState: GenerationState
 ) : BoxedBasicValue(boxedType) {
-    override val descriptor = BoxedValueDescriptor(boxedType, boxingInsn, progressionIterator)
+    override val descriptor = BoxedValueDescriptor(boxedType, boxingInsn, progressionIterator, generationState)
 
     private var tainted: TaintedBoxedValue? = null
     override fun taint(): BoxedBasicValue = tainted ?: TaintedBoxedValue(this).also { tainted = it }
 }
 
 
-class TaintedBoxedValue(val boxedBasicValue: CleanBoxedValue) : BoxedBasicValue(boxedBasicValue.type) {
+class TaintedBoxedValue(private val boxedBasicValue: CleanBoxedValue) : BoxedBasicValue(boxedBasicValue.type) {
     override val descriptor get() = boxedBasicValue.descriptor
 
     override fun taint(): BoxedBasicValue = this
@@ -53,9 +55,10 @@ class TaintedBoxedValue(val boxedBasicValue: CleanBoxedValue) : BoxedBasicValue(
 
 
 class BoxedValueDescriptor(
-        val boxedType: Type,
-        val boxingInsn: AbstractInsnNode,
-        val progressionIterator: ProgressionIteratorBasicValue?
+    private val boxedType: Type,
+    val boxingInsn: AbstractInsnNode,
+    val progressionIterator: ProgressionIteratorBasicValue?,
+    val generationState: GenerationState
 ) {
     private val associatedInsns = HashSet<AbstractInsnNode>()
     private val unboxingWithCastInsns = HashSet<Pair<AbstractInsnNode, Type>>()
@@ -63,7 +66,8 @@ class BoxedValueDescriptor(
     private val mergedWith = HashSet<BoxedValueDescriptor>()
 
     var isSafeToRemove = true; private set
-    val unboxedType: Type = getUnboxedType(boxedType)
+    val unboxedType: Type = getUnboxedType(boxedType, generationState)
+    val isInlineClassValue = isInlineClassValue(boxedType)
 
     fun getAssociatedInsns() = associatedInsns.toList()
 
@@ -76,14 +80,14 @@ class BoxedValueDescriptor(
     }
 
     fun getVariablesIndexes(): List<Int> =
-            ArrayList(associatedVariables)
+        ArrayList(associatedVariables)
 
     fun addMergedWith(descriptor: BoxedValueDescriptor) {
         mergedWith.add(descriptor)
     }
 
     fun getMergedWith(): Iterable<BoxedValueDescriptor> =
-            mergedWith
+        mergedWith
 
     fun markAsUnsafeToRemove() {
         isSafeToRemove = false
@@ -98,15 +102,27 @@ class BoxedValueDescriptor(
     }
 
     fun getUnboxingWithCastInsns(): Set<Pair<AbstractInsnNode, Type>> =
-            unboxingWithCastInsns
+        unboxingWithCastInsns
 }
 
 
-fun getUnboxedType(boxedType: Type): Type {
+fun getUnboxedType(boxedType: Type, state: GenerationState): Type {
     val primitiveType = AsmUtil.unboxPrimitiveTypeOrNull(boxedType)
     if (primitiveType != null) return primitiveType
 
     if (boxedType == AsmTypes.K_CLASS_TYPE) return AsmTypes.JAVA_CLASS_TYPE
 
-    throw IllegalArgumentException("Expected primitive type wrapper or KClass, got: $boxedType")
+    unboxedTypeOfInlineClass(boxedType, state)?.let { return it }
+
+    throw IllegalArgumentException("Expected primitive type wrapper or KClass or inline class wrapper, got: $boxedType")
+}
+
+fun unboxedTypeOfInlineClass(boxedType: Type, state: GenerationState): Type? {
+    val descriptor =
+        state.jvmBackendClassResolver.resolveToClassDescriptors(boxedType).singleOrNull()?.takeIf { it.isInline } ?: return null
+    return state.mapInlineClass(descriptor)
+}
+
+private fun isInlineClassValue(boxedType: Type): Boolean {
+    return !AsmUtil.isBoxedPrimitiveType(boxedType) && boxedType != AsmTypes.K_CLASS_TYPE
 }

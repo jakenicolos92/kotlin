@@ -1,98 +1,157 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.configuration
 
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.application.impl.ApplicationImpl
-import com.intellij.openapi.util.io.FileUtil
+import org.jetbrains.kotlin.config.ApiVersion
 import org.jetbrains.kotlin.config.KotlinFacetSettingsProvider
 import org.jetbrains.kotlin.config.LanguageVersion
+import org.jetbrains.kotlin.config.VersionView
+import org.jetbrains.kotlin.idea.compiler.configuration.Kotlin2JsCompilerArgumentsHolder
+import org.jetbrains.kotlin.idea.compiler.configuration.KotlinCommonCompilerArgumentsHolder
 import org.jetbrains.kotlin.idea.project.getLanguageVersionSettings
 import org.jetbrains.kotlin.idea.project.languageVersionSettings
+import org.jetbrains.kotlin.test.JUnit3WithIdeaConfigurationRunner
 import org.junit.Assert
-import java.io.File
+import org.junit.runner.RunWith
 import java.io.IOException
 
-class ConfigureKotlinInTempDirTest : AbstractConfigureKotlinTest() {
+@RunWith(JUnit3WithIdeaConfigurationRunner::class)
+open class ConfigureKotlinInTempDirTest : AbstractConfigureKotlinInTempDirTest() {
     @Throws(IOException::class)
-    override fun getIprFile(): File {
-        val tempDir = FileUtil.generateRandomTemporaryPath()
-        FileUtil.createTempDirectory("temp", null)
-
-        FileUtil.copyDir(File(projectRoot), tempDir)
-
-        val projectRoot = tempDir.path
-
-        val projectFilePath = projectRoot + "/projectFile.ipr"
-        if (!File(projectFilePath).exists()) {
-            val dotIdeaPath = projectRoot + "/.idea"
-            Assert.assertTrue("Project file or '.idea' dir should exists in " + projectRoot, File(dotIdeaPath).exists())
-            return File(projectRoot)
-        }
-        return File(projectFilePath)
+    fun testNoKotlincExistsNoSettingsRuntime10() {
+        val application = ApplicationManager.getApplication() as ApplicationImpl
+        application.isSaveAllowed = true
+        Assert.assertEquals(LanguageVersion.KOTLIN_1_0, module.languageVersionSettings.languageVersion)
+        Assert.assertEquals(LanguageVersion.KOTLIN_1_0, myProject.getLanguageVersionSettings(null).languageVersion)
+        application.saveAll()
+        Assert.assertTrue(project.baseDir.findFileByRelativePath(".idea/kotlinc.xml") == null)
     }
 
-    @Throws(IOException::class)
-    fun testKotlincExistsNoSettingsRuntime10() {
+    fun testNoKotlincExistsNoSettingsLatestRuntime() {
         val application = ApplicationManager.getApplication() as ApplicationImpl
-        application.doNotSave(false)
-        Assert.assertEquals(LanguageVersion.KOTLIN_1_0, myProject.getLanguageVersionSettings(null).languageVersion)
-        Assert.assertEquals(LanguageVersion.KOTLIN_1_0, module.languageVersionSettings.languageVersion)
+        application.isSaveAllowed = true
+        Assert.assertEquals(VersionView.RELEASED_VERSION, module.languageVersionSettings.languageVersion)
+        Assert.assertEquals(VersionView.RELEASED_VERSION, myProject.getLanguageVersionSettings(null).languageVersion)
+        application.saveAll()
+        Assert.assertTrue(project.baseDir.findFileByRelativePath(".idea/kotlinc.xml") == null)
+    }
+
+    fun testKotlincExistsNoSettingsLatestRuntimeNoVersionAutoAdvance() {
+        val application = ApplicationManager.getApplication() as ApplicationImpl
+        application.isSaveAllowed = true
+        Assert.assertEquals(VersionView.RELEASED_VERSION, module.languageVersionSettings.languageVersion)
+        Assert.assertEquals(VersionView.RELEASED_VERSION, myProject.getLanguageVersionSettings(null).languageVersion)
+        KotlinCommonCompilerArgumentsHolder.getInstance(project).update {
+            autoAdvanceLanguageVersion = false
+            autoAdvanceApiVersion = false
+        }
         application.saveAll()
         Assert.assertTrue(project.baseDir.findFileByRelativePath(".idea/kotlinc.xml") != null)
     }
 
-    fun testKotlincExistsNoSettingsRuntime11() {
+    fun testDropKotlincOnVersionAutoAdvance() {
         val application = ApplicationManager.getApplication() as ApplicationImpl
-        application.doNotSave(false)
-        Assert.assertEquals(LanguageVersion.KOTLIN_1_1, myProject.getLanguageVersionSettings(null).languageVersion)
-        Assert.assertEquals(LanguageVersion.KOTLIN_1_1, module.languageVersionSettings.languageVersion)
+        application.isSaveAllowed = true
+        Assert.assertEquals(LanguageVersion.KOTLIN_1_4, module.languageVersionSettings.languageVersion)
+        KotlinCommonCompilerArgumentsHolder.getInstance(project).update {
+            autoAdvanceLanguageVersion = true
+            autoAdvanceApiVersion = true
+        }
         application.saveAll()
         Assert.assertTrue(project.baseDir.findFileByRelativePath(".idea/kotlinc.xml") == null)
     }
 
     fun testProject106InconsistentVersionInConfig() {
-        val settings = KotlinFacetSettingsProvider.getInstance(myProject).getInitializedSettings(module)
+        val settings = KotlinFacetSettingsProvider.getInstance(myProject)?.getInitializedSettings(module)
+            ?: error("Facet settings are not found")
+
         Assert.assertEquals(false, settings.useProjectSettings)
-        Assert.assertEquals("1.0", settings.languageLevel!!.description)
-        Assert.assertEquals("1.0", settings.apiLevel!!.description)
+        Assert.assertEquals(LanguageVersion.KOTLIN_1_0, settings.languageLevel!!)
+        Assert.assertEquals(LanguageVersion.KOTLIN_1_0, settings.apiLevel!!)
     }
 
     fun testProject107InconsistentVersionInConfig() {
-        val settings = KotlinFacetSettingsProvider.getInstance(myProject).getInitializedSettings(module)
+        val settings = KotlinFacetSettingsProvider.getInstance(myProject)?.getInitializedSettings(module)
+            ?: error("Facet settings are not found")
+
         Assert.assertEquals(false, settings.useProjectSettings)
-        Assert.assertEquals("1.0", settings.languageLevel!!.description)
-        Assert.assertEquals("1.0", settings.apiLevel!!.description)
+        Assert.assertEquals(LanguageVersion.KOTLIN_1_0, settings.languageLevel!!)
+        Assert.assertEquals(LanguageVersion.KOTLIN_1_0, settings.apiLevel!!)
     }
 
     fun testFacetWithProjectSettings() {
-        val settings = KotlinFacetSettingsProvider.getInstance(myProject).getInitializedSettings(module)
+        val settings = KotlinFacetSettingsProvider.getInstance(myProject)?.getInitializedSettings(module)
+            ?: error("Facet settings are not found")
+
         Assert.assertEquals(true, settings.useProjectSettings)
-        Assert.assertEquals("1.1", settings.languageLevel!!.description)
-        Assert.assertEquals("1.1", settings.apiLevel!!.description)
-        Assert.assertEquals("-version -Xallow-kotlin-package -Xskip-metadata-version-check", settings.compilerSettings!!.additionalArguments)
+        Assert.assertEquals(LanguageVersion.KOTLIN_1_1, settings.languageLevel!!)
+        Assert.assertEquals(LanguageVersion.KOTLIN_1_1, settings.apiLevel!!)
+        Assert.assertEquals(
+            "-version -Xallow-kotlin-package -Xskip-metadata-version-check",
+            settings.compilerSettings!!.additionalArguments
+        )
     }
 
     fun testLoadAndSaveProjectWithV2FacetConfig() {
         val moduleFileContentBefore = String(module.moduleFile!!.contentsToByteArray())
         val application = ApplicationManager.getApplication() as ApplicationImpl
-        application.doNotSave(false)
+        application.isSaveAllowed = true
         application.saveAll()
         val moduleFileContentAfter = String(module.moduleFile!!.contentsToByteArray())
         Assert.assertEquals(moduleFileContentBefore, moduleFileContentAfter)
+    }
+
+
+    fun testLoadAndSaveOldNativePlatformOldNativeFacet() = doTestLoadAndSaveProjectWithFacetConfig(
+        "platform=\"Native \"",
+        "platform=\"Native (general) \" allPlatforms=\"Native []/Native [general]\""
+    )
+
+    fun testLoadAndSaveOldNativePlatformNewNativeFacet() = doTestLoadAndSaveProjectWithFacetConfig(
+        "platform=\"Native \" allPlatforms=\"Native []\"",
+        "platform=\"Native (general) \" allPlatforms=\"Native []/Native [general]\""
+    )
+
+    //TODO(auskov): test parsing common target platform with multiple versions of java, add parsing common platforms
+    fun testLoadAndSaveProjectWithV2OldPlatformFacetConfig() = doTestLoadAndSaveProjectWithFacetConfig(
+        "platform=\"JVM 1.8\"",
+        "platform=\"JVM 1.8\" allPlatforms=\"JVM [1.8]\""
+    )
+
+    fun testLoadAndSaveProjectHMPPFacetConfig() = doTestLoadAndSaveProjectWithFacetConfig(
+        "platform=\"Common (experimental) \" allPlatforms=\"JS []/JVM [1.6]/Native []\"",
+        "platform=\"Common (experimental) \" allPlatforms=\"JS []/JVM [1.6]/Native []/Native [general]\""
+    )
+
+    fun testApiVersionWithoutLanguageVersion() {
+        KotlinCommonCompilerArgumentsHolder.getInstance(myProject)
+        val settings = myProject.getLanguageVersionSettings()
+        Assert.assertEquals(ApiVersion.KOTLIN_1_1, settings.apiVersion)
+    }
+
+    fun testNoKotlincExistsNoSettingsLatestRuntimeNullizeEmptyStrings() {
+        val application = ApplicationManager.getApplication() as ApplicationImpl
+        application.isSaveAllowed = true
+        Kotlin2JsCompilerArgumentsHolder.getInstance(project).update {
+            sourceMapPrefix = ""
+            sourceMapEmbedSources = ""
+        }
+        application.saveAll()
+        Assert.assertTrue(project.baseDir.findFileByRelativePath(".idea/kotlinc.xml") == null)
+    }
+
+    private fun doTestLoadAndSaveProjectWithFacetConfig(valueBefore: String, valueAfter: String) {
+        val moduleFileContentBefore = String(module.moduleFile!!.contentsToByteArray())
+        Assert.assertTrue(moduleFileContentBefore.contains(valueBefore))
+        val application = ApplicationManager.getApplication() as ApplicationImpl
+        application.isSaveAllowed = true
+        application.saveAll()
+        val moduleFileContentAfter = String(module.moduleFile!!.contentsToByteArray())
+        Assert.assertEquals(moduleFileContentBefore.replace(valueBefore, valueAfter), moduleFileContentAfter)
     }
 }

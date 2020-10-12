@@ -1,0 +1,6 @@
+$TESTDATA_DIR$/experimentalDeprecatedWarning.kt
+-d
+$TEMP_DIR$
+-Xopt-in=kotlin.RequiresOptIn
+-Xopt-in=org.test.Warning1
+-Xexperimental=org.test.Warning2

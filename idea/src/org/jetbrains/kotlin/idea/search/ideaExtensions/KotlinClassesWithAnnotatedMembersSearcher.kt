@@ -32,17 +32,16 @@ class KotlinClassesWithAnnotatedMembersSearcher : ScopedQueryExecutor<PsiClass, 
         return GlobalSearchScope.getScopeRestrictedByFileTypes(param.annotationClass.project.allScope(), KotlinFileType.INSTANCE)
     }
 
-    override fun execute(queryParameters: ClassesWithAnnotatedMembersSearch.Parameters, consumer: Processor<PsiClass>): Boolean {
+    override fun execute(queryParameters: ClassesWithAnnotatedMembersSearch.Parameters, consumer: Processor<in PsiClass>): Boolean {
         val processed = hashSetOf<KtClassOrObject>()
         return KotlinAnnotatedElementsSearcher.processAnnotatedMembers(queryParameters.annotationClass,
                                                                        queryParameters.scope,
-                                                                       { it.getNonStrictParentOfType<KtClassOrObject>() !in processed}) { declaration ->
+                                                                       { it.getNonStrictParentOfType<KtClassOrObject>() !in processed }) { declaration ->
             val ktClass = declaration.getNonStrictParentOfType<KtClassOrObject>()
             if (ktClass != null && processed.add(ktClass)) {
                 val lightClass = ktClass.toLightClass()
                 if (lightClass != null) consumer.process(lightClass) else true
-            }
-            else
+            } else
                 true
         }
     }

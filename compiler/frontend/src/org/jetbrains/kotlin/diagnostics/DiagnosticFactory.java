@@ -17,6 +17,8 @@
 package org.jetbrains.kotlin.diagnostics;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.jetbrains.kotlin.diagnostics.rendering.DiagnosticRenderer;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,6 +27,8 @@ public abstract class DiagnosticFactory<D extends Diagnostic> {
 
     private String name = null;
     private final Severity severity;
+
+    private DiagnosticRenderer<D> defaultRenderer;
 
     protected DiagnosticFactory(@NotNull Severity severity) {
         this.severity = severity;
@@ -49,17 +53,27 @@ public abstract class DiagnosticFactory<D extends Diagnostic> {
         return severity;
     }
 
+    @Nullable
+    public DiagnosticRenderer<D> getDefaultRenderer() {
+        return defaultRenderer;
+    }
+
+    void setDefaultRenderer(@Nullable DiagnosticRenderer<D> defaultRenderer) {
+        this.defaultRenderer = defaultRenderer;
+    }
+
     @NotNull
+    @SuppressWarnings("unchecked")
     public D cast(@NotNull Diagnostic diagnostic) {
         if (diagnostic.getFactory() != this) {
             throw new IllegalArgumentException("Factory mismatch: expected " + this + " but was " + diagnostic.getFactory());
         }
 
-        //noinspection unchecked
         return (D) diagnostic;
     }
 
     @NotNull
+    @SafeVarargs
     public static <D extends Diagnostic> D cast(@NotNull Diagnostic diagnostic, @NotNull DiagnosticFactory<? extends D>... factories) {
         return cast(diagnostic, Arrays.asList(factories));
     }

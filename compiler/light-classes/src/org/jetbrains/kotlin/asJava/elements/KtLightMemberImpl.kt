@@ -24,6 +24,8 @@ import org.jetbrains.kotlin.asJava.builder.LightElementOrigin
 import org.jetbrains.kotlin.asJava.builder.LightMemberOrigin
 import org.jetbrains.kotlin.asJava.builder.LightMemberOriginForDeclaration
 import org.jetbrains.kotlin.asJava.classes.KtLightClass
+import org.jetbrains.kotlin.asJava.classes.KtLightClassForSourceDeclaration
+import org.jetbrains.kotlin.asJava.classes.isPossiblyAffectedByAllOpen
 import org.jetbrains.kotlin.asJava.classes.lazyPub
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtDeclaration
@@ -31,10 +33,10 @@ import org.jetbrains.kotlin.psi.KtNamedDeclaration
 import org.jetbrains.kotlin.psi.psiUtil.hasBody
 
 abstract class KtLightMemberImpl<out D : PsiMember>(
-        computeRealDelegate: () -> D,
-        override val lightMemberOrigin: LightMemberOrigin?,
-        private val containingClass: KtLightClass,
-        private val dummyDelegate: D?
+    computeRealDelegate: () -> D,
+    override val lightMemberOrigin: LightMemberOrigin?,
+    private val containingClass: KtLightClass,
+    private val dummyDelegate: D?
 ) : KtLightElementBase(containingClass), PsiMember, KtLightMember<D> {
     override val clsDelegate by lazyPub(computeRealDelegate)
     private val lightIdentifier by lazyPub { KtLightIdentifier(this, kotlinOrigin as? KtNamedDeclaration) }
@@ -62,6 +64,16 @@ abstract class KtLightMemberImpl<out D : PsiMember>(
     override fun getDocComment() = (clsDelegate as PsiDocCommentOwner).docComment
 
     override fun isDeprecated() = (clsDelegate as PsiDocCommentOwner).isDeprecated
+
+    override fun isValid(): Boolean {
+        return parent.isValid && lightMemberOrigin?.isValid() != false
+    }
+
+    override fun isEquivalentTo(another: PsiElement?): Boolean {
+        return this == another ||
+                lightMemberOrigin?.isEquivalentTo(another) == true ||
+                another is KtLightMember<*> && lightMemberOrigin?.isEquivalentTo(another.lightMemberOrigin) == true
+    }
 }
 
 internal fun getMemberOrigin(member: PsiMember): LightMemberOriginForDeclaration? {
@@ -75,11 +87,15 @@ internal fun getMemberOrigin(member: PsiMember): LightMemberOriginForDeclaration
 private val visibilityModifiers = arrayOf(PsiModifier.PRIVATE, PsiModifier.PACKAGE_LOCAL, PsiModifier.PROTECTED, PsiModifier.PUBLIC)
 
 private class KtLightMemberModifierList(
-        owner: KtLightMember<*>, private val dummyDelegate: PsiModifierList?
+    owner: KtLightMember<*>, private val dummyDelegate: PsiModifierList?
 ) : KtLightModifierList<KtLightMember<*>>(owner) {
     override fun hasModifierProperty(name: String) = when {
         name == PsiModifier.ABSTRACT && isImplementationInInterface() -> false
+        // pretend this method behaves like a default method
         name == PsiModifier.DEFAULT && isImplementationInInterface() -> true
+        name == PsiModifier.FINAL && ((owner.containingClass as? KtLightClassForSourceDeclaration)?.isPossiblyAffectedByAllOpen()
+            ?: false) ->
+            clsDelegate.hasModifierProperty(name)
         dummyDelegate != null -> {
             when {
                 name in visibilityModifiers && isMethodOverride() ->
@@ -90,10 +106,14 @@ private class KtLightMemberModifierList(
         else -> clsDelegate.hasModifierProperty(name)
     }
 
+    override fun hasExplicitModifier(name: String) =
+        // kotlin methods can't be truly default atm, that way we can avoid being reported on by diagnostics, namely android lint
+        if (name == PsiModifier.DEFAULT) false else super.hasExplicitModifier(name)
+
     private fun isMethodOverride() = owner is KtLightMethod && owner.kotlinOrigin?.hasModifier(KtTokens.OVERRIDE_KEYWORD) ?: false
 
-    private fun isImplementationInInterface()
-            = owner.containingClass.isInterface && owner is KtLightMethod && owner.kotlinOrigin?.hasBody() ?: false
+    private fun isImplementationInInterface() =
+        owner.containingClass.isInterface && owner is KtLightMethod && owner.kotlinOrigin?.hasBody() ?: false
 
     override fun copy() = KtLightMemberModifierList(owner, dummyDelegate)
 }

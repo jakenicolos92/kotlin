@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,55 +20,128 @@ import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
 import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
+import org.jetbrains.kotlin.resolve.calls.inference.CapturedTypeConstructor
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
 import org.jetbrains.kotlin.types.*
+import org.jetbrains.kotlin.types.model.CaptureStatus
+import org.jetbrains.kotlin.types.model.CapturedTypeMarker
+import org.jetbrains.kotlin.types.refinement.TypeRefinement
 import org.jetbrains.kotlin.types.typeUtil.asTypeProjection
 import org.jetbrains.kotlin.types.typeUtil.builtIns
-import org.jetbrains.kotlin.utils.DO_NOTHING_2
 
-fun captureFromArguments(
-        type: SimpleType,
-        status: CaptureStatus,
-        acceptNewCapturedType: ((argumentIndex: Int, NewCapturedType) -> Unit) = DO_NOTHING_2
-): SimpleType {
-    val arguments = type.arguments
-    if (arguments.all { it.projectionKind == Variance.INVARIANT }) return type
+// null means that type should be leaved as is
+fun prepareArgumentTypeRegardingCaptureTypes(argumentType: UnwrappedType): UnwrappedType? {
+    return if (argumentType is NewCapturedType) null else captureFromExpression(argumentType)
+}
 
-    val newArguments = arguments.map {
-        projection ->
-        if (projection.projectionKind == Variance.INVARIANT) return@map projection
+fun captureFromExpression(type: UnwrappedType): UnwrappedType? {
+    val typeConstructor = type.constructor
 
-        val lowerType = if (!projection.isStarProjection && projection.projectionKind == Variance.IN_VARIANCE) {
-            projection.type.unwrap()
-        } else null
-
-        NewCapturedType(status, lowerType, projection).asTypeProjection() // todo optimization: do not create type projection
+    if (typeConstructor !is IntersectionTypeConstructor) {
+        return captureFromArguments(type, CaptureStatus.FROM_EXPRESSION)
     }
 
-    val substitutor = TypeConstructorSubstitution.create(type.constructor, newArguments).buildSubstitutor()
+    /*
+     * We capture intersection types in two stages:
+     * capture type arguments for each component and replace it in the original type after that.
+     * This is to substitute captured types into flexible types properly:
+     * we should have the same captured types both for lower bound and for upper one.
+     *
+     * Example:
+     *  The original type: ({Comparable<*> & java.io.Serializable}..{Comparable<*>? & java.io.Serializable?})
+     *  Result of capturing arguments by components: [[CapturedType(*)], null]
+     *  The resulting type: ({Comparable<CapturedType(*)> & java.io.Serializable}..{Comparable<CapturedType(*)>? & java.io.Serializable?})
+     */
+    val capturedArgumentsByComponents = captureArgumentsForIntersectionType(typeConstructor) ?: return null
+
+    fun replaceArgumentsByComponents(typeToReplace: UnwrappedType) =
+        typeToReplace.constructor.supertypes.mapIndexed { i, componentType ->
+            val capturedArguments = capturedArgumentsByComponents[i] ?: return@mapIndexed componentType.asSimpleType()
+            componentType.unwrap().replaceArguments(capturedArguments)
+        }
+
+    return if (type is FlexibleType) {
+        val lowerIntersectedType =
+            intersectTypes(replaceArgumentsByComponents(type.lowerBound)).makeNullableAsSpecified(type.lowerBound.isMarkedNullable)
+        val upperIntersectedType =
+            intersectTypes(replaceArgumentsByComponents(type.upperBound)).makeNullableAsSpecified(type.upperBound.isMarkedNullable)
+
+        KotlinTypeFactory.flexibleType(lowerIntersectedType, upperIntersectedType)
+    } else {
+        intersectTypes(replaceArgumentsByComponents(type)).makeNullableAsSpecified(type.isMarkedNullable)
+    }
+}
+
+// this function suppose that input type is simple classifier type
+internal fun captureFromArguments(type: SimpleType, status: CaptureStatus) =
+    captureArguments(type, status)?.let { type.replaceArguments(it) }
+
+private fun captureArgumentsForIntersectionType(typeConstructor: TypeConstructor): List<List<TypeProjection>?>? {
+    var changed = false
+    val capturedArgumentsByComponents = typeConstructor.supertypes.map { supertype ->
+        captureArguments(supertype.unwrap(), CaptureStatus.FROM_EXPRESSION)?.apply { changed = true }
+    }
+
+    if (!changed) return null
+
+    return capturedArgumentsByComponents
+}
+
+private fun captureFromArguments(type: UnwrappedType, status: CaptureStatus): UnwrappedType? {
+    val capturedArguments = captureArguments(type, status) ?: return null
+
+    return if (type is FlexibleType) {
+        KotlinTypeFactory.flexibleType(
+            type.lowerBound.replaceArguments(capturedArguments),
+            type.upperBound.replaceArguments(capturedArguments)
+        )
+    } else {
+        type.replaceArguments(capturedArguments)
+    }
+}
+
+private fun UnwrappedType.replaceArguments(arguments: List<TypeProjection>) =
+    KotlinTypeFactory.simpleType(annotations, constructor, arguments, isMarkedNullable)
+
+private fun captureArguments(type: UnwrappedType, status: CaptureStatus): List<TypeProjection>? {
+    if (type.arguments.size != type.constructor.parameters.size) return null
+
+    val arguments = type.arguments
+    if (arguments.all { it.projectionKind == Variance.INVARIANT }) return null
+
+    val capturedArguments = arguments.zip(type.constructor.parameters).map { (projection, parameter) ->
+        if (projection.projectionKind == Variance.INVARIANT) return@map projection
+
+        val lowerType =
+            if (!projection.isStarProjection && projection.projectionKind == Variance.IN_VARIANCE) {
+                projection.type.unwrap()
+            } else {
+                null
+            }
+
+        NewCapturedType(status, lowerType, projection, parameter).asTypeProjection() // todo optimization: do not create type projection
+    }
+
+    val substitutor = TypeConstructorSubstitution.create(type.constructor, capturedArguments).buildSubstitutor()
+
     for (index in arguments.indices) {
         val oldProjection = arguments[index]
-        val newProjection = newArguments[index]
+        val newProjection = capturedArguments[index]
 
         if (oldProjection.projectionKind == Variance.INVARIANT) continue
-        var upperBounds = type.constructor.parameters[index].upperBounds.map {
-            NewKotlinTypeChecker.transformToNewType(substitutor.safeSubstitute(it, Variance.INVARIANT).unwrap())
+        val capturedTypeSupertypes = type.constructor.parameters[index].upperBounds.mapTo(mutableListOf()) {
+            NewKotlinTypeChecker.Default.transformToNewType(substitutor.safeSubstitute(it, Variance.INVARIANT).unwrap())
         }
+
         if (!oldProjection.isStarProjection && oldProjection.projectionKind == Variance.OUT_VARIANCE) {
-            upperBounds += NewKotlinTypeChecker.transformToNewType(oldProjection.type.unwrap())
+            capturedTypeSupertypes += NewKotlinTypeChecker.Default.transformToNewType(oldProjection.type.unwrap())
         }
 
         val capturedType = newProjection.type as NewCapturedType
-        capturedType.constructor.initializeSupertypes(upperBounds)
-        acceptNewCapturedType(index, capturedType)
+        capturedType.constructor.initializeSupertypes(capturedTypeSupertypes)
     }
 
-    return KotlinTypeFactory.simpleType(type.annotations, type.constructor, newArguments, type.isMarkedNullable)
-}
-
-enum class CaptureStatus {
-    FOR_SUBTYPING,
-    FROM_EXPRESSION
+    return capturedArguments
 }
 
 /**
@@ -80,14 +153,16 @@ enum class CaptureStatus {
  *
  */
 class NewCapturedType(
-        val captureStatus: CaptureStatus,
-        override val constructor: NewCapturedTypeConstructor,
-        val lowerType: UnwrappedType?,
-        override val annotations: Annotations = Annotations.EMPTY,
-        override val isMarkedNullable: Boolean = false
-): SimpleType() {
-    constructor(captureStatus: CaptureStatus, lowerType: UnwrappedType?, projection: TypeProjection) :
-            this(captureStatus, NewCapturedTypeConstructor(projection), lowerType)
+    val captureStatus: CaptureStatus,
+    override val constructor: NewCapturedTypeConstructor,
+    val lowerType: UnwrappedType?, // todo check lower type for nullable captured types
+    override val annotations: Annotations = Annotations.EMPTY,
+    override val isMarkedNullable: Boolean = false,
+    val isProjectionNotNull: Boolean = false
+) : SimpleType(), CapturedTypeMarker {
+    internal constructor(
+        captureStatus: CaptureStatus, lowerType: UnwrappedType?, projection: TypeProjection, typeParameter: TypeParameterDescriptor
+    ) : this(captureStatus, NewCapturedTypeConstructor(projection, typeParameter = typeParameter), lowerType)
 
     override val arguments: List<TypeProjection> get() = listOf()
 
@@ -95,21 +170,47 @@ class NewCapturedType(
         get() = ErrorUtils.createErrorScope("No member resolution should be done on captured type!", true)
 
     override fun replaceAnnotations(newAnnotations: Annotations) =
-            NewCapturedType(captureStatus, constructor, lowerType, newAnnotations, isMarkedNullable)
+        NewCapturedType(captureStatus, constructor, lowerType, newAnnotations, isMarkedNullable)
 
     override fun makeNullableAsSpecified(newNullability: Boolean) =
-            NewCapturedType(captureStatus, constructor, lowerType, annotations, newNullability)
+        NewCapturedType(captureStatus, constructor, lowerType, annotations, newNullability)
+
+    @TypeRefinement
+    override fun refine(kotlinTypeRefiner: KotlinTypeRefiner) =
+        NewCapturedType(
+            captureStatus,
+            constructor.refine(kotlinTypeRefiner),
+            lowerType?.let { kotlinTypeRefiner.refineType(it).unwrap() },
+            annotations,
+            isMarkedNullable
+        )
 }
 
-class NewCapturedTypeConstructor(val projection: TypeProjection, private var supertypes: List<UnwrappedType>? = null) : TypeConstructor {
-    fun initializeSupertypes(supertypes: List<UnwrappedType>) {
-        assert(this.supertypes == null) {
-            "Already initialized! oldValue = ${this.supertypes}, newValue = $supertypes"
-        }
-        this.supertypes = supertypes
+class NewCapturedTypeConstructor(
+    override val projection: TypeProjection,
+    private var supertypesComputation: (() -> List<UnwrappedType>)? = null,
+    private val original: NewCapturedTypeConstructor? = null,
+    val typeParameter: TypeParameterDescriptor? = null
+) : CapturedTypeConstructor {
+
+    constructor(
+        projection: TypeProjection,
+        supertypes: List<UnwrappedType>,
+        original: NewCapturedTypeConstructor? = null
+    ) : this(projection, { supertypes }, original)
+
+    private val _supertypes by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        supertypesComputation?.invoke()
     }
 
-    override fun getSupertypes() = supertypes ?: emptyList()
+    fun initializeSupertypes(supertypes: List<UnwrappedType>) {
+        assert(this.supertypesComputation == null) {
+            "Already initialized! oldValue = ${this.supertypesComputation}, newValue = $supertypes"
+        }
+        this.supertypesComputation = { supertypes }
+    }
+
+    override fun getSupertypes() = _supertypes ?: emptyList()
     override fun getParameters(): List<TypeParameterDescriptor> = emptyList()
 
     override fun isFinal() = false
@@ -117,5 +218,28 @@ class NewCapturedTypeConstructor(val projection: TypeProjection, private var sup
     override fun getDeclarationDescriptor(): ClassifierDescriptor? = null
     override fun getBuiltIns(): KotlinBuiltIns = projection.type.builtIns
 
+    @TypeRefinement
+    override fun refine(kotlinTypeRefiner: KotlinTypeRefiner) =
+        NewCapturedTypeConstructor(
+            projection.refine(kotlinTypeRefiner),
+            supertypesComputation?.let {
+                {
+                    supertypes.map { it.refine(kotlinTypeRefiner) }
+                }
+            },
+            original ?: this,
+            typeParameter = typeParameter
+        )
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as NewCapturedTypeConstructor
+
+        return (original ?: this) === (other.original ?: other)
+    }
+
+    override fun hashCode(): Int = original?.hashCode() ?: super.hashCode()
     override fun toString() = "CapturedType($projection)"
 }

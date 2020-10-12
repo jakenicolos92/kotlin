@@ -26,12 +26,20 @@ import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.expressions.typeInfoFactory.createTypeInfo
 import org.jetbrains.kotlin.util.slicedMap.*
 
-open class DelegatingBindingTrace(private val parentContext: BindingContext,
-                                  private val name: String,
-                                  withParentDiagnostics: Boolean = true,
-                                  private val filter: BindingTraceFilter = BindingTraceFilter.ACCEPT_ALL) : BindingTrace {
-    private val map = if (BindingTraceContext.TRACK_REWRITES) TrackingSlicedMap(BindingTraceContext.TRACK_WITH_STACK_TRACES) else SlicedMapImpl.create()
-    private val mutableDiagnostics: MutableDiagnosticsWithSuppression?
+open class DelegatingBindingTrace(
+    private val parentContext: BindingContext,
+    private val name: String,
+    withParentDiagnostics: Boolean = true,
+    private val filter: BindingTraceFilter = BindingTraceFilter.ACCEPT_ALL,
+    allowSliceRewrite: Boolean = false
+) : BindingTrace {
+
+    protected val map = if (BindingTraceContext.TRACK_REWRITES && !allowSliceRewrite)
+        TrackingSlicedMap(BindingTraceContext.TRACK_WITH_STACK_TRACES)
+    else
+        SlicedMapImpl(allowSliceRewrite)
+
+    protected val mutableDiagnostics: MutableDiagnosticsWithSuppression?
 
     private inner class MyBindingContext : BindingContext {
         override fun getDiagnostics(): Diagnostics = mutableDiagnostics ?: Diagnostics.EMPTY
@@ -61,21 +69,25 @@ open class DelegatingBindingTrace(private val parentContext: BindingContext,
     private val bindingContext = MyBindingContext()
 
     init {
-        this.mutableDiagnostics = if (filter.ignoreDiagnostics)
-            null
-        else if (withParentDiagnostics)
-            MutableDiagnosticsWithSuppression(bindingContext, parentContext.diagnostics)
-        else
-            MutableDiagnosticsWithSuppression(bindingContext)
+        this.mutableDiagnostics = when {
+            filter.ignoreDiagnostics -> null
+            withParentDiagnostics -> MutableDiagnosticsWithSuppression(bindingContext, parentContext.diagnostics)
+            else -> MutableDiagnosticsWithSuppression(bindingContext)
+        }
     }
 
-    constructor(parentContext: BindingContext,
-                debugName: String,
-                resolutionSubjectForMessage: Any?,
-                filter: BindingTraceFilter = BindingTraceFilter.ACCEPT_ALL)
-        : this(parentContext,
-               AnalyzingUtils.formDebugNameForBindingTrace(debugName, resolutionSubjectForMessage),
-               filter = filter)
+    constructor(
+        parentContext: BindingContext,
+        debugName: String,
+        resolutionSubjectForMessage: Any?,
+        filter: BindingTraceFilter = BindingTraceFilter.ACCEPT_ALL,
+        allowSliceRewrite: Boolean = false
+    ) : this(
+        parentContext,
+        AnalyzingUtils.formDebugNameForBindingTrace(debugName, resolutionSubjectForMessage),
+        filter = filter,
+        allowSliceRewrite = allowSliceRewrite
+    )
 
     override fun getBindingContext(): BindingContext = bindingContext
 
@@ -87,17 +99,15 @@ open class DelegatingBindingTrace(private val parentContext: BindingContext,
         record(slice, key, true)
     }
 
-    override fun <K, V> get(slice: ReadOnlySlice<K, V>, key: K): V? {
-        val value = map.get(slice, key)
-        if (slice is SetSlice<*>) {
-            assert(value != null)
-            if (value != SetSlice.DEFAULT) return value
-        }
-        else if (value != null) {
-            return value
-        }
+    override fun <K, V> get(slice: ReadOnlySlice<K, V>, key: K): V? =
+        selfGet(slice, key) ?: parentContext.get(slice, key)
 
-        return parentContext.get(slice, key)
+    protected fun <K, V> selfGet(slice: ReadOnlySlice<K, V>, key: K): V? {
+        val value = map.get(slice, key)
+        return if (slice is SetSlice<*>) {
+            assert(value != null)
+            if (value != SetSlice.DEFAULT) value else null
+        } else value
     }
 
     override fun <K, V> getKeys(slice: WritableSlice<K, V>): Collection<K> {
@@ -118,8 +128,7 @@ open class DelegatingBindingTrace(private val parentContext: BindingContext,
         var typeInfo = get(BindingContext.EXPRESSION_TYPE_INFO, expression)
         if (typeInfo == null) {
             typeInfo = createTypeInfo(type)
-        }
-        else {
+        } else {
             typeInfo = typeInfo.replaceType(type)
         }
         record(BindingContext.EXPRESSION_TYPE_INFO, expression, typeInfo)
@@ -130,11 +139,12 @@ open class DelegatingBindingTrace(private val parentContext: BindingContext,
         clear()
     }
 
-    @JvmOverloads fun addOwnDataTo(trace: BindingTrace, filter: TraceEntryFilter? = null, commitDiagnostics: Boolean = true) {
+    @JvmOverloads
+    fun addOwnDataTo(trace: BindingTrace, filter: TraceEntryFilter? = null, commitDiagnostics: Boolean = true) {
         BindingContextUtils.addOwnDataTo(trace, filter, commitDiagnostics, map, mutableDiagnostics)
     }
 
-    fun clear() {
+    open fun clear() {
         map.clear()
         mutableDiagnostics?.clear()
     }

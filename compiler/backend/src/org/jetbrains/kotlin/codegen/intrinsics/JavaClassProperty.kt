@@ -24,7 +24,8 @@ import org.jetbrains.kotlin.codegen.ExpressionCodegen
 import org.jetbrains.kotlin.codegen.StackValue
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
-import org.jetbrains.kotlin.resolve.jvm.AsmTypes.UNIT_TYPE
+import org.jetbrains.kotlin.resolve.isInlineClassType
+import org.jetbrains.kotlin.resolve.jvm.AsmTypes
 import org.jetbrains.kotlin.resolve.jvm.AsmTypes.getType
 import org.jetbrains.org.objectweb.asm.Type
 import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter
@@ -42,22 +43,41 @@ object JavaClassProperty : IntrinsicPropertyGetter() {
             }
 
     fun generateImpl(v: InstructionAdapter, receiver: StackValue): Type {
+        fun invokeVirtualGetClassMethod() {
+            v.invokevirtual("java/lang/Object", "getClass", "()Ljava/lang/Class;", false)
+        }
+
         val type = receiver.type
-        if (type == Type.VOID_TYPE) {
-            receiver.put(Type.VOID_TYPE, v)
-            StackValue.unit().put(UNIT_TYPE, v)
-            v.invokevirtual("java/lang/Object", "getClass", "()Ljava/lang/Class;", false)
-        }
-        else if (isPrimitive(type)) {
-            if (!StackValue.couldSkipReceiverOnStaticCall(receiver)) {
-                receiver.put(type, v)
-                AsmUtil.pop(v, type)
+        val kotlinType = receiver.kotlinType
+        when {
+            type == Type.VOID_TYPE -> {
+                receiver.put(Type.VOID_TYPE, v)
+                StackValue.unit().put(v)
+                invokeVirtualGetClassMethod()
             }
-            v.getstatic(boxType(type).internalName, "TYPE", "Ljava/lang/Class;")
-        }
-        else {
-            receiver.put(type, v)
-            v.invokevirtual("java/lang/Object", "getClass", "()Ljava/lang/Class;", false)
+
+            kotlinType?.isInlineClassType() == true -> {
+                receiver.put(type, kotlinType, v)
+                StackValue.coerce(
+                    type, kotlinType,
+                    AsmTypes.OBJECT_TYPE, kotlinType.constructor.builtIns.nullableAnyType,
+                    v
+                )
+                invokeVirtualGetClassMethod()
+            }
+
+            isPrimitive(type) -> {
+                if (!StackValue.couldSkipReceiverOnStaticCall(receiver)) {
+                    receiver.put(type, v)
+                    AsmUtil.pop(v, type)
+                }
+                v.getstatic(boxType(type).internalName, "TYPE", "Ljava/lang/Class;")
+            }
+
+            else -> {
+                receiver.put(type, v)
+                invokeVirtualGetClassMethod()
+            }
         }
 
         return getType(Class::class.java)

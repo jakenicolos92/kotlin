@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.js.translate.declaration
 
+import com.intellij.psi.impl.source.tree.LeafPsiElement
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
@@ -52,10 +53,11 @@ abstract class AbstractDeclarationVisitor : TranslatorVisitor<Unit>()  {
         val defaultTranslator = DefaultPropertyTranslator(descriptor, context, getBackingFieldReference(descriptor))
         val getter = descriptor.getter!!
         val getterExpr = if (expression.hasCustomGetter()) {
-            translateFunction(getter, expression.getter!!, propertyContext)
+            translateFunction(getter, expression.getter!!, propertyContext).first
         }
         else {
             val function = context.getFunctionObject(getter)
+            function.source = expression
             defaultTranslator.generateDefaultGetterFunction(getter, function)
             function
         }
@@ -63,10 +65,11 @@ abstract class AbstractDeclarationVisitor : TranslatorVisitor<Unit>()  {
         val setterExpr = if (descriptor.isVar) {
             val setter = descriptor.setter!!
             if (expression.hasCustomSetter()) {
-                translateFunction(setter, expression.setter!!, propertyContext)
+                translateFunction(setter, expression.setter!!, propertyContext).first
             }
             else {
                 val function = context.getFunctionObject(setter)
+                function.source = expression
                 defaultTranslator.generateDefaultSetterFunction(setter, function)
                 function
             }
@@ -76,8 +79,8 @@ abstract class AbstractDeclarationVisitor : TranslatorVisitor<Unit>()  {
         }
 
         if (TranslationUtils.shouldAccessViaFunctions(descriptor) || descriptor.isExtensionProperty) {
-            addFunction(descriptor.getter!!, getterExpr)
-            descriptor.setter?.let { addFunction(it, setterExpr!!) }
+            addFunction(descriptor.getter!!, getterExpr, expression.getter ?: expression)
+            descriptor.setter?.let { addFunction(it, setterExpr!!, expression.setter ?: expression) }
         }
         else {
             addProperty(descriptor, getterExpr, setterExpr)
@@ -86,8 +89,14 @@ abstract class AbstractDeclarationVisitor : TranslatorVisitor<Unit>()  {
 
     override fun visitNamedFunction(expression: KtNamedFunction, context: TranslationContext) {
         val descriptor = BindingUtils.getFunctionDescriptor(context.bindingContext(), expression)
-        val jsFunction = if (descriptor.modality != Modality.ABSTRACT) translateFunction(descriptor, expression, context) else null
-        addFunction(descriptor, jsFunction)
+        val functionAndContext = if (descriptor.modality != Modality.ABSTRACT) {
+            translateFunction(descriptor, expression, context)
+        }
+        else {
+            null
+        }
+
+        addFunction(descriptor, functionAndContext?.first, expression)
     }
 
     override fun visitTypeAlias(typeAlias: KtTypeAlias, data: TranslationContext?) {}
@@ -96,33 +105,38 @@ abstract class AbstractDeclarationVisitor : TranslatorVisitor<Unit>()  {
             descriptor: FunctionDescriptor,
             expression: KtDeclarationWithBody,
             context: TranslationContext
-    ): JsExpression {
+    ): Pair<JsExpression, TranslationContext> {
         val function = context.getFunctionObject(descriptor)
+        function.source = expression
+        function.body.source = expression.finalElement as? LeafPsiElement
         val innerContext = context.newDeclaration(descriptor).translateAndAliasParameters(descriptor, function.parameters)
 
         if (descriptor.isSuspend) {
-            if (descriptor.requiresStateMachineTransformation(context)) {
-                function.fillCoroutineMetadata(context, descriptor, hasController = false)
-            }
+            function.fillCoroutineMetadata(innerContext, descriptor, hasController = false)
         }
 
         if (!descriptor.isOverridable) {
             function.body.statements += FunctionBodyTranslator.setDefaultValueForArguments(descriptor, innerContext)
         }
         innerContext.translateFunction(expression, function)
-        return innerContext.wrapWithInlineMetadata(function, descriptor, context.config)
+
+        return Pair(innerContext.wrapWithInlineMetadata(context, function, descriptor), innerContext)
     }
 
-    protected abstract fun addFunction(
+    // used from kotlinx.serialization
+    abstract fun addFunction(
             descriptor: FunctionDescriptor,
-            expression: JsExpression?
+            expression: JsExpression?,
+            psi: KtElement?
     )
 
-    protected abstract fun addProperty(
+    // used from kotlinx.serialization
+    abstract fun addProperty(
             descriptor: PropertyDescriptor,
             getter: JsExpression,
             setter: JsExpression?
     )
 
-    protected abstract fun getBackingFieldReference(descriptor: PropertyDescriptor): JsExpression
+    // used from kotlinx.serialization
+    abstract fun getBackingFieldReference(descriptor: PropertyDescriptor): JsExpression
 }

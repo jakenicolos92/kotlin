@@ -25,15 +25,15 @@ interface JvmDependenciesIndex {
     val indexedRoots: Sequence<JavaRoot>
 
     fun <T : Any> findClass(
-            classId: ClassId,
-            acceptedRootTypes: Set<JavaRoot.RootType> = JavaRoot.SourceAndBinary,
-            findClassGivenDirectory: (VirtualFile, JavaRoot.RootType) -> T?
+        classId: ClassId,
+        acceptedRootTypes: Set<JavaRoot.RootType> = JavaRoot.SourceAndBinary,
+        findClassGivenDirectory: (VirtualFile, JavaRoot.RootType) -> T?
     ): T?
 
     fun traverseDirectoriesInPackage(
-            packageFqName: FqName,
-            acceptedRootTypes: Set<JavaRoot.RootType> = JavaRoot.SourceAndBinary,
-            continueSearch: (VirtualFile, JavaRoot.RootType) -> Boolean
+        packageFqName: FqName,
+        acceptedRootTypes: Set<JavaRoot.RootType> = JavaRoot.SourceAndBinary,
+        continueSearch: (VirtualFile, JavaRoot.RootType) -> Boolean
     )
 }
 
@@ -46,15 +46,5 @@ data class JavaRoot(val file: VirtualFile, val type: RootType, val prefixFqName:
     companion object RootTypes {
         val OnlyBinary: Set<RootType> = EnumSet.of(RootType.BINARY)
         val SourceAndBinary: Set<RootType> = EnumSet.of(RootType.BINARY, RootType.SOURCE)
-    }
-}
-
-interface JvmDependenciesIndexFactory<out T : JvmDependenciesIndex> {
-    fun makeIndexFor(roots: List<JavaRoot>): T
-}
-
-class JvmUpdateableDependenciesIndexFactory : JvmDependenciesIndexFactory<JvmDependenciesDynamicCompoundIndex> {
-    override fun makeIndexFor(roots: List<JavaRoot>) = JvmDependenciesDynamicCompoundIndex().apply {
-        addIndex(JvmDependenciesIndexImpl(roots))
     }
 }

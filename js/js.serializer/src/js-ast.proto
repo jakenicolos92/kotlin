@@ -31,6 +31,12 @@ enum SideEffects {
     PURE = 3;
 }
 
+message JsImportedModule {
+    required int32 external_name = 1;
+    required int32 internal_name = 2;
+    optional Expression plain_reference = 3;
+}
+
 
 // Expressions
 //
@@ -40,6 +46,7 @@ message Expression {
     optional Location location = 2;
     optional bool synthetic = 3 [default = false];
     optional SideEffects side_effects = 4 [default = AFFECTS_STATE];
+    optional JsImportedModule local_alias = 5;
 
     oneof expression {
         int32 simple_name_reference = 22;
@@ -282,6 +289,8 @@ message Vars {
 message VarDeclaration {
     required int32 name_id = 1;
     optional Expression initial_value = 2;
+    optional int32 fileId = 3;
+    optional Location location = 4;
 }
 
 message Block {
@@ -311,6 +320,9 @@ message Switch {
 message SwitchEntry {
     optional Expression label = 1;
     repeated Statement statement = 2;
+
+    optional int32 fileId = 3;
+    optional Location location = 4;
 }
 
 message While {
@@ -325,7 +337,7 @@ message DoWhile {
 
 message For {
     oneof init {
-        Vars variables = 1;
+        Statement variables = 1;
         Expression expression = 2;
         EmptyInit empty = 3;
     }
@@ -379,6 +391,15 @@ message Fragment {
     repeated ClassModel class_model = 7;
     repeated Expression module_expression = 8;
     repeated InlineModule inline_module = 9;
+    optional string package_fqn = 10;
+    optional Statement tests_invocation = 11;
+    optional Statement main_invocation = 12;
+    repeated InlinedLocalDeclarations inlined_local_declarations = 13;
+}
+
+message InlinedLocalDeclarations {
+    required int32 tag = 1;
+    required GlobalBlock block = 2;
 }
 
 message ImportedModule {
@@ -400,6 +421,7 @@ message NameBinding {
 message ClassModel {
     required int32 name_id = 1;
     optional int32 super_name_id = 2;
+    repeated int32 interface_name_id = 4;
     optional GlobalBlock post_declaration_block = 3;
 }
 
@@ -422,6 +444,28 @@ message NameTable {
 message Name {
     required bool temporary = 1;
     optional int32 identifier = 2;
+    optional LocalAlias local_name_id = 3;
+    optional bool imported = 4 [default = false];
+    optional SpecialFunction special_function = 5;
+}
+
+message LocalAlias {
+    required int32 local_name_id = 1;
+    optional int32 tag = 2;
+}
+
+enum SpecialFunction {
+    DEFINE_INLINE_FUNCTION = 1;
+    WRAP_FUNCTION = 2;
+    TO_BOXED_CHAR = 3;
+    UNBOX_CHAR = 4;
+    SUSPEND_CALL = 5;
+    COROUTINE_RESULT = 6;
+    COROUTINE_CONTROLLER = 7;
+    COROUTINE_RECEIVER = 8;
+    SET_COROUTINE_RESULT = 9;
+    GET_KCLASS = 10;
+    GET_REIFIED_TYPE_PARAMETER_KTYPE = 11;
 }
 
 
@@ -432,4 +476,11 @@ message Chunk {
     required StringTable string_table = 1;
     required NameTable name_table = 2;
     required Fragment fragment = 3;
+}
+
+// InlineData
+//
+
+message InlineData {
+    repeated string inline_function_tags = 1;
 }

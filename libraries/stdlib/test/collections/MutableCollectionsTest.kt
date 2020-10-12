@@ -1,19 +1,24 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 package test.collections
 
+import kotlin.random.Random
 import kotlin.test.*
 
-import org.junit.Test
 
 class MutableCollectionTest {
-    fun <T, C: MutableCollection<T>> testOperation(before: List<T>, after: List<T>, expectedModified: Boolean, toMutableCollection: (List<T>) -> C)
-            = fun(operation: (C.() -> Boolean)) {
-                val list = toMutableCollection(before)
-                assertEquals(expectedModified, list.operation())
-                assertEquals(toMutableCollection(after), list)
-            }
+    fun <T, C : MutableCollection<T>> testOperation(before: List<T>, after: List<T>, expectedModified: Boolean, toMutableCollection: (List<T>) -> C) =
+        fun(operation: (C.() -> Boolean)) {
+            val list = toMutableCollection(before)
+            assertEquals(expectedModified, list.operation())
+            assertEquals(toMutableCollection(after), list)
+        }
 
-    fun <T> testOperation(before: List<T>, after: List<T>, expectedModified: Boolean)
-            = testOperation(before, after, expectedModified, { it.toMutableList() })
+    fun <T> testOperation(before: List<T>, after: List<T>, expectedModified: Boolean) =
+        testOperation(before, after, expectedModified, { it.toMutableList() })
 
 
     @Test fun addAll() {
@@ -32,6 +37,26 @@ class MutableCollectionTest {
             assertAdd { addAll(data.toTypedArray().asIterable()) }
             assertAdd { addAll(data.asSequence()) }
         }
+    }
+
+    @Test fun removeFirst() {
+        val list = mutableListOf("first", "second")
+
+        assertEquals("first", list.removeFirst())
+        assertEquals("second", list.removeFirstOrNull())
+
+        assertNull(list.removeFirstOrNull())
+        assertFailsWith<NoSuchElementException> { list.removeFirst() }
+    }
+
+    @Test fun removeLast() {
+        val list = mutableListOf("first", "second")
+
+        assertEquals("second", list.removeLast())
+        assertEquals("first", list.removeLastOrNull())
+
+        assertNull(list.removeLastOrNull())
+        assertFailsWith<NoSuchElementException> { list.removeLast() }
     }
 
     @Test fun removeAll() {
@@ -93,6 +118,33 @@ class MutableCollectionTest {
             assertRetain { retainAll { it in data } }
             assertRetain { (this as MutableIterable<String>).retainAll { it in data } }
         }
+    }
+
+    @Test fun listFill() {
+        val list = MutableList(3) { it }
+        list.fill(42)
+        assertEquals(listOf(42, 42, 42), list)
+    }
+
+    @Test fun shuffled() {
+        val list = MutableList(100) { it }
+        val shuffled = list.shuffled()
+
+        assertNotEquals(list, shuffled)
+        assertEquals(list.toSet(), shuffled.toSet())
+        assertEquals(list.size, shuffled.distinct().size)
+    }
+
+    @Test fun shuffledPredictably() {
+        val list = List(10) { it }
+        val shuffled1 = list.shuffled(Random(1))
+        val shuffled11 = list.shuffled(Random(1))
+
+        assertEquals(shuffled1, shuffled11)
+        assertEquals("[1, 4, 0, 6, 2, 8, 9, 7, 3, 5]", shuffled1.toString())
+
+        val shuffled2 = list.shuffled(Random(42))
+        assertEquals("[5, 0, 4, 9, 2, 8, 1, 7, 6, 3]", shuffled2.toString())
     }
 
 }

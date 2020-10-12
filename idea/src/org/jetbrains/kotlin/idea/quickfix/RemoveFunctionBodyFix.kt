@@ -1,25 +1,14 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.quickfix
 
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiFile
 import org.jetbrains.kotlin.diagnostics.Diagnostic
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.util.CommentSaver
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtFunction
@@ -27,13 +16,13 @@ import org.jetbrains.kotlin.psi.psiUtil.PsiChildRange
 import org.jetbrains.kotlin.psi.psiUtil.getNonStrictParentOfType
 
 class RemoveFunctionBodyFix(element: KtFunction) : KotlinQuickFixAction<KtFunction>(element) {
-    override fun getFamilyName() = "Remove function body"
+    override fun getFamilyName() = KotlinBundle.message("remove.function.body")
 
     override fun getText() = familyName
 
-    override fun isAvailable(project: Project, editor: Editor?, file: PsiFile): Boolean {
+    override fun isAvailable(project: Project, editor: Editor?, file: KtFile): Boolean {
         val element = element ?: return false
-        return super.isAvailable(project, editor, file) && element.hasBody()
+        return element.hasBody()
     }
 
     override fun invoke(project: Project, editor: Editor?, file: KtFile) {
@@ -44,8 +33,7 @@ class RemoveFunctionBodyFix(element: KtFunction) : KotlinQuickFixAction<KtFuncti
             val commentSaver = CommentSaver(PsiChildRange(equalsToken.nextSibling, bodyExpression.prevSibling), true)
             element.deleteChildRange(equalsToken, bodyExpression)
             commentSaver.restore(element)
-        }
-        else {
+        } else {
             bodyExpression.delete()
         }
     }

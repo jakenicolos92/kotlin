@@ -1,132 +1,280 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.backend.jvm.lower
 
 import org.jetbrains.kotlin.backend.common.ClassLoweringPass
+import org.jetbrains.kotlin.backend.common.ir.isMethodOfAny
+import org.jetbrains.kotlin.backend.common.ir.moveBodyTo
+import org.jetbrains.kotlin.backend.jvm.JvmBackendContext
 import org.jetbrains.kotlin.backend.jvm.JvmLoweredDeclarationOrigin
-import org.jetbrains.kotlin.backend.jvm.descriptors.DefaultImplsClassDescriptorImpl
-import org.jetbrains.kotlin.backend.jvm.lower.InitializersLowering.Companion.clinitName
-import org.jetbrains.kotlin.codegen.AsmUtil
-import org.jetbrains.kotlin.codegen.state.GenerationState
-import org.jetbrains.kotlin.codegen.state.KotlinTypeMapper
-import org.jetbrains.kotlin.descriptors.*
-import org.jetbrains.kotlin.descriptors.annotations.AnnotationsImpl
-import org.jetbrains.kotlin.descriptors.impl.SimpleFunctionDescriptorImpl
-import org.jetbrains.kotlin.descriptors.impl.ValueParameterDescriptorImpl
-import org.jetbrains.kotlin.ir.declarations.IrClass
-import org.jetbrains.kotlin.ir.declarations.IrFunction
-import org.jetbrains.kotlin.ir.declarations.impl.IrClassImpl
-import org.jetbrains.kotlin.ir.declarations.impl.IrFunctionImpl
+import org.jetbrains.kotlin.backend.jvm.codegen.isJvmInterface
+import org.jetbrains.kotlin.backend.jvm.ir.*
+import org.jetbrains.kotlin.descriptors.ClassKind
+import org.jetbrains.kotlin.descriptors.Modality
+import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
+import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.expressions.IrCall
+import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrFunctionReference
+import org.jetbrains.kotlin.ir.expressions.IrReturn
+import org.jetbrains.kotlin.ir.expressions.impl.*
+import org.jetbrains.kotlin.ir.symbols.IrLocalDelegatedPropertySymbol
+import org.jetbrains.kotlin.ir.symbols.IrSimpleFunctionSymbol
+import org.jetbrains.kotlin.ir.types.defaultType
+import org.jetbrains.kotlin.ir.util.*
 import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
 import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
-import org.jetbrains.kotlin.load.java.JvmAbi
-import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.resolve.DescriptorUtils
-import org.jetbrains.org.objectweb.asm.Opcodes
 
+/**
+ * This phase moves interface members with default implementations to the
+ * associated companion DefaultImpls with bridges, as appropriate. It then
+ * performs a traversal of any other code in this interface and redirects calls
+ * to the interface to the companion, if functions were moved completely.
+ */
+internal class InterfaceLowering(val context: JvmBackendContext) : IrElementTransformerVoid(), ClassLoweringPass {
 
-class InterfaceLowering(val state: GenerationState) : IrElementTransformerVoid(), ClassLoweringPass {
-
+    private val removedFunctions = hashMapOf<IrSimpleFunctionSymbol, IrSimpleFunctionSymbol>()
 
     override fun lower(irClass: IrClass) {
-        if (!DescriptorUtils.isInterface(irClass.descriptor)) {
-            return
+        if (!irClass.isJvmInterface) return
+
+        when (irClass.kind) {
+            ClassKind.INTERFACE -> handleInterface(irClass)
+            ClassKind.ANNOTATION_CLASS -> handleAnnotationClass(irClass)
+            else -> return
         }
 
-        val interfaceDescriptor = irClass.descriptor
-        val defaultImplsDescriptor = createDefaultImplsClassDescriptor(interfaceDescriptor)
-        val defaultImplsIrClass = IrClassImpl(irClass.startOffset, irClass.endOffset, JvmLoweredDeclarationOrigin.DEFAULT_IMPLS, defaultImplsDescriptor)
-        irClass.declarations.add(defaultImplsIrClass)
-
-        val members = defaultImplsIrClass.declarations
-
-        irClass.declarations.filterIsInstance<IrFunction>().mapNotNull {
-            val descriptor = it.descriptor
-            if (descriptor.modality != Modality.ABSTRACT) {
-                val functionDescriptorImpl = createDefaultImplFunDescriptor(defaultImplsDescriptor, descriptor, interfaceDescriptor, state.typeMapper)
-
-                val newFunction = IrFunctionImpl(it.startOffset, it.endOffset, it.origin, functionDescriptorImpl, it.body)
-                members.add(newFunction)
-                it.body = null
-
-                val mapping: Map<ValueDescriptor, ValueDescriptor> =
-                        (
-                                listOf(it.descriptor.dispatchReceiverParameter!!, it.descriptor.extensionReceiverParameter).filterNotNull() +
-                                it.descriptor.valueParameters
-                        ).zip(functionDescriptorImpl.valueParameters).toMap()
-
-                newFunction.body?.transform(VariableRemapper(mapping), null)
-            }
+        irClass.declarations.removeAll {
+            it is IrFunction && removedFunctions.containsKey(it.symbol)
         }
 
+        val defaultImplsIrClass = context.cachedDeclarations.getDefaultImplsClass(irClass)
+        if (defaultImplsIrClass.declarations.isNotEmpty()) {
+            irClass.declarations.add(defaultImplsIrClass)
+        }
 
+        // Update IrElements (e.g., IrCalls) to point to the new functions.
         irClass.transformChildrenVoid(this)
+    }
 
-        //REMOVE private methods
-        val privateToRemove = irClass.declarations.filterIsInstance<IrFunction>().mapNotNull {
-            val visibility = AsmUtil.getVisibilityAccessFlag(it.descriptor)
-            if (visibility == Opcodes.ACC_PRIVATE && it.descriptor.name != clinitName) {
-                it
+    private fun handleInterface(irClass: IrClass) {
+        val jvmDefaultMode = context.state.jvmDefaultMode
+        val isCompatibilityMode = jvmDefaultMode.isCompatibility && !irClass.hasJvmDefaultNoCompatibilityAnnotation()
+        // There are 6 cases for functions on interfaces:
+        for (function in irClass.functions) {
+            when {
+                /**
+                 * 1) They are plain abstract interface functions, in which case we leave them:
+                 */
+                function.modality == Modality.ABSTRACT ->
+                    continue
+
+                /**
+                 * 2) They inherit a default implementation from an interface this interface extends:
+                 *    create a bridge from DefaultImpls of derived to DefaultImpls of base, unless
+                 *    - the implementation is private, or belongs to java.lang.Object,
+                 *      or is a stub for function with default parameters ($default)
+                 *    - we're in -Xjvm-default=compatibility|all-compatibility mode, in which case we go via
+                 *      accessors on the parent class rather than the DefaultImpls if inherited method is compiled to JVM default
+                 *    - we're in -Xjvm-default=enable|all mode, and we have that default implementation,
+                 *      in which case we simply leave it.
+                 *
+                 *    ```
+                 *    interface A { fun foo() = 0 }
+                 *    interface B : A { }
+                 *    ```
+                 *
+                 *    yields
+                 *
+                 *    ```
+                 *    interface A { fun foo(); class DefaultImpls { fun foo() = 0 } }  // !! by Case 4 !!
+                 *    interface B : A { class DefaultImpls { fun foo() = A.DefaultImpls.foo() } }
+                 *    ```
+                 */
+                function.isFakeOverride -> {
+                    // We check to see if this is a default stub function BEFORE finding the implementation because of a front-end bug
+                    // (KT-36188) where there could be multiple implementations. (resolveFakeOverride() only returns the implementation if
+                    // there's only one.)
+                    if (function.name.asString().endsWith("\$default")) {
+                        continue
+                    }
+                    val implementation = function.resolveFakeOverride() ?: error("No single implementation found for: ${function.render()}")
+
+                    when {
+                        DescriptorVisibilities.isPrivate(implementation.visibility) || implementation.isMethodOfAny() ->
+                            continue
+                        !function.isDefinitelyNotDefaultImplsMethod(jvmDefaultMode, implementation) -> {
+                            val defaultImpl = createDefaultImpl(function)
+                            val superImpl = firstSuperMethodFromKotlin(function, implementation)
+                            context.cachedDeclarations.getDefaultImplsFunction(superImpl.owner).also {
+                                defaultImpl.bridgeToStatic(it)
+                            }
+                        }
+                        isCompatibilityMode && implementation.isCompiledToJvmDefault(jvmDefaultMode) -> {
+                            createJvmDefaultCompatibilityDelegate(function)
+                        }
+                    }
+                }
+
+                /**
+                 * 3) Private methods (not compiled to JVM defaults), default parameter dispatchers (not compiled to JVM defaults)
+                 *    and $annotation methods are always moved without bridges
+                 */
+                (DescriptorVisibilities.isPrivate(function.visibility) && !function.isCompiledToJvmDefault(jvmDefaultMode))
+                        || (function.origin == IrDeclarationOrigin.FUNCTION_FOR_DEFAULT_PARAMETER && !function.isCompiledToJvmDefault(jvmDefaultMode))
+                        || function.origin == JvmLoweredDeclarationOrigin.SYNTHETIC_METHOD_FOR_PROPERTY_ANNOTATIONS -> {
+                    val defaultImpl = createDefaultImpl(function)
+                    defaultImpl.body = function.moveBodyTo(defaultImpl)
+                    removedFunctions[function.symbol] = defaultImpl.symbol
+                }
+
+                /**
+                 * 4) Non JVM default implementation with body is moved to DefaultImpls and
+                 *    an abstract stub is left.
+                 */
+                !function.isCompiledToJvmDefault(jvmDefaultMode) -> {
+                    val defaultImpl = createDefaultImpl(function)
+                    defaultImpl.body = function.moveBodyTo(defaultImpl)
+                    function.body = null
+                    //TODO reset modality to abstract
+                }
+
+                /**
+                 * 5) JVM default declaration is bridged in DefaultImpls via accessor if in compatibility mode, ...
+                 */
+                isCompatibilityMode -> {
+                    createJvmDefaultCompatibilityDelegate(function)
+                }
+
+                // 6) ... otherwise we simply leave the default function implementation on the interface.
             }
-            else null
-        }
-        irClass.declarations.removeAll(privateToRemove)
-    }
-
-    companion object {
-
-        fun createDefaultImplsClassDescriptor(interfaceDescriptor: ClassDescriptor): DefaultImplsClassDescriptorImpl {
-            return DefaultImplsClassDescriptorImpl(
-                    Name.identifier(JvmAbi.DEFAULT_IMPLS_CLASS_NAME), interfaceDescriptor, interfaceDescriptor.source
-            )
         }
 
-        fun createDefaultImplFunDescriptor(
-                defaultImplsDescriptor: DefaultImplsClassDescriptorImpl,
-                descriptor: FunctionDescriptor,
-                interfaceDescriptor: ClassDescriptor, typeMapper: KotlinTypeMapper
-        ): SimpleFunctionDescriptorImpl {
+        val defaultImplsIrClass = context.cachedDeclarations.getDefaultImplsClass(irClass)
 
-            val newFunction = SimpleFunctionDescriptorImpl.create(
-                    defaultImplsDescriptor, AnnotationsImpl(emptyList()),
-                    Name.identifier(typeMapper.mapAsmMethod(descriptor).name),
-                    CallableMemberDescriptor.Kind.DECLARATION, descriptor.source
-            )
+        // Move $$delegatedProperties array and $assertionsDisabled field
+        for (field in irClass.declarations.filterIsInstance<IrField>()) {
+            if (field.origin != JvmLoweredDeclarationOrigin.GENERATED_PROPERTY_REFERENCE && field.origin != JvmLoweredDeclarationOrigin.GENERATED_ASSERTION_ENABLED_FIELD)
+                continue
 
-            val dispatchReceiver =
-                        ValueParameterDescriptorImpl.createWithDestructuringDeclarations(
-                                newFunction, null, 0, AnnotationsImpl(emptyList()), Name.identifier("this"),
-                                interfaceDescriptor.defaultType, false, false, false, null, interfaceDescriptor.source, null)
-            val oldExtensionReceiver = descriptor.extensionReceiverParameter
-            val extensionReceiver = if (oldExtensionReceiver != null )
-                    ValueParameterDescriptorImpl.createWithDestructuringDeclarations(
-                            newFunction, null, 1, AnnotationsImpl(emptyList()), Name.identifier("receiver"),
-                            oldExtensionReceiver.value.type, false, false, false, null, oldExtensionReceiver.source, null)
-            else null
-
-            val valueParameters = listOf(dispatchReceiver, extensionReceiver).filterNotNull() +
-                                  descriptor.valueParameters.map { it.copy(newFunction, it.name, it.index + 1) }
-
-            newFunction.initialize(
-                    null, null, emptyList()/*TODO: type parameters*/,
-                    valueParameters, descriptor.returnType, Modality.FINAL, descriptor.visibility
-            )
-            return newFunction
+            irClass.declarations.remove(field)
+            defaultImplsIrClass.declarations.add(0, field)
+            field.parent = defaultImplsIrClass
+            field.initializer?.patchDeclarationParents(defaultImplsIrClass)
         }
     }
 
+    private fun createJvmDefaultCompatibilityDelegate(function: IrSimpleFunction) {
+        val defaultImpl = createDefaultImpl(function, true)
+        defaultImpl.bridgeViaAccessorTo(function)
+    }
+
+    private fun handleAnnotationClass(irClass: IrClass) {
+        // We produce $DefaultImpls for annotation classes only to move $annotations methods (for property annotations) there.
+        val annotationsMethods =
+            irClass.functions.filter { it.origin == JvmLoweredDeclarationOrigin.SYNTHETIC_METHOD_FOR_PROPERTY_ANNOTATIONS }
+        if (annotationsMethods.none()) return
+
+        for (function in annotationsMethods) {
+            val defaultImpl = createDefaultImpl(function)
+            defaultImpl.body = function.moveBodyTo(defaultImpl)
+            removedFunctions[function.symbol] = defaultImpl.symbol
+        }
+    }
+
+    private fun createDefaultImpl(function: IrSimpleFunction, forCompatibility: Boolean = false): IrSimpleFunction =
+        context.cachedDeclarations.getDefaultImplsFunction(function, forCompatibility).also { newFunction ->
+            newFunction.parentAsClass.declarations.add(newFunction)
+        }
+
+    // Bridge from static to static method - simply fill the function arguments to the parameters.
+    // By nature of the generation of both source and target of bridge, they line up.
+    private fun IrFunction.bridgeToStatic(callTarget: IrSimpleFunction) {
+        body = IrExpressionBodyImpl(IrCallImpl(startOffset, endOffset, returnType, callTarget.symbol).also { call ->
+
+            callTarget.typeParameters.forEachIndexed { i, _ ->
+                call.putTypeArgument(i, createPlaceholderAnyNType(context.irBuiltIns))
+            }
+
+            valueParameters.forEachIndexed { i, it ->
+                call.putValueArgument(i, IrGetValueImpl(startOffset, endOffset, it.symbol))
+            }
+        })
+    }
+
+    // Bridge from static DefaultImpl method to the interface method. Arguments need to
+    // be shifted in presence of dispatch and extension receiver.
+    private fun IrFunction.bridgeViaAccessorTo(callTarget: IrSimpleFunction) {
+        body = IrExpressionBodyImpl(
+            IrCallImpl(
+                startOffset,
+                endOffset,
+                returnType,
+                callTarget.symbol,
+                superQualifierSymbol = callTarget.parentAsClass.symbol
+            ).also { call ->
+                this.typeParameters.drop(callTarget.parentAsClass.typeParameters.size).forEachIndexed { i, typeParameter ->
+                    call.putTypeArgument(i, typeParameter.defaultType)
+                }
+
+                var offset = 0
+                callTarget.dispatchReceiverParameter?.let {
+                    call.dispatchReceiver = IrGetValueImpl(startOffset, endOffset, valueParameters[offset].symbol)
+                    offset += 1
+                }
+                callTarget.extensionReceiverParameter?.let {
+                    call.extensionReceiver = IrGetValueImpl(startOffset, endOffset, valueParameters[offset].symbol)
+                    offset += 1
+                }
+                for (i in offset until valueParameters.size) {
+                    call.putValueArgument(i - offset, IrGetValueImpl(startOffset, endOffset, valueParameters[i].symbol))
+                }
+            })
+    }
+
+    override fun visitReturn(expression: IrReturn): IrExpression {
+        val newFunction = removedFunctions[expression.returnTargetSymbol]?.owner
+        return super.visitReturn(
+            if (newFunction != null) {
+                with(expression) {
+                    IrReturnImpl(startOffset, endOffset, type, newFunction.symbol, value)
+                }
+            } else {
+                expression
+            }
+        )
+    }
+
+    override fun visitCall(expression: IrCall): IrExpression {
+        val newFunction = removedFunctions[expression.symbol]?.owner
+        return super.visitCall(
+            if (newFunction != null) {
+                createDelegatingCallWithPlaceholderTypeArguments(expression, newFunction, context.irBuiltIns)
+            } else {
+                expression
+            }
+        )
+    }
+
+    override fun visitFunctionReference(expression: IrFunctionReference): IrExpression {
+        val newFunction = removedFunctions[expression.symbol]?.owner
+        return super.visitFunctionReference(
+            if (newFunction != null) {
+                with(expression) {
+                    IrFunctionReferenceImpl(
+                        startOffset, endOffset, type, newFunction.symbol, newFunction.typeParameters.size, newFunction.valueParameters.size,
+                        expression.reflectionTarget, origin
+                    ).apply {
+                        copyFromWithPlaceholderTypeArguments(expression, context.irBuiltIns)
+                        copyAttributes(expression)
+                    }
+                }
+            } else {
+                expression
+            }
+        )
+    }
 }

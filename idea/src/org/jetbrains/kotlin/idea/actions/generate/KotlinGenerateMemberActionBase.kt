@@ -26,11 +26,17 @@ import com.intellij.psi.PsiFile
 import org.jetbrains.kotlin.idea.util.application.executeWriteCommand
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtExpression
+import org.jetbrains.kotlin.psi.KtNamedFunction
 
 abstract class KotlinGenerateMemberActionBase<Info : Any> : KotlinGenerateActionBase() {
     protected abstract fun prepareMembersInfo(klass: KtClassOrObject, project: Project, editor: Editor?): Info?
 
     protected abstract fun generateMembers(project: Project, editor: Editor?, info: Info): List<KtDeclaration>
+
+    protected fun KtNamedFunction.replaceBody(generateBody: () -> KtExpression) {
+        bodyExpression?.replace(generateBody())
+    }
 
     override fun invoke(project: Project, editor: Editor, file: PsiFile) {
         if (!CodeInsightUtilBase.prepareEditorForWrite(editor)) return

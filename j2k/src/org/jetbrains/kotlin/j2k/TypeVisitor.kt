@@ -22,7 +22,6 @@ import com.intellij.psi.impl.source.PsiClassReferenceType
 import org.jetbrains.kotlin.j2k.ast.*
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.resolve.jvm.JvmPrimitiveType
-import org.jetbrains.kotlin.builtins.KotlinBuiltIns.FQ_NAMES as BUILTIN_NAMES
 
 private val PRIMITIVE_TYPES_NAMES = JvmPrimitiveType.values().map { it.javaKeywordName }
 
@@ -40,17 +39,11 @@ class TypeVisitor(
 
     override fun visitPrimitiveType(primitiveType: PsiPrimitiveType): Type {
         val name = primitiveType.canonicalText
-        return if (name == "void") {
-            UnitType()
-        }
-        else if (PRIMITIVE_TYPES_NAMES.contains(name)) {
-            PrimitiveType(Identifier.withNoPrototype(StringUtil.capitalize(name)))
-        }
-        else if (name == "null") {
-            NullType()
-        }
-        else {
-            PrimitiveType(Identifier.withNoPrototype(name))
+        return when {
+            name == "void" -> UnitType()
+            PRIMITIVE_TYPES_NAMES.contains(name) -> PrimitiveType(Identifier.withNoPrototype(StringUtil.capitalize(name)))
+            name == "null" -> NullType()
+            else -> PrimitiveType(Identifier.withNoPrototype(name))
         }
     }
 
@@ -89,11 +82,11 @@ class TypeVisitor(
     }
 
     private fun convertTypeArgs(classType: PsiClassType): List<Type> {
-        if (classType.parameterCount == 0) {
-            return createTypeArgsForRawTypeUsage(classType, Mutability.Default)
+        return if (classType.parameterCount == 0) {
+            createTypeArgsForRawTypeUsage(classType, Mutability.Default)
         }
         else {
-            return typeConverter.convertTypes(classType.parameters)
+            typeConverter.convertTypes(classType.parameters)
         }
     }
 

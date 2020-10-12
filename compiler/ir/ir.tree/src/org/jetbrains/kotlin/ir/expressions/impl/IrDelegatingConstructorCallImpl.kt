@@ -16,39 +16,41 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
-import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor
-import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
 import org.jetbrains.kotlin.ir.expressions.IrDelegatingConstructorCall
+import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
+import org.jetbrains.kotlin.ir.expressions.typeParametersCount
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
-import org.jetbrains.kotlin.ir.symbols.impl.IrConstructorSymbolImpl
+import org.jetbrains.kotlin.ir.types.IrType
 import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
-import org.jetbrains.kotlin.types.KotlinType
 
 class IrDelegatingConstructorCallImpl(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val symbol: IrConstructorSymbol,
+    typeArgumentsCount: Int,
+    valueArgumentsCount: Int
+) : IrDelegatingConstructorCall(typeArgumentsCount, valueArgumentsCount) {
+    override val origin: IrStatementOrigin?
+        get() = null
+
+    @ObsoleteDescriptorBasedAPI
+    constructor(
         startOffset: Int,
         endOffset: Int,
-        override val symbol: IrConstructorSymbol,
-        override val descriptor: ClassConstructorDescriptor,
-        typeArguments: Map<TypeParameterDescriptor, KotlinType>? = null
-) : IrDelegatingConstructorCall,
-        IrCallWithIndexedArgumentsBase(
-                startOffset, endOffset,
-                symbol.descriptor.builtIns.unitType,
-                symbol.descriptor.valueParameters.size,
-                typeArguments
-        )
-{
-    @Deprecated("Creates unbound symbol")
+        type: IrType,
+        symbol: IrConstructorSymbol
+    ) : this(startOffset, endOffset, type, symbol, symbol.descriptor.typeParametersCount, symbol.descriptor.valueParameters.size)
+
+    @ObsoleteDescriptorBasedAPI
     constructor(
-            startOffset: Int,
-            endOffset: Int,
-            constructorDescriptor: ClassConstructorDescriptor,
-            typeArguments: Map<TypeParameterDescriptor, KotlinType>? = null
-    ) : this(startOffset, endOffset,
-             IrConstructorSymbolImpl(constructorDescriptor.original),
-             constructorDescriptor,
-             typeArguments)
+        startOffset: Int,
+        endOffset: Int,
+        type: IrType,
+        symbol: IrConstructorSymbol,
+        typeArgumentsCount: Int
+    ) : this(startOffset, endOffset, type, symbol, typeArgumentsCount, symbol.descriptor.valueParameters.size)
 
     override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R {
         return visitor.visitDelegatingConstructorCall(this, data)

@@ -1,8 +1,9 @@
+// FIR_IDENTICAL
 // !LANGUAGE: +MultiPlatformProjects
 // MODULE: m1-common
 // FILE: common.kt
 
-header class Foo {
+expect class Foo {
     fun foo(i: Int, d: Double, f: Float): Unit
 }
 
@@ -15,4 +16,4 @@ public class FooImpl {
 
 // FILE: jvm.kt
 
-impl typealias Foo = FooImpl
+actual typealias Foo = FooImpl

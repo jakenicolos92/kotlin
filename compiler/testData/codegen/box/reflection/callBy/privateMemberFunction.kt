@@ -1,9 +1,8 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
 // WITH_REFLECT
 
-import kotlin.reflect.IllegalCallableAccessException
+import kotlin.reflect.full.IllegalCallableAccessException
 import kotlin.reflect.jvm.isAccessible
 
 class A {

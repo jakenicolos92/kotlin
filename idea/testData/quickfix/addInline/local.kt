@@ -1,5 +1,5 @@
 // "Add 'inline' to function 'foo'" "false"
-// ACTION: Convert to expression body
+// ACTION: Enable a trailing comma by default in the formatter
 // ERROR: Modifier 'crossinline' is allowed only for function parameters of an inline function
 
 fun bar() {

@@ -1,3 +1,4 @@
+// WITH_RUNTIME
 // FILE: Custom.java
 
 class Custom {

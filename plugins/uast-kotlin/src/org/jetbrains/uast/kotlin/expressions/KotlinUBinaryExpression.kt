@@ -25,28 +25,32 @@ import org.jetbrains.kotlin.psi.KtBinaryExpression
 import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
 import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
 import org.jetbrains.uast.*
+import org.jetbrains.uast.kotlin.declarations.KotlinUIdentifier
 
 class KotlinUBinaryExpression(
-        override val psi: KtBinaryExpression,
-        override val uastParent: UElement?
-) : KotlinAbstractUExpression(), UBinaryExpression, KotlinUElementWithType, KotlinEvaluatableUElement {
+        override val sourcePsi: KtBinaryExpression,
+        givenParent: UElement?
+) : KotlinAbstractUExpression(givenParent), UBinaryExpression, KotlinUElementWithType, KotlinEvaluatableUElement {
     private companion object {
         val BITWISE_OPERATORS = mapOf(
                 "or" to UastBinaryOperator.BITWISE_OR,
                 "and" to UastBinaryOperator.BITWISE_AND,
-                "xor" to UastBinaryOperator.BITWISE_XOR
+                "xor" to UastBinaryOperator.BITWISE_XOR,
+                "shl" to UastBinaryOperator.SHIFT_LEFT,
+                "shr" to UastBinaryOperator.SHIFT_RIGHT,
+                "ushr" to UastBinaryOperator.UNSIGNED_SHIFT_RIGHT
         )
     }
 
-    override val leftOperand by lz { KotlinConverter.convertOrEmpty(psi.left, this) }
-    override val rightOperand by lz { KotlinConverter.convertOrEmpty(psi.right, this) }
+    override val leftOperand by lz { KotlinConverter.convertOrEmpty(sourcePsi.left, this) }
+    override val rightOperand by lz { KotlinConverter.convertOrEmpty(sourcePsi.right, this) }
 
     override val operatorIdentifier: UIdentifier?
-        get() = UIdentifier(psi.operationReference, this)
+        get() = KotlinUIdentifier(sourcePsi.operationReference.getReferencedNameElement(), this)
 
-    override fun resolveOperator() = psi.operationReference.resolveCallToDeclaration(context = this) as? PsiMethod
+    override fun resolveOperator(): PsiMethod? = resolveToPsiMethod(sourcePsi)
 
-    override val operator = when (psi.operationToken) {
+    override val operator = when (sourcePsi.operationToken) {
         KtTokens.EQ -> UastBinaryOperator.ASSIGN
         KtTokens.PLUS -> UastBinaryOperator.PLUS
         KtTokens.MINUS -> UastBinaryOperator.MINUS
@@ -73,8 +77,8 @@ class KotlinUBinaryExpression(
         KtTokens.RANGE -> KotlinBinaryOperators.RANGE_TO
         else -> run { // Handle bitwise operators
             val other = UastBinaryOperator.OTHER
-            val ref = psi.operationReference
-            val resolvedCall = psi.operationReference.getResolvedCall(ref.analyze()) ?: return@run other
+            val ref = sourcePsi.operationReference
+            val resolvedCall = sourcePsi.operationReference.getResolvedCall(ref.analyze()) ?: return@run other
             val resultingDescriptor = resolvedCall.resultingDescriptor as? FunctionDescriptor ?: return@run other
             val applicableOperator = BITWISE_OPERATORS[resultingDescriptor.name.asString()] ?: return@run other
 
@@ -88,8 +92,8 @@ class KotlinUBinaryExpression(
 
 class KotlinCustomUBinaryExpression(
         override val psi: PsiElement,
-        override val uastParent: UElement?
-) : KotlinAbstractUExpression(), UBinaryExpression {
+        givenParent: UElement?
+) : KotlinAbstractUExpression(givenParent), UBinaryExpression {
     lateinit override var leftOperand: UExpression
         internal set
 

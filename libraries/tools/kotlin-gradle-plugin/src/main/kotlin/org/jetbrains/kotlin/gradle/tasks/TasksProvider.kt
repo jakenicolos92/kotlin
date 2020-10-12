@@ -17,48 +17,160 @@
 package org.jetbrains.kotlin.gradle.tasks
 
 import org.gradle.api.Project
-import org.jetbrains.kotlin.gradle.plugin.RegexTaskToFriendTaskMapper
-import org.jetbrains.kotlin.gradle.plugin.TaskToFriendTaskMapper
+import org.gradle.api.Task
+import org.gradle.api.UnknownTaskException
+import org.gradle.api.tasks.TaskCollection
+import org.gradle.api.tasks.TaskProvider
+import org.jetbrains.kotlin.gradle.plugin.KotlinCompilation
+import org.jetbrains.kotlin.gradle.plugin.PropertiesProvider
 import org.jetbrains.kotlin.gradle.plugin.mapKotlinTaskProperties
+import org.jetbrains.kotlin.gradle.plugin.mpp.AbstractKotlinCompilation
+import org.jetbrains.kotlin.gradle.plugin.runOnceAfterEvaluated
+import org.jetbrains.kotlin.gradle.plugin.sources.applyLanguageSettingsToKotlinOptions
+import org.jetbrains.kotlin.gradle.targets.js.ir.KotlinJsIrLink
+import org.jetbrains.kotlin.gradle.targets.js.ir.KotlinJsIrLinkWithWorkers
 
-internal open class KotlinTasksProvider {
-    fun createKotlinJVMTask(project: Project, name: String, sourceSetName: String): KotlinCompile =
-            project.tasks.create(name, KotlinCompile::class.java).apply {
-                configure(project, sourceSetName)
-                outputs.upToDateWhen { isCacheFormatUpToDate }
-            }
+/**
+ * Registers the task with [name] and [type] and initialization script [body]
+ */
+@JvmName("registerTaskOld")
+@Deprecated("please use Project.registerTask", ReplaceWith("project.registerTask(name, type, emptyList(), body)"))
+internal fun <T : Task> registerTask(project: Project, name: String, type: Class<T>, body: (T) -> (Unit)): TaskProvider<T> =
+    project.registerTask(name, type, emptyList(), body)
 
-    fun createKotlinJSTask(project: Project, name: String, sourceSetName: String): Kotlin2JsCompile =
-            project.tasks.create(name, Kotlin2JsCompile::class.java).apply {
-                configure(project, sourceSetName)
-            }
+internal inline fun <reified T : Task> Project.registerTask(
+    name: String,
+    args: List<Any> = emptyList(),
+    noinline body: ((T) -> (Unit))? = null
+): TaskProvider<T> =
+    this@registerTask.registerTask(name, T::class.java, args, body)
 
-    fun createKotlinCommonTask(project: Project, name: String, sourceSetName: String): KotlinCompileCommon =
-            project.tasks.create(name, KotlinCompileCommon::class.java).apply {
-                configure(project, sourceSetName)
-            }
+internal fun <T : Task> Project.registerTask(
+    name: String,
+    type: Class<T>,
+    constructorArgs: List<Any> = emptyList(),
+    body: ((T) -> (Unit))? = null
+): TaskProvider<T> {
+    val resultProvider = project.tasks.register(name, type, *constructorArgs.toTypedArray())
+    if (body != null) {
+        resultProvider.configure(body)
+    }
+    return resultProvider
+}
 
-    private fun AbstractKotlinCompile<*>.configure(project: Project, sourceSetName: String) {
-        this.sourceSetName = sourceSetName
-        this.friendTaskName = taskToFriendTaskMapper[this]
-        mapKotlinTaskProperties(project, this)
+internal fun TaskProvider<*>.dependsOn(other: TaskProvider<*>) = configure { it.dependsOn(other) }
+
+internal inline fun <reified S : Task> TaskCollection<in S>.withType(): TaskCollection<S> = withType(S::class.java)
+
+/**
+ * Locates a task by [name] and [type], without triggering its creation or configuration.
+ */
+internal inline fun <reified T : Task> Project.locateTask(name: String): TaskProvider<T>? =
+    try {
+        tasks.withType(T::class.java).named(name)
+    } catch (e: UnknownTaskException) {
+        null
     }
 
-    protected open val taskToFriendTaskMapper: TaskToFriendTaskMapper =
-            RegexTaskToFriendTaskMapper.Default()
+/**
+ * Locates a task by [name] and [type], without triggering its creation or configuration or registers new task
+ * with [name], type [T] and initialization script [body]
+ */
+internal inline fun <reified T : Task> Project.locateOrRegisterTask(name: String, noinline body: (T) -> (Unit)): TaskProvider<T> {
+    return project.locateTask(name) ?: project.registerTask(name, T::class.java, body = body)
 }
 
-internal class KotlinCommonTasksProvider : KotlinTasksProvider() {
-    override val taskToFriendTaskMapper: TaskToFriendTaskMapper =
-            RegexTaskToFriendTaskMapper.Common()
+internal open class KotlinTasksProvider(val targetName: String) {
+    open fun registerKotlinJVMTask(
+        project: Project,
+        name: String,
+        compilation: KotlinCompilation<*>,
+        configureAction: (KotlinCompile) -> (Unit)
+    ): TaskProvider<out KotlinCompile> {
+        val properties = PropertiesProvider(project)
+        val taskClass = taskOrWorkersTask<KotlinCompile, KotlinCompileWithWorkers>(properties)
+        val result = project.registerTask(name, taskClass) {
+            configureAction(it)
+        }
+        configure(result, project, properties, compilation)
+        return result
+    }
+
+    fun registerKotlinJSTask(
+        project: Project,
+        name: String,
+        compilation: KotlinCompilation<*>,
+        configureAction: (Kotlin2JsCompile) -> Unit
+    ): TaskProvider<out Kotlin2JsCompile> {
+        val properties = PropertiesProvider(project)
+        val taskClass = taskOrWorkersTask<Kotlin2JsCompile, Kotlin2JsCompileWithWorkers>(properties)
+        val result = project.registerTask(name, taskClass) {
+            configureAction(it)
+        }
+        configure(result, project, properties, compilation)
+        return result
+    }
+
+    fun registerKotlinJsIrTask(
+        project: Project,
+        name: String,
+        compilation: KotlinCompilation<*>,
+        configureAction: (KotlinJsIrLink) -> Unit
+    ): TaskProvider<out KotlinJsIrLink> {
+        val properties = PropertiesProvider(project)
+        val taskClass = taskOrWorkersTask<KotlinJsIrLink, KotlinJsIrLinkWithWorkers>(properties)
+        val result = project.registerTask(name, taskClass) {
+            configureAction(it)
+        }
+        configure(result, project, properties, compilation)
+        return result
+    }
+
+    fun registerKotlinCommonTask(
+        project: Project,
+        name: String,
+        compilation: KotlinCompilation<*>,
+        configureAction: (KotlinCompileCommon) -> (Unit)
+    ): TaskProvider<out KotlinCompileCommon> {
+        val properties = PropertiesProvider(project)
+        val taskClass = taskOrWorkersTask<KotlinCompileCommon, KotlinCompileCommonWithWorkers>(properties)
+        val result = project.registerTask(name, taskClass) {
+            configureAction(it)
+        }
+        configure(result, project, properties, compilation)
+        return result
+    }
+
+    open fun configure(
+        kotlinTaskHolder: TaskProvider<out AbstractKotlinCompile<*>>,
+        project: Project,
+        propertiesProvider: PropertiesProvider,
+        compilation: KotlinCompilation<*>
+    ) {
+        project.runOnceAfterEvaluated("apply properties and language settings to ${kotlinTaskHolder.name}", kotlinTaskHolder) {
+            propertiesProvider.mapKotlinTaskProperties(kotlinTaskHolder.get())
+
+            applyLanguageSettingsToKotlinOptions(
+                compilation.defaultSourceSet.languageSettings,
+                (kotlinTaskHolder.get() as org.jetbrains.kotlin.gradle.dsl.KotlinCompile<*>).kotlinOptions
+            )
+        }
+    }
+
+    private inline fun <reified Task, reified WorkersTask : Task> taskOrWorkersTask(properties: PropertiesProvider): Class<out Task> =
+        if (properties.parallelTasksInProject != true) Task::class.java else WorkersTask::class.java
 }
 
-internal class Kotlin2JsTasksProvider : KotlinTasksProvider() {
-    override val taskToFriendTaskMapper: TaskToFriendTaskMapper =
-            RegexTaskToFriendTaskMapper.JavaScript()
-}
-
-internal class AndroidTasksProvider : KotlinTasksProvider() {
-    override val taskToFriendTaskMapper: TaskToFriendTaskMapper =
-            RegexTaskToFriendTaskMapper.Android()
+internal class AndroidTasksProvider(targetName: String) : KotlinTasksProvider(targetName) {
+    override fun configure(
+        kotlinTaskHolder: TaskProvider<out AbstractKotlinCompile<*>>,
+        project: Project,
+        propertiesProvider: PropertiesProvider,
+        compilation: KotlinCompilation<*>
+    ) {
+        super.configure(kotlinTaskHolder, project, propertiesProvider, compilation)
+        kotlinTaskHolder.configure {
+            it.useModuleDetection = true
+        }
+    }
 }

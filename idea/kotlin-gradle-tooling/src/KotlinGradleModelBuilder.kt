@@ -1,154 +1,163 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.gradle
 
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.Dependency
 import org.gradle.api.artifacts.ProjectDependency
 import org.jetbrains.plugins.gradle.tooling.ErrorMessageBuilder
 import org.jetbrains.plugins.gradle.tooling.ModelBuilderService
+import java.io.File
 import java.io.Serializable
-import java.lang.Exception
 import java.lang.reflect.InvocationTargetException
-import java.lang.reflect.Method
 import java.util.*
-import kotlin.collections.HashSet
 
-typealias CompilerArgumentsBySourceSet = Map<String, List<String>>
+interface ArgsInfo : Serializable {
+    val currentArguments: List<String>
+    val defaultArguments: List<String>
+    val dependencyClasspath: List<String>
+}
+
+data class ArgsInfoImpl(
+    override val currentArguments: List<String>,
+    override val defaultArguments: List<String>,
+    override val dependencyClasspath: List<String>
+) : ArgsInfo {
+
+    constructor(argsInfo: ArgsInfo) : this(
+        ArrayList(argsInfo.currentArguments),
+        ArrayList(argsInfo.defaultArguments),
+        ArrayList(argsInfo.dependencyClasspath)
+    )
+}
+
+typealias CompilerArgumentsBySourceSet = Map<String, ArgsInfo>
+
+/**
+ * Creates deep copy in order to avoid holding links to Proxy objects created by gradle tooling api
+ */
+fun CompilerArgumentsBySourceSet.deepCopy(): CompilerArgumentsBySourceSet {
+    val result = HashMap<String, ArgsInfo>()
+    this.forEach { key, value -> result[key] = ArgsInfoImpl(value) }
+    return result
+}
 
 interface KotlinGradleModel : Serializable {
     val hasKotlinPlugin: Boolean
-    val currentCompilerArgumentsBySourceSet: CompilerArgumentsBySourceSet
-    val defaultCompilerArgumentsBySourceSet: CompilerArgumentsBySourceSet
+    val compilerArgumentsBySourceSet: CompilerArgumentsBySourceSet
     val coroutines: String?
     val platformPluginId: String?
-    val transitiveCommonDependencies: Set<String>
+    val implements: List<String>
+    val kotlinTarget: String?
+    val kotlinTaskProperties: KotlinTaskPropertiesBySourceSet
+    val gradleUserHome: String
 }
 
-class KotlinGradleModelImpl(
-        override val hasKotlinPlugin: Boolean,
-        override val currentCompilerArgumentsBySourceSet: CompilerArgumentsBySourceSet,
-        override val defaultCompilerArgumentsBySourceSet: CompilerArgumentsBySourceSet,
-        override val coroutines: String?,
-        override val platformPluginId: String?,
-        override val transitiveCommonDependencies: Set<String>
+data class KotlinGradleModelImpl(
+    override val hasKotlinPlugin: Boolean,
+    override val compilerArgumentsBySourceSet: CompilerArgumentsBySourceSet,
+    override val coroutines: String?,
+    override val platformPluginId: String?,
+    override val implements: List<String>,
+    override val kotlinTarget: String? = null,
+    override val kotlinTaskProperties: KotlinTaskPropertiesBySourceSet,
+    override val gradleUserHome: String
 ) : KotlinGradleModel
 
-class KotlinGradleModelBuilder : ModelBuilderService {
+abstract class AbstractKotlinGradleModelBuilder : ModelBuilderService {
     companion object {
-        val kotlinCompileTaskClasses = listOf("org.jetbrains.kotlin.gradle.tasks.KotlinCompile_Decorated",
-                                              "org.jetbrains.kotlin.gradle.tasks.Kotlin2JsCompile_Decorated")
+        val kotlinCompileJvmTaskClasses = listOf(
+            "org.jetbrains.kotlin.gradle.tasks.KotlinCompile_Decorated",
+            "org.jetbrains.kotlin.gradle.tasks.KotlinCompileWithWorkers_Decorated"
+        )
+
+        val kotlinCompileTaskClasses = kotlinCompileJvmTaskClasses + listOf(
+            "org.jetbrains.kotlin.gradle.tasks.Kotlin2JsCompile_Decorated",
+            "org.jetbrains.kotlin.gradle.tasks.KotlinCompileCommon_Decorated",
+            "org.jetbrains.kotlin.gradle.tasks.Kotlin2JsCompileWithWorkers_Decorated",
+            "org.jetbrains.kotlin.gradle.tasks.KotlinCompileCommonWithWorkers_Decorated"
+        )
         val platformPluginIds = listOf("kotlin-platform-jvm", "kotlin-platform-js", "kotlin-platform-common")
         val pluginToPlatform = linkedMapOf(
-                "kotlin" to "kotlin-platform-jvm",
-                "kotlin2js" to "kotlin-platform-js"
+            "kotlin" to "kotlin-platform-jvm",
+            "kotlin2js" to "kotlin-platform-js"
         )
         val kotlinPluginIds = listOf("kotlin", "kotlin2js", "kotlin-android")
-        private val kotlinPlatformCommonPluginId = "kotlin-platform-common"
-    }
+        val ABSTRACT_KOTLIN_COMPILE_CLASS = "org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile"
 
+        val kotlinProjectExtensionClass = "org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension"
+        val kotlinSourceSetClass = "org.jetbrains.kotlin.gradle.plugin.KotlinSourceSet"
+
+        val kotlinPluginWrapper = "org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapperKt"
+
+        fun Task.getSourceSetName(): String = try {
+            javaClass.methods.firstOrNull { it.name.startsWith("getSourceSetName") && it.parameterTypes.isEmpty() }?.invoke(this) as? String
+        } catch (e: InvocationTargetException) {
+            null // can be thrown if property is not initialized yet
+        } ?: "main"
+    }
+}
+
+class KotlinGradleModelBuilder : AbstractKotlinGradleModelBuilder() {
     override fun getErrorMessageBuilder(project: Project, e: Exception): ErrorMessageBuilder {
-        return ErrorMessageBuilder.create(project, e, "Gradle import errors").withDescription("Unable to build Kotlin project configuration")
+        return ErrorMessageBuilder.create(project, e, "Gradle import errors")
+            .withDescription("Unable to build Kotlin project configuration")
     }
 
     override fun canBuild(modelName: String?): Boolean = modelName == KotlinGradleModel::class.java.name
 
-    private fun getImplements(project: Project): Project? {
-        val implementsConfiguration = project.configurations.findByName("implement") ?: return null
-        val implementsProjectDependency = implementsConfiguration.dependencies.filterIsInstance<ProjectDependency>().firstOrNull()
-        return implementsProjectDependency?.dependencyProject
+    private fun getImplementedProjects(project: Project): List<Project> {
+        return listOf("expectedBy", "implement")
+            .flatMap { project.configurations.findByName(it)?.dependencies ?: emptySet<Dependency>() }
+            .filterIsInstance<ProjectDependency>()
+            .mapNotNull { it.dependencyProject }
     }
 
-    private fun transitiveCommonDependencies(startingProject: Project): Set<String> {
-        val toProcess = LinkedList<Project>()
-        toProcess.add(startingProject)
-        val processed = HashSet<String>()
-        val result = HashSet<String>()
-        result.add(startingProject.path)
-
-        while (toProcess.isNotEmpty()) {
-            val project = toProcess.pollFirst()
-            processed.add(project.path)
-
-            if (!project.plugins.hasPlugin(kotlinPlatformCommonPluginId)) continue
-
-            result.add(project.path)
-
-            val compileConfiguration = project.configurations.findByName("compile") ?: continue
-            val dependencies = compileConfiguration
-                    .dependencies
-                    .filterIsInstance<ProjectDependency>()
-                    .map { it.dependencyProject }
-
-            for (dep in dependencies) {
-                if (dep.path !in processed) {
-                    toProcess.add(dep)
-                }
-            }
-        }
-
-        return result
-    }
-
-    private fun Class<*>.findGetterMethod(name: String): Method? {
-        generateSequence(this) { it.superclass }.forEach {
-            try {
-                return it.getDeclaredMethod(name)
-            }
-            catch(e: Exception) {
-                // Check next super class
-            }
-        }
-        return null
-    }
+    // see GradleProjectResolverUtil.getModuleId() in IDEA codebase
+    private fun Project.pathOrName() = if (path == ":") name else path
 
     @Suppress("UNCHECKED_CAST")
-    private fun collectCompilerArguments(
-            compileTask: Task,
-            methodName: String,
-            argumentsBySourceSet: MutableMap<String, List<String>>
-    ) {
-        val taskClass = compileTask::class.java
-        val sourceSetName = try {
-            taskClass.findGetterMethod("getSourceSetName\$kotlin_gradle_plugin")?.invoke(compileTask) as? String
-        } catch (e : InvocationTargetException) {
-            null // can be thrown if property is not initialized yet
-        } ?: "main"
-        try {
-            argumentsBySourceSet[sourceSetName] = taskClass.getDeclaredMethod(methodName).invoke(compileTask) as List<String>
-        }
-        catch (e : NoSuchMethodException) {
+    private fun Task.getCompilerArguments(methodName: String): List<String>? {
+        return try {
+            javaClass.getDeclaredMethod(methodName).invoke(this) as List<String>
+        } catch (e: Exception) {
             // No argument accessor method is available
+            null
         }
+    }
+
+    private fun Task.getDependencyClasspath(): List<String> {
+        try {
+            val abstractKotlinCompileClass = javaClass.classLoader.loadClass(ABSTRACT_KOTLIN_COMPILE_CLASS)
+            val getCompileClasspath = abstractKotlinCompileClass.getDeclaredMethod("getCompileClasspath").apply { isAccessible = true }
+            @Suppress("UNCHECKED_CAST")
+            return (getCompileClasspath.invoke(this) as Collection<File>).map { it.path }
+        } catch (e: ClassNotFoundException) {
+            // Leave arguments unchanged
+        } catch (e: NoSuchMethodException) {
+            // Leave arguments unchanged
+        } catch (e: InvocationTargetException) {
+            // We can safely ignore this exception here as getCompileClasspath() gets called again at a later time
+            // Leave arguments unchanged
+        }
+        return emptyList()
     }
 
     private fun getCoroutines(project: Project): String? {
         val kotlinExtension = project.extensions.findByName("kotlin") ?: return null
         val experimentalExtension = try {
             kotlinExtension::class.java.getMethod("getExperimental").invoke(kotlinExtension)
-        }
-        catch(e: NoSuchMethodException) {
+        } catch (e: NoSuchMethodException) {
             return null
         }
 
         return try {
             experimentalExtension::class.java.getMethod("getCoroutines").invoke(experimentalExtension)?.toString()
-        }
-        catch(e: NoSuchMethodException) {
+        } catch (e: NoSuchMethodException) {
             null
         }
     }
@@ -157,26 +166,33 @@ class KotlinGradleModelBuilder : ModelBuilderService {
         val kotlinPluginId = kotlinPluginIds.singleOrNull { project.plugins.findPlugin(it) != null }
         val platformPluginId = platformPluginIds.singleOrNull { project.plugins.findPlugin(it) != null }
 
-        val currentCompilerArgumentsBySourceSet = LinkedHashMap<String, List<String>>()
-        val defaultCompilerArgumentsBySourceSet = LinkedHashMap<String, List<String>>()
+        val compilerArgumentsBySourceSet = LinkedHashMap<String, ArgsInfo>()
+        val extraProperties = HashMap<String, KotlinTaskProperties>()
 
         project.getAllTasks(false)[project]?.forEach { compileTask ->
             if (compileTask.javaClass.name !in kotlinCompileTaskClasses) return@forEach
 
-            collectCompilerArguments(compileTask, "getSerializedCompilerArguments", currentCompilerArgumentsBySourceSet)
-            collectCompilerArguments(compileTask, "getDefaultSerializedCompilerArguments", defaultCompilerArgumentsBySourceSet)
+            val sourceSetName = compileTask.getSourceSetName()
+            val currentArguments = compileTask.getCompilerArguments("getSerializedCompilerArguments")
+                ?: compileTask.getCompilerArguments("getSerializedCompilerArgumentsIgnoreClasspathIssues") ?: emptyList()
+            val defaultArguments = compileTask.getCompilerArguments("getDefaultSerializedCompilerArguments").orEmpty()
+            val dependencyClasspath = compileTask.getDependencyClasspath()
+            compilerArgumentsBySourceSet[sourceSetName] = ArgsInfoImpl(currentArguments, defaultArguments, dependencyClasspath)
+            extraProperties.acknowledgeTask(compileTask, null)
         }
 
         val platform = platformPluginId ?: pluginToPlatform.entries.singleOrNull { project.plugins.findPlugin(it.key) != null }?.value
-        val transitiveCommon = getImplements(project)?.let { transitiveCommonDependencies(it) } ?: emptySet()
+        val implementedProjects = getImplementedProjects(project)
 
         return KotlinGradleModelImpl(
-                kotlinPluginId != null || platformPluginId != null,
-                currentCompilerArgumentsBySourceSet,
-                defaultCompilerArgumentsBySourceSet,
-                getCoroutines(project),
-                platform,
-                transitiveCommon
+            kotlinPluginId != null || platformPluginId != null,
+            compilerArgumentsBySourceSet,
+            getCoroutines(project),
+            platform,
+            implementedProjects.map { it.pathOrName() },
+            platform ?: kotlinPluginId,
+            extraProperties,
+            project.gradle.gradleUserHomeDir.absolutePath
         )
     }
 }

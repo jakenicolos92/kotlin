@@ -1,20 +1,20 @@
-// IGNORE_BACKEND: NATIVE
 // WITH_RUNTIME
 // WITH_COROUTINES
-import helpers.*
+// COMMON_COROUTINES_TEST
 // WITH_REFLECT
 // CHECK_NOT_CALLED: suspendInline_61zpoe$
 // CHECK_NOT_CALLED: suspendInline_6r51u9$
 // CHECK_NOT_CALLED: suspendInline
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import helpers.*
+import COROUTINES_PACKAGE.*
+import COROUTINES_PACKAGE.intrinsics.*
 
 class Controller {
     fun withValue(v: String, x: Continuation<String>) {
         x.resume(v)
     }
 
-    suspend inline fun suspendInline(v: String): String = suspendCoroutineOrReturn { x ->
+    suspend inline fun suspendInline(v: String): String = suspendCoroutineUninterceptedOrReturn { x ->
         withValue(v, x)
         COROUTINE_SUSPENDED
     }

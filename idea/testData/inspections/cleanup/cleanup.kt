@@ -2,6 +2,7 @@ import pack.oldFun1
 import pack.oldFun2 // should not be removed for non-deprecated overload used
 import pack.oldFun3
 import kotlin.reflect.KProperty
+import some.unresolved.declaration // should not be removed
 
 class A private()
 
@@ -64,11 +65,6 @@ fun <T : Cloneable> withTypeParameters() where T : Comparable<T> {
 
 val x = C() willBeInfix 1
 
-fun infixTest() {
-    arrayListOf(1, 2, 3) map { it }
-}
-
-
 fun bar(yield: Int = 4) {}
 
 fun yield(yield: Int) {
@@ -79,7 +75,7 @@ fun yield(yield: Int) {
     val foo = yield + yield
     val foo2 = yield
 
-    bar(yield = 5)
+    // bar(yield = 5) //this is different in old and new inference, should be tested in compiler
 
     yield(4)
     yield {}
@@ -111,4 +107,17 @@ object X {
 
         yield::toInt
     }
+}
+
+header class Expected
+
+impl class Actual
+
+// KT-33060
+interface AA {
+    fun foo(key: Any)
+}
+
+class A1 : AA {
+    override final fun foo(key: Any) {}
 }

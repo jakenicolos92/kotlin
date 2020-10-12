@@ -1,58 +1,66 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 @file:kotlin.jvm.JvmMultifileClass
 @file:kotlin.jvm.JvmName("AssertionsKt")
-@file:Suppress("INVISIBLE_REFERENCE", "INVISIBLE_MEMBER")
+
 package kotlin.test
 
 import kotlin.internal.*
 import kotlin.reflect.*
 
-/** Asserts that a [block] fails with a specific exception being thrown. */
-private fun <T : Throwable> assertFailsWithImpl(exceptionClass: Class<T>, message: String?, block: () -> Unit): T {
-    try {
-        block()
-    } catch (e: Throwable) {
-        if (exceptionClass.isInstance(e)) {
-            @Suppress("UNCHECKED_CAST")
-            return e as T
+/** Asserts that a [blockResult] is a failure with the specific exception type being thrown. */
+@PublishedApi
+internal actual fun <T : Throwable> checkResultIsFailure(exceptionClass: KClass<T>, message: String?, blockResult: Result<Unit>): T {
+    blockResult.fold(
+        onSuccess = {
+            val msg = messagePrefix(message)
+            asserter.fail(msg + "Expected an exception of ${exceptionClass.java} to be thrown, but was completed successfully.")
+        },
+        onFailure = { e ->
+            if (exceptionClass.java.isInstance(e)) {
+                @Suppress("UNCHECKED_CAST")
+                return e as T
+            }
+
+            asserter.fail(messagePrefix(message) + "Expected an exception of ${exceptionClass.java} to be thrown, but was $e", e)
         }
-
-        @Suppress("INVISIBLE_MEMBER")
-        asserter.fail(messagePrefix(message) + "Expected an exception of $exceptionClass to be thrown, but was $e")
-    }
-
-    @Suppress("INVISIBLE_MEMBER")
-    val msg = messagePrefix(message)
-    asserter.fail(msg + "Expected an exception of $exceptionClass to be thrown, but was completed successfully.")
+    )
 }
 
+/** @suppress */
+@Deprecated("Provided for binary compatibility", level = DeprecationLevel.HIDDEN)
+@JvmName("assertFails")
+fun assertFailsNoInline(block: () -> Unit): Throwable = assertFails(block)
 
-/** Asserts that a [block] fails with a specific exception of type [exceptionClass] being thrown. */
-impl fun <T : Throwable> assertFailsWith(exceptionClass: KClass<T>, message: String?, block: () -> Unit): T = assertFailsWithImpl(exceptionClass.java, message, block)
+/** @suppress */
+@Deprecated("Provided for binary compatibility", level = DeprecationLevel.HIDDEN)
+@JvmName("assertFails")
+fun assertFailsNoInline(message: String?, block: () -> Unit): Throwable = assertFails(message, block)
+
+/** @suppress */
+@Deprecated("Provided for binary compatibility", level = DeprecationLevel.HIDDEN)
+@JvmName("assertFailsWith")
+fun <T : Throwable> assertFailsWithNoInline(exceptionClass: KClass<T>, block: () -> Unit): T = assertFailsWith(exceptionClass, block)
+
+/** @suppress */
+@Deprecated("Provided for binary compatibility", level = DeprecationLevel.HIDDEN)
+@JvmName("assertFailsWith")
+fun <T : Throwable> assertFailsWithNoInline(exceptionClass: KClass<T>, message: String?, block: () -> Unit): T =
+    assertFailsWith(exceptionClass, message, block)
 
 
 /**
- * Comments out a [block] of test code until it is implemented while keeping a link to the code
- * to implement in your unit test output
+ * Takes the given [block] of test code and _doesn't_ execute it.
+ *
+ * This keeps the code under test referenced, but doesn't actually test it until it is implemented.
  */
+@Suppress("INVISIBLE_REFERENCE", "INVISIBLE_MEMBER")
 @InlineOnly
-impl inline fun todo(@Suppress("UNUSED_PARAMETER") block: () -> Unit) {
-    System.out.println("TODO at " + currentStackTrace()[0])
+actual inline fun todo(@Suppress("UNUSED_PARAMETER") block: () -> Unit) {
+    println("TODO at " + currentStackTrace()[0])
 }
 
 /**
@@ -60,7 +68,14 @@ impl inline fun todo(@Suppress("UNUSED_PARAMETER") block: () -> Unit) {
  * The first element of the array (assuming the array is not empty) represents the top of the
  * stack, which is the place where [currentStackTrace] function was called from.
  */
-@Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+@Suppress("INVISIBLE_REFERENCE", "INVISIBLE_MEMBER")
 @InlineOnly
-inline fun currentStackTrace() = (java.lang.Exception() as java.lang.Throwable).stackTrace
+inline fun currentStackTrace() = @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN") (java.lang.Exception() as java.lang.Throwable).stackTrace
 
+
+/** Platform-specific construction of AssertionError with cause */
+internal actual fun AssertionErrorWithCause(message: String?, cause: Throwable?): AssertionError {
+    val assertionError = if (message == null) AssertionError() else AssertionError(message)
+    assertionError.initCause(cause)
+    return assertionError
+}

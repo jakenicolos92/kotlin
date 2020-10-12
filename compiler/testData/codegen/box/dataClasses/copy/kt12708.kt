@@ -1,3 +1,5 @@
+// !LANGUAGE: -ProhibitDataClassesOverridingCopy
+
 fun box(): String {
     val a: A = B(1)
     a.copy(1)

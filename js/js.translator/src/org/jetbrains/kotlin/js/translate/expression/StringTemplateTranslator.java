@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -87,9 +87,9 @@ public final class StringTemplateTranslator extends AbstractTranslator {
 
             if (type != null && KotlinBuiltIns.isCharOrNullableChar(type)) {
                 if (type.isMarkedNullable()) {
-                    TemporaryVariable tmp = context().declareTemporary(translatedExpression);
-                    append(new JsConditional(JsAstUtils.equality(tmp.assignmentExpression(), JsLiteral.NULL),
-                                             JsLiteral.NULL,
+                    TemporaryVariable tmp = context().declareTemporary(translatedExpression, entry);
+                    append(new JsConditional(JsAstUtils.equality(tmp.assignmentExpression(), new JsNullLiteral()),
+                                             new JsNullLiteral(),
                                              JsAstUtils.charToString(tmp.reference())));
                 }
                 else {
@@ -97,7 +97,7 @@ public final class StringTemplateTranslator extends AbstractTranslator {
                 }
             }
             else if (translatedExpression instanceof JsNumberLiteral) {
-                append(context().program().getStringLiteral(translatedExpression.toString()));
+                append(new JsStringLiteral(translatedExpression.toString()));
             }
             else if (type == null || type.isMarkedNullable()) {
                 append(TopLevelFIF.TO_STRING.apply((JsExpression) null, new SmartList<>(translatedExpression), context()));
@@ -112,16 +112,21 @@ public final class StringTemplateTranslator extends AbstractTranslator {
 
         private boolean mustCallToString(@NotNull KotlinType type) {
             Name typeName = DescriptorUtilsKt.getNameIfStandardType(type);
-            if (typeName != null) {
-                //TODO: this is a hacky optimization, should use some generic approach
-                if (NamePredicate.STRING.test(typeName)) {
-                    return false;
-                }
-                else if (NamePredicate.PRIMITIVE_NUMBERS.test(typeName)) {
-                    return resultingExpression == null;
-                }
+            //TODO: this is a hacky optimization, should use some generic approach
+
+            // Long has valueOf method which will be called instead of toString and produce different result.
+            if (KotlinBuiltIns.isAny(type) ||
+                KotlinBuiltIns.isComparable(type) ||
+                KotlinBuiltIns.isNumber(type) ||
+                KotlinBuiltIns.isLong(type)
+            ) {
+                return true;
             }
-            return expressionEntries.length == 1;
+
+            if (typeName != null && NamePredicate.STRING.test(typeName)) {
+                return false;
+            }
+            return resultingExpression == null;
         }
 
         @Override
@@ -135,7 +140,7 @@ public final class StringTemplateTranslator extends AbstractTranslator {
         }
 
         private void appendText(@NotNull String text) {
-            append(program().getStringLiteral(text));
+            append(new JsStringLiteral(text));
         }
 
         @NotNull

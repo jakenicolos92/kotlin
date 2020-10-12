@@ -1,5 +1,4 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
 // WITH_REFLECT
 
@@ -34,7 +33,7 @@ fun box(): String {
     check<Any>()
     checkAll<Any>()
 
-    check<String>(::comparableOfString, ::charSequence, ::serializable)
+    check<String>(::comparableOfString, ::charSequence, ::serializable, ::any)
     checkAll<String>(::comparableOfString, ::charSequence, ::serializable, ::any)
 
     check<Int>(::number, ::comparableOfInt, ::serializable)

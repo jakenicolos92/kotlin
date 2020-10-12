@@ -1,197 +1,144 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.gradle.plugin
 
-import org.apache.commons.lang.SystemUtils
 import org.gradle.BuildAdapter
 import org.gradle.BuildResult
+import org.gradle.api.Project
 import org.gradle.api.invocation.Gradle
 import org.gradle.api.logging.Logging
-import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.impl.ZipHandler
-import org.jetbrains.kotlin.com.intellij.openapi.vfs.impl.jar.CoreJarFileSystem
-import org.jetbrains.kotlin.compilerRunner.DELETED_SESSION_FILE_PREFIX
-import org.jetbrains.kotlin.compilerRunner.GradleCompilerRunner
-import org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile
-import org.jetbrains.kotlin.incremental.BuildCacheStorage
-import org.jetbrains.kotlin.incremental.multiproject.ArtifactDifferenceRegistryProvider
-import org.jetbrains.kotlin.incremental.relativeToRoot
-import org.jetbrains.kotlin.incremental.stackTraceStr
-import java.io.File
+import org.jetbrains.kotlin.gradle.logging.kotlinDebug
+import org.jetbrains.kotlin.gradle.plugin.internal.state.TaskExecutionResults
+import org.jetbrains.kotlin.gradle.plugin.internal.state.TaskLoggers
+import org.jetbrains.kotlin.gradle.report.configureBuildReporter
+import org.jetbrains.kotlin.gradle.utils.isConfigurationCacheAvailable
 
-internal class KotlinGradleBuildServices private constructor(gradle: Gradle): BuildAdapter() {
+
+//Support Gradle 6 and less. Move to
+internal class KotlinGradleBuildServices private constructor(
+    private val gradle: Gradle
+) : BuildAdapter() {
+
     companion object {
         private val CLASS_NAME = KotlinGradleBuildServices::class.java.simpleName
         const val FORCE_SYSTEM_GC_MESSAGE = "Forcing System.gc()"
+        const val SHOULD_REPORT_MEMORY_USAGE_PROPERTY = "kotlin.gradle.test.report.memory.usage"
+
         val INIT_MESSAGE = "Initialized $CLASS_NAME"
         val DISPOSE_MESSAGE = "Disposed $CLASS_NAME"
         val ALREADY_INITIALIZED_MESSAGE = "$CLASS_NAME is already initialized"
+
         @field:Volatile
-        private var instance: KotlinGradleBuildServices? = null
+        internal var instance: KotlinGradleBuildServices? = null
+
+//        @JvmStatic
+//        @Synchronized
+//        fun getInstance(gradle: Gradle): KotlinGradleBuildServices {
+//            val log = Logging.getLogger(KotlinGradleBuildServices::class.java)
+//
+//            if (instance != null) {
+//                log.kotlinDebug(ALREADY_INITIALIZED_MESSAGE)
+//                return instance!!
+//            }
+//
+//            val services = KotlinGradleBuildServices(gradle)
+//            instance = services
+//            if (!isGradleVersionAtLeast(6,1)) {
+//                gradle.addBuildListener(services)
+//                log.kotlinDebug(INIT_MESSAGE)
+//            } else {
+//                BuildEventsListenerRegistry.
+//            }
+//
+//            services.buildStarted()
+//            return services
+//        }
+
 
         @JvmStatic
         @Synchronized
-        fun getInstance(gradle: Gradle): KotlinGradleBuildServices {
+        fun getInstance(project: Project, listenerRegistryHolder: BuildEventsListenerRegistryHolder): KotlinGradleBuildServices {
             val log = Logging.getLogger(KotlinGradleBuildServices::class.java)
+            val kotlinGradleListenerProvider: org.gradle.api.provider.Provider<KotlinGradleBuildListener> = project.provider {
+                KotlinGradleBuildListener(KotlinGradleFinishBuildHandler())
+            }
 
             if (instance != null) {
                 log.kotlinDebug(ALREADY_INITIALIZED_MESSAGE)
                 return instance!!
             }
 
+            val gradle = project.gradle
             val services = KotlinGradleBuildServices(gradle)
-            gradle.addBuildListener(services)
+            if (isConfigurationCacheAvailable(gradle)) {
+                listenerRegistryHolder.listenerRegistry!!.onTaskCompletion(kotlinGradleListenerProvider)
+            } else {
+                gradle.addBuildListener(services)
+                log.kotlinDebug(INIT_MESSAGE)
+            }
             instance = services
-            log.kotlinDebug(INIT_MESSAGE)
 
             services.buildStarted()
             return services
         }
     }
 
-    private val log = Logging.getLogger(this.javaClass)
-    private val cleanup = CompilerServicesCleanup()
-    private var startMemory: Long? = null
-    private val workingDir = File(gradle.rootProject.buildDir, "kotlin-build").apply { mkdirs() }
-    private val buildCacheStorage = BuildCacheStorage(workingDir)
 
-    internal val artifactDifferenceRegistryProvider: ArtifactDifferenceRegistryProvider
-            get() = buildCacheStorage
+    private val log = Logging.getLogger(this.javaClass)
+    private var buildHandler: KotlinGradleFinishBuildHandler? = null
 
     // There is function with the same name in BuildAdapter,
     // but it is called before any plugin can attach build listener
     fun buildStarted() {
-        if (log.isDebugEnabled) {
-            startMemory = getUsedMemoryKb()!!
-        }
+        buildHandler = KotlinGradleFinishBuildHandler()
+        buildHandler!!.buildStart()
+
+        TaskLoggers.clear()
+        TaskExecutionResults.clear()
+
+        configureBuildReporter(gradle, log)
     }
 
     override fun buildFinished(result: BuildResult) {
-        val gradle = result.gradle!!
-        val kotlinCompilerCalled = gradle.rootProject
-                .allprojects
-                .flatMap { it.tasks }
-                .any { it is AbstractKotlinCompile<*> && it.compilerCalled }
-
-        if (kotlinCompilerCalled) {
-            log.kotlinDebug("Cleanup after kotlin")
-            cleanup(gradle.gradleVersion)
-        }
-        else {
-            log.kotlinDebug("Skipping kotlin cleanup since compiler wasn't called")
-        }
-
-        val rootProject = gradle.rootProject
-        val sessionsDir = GradleCompilerRunner.sessionsDir(rootProject)
-        if (sessionsDir.exists()) {
-            val sessionFiles = sessionsDir.listFiles()
-
-            // it is expected that only one session file per build exists
-            // afaik is is not possible to run multiple gradle builds in one project since gradle locks some dirs
-            if (sessionFiles.size > 1) {
-                log.warn("w: Detected multiple Kotlin daemon sessions at ${sessionsDir.relativeToRoot(rootProject)}")
-            }
-            for (file in sessionFiles) {
-                file.delete()
-                log.kotlinDebug { DELETED_SESSION_FILE_PREFIX + file.relativeToRoot(rootProject) }
-            }
-        }
-
-        if (kotlinCompilerCalled) {
-            startMemory?.let { startMemoryCopy ->
-                getUsedMemoryKb()?.let { endMemory ->
-                    // the value reported here is not necessarily a leak, since it is calculated before collecting the plugin classes
-                    // but on subsequent runs in the daemon it should be rather small, then the classes are actually reused by the daemon (see above)
-                    log.kotlinDebug("[PERF] Used memory after build: $endMemory kb (difference since build start: ${"%+d".format(endMemory - startMemoryCopy)} kb)")
-                }
-            }
-        }
-
-        closeArtifactDifferenceRegistry()
-        gradle.removeListener(this)
+        buildHandler!!.buildFinished(result.gradle!!)
         instance = null
         log.kotlinDebug(DISPOSE_MESSAGE)
     }
 
-    private fun closeArtifactDifferenceRegistry() {
-        var caughtError = false
-        try {
-            if (workingDir.exists()) {
-                // The working directory may have been removed by the clean task.
-                // https://youtrack.jetbrains.com/issue/KT-16298
-                buildCacheStorage.flush(memoryCachesOnly = false)
-            }
-        }
-        catch (e: Throwable) {
-            log.kotlinDebug { "Error trying to flush artifact difference registry: ${e.stackTraceStr}" }
-            caughtError = true
-        }
-        finally {
-            try {
-                buildCacheStorage.close()
-            }
-            catch (e: Throwable) {
-                log.kotlinDebug { "Error trying to close artifact difference registry: ${e.stackTraceStr}" }
-                caughtError = true
+
+    private val multipleProjectsHolder = KotlinPluginInMultipleProjectsHolder(
+        trackPluginVersionsSeparately = true
+    )
+
+    @Synchronized
+    internal fun detectKotlinPluginLoadedInMultipleProjects(project: Project, kotlinPluginVersion: String) {
+        val onRegister = {
+            gradle.taskGraph.whenReady {
+                if (multipleProjectsHolder.isInMultipleProjects(project, kotlinPluginVersion)) {
+                    val loadedInProjects = multipleProjectsHolder.getAffectedProjects(project, kotlinPluginVersion)!!
+                    if (PropertiesProvider(project).ignorePluginLoadedInMultipleProjects != true) {
+                        project.logger.warn("\n$MULTIPLE_KOTLIN_PLUGINS_LOADED_WARNING")
+                        project.logger.warn(
+                            MULTIPLE_KOTLIN_PLUGINS_SPECIFIC_PROJECTS_WARNING + loadedInProjects.joinToString(limit = 4) { "'$it'" }
+                        )
+                    }
+                    project.logger.info(
+                        "$MULTIPLE_KOTLIN_PLUGINS_SPECIFIC_PROJECTS_INFO: " +
+                                loadedInProjects.joinToString { "'$it'" }
+                    )
+                }
             }
         }
 
-        if (caughtError && workingDir.exists()) {
-            try {
-                workingDir.deleteRecursively()
-            }
-            catch (e: Throwable) {
-                log.kotlinDebug { "Error trying to delete kotlin-build $workingDir: ${e.stackTraceStr}" }
-            }
-        }
-    }
-
-    private fun getUsedMemoryKb(): Long? {
-        if (!log.isDebugEnabled) return null
-
-        log.lifecycle(FORCE_SYSTEM_GC_MESSAGE)
-        System.gc()
-        System.runFinalization()
-        System.gc()
-        val rt = Runtime.getRuntime()
-        return (rt.totalMemory() - rt.freeMemory()) / 1024
+        multipleProjectsHolder.addProject(
+            project,
+            kotlinPluginVersion,
+            onRegister
+        )
     }
 }
 
 
-internal class CompilerServicesCleanup() {
-    private val log = Logging.getLogger(this.javaClass)
-
-    operator fun invoke(gradleVersion: String) {
-        log.kotlinDebug("compiler services cleanup")
-
-        // clearing jar cache to avoid problems like KT-9440 (unable to clean/rebuild a project due to locked jar file)
-        // problem is known to happen only on windows - the reason (seems) related to http://bugs.java.com/view_bug.do?bug_id=6357433
-        // clean cache only when running on windows
-        if (SystemUtils.IS_OS_WINDOWS) {
-            cleanJarCache()
-        }
-
-        (KotlinCoreEnvironment.applicationEnvironment?.jarFileSystem as? CoreJarFileSystem)?.clearHandlersCache()
-    }
-
-    private fun cleanJarCache() {
-        log.kotlinDebug("Clean JAR cache")
-        ZipHandler.clearFileAccessorCache()
-        log.kotlinDebug("JAR cache cleared")
-    }
-}

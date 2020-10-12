@@ -17,10 +17,22 @@
 package org.jetbrains.kotlin.ir.util
 
 import org.jetbrains.kotlin.ir.IrElement
+import org.jetbrains.kotlin.ir.IrElementBase
+import org.jetbrains.kotlin.ir.declarations.IrDeclaration
+import org.jetbrains.kotlin.ir.declarations.IrDeclarationContainer
+import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
 
-inline fun <reified T : IrElement> MutableList<T>.transform(transformation: (T) -> IrElement) {
-    forEachIndexed { i, item ->
-        set(i, transformation(item) as T)
+inline fun <reified T : IrElement> MutableList<T>.transformInPlace(transformation: (T) -> IrElement) {
+    for (i in 0 until size) {
+        set(i, transformation(get(i)) as T)
+    }
+}
+
+fun <T : IrElement, D> MutableList<T>.transformInPlace(transformer: IrElementTransformer<D>, data: D) {
+    for (i in 0 until size) {
+        // Cast to IrElementBase to avoid casting to interface and invokeinterface, both of which are slow.
+        @Suppress("UNCHECKED_CAST")
+        set(i, (get(i) as IrElementBase).transform(transformer, data) as T)
     }
 }
 
@@ -36,13 +48,44 @@ inline fun <T> MutableList<T>.transformFlat(transformation: (T) -> List<T>?) {
 
         val transformed = transformation(item)
 
-        if (transformed == null) {
-            i++
-            continue
+        when (transformed?.size) {
+            null -> i++
+            0 -> removeAt(i)
+            1 -> set(i++, transformed.first())
+            else -> {
+                addAll(i, transformed)
+                i += transformed.size
+                removeAt(i)
+            }
         }
-
-        addAll(i, transformed)
-        i += transformed.size
-        removeAt(i)
     }
+}
+
+/**
+ * Transforms declarations in declaration container.
+ * Behaves similar to like MutableList<T>.transformFlat but also updates
+ * parent property for transformed declarations.
+ */
+fun IrDeclarationContainer.transformDeclarationsFlat(transformation: (IrDeclaration) -> List<IrDeclaration>?) {
+    declarations.transformFlat { declaration ->
+        val transformed = transformation(declaration)
+        transformed?.forEach { it.parent = this }
+        transformed
+    }
+}
+
+/**
+ * Transforms the list of elements with the given transformer. Return the same List instance if no element instances have changed.
+ */
+fun <T : IrElement, D> List<T>.transformIfNeeded(transformer: IrElementTransformer<D>, data: D): List<T> {
+    var result: ArrayList<T>? = null
+    for ((i, item) in withIndex()) {
+        @Suppress("UNCHECKED_CAST")
+        val transformed = item.transform(transformer, data) as T
+        if (transformed !== item && result == null) {
+            result = ArrayList(this)
+        }
+        result?.set(i, transformed)
+    }
+    return result ?: this
 }

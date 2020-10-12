@@ -30,10 +30,14 @@ import org.jetbrains.kotlin.descriptors.impl.TypeParameterDescriptorImpl;
 import org.jetbrains.kotlin.incremental.components.LookupLocation;
 import org.jetbrains.kotlin.name.FqName;
 import org.jetbrains.kotlin.name.Name;
+import org.jetbrains.kotlin.platform.TargetPlatform;
 import org.jetbrains.kotlin.resolve.descriptorUtil.DescriptorUtilsKt;
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter;
 import org.jetbrains.kotlin.resolve.scopes.MemberScope;
+import org.jetbrains.kotlin.storage.LockBasedStorageManager;
+import org.jetbrains.kotlin.types.checker.KotlinTypeRefiner;
 import org.jetbrains.kotlin.types.error.ErrorSimpleFunctionDescriptorImpl;
+import org.jetbrains.kotlin.types.refinement.TypeRefinement;
 import org.jetbrains.kotlin.utils.Printer;
 
 import java.util.Collection;
@@ -51,7 +55,7 @@ public class ErrorUtils {
         ERROR_MODULE = new ModuleDescriptor() {
             @Nullable
             @Override
-            public <T> T getCapability(@NotNull Capability<T> capability) {
+            public <T> T getCapability(@NotNull ModuleCapability<T> capability) {
                 return null;
             }
 
@@ -75,6 +79,18 @@ public class ErrorUtils {
 
             @NotNull
             @Override
+            public Name getStableName() {
+                return Name.special("<ERROR MODULE>");
+            }
+
+            @Nullable
+            @Override
+            public TargetPlatform getPlatform() {
+                return null;
+            }
+
+            @NotNull
+            @Override
             public PackageViewDescriptor getPackage(@NotNull FqName fqName) {
                 throw new IllegalStateException("Should not be called!");
             }
@@ -87,8 +103,8 @@ public class ErrorUtils {
 
             @NotNull
             @Override
-            public Set<ModuleDescriptor> getAllImplementingModules() {
-                return emptySet();
+            public List<ModuleDescriptor> getExpectedByModules() {
+                return emptyList();
             }
 
             @Override
@@ -122,22 +138,24 @@ public class ErrorUtils {
             public KotlinBuiltIns getBuiltIns() {
                 return DefaultBuiltIns.getInstance();
             }
+
+            @Override
+            public boolean isValid() {
+                return false;
+            }
+
+            @Override
+            public void assertValid() {
+                throw new InvalidModuleException("ERROR_MODULE is not a valid module");
+            }
         };
     }
 
-    public static boolean containsErrorType(@NotNull CallableDescriptor callableDescriptor) {
-        if (callableDescriptor instanceof FunctionDescriptor) {
-            return containsErrorType((FunctionDescriptor) callableDescriptor);
-        }
-        else {
-            return containsErrorType(callableDescriptor.getReturnType());
-        }
-    }
-
-    public static boolean containsErrorType(@NotNull FunctionDescriptor function) {
-        if (containsErrorType(function.getReturnType())) {
-            return true;
-        }
+    /**
+     * @return true iff any of the types referenced in parameter types (including type parameters and extension receiver) of the function
+     * is an error type. Does not check the return type of the function.
+     */
+    public static boolean containsErrorTypeInParameters(@NotNull FunctionDescriptor function) {
         ReceiverParameterDescriptor receiverParameter = function.getExtensionReceiverParameter();
         if (receiverParameter != null && containsErrorType(receiverParameter.getType())) {
             return true;
@@ -171,21 +189,23 @@ public class ErrorUtils {
             return createErrorClass(name.asString());
         }
 
+        @Nullable
+        @Override
+        public DescriptorWithDeprecation<ClassifierDescriptor> getContributedClassifierIncludeDeprecated(
+                @NotNull Name name, @NotNull LookupLocation location
+        ) {
+            return null;
+        }
+
         @NotNull
         @Override
-        // TODO: Convert to Kotlin or add @JvmWildcard to MemberScope declarations
-        // method is covariantly overridden in Kotlin, but collections in Java are invariant
-        @SuppressWarnings({"unchecked"})
-        public Set getContributedVariables(@NotNull Name name, @NotNull LookupLocation location) {
+        public Set<? extends PropertyDescriptor> getContributedVariables(@NotNull Name name, @NotNull LookupLocation location) {
             return ERROR_PROPERTY_GROUP;
         }
 
         @NotNull
         @Override
-        // TODO: Convert to Kotlin or add @JvmWildcard to MemberScope declarations
-        // method is covariantly overridden in Kotlin, but collections in Java are invariant
-        @SuppressWarnings({"unchecked"})
-        public Set getContributedFunctions(@NotNull Name name, @NotNull LookupLocation location) {
+        public Set<? extends SimpleFunctionDescriptor> getContributedFunctions(@NotNull Name name, @NotNull LookupLocation location) {
             return Collections.singleton(createErrorFunction(this));
         }
 
@@ -203,10 +223,26 @@ public class ErrorUtils {
 
         @NotNull
         @Override
+        public Set<Name> getClassifierNames() {
+            return emptySet();
+        }
+
+        @Override
+        public void recordLookup(@NotNull Name name, @NotNull LookupLocation location) {
+
+        }
+
+        @NotNull
+        @Override
         public Collection<DeclarationDescriptor> getContributedDescriptors(
                 @NotNull DescriptorKindFilter kindFilter, @NotNull Function1<? super Name, Boolean> nameFilter
         ) {
             return Collections.emptyList();
+        }
+
+        @Override
+        public boolean definitelyDoesNotContainName(@NotNull Name name) {
+            return false;
         }
 
         @Override
@@ -230,23 +266,29 @@ public class ErrorUtils {
         @Nullable
         @Override
         public ClassifierDescriptor getContributedClassifier(@NotNull Name name, @NotNull LookupLocation location) {
-            throw new IllegalStateException();
+            throw new IllegalStateException(debugMessage+", required name: " + name);
+        }
+
+        @Nullable
+        @Override
+        public DescriptorWithDeprecation<ClassifierDescriptor> getContributedClassifierIncludeDeprecated(
+                @NotNull Name name, @NotNull LookupLocation location
+        ) {
+            throw new IllegalStateException(debugMessage + ", required name: " + name);
         }
 
         @NotNull
         @Override
-        @SuppressWarnings({"unchecked"}) // KT-9898 Impossible implement kotlin interface from java
-        public Collection getContributedVariables(@NotNull Name name, @NotNull LookupLocation location) {
-            throw new IllegalStateException();
+        public Collection<? extends PropertyDescriptor> getContributedVariables(@NotNull Name name, @NotNull LookupLocation location) {
+            throw new IllegalStateException(debugMessage+", required name: " + name);
         }
 
         @NotNull
         @Override
-        // TODO: Convert to Kotlin or add @JvmWildcard to MemberScope declarations
-        // method is covariantly overridden in Kotlin, but collections in Java are invariant
-        @SuppressWarnings({"unchecked"})
-        public Collection getContributedFunctions(@NotNull Name name, @NotNull LookupLocation location) {
-            throw new IllegalStateException();
+        public Collection<? extends SimpleFunctionDescriptor> getContributedFunctions(
+                @NotNull Name name, @NotNull LookupLocation location
+        ) {
+            throw new IllegalStateException(debugMessage+", required name: " + name);
         }
 
         @NotNull
@@ -254,7 +296,7 @@ public class ErrorUtils {
         public Collection<DeclarationDescriptor> getContributedDescriptors(
                 @NotNull DescriptorKindFilter kindFilter, @NotNull Function1<? super Name, Boolean> nameFilter
         ) {
-            throw new IllegalStateException();
+            throw new IllegalStateException(debugMessage);
         }
 
         @NotNull
@@ -270,6 +312,21 @@ public class ErrorUtils {
         }
 
         @Override
+        public Set<Name> getClassifierNames() {
+            throw new IllegalStateException();
+        }
+
+        @Override
+        public void recordLookup(@NotNull Name name, @NotNull LookupLocation location) {
+            throw new IllegalStateException();
+        }
+
+        @Override
+        public boolean definitelyDoesNotContainName(@NotNull Name name) {
+            return false;
+        }
+
+        @Override
         public String toString() {
             return "ThrowingScope{" + debugMessage + '}';
         }
@@ -280,19 +337,19 @@ public class ErrorUtils {
         }
     }
 
-    private static final ErrorClassDescriptor ERROR_CLASS = new ErrorClassDescriptor(null);
+    private static final ErrorClassDescriptor ERROR_CLASS = new ErrorClassDescriptor(Name.special("<ERROR CLASS>"));
 
     private static class ErrorClassDescriptor extends ClassDescriptorImpl {
-        public ErrorClassDescriptor(@Nullable String name) {
-            super(getErrorModule(), Name.special(name == null ? "<ERROR CLASS>" : "<ERROR CLASS: " + name + ">"),
+        public ErrorClassDescriptor(@NotNull Name name) {
+            super(getErrorModule(), name,
                   Modality.OPEN, ClassKind.CLASS, Collections.<KotlinType>emptyList(), SourceElement.NO_SOURCE,
-                  /* isExternal = */ false
+                  /* isExternal = */ false, LockBasedStorageManager.NO_LOCKS
             );
 
             ClassConstructorDescriptorImpl
                     errorConstructor = ClassConstructorDescriptorImpl.create(this, Annotations.Companion.getEMPTY(), true, SourceElement.NO_SOURCE);
             errorConstructor.initialize(Collections.<ValueParameterDescriptor>emptyList(),
-                                        Visibilities.INTERNAL);
+                                        DescriptorVisibilities.INTERNAL);
             MemberScope memberScope = createErrorScope(getName().asString());
             errorConstructor.setReturnType(
                     new ErrorType(
@@ -317,20 +374,20 @@ public class ErrorUtils {
 
         @NotNull
         @Override
-        public MemberScope getMemberScope(@NotNull List<? extends TypeProjection> typeArguments) {
+        public MemberScope getMemberScope(@NotNull List<? extends TypeProjection> typeArguments, @NotNull KotlinTypeRefiner kotlinTypeRefiner) {
             return createErrorScope("Error scope for class " + getName() + " with arguments: " + typeArguments);
         }
 
         @NotNull
         @Override
-        public MemberScope getMemberScope(@NotNull TypeSubstitution typeSubstitution) {
+        public MemberScope getMemberScope(@NotNull TypeSubstitution typeSubstitution, @NotNull KotlinTypeRefiner kotlinTypeRefiner) {
             return createErrorScope("Error scope for class " + getName() + " with arguments: " + typeSubstitution);
         }
     }
 
     @NotNull
     public static ClassDescriptor createErrorClass(@NotNull String debugMessage) {
-        return new ErrorClassDescriptor(debugMessage);
+        return new ErrorClassDescriptor(Name.special("<ERROR CLASS: " + debugMessage + ">"));
     }
 
     @NotNull
@@ -360,18 +417,14 @@ public class ErrorUtils {
                 ERROR_CLASS,
                 Annotations.Companion.getEMPTY(),
                 Modality.OPEN,
-                Visibilities.PUBLIC,
+                DescriptorVisibilities.PUBLIC,
                 true,
                 Name.special("<ERROR PROPERTY>"),
                 CallableMemberDescriptor.Kind.DECLARATION,
                 SourceElement.NO_SOURCE,
                 false, false, false, false, false, false
         );
-        descriptor.setType(ERROR_PROPERTY_TYPE,
-                           Collections.<TypeParameterDescriptor>emptyList(),
-                           null,
-                           (KotlinType) null
-        );
+        descriptor.setType(ERROR_PROPERTY_TYPE, Collections.<TypeParameterDescriptor>emptyList(), null, null);
 
         return descriptor;
     }
@@ -386,7 +439,7 @@ public class ErrorUtils {
                 Collections.<ValueParameterDescriptor>emptyList(), // TODO
                 createErrorType("<ERROR FUNCTION RETURN TYPE>"),
                 Modality.OPEN,
-                Visibilities.PUBLIC
+                DescriptorVisibilities.PUBLIC
         );
         return function;
     }
@@ -469,6 +522,13 @@ public class ErrorUtils {
             @Override
             public String toString() {
                 return debugName;
+            }
+
+            @TypeRefinement
+            @Override
+            @NotNull
+            public TypeConstructor refine(@NotNull KotlinTypeRefiner kotlinTypeRefiner) {
+                return this;
             }
         };
     }
@@ -561,6 +621,12 @@ public class ErrorUtils {
         @Override
         public KotlinBuiltIns getBuiltIns() {
             return DescriptorUtilsKt.getBuiltIns(typeParameterDescriptor);
+        }
+
+        @NotNull
+        @Override
+        public TypeConstructor refine(@NotNull KotlinTypeRefiner kotlinTypeRefiner) {
+            return this;
         }
     }
 

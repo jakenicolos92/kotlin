@@ -1,12 +1,19 @@
+/*
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 package kotlin.test
 
 import kotlin.reflect.KClass
 
 /**
- * Comments out a block of test code until it is implemented while keeping a link to the code
- * to implement in your unit test output
+ * Takes the given [block] of test code and _doesn't_ execute it.
+ *
+ * This keeps the code under test referenced, but doesn't actually test it until it is implemented.
  */
-header fun todo(block: () -> Unit)
+expect fun todo(block: () -> Unit)
 
-/** Asserts that a [block] fails with a specific exception of type [exceptionClass] being thrown. */
-header fun <T : Throwable> assertFailsWith(exceptionClass: KClass<T>, message: String?, block: () -> Unit): T
+/** Asserts that a [blockResult] is a failure with the specific exception type being thrown. */
+@PublishedApi
+internal expect fun <T : Throwable> checkResultIsFailure(exceptionClass: KClass<T>, message: String?, blockResult: Result<Unit>): T

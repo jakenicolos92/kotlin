@@ -1,8 +1,9 @@
-// FILE: 1.kt
-// LANGUAGE_VERSION: 1.2
-// SKIP_INLINE_CHECK_IN: inlineFun$default
-package test
 
+// FILE: 1.kt
+// SKIP_INLINE_CHECK_IN: inlineFun$default
+
+
+package test
 inline fun inlineFun(capturedParam: String, lambda: () -> String = { capturedParam }): String {
     return lambda()
 }
@@ -16,19 +17,6 @@ fun box(): String {
 }
 
 // FILE: 1.smap
-//TODO maybe do smth with default method body mapping
-SMAP
-1.kt
-Kotlin
-*S Kotlin
-*F
-+ 1 1.kt
-test/_1Kt
-*L
-1#1,10:1
-7#1:11
-*E
-
 SMAP
 1.kt
 Kotlin
@@ -37,7 +25,7 @@ Kotlin
 + 1 1.kt
 test/_1Kt$inlineFun$1
 *L
-1#1,10:1
+1#1,11:1
 *E
 
 // FILE: 2.smap
@@ -51,9 +39,12 @@ Kotlin
 _2Kt
 + 2 1.kt
 test/_1Kt
++ 3 1.kt
+test/_1Kt$inlineFun$1
 *L
 1#1,9:1
-6#2,2:10
+7#2,2:10
+7#3:12
 *E
 *S KotlinDebug
 *F
@@ -61,4 +52,5 @@ test/_1Kt
 _2Kt
 *L
 6#1,2:10
+6#1:12
 *E

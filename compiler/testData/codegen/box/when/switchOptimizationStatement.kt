@@ -1,4 +1,9 @@
+// KJS_WITH_FULL_RUNTIME
 // WITH_RUNTIME
+// CHECK_CASES_COUNT: function=exhaustive count=3
+// CHECK_IF_COUNT: function=exhaustive count=0
+// CHECK_CASES_COUNT: function=nonExhaustive count=3
+// CHECK_IF_COUNT: function=nonExhaustive count=0
 
 fun exhaustive(x: Int): Int {
     var r: Int

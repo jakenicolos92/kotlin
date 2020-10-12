@@ -24,6 +24,7 @@ import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.diagnostics.DiagnosticUtils;
+import org.jetbrains.kotlin.diagnostics.PsiDiagnosticUtils;
 
 import static com.intellij.openapi.util.io.FileUtil.toSystemDependentName;
 
@@ -31,30 +32,31 @@ public class MessageUtil {
     private MessageUtil() {}
 
     @Nullable
-    public static CompilerMessageLocation psiElementToMessageLocation(@Nullable PsiElement element) {
+    public static CompilerMessageSourceLocation psiElementToMessageLocation(@Nullable PsiElement element) {
         if (element == null) return null;
         PsiFile file = element.getContainingFile();
-        return psiFileToMessageLocation(file, "<no path>", DiagnosticUtils.getLineAndColumnInPsiFile(file, element.getTextRange()));
+        return psiFileToMessageLocation(file, "<no path>", DiagnosticUtils.getLineAndColumnRangeInPsiFile(file, element.getTextRange()));
     }
 
     @Nullable
-    public static CompilerMessageLocation psiFileToMessageLocation(
+    public static CompilerMessageSourceLocation psiFileToMessageLocation(
             @NotNull PsiFile file,
             @Nullable String defaultValue,
-            @NotNull DiagnosticUtils.LineAndColumn lineAndColumn
+            @NotNull PsiDiagnosticUtils.LineAndColumnRange range
     ) {
-        String path;
         VirtualFile virtualFile = file.getVirtualFile();
-        if (virtualFile == null) {
-            path = defaultValue;
+        String path = virtualFile != null ? virtualFileToPath(virtualFile) : defaultValue;
+        PsiDiagnosticUtils.LineAndColumn start = range.getStart();
+        PsiDiagnosticUtils.LineAndColumn end = range.getEnd();
+        return CompilerMessageLocationWithRange.create(path, start.getLine(), start.getColumn(), end.getLine(), end.getColumn(), start.getLineContent());
+    }
+
+    @NotNull
+    public static String virtualFileToPath(@NotNull VirtualFile virtualFile) {
+        // Convert path to platform-dependent format when virtualFile is local file.
+        if (virtualFile instanceof CoreLocalVirtualFile || virtualFile instanceof CoreJarVirtualFile) {
+            return toSystemDependentName(virtualFile.getPath());
         }
-        else {
-            path = virtualFile.getPath();
-            // Convert path to platform-dependent format when virtualFile is local file.
-            if (virtualFile instanceof CoreLocalVirtualFile || virtualFile instanceof CoreJarVirtualFile) {
-                path = toSystemDependentName(path);
-            }
-        }
-        return CompilerMessageLocation.create(path, lineAndColumn.getLine(), lineAndColumn.getColumn(), lineAndColumn.getLineContent());
+        return virtualFile.getPath();
     }
 }

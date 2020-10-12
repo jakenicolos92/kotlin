@@ -1,3 +1,5 @@
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
 // IGNORE_BACKEND: JS, NATIVE
 // IGNORE_LIGHT_ANALYSIS
@@ -8,7 +10,7 @@ import kotlin.test.assertEquals
 import kotlin.jvm.internal.FunctionBase
 
 fun test(f: Function<*>, arity: Int) {
-    assertEquals(arity, (f as FunctionBase).getArity())
+    assertEquals(arity, (f as FunctionBase).arity)
 }
 
 fun foo(s: String, i: Int) {}

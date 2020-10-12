@@ -1,33 +1,31 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.backend.common
 
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
-import org.jetbrains.kotlin.backend.common.bridges.findInterfaceImplementation
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.diagnostics.DiagnosticSink
+import org.jetbrains.kotlin.diagnostics.Errors
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
+import org.jetbrains.kotlin.psi.psiUtil.hasExpectModifier
 import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.DescriptorToSourceUtils
 import org.jetbrains.kotlin.resolve.DescriptorUtils
 import org.jetbrains.kotlin.resolve.bindingContextUtil.isUsedAsExpression
 import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
+import org.jetbrains.kotlin.resolve.multiplatform.ExpectedActualResolver
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.util.getExceptionMessage
+import org.jetbrains.kotlin.util.getNonPrivateTraitMembersForDelegation
+import org.jetbrains.kotlin.utils.DFS
+import org.jetbrains.kotlin.utils.KotlinExceptionWithAttachments
 
 object CodegenUtil {
     @JvmStatic
@@ -54,22 +52,23 @@ object CodegenUtil {
     }
 
     @JvmStatic
-    fun getNonPrivateTraitMethods(descriptor: ClassDescriptor): Map<FunctionDescriptor, FunctionDescriptor> {
+    @JvmOverloads
+    fun getNonPrivateTraitMethods(descriptor: ClassDescriptor, copy: Boolean = true): Map<FunctionDescriptor, FunctionDescriptor> {
         val result = linkedMapOf<FunctionDescriptor, FunctionDescriptor>()
-        for (declaration in DescriptorUtils.getAllDescriptors(descriptor.defaultType.memberScope)) {
-            if (declaration !is CallableMemberDescriptor) continue
 
-            val traitMember = findInterfaceImplementation(declaration)
-            if (traitMember == null ||
-                    Visibilities.isPrivate(traitMember.visibility) ||
-                    traitMember.visibility == Visibilities.INVISIBLE_FAKE) continue
-
+        for ((declaration, traitMember) in getNonPrivateTraitMembersForDelegation(descriptor)) {
             assert(traitMember.modality !== Modality.ABSTRACT) { "Cannot delegate to abstract trait method: $declaration" }
 
             // inheritedMember can be abstract here. In order for FunctionCodegen to generate the method body, we're creating a copy here
             // with traitMember's modality
-            result.putAll(copyFunctions(declaration, traitMember, declaration.containingDeclaration, traitMember.modality,
-                                        Visibilities.PUBLIC, CallableMemberDescriptor.Kind.DECLARATION, true))
+            result.putAll(
+                if (copy)
+                    copyFunctions(
+                        declaration, traitMember, declaration.containingDeclaration, traitMember.modality,
+                        DescriptorVisibilities.PUBLIC, CallableMemberDescriptor.Kind.DECLARATION, true
+                    )
+                else mapMembers(declaration, traitMember)
+            )
         }
         return result
     }
@@ -79,34 +78,34 @@ object CodegenUtil {
             traitMember: CallableMemberDescriptor,
             newOwner: DeclarationDescriptor,
             modality: Modality,
-            visibility: Visibility,
+            visibility: DescriptorVisibility,
             kind: CallableMemberDescriptor.Kind,
             copyOverrides: Boolean
-    ): Map<FunctionDescriptor, FunctionDescriptor> {
-        val copy = inheritedMember.copy(newOwner, modality, visibility, kind, copyOverrides)
-        val result = linkedMapOf<FunctionDescriptor, FunctionDescriptor>()
-        if (traitMember is SimpleFunctionDescriptor) {
-            result[traitMember] = copy as FunctionDescriptor
-        }
-        else if (traitMember is PropertyDescriptor) {
+    ): Map<FunctionDescriptor, FunctionDescriptor> =
+        mapMembers(inheritedMember.copy(newOwner, modality, visibility, kind, copyOverrides), traitMember)
+
+    private fun mapMembers(
+        inherited: CallableMemberDescriptor,
+        traitMember: CallableMemberDescriptor
+    ): Map<FunctionDescriptor, FunctionDescriptor> = when (traitMember) {
+        is SimpleFunctionDescriptor -> mapOf(traitMember to inherited as FunctionDescriptor)
+        is PropertyDescriptor -> linkedMapOf<FunctionDescriptor, FunctionDescriptor>().also { result ->
             for (traitAccessor in traitMember.accessors) {
-                for (inheritedAccessor in (copy as PropertyDescriptor).accessors) {
-                    if (inheritedAccessor::class.java == traitAccessor::class.java) { // same accessor kind
-                        result.put(traitAccessor, inheritedAccessor)
+                for (inheritedAccessor in (inherited as PropertyDescriptor).accessors) {
+                    if ((inheritedAccessor is PropertyGetterDescriptor) == (traitAccessor is PropertyGetterDescriptor)) {
+                        result[traitAccessor] = inheritedAccessor
                     }
                 }
             }
         }
-        return result
+        else -> error("Unexpected member: $inherited")
     }
 
     @JvmStatic
-    fun getSuperClassBySuperTypeListEntry(specifier: KtSuperTypeListEntry, bindingContext: BindingContext): ClassDescriptor {
+    fun getSuperClassBySuperTypeListEntry(specifier: KtSuperTypeListEntry, bindingContext: BindingContext): ClassDescriptor? {
         val superType = bindingContext.get(BindingContext.TYPE, specifier.typeReference!!)
-                        ?: error("superType should not be null: ${specifier.text}")
 
-        return superType.constructor.declarationDescriptor as? ClassDescriptor
-               ?: error("ClassDescriptor of superType should not be null: ${specifier.text}")
+        return superType?.constructor?.declarationDescriptor as? ClassDescriptor
     }
 
     @JvmStatic
@@ -146,21 +145,100 @@ object CodegenUtil {
 
 
     @JvmStatic
-    fun BindingContext.isExhaustive(whenExpression: KtWhenExpression, isStatement: Boolean): Boolean {
-        val slice = if (isStatement && !whenExpression.isUsedAsExpression(this)) {
+    fun isExhaustive(bindingContext: BindingContext, whenExpression: KtWhenExpression, isStatement: Boolean): Boolean {
+        val slice = if (isStatement && !whenExpression.isUsedAsExpression(bindingContext)) {
             BindingContext.IMPLICIT_EXHAUSTIVE_WHEN
         }
         else {
             BindingContext.EXHAUSTIVE_WHEN
         }
-        return this[slice, whenExpression] == true
+        return bindingContext[slice, whenExpression] == true
     }
 
     @JvmStatic
-    fun constructFakeFunctionCall(project: Project, referencedFunction: FunctionDescriptor): KtCallExpression {
-        val fakeFunctionCall = StringBuilder("callableReferenceFakeCall(")
-        fakeFunctionCall.append(referencedFunction.valueParameters.map { "p${it.index}" }.joinToString(", "))
-        fakeFunctionCall.append(")")
-        return KtPsiFactory(project, markGenerated = false).createExpression(fakeFunctionCall.toString()) as KtCallExpression
+    fun constructFakeFunctionCall(project: Project, arity: Int): KtCallExpression {
+        val fakeFunctionCall =
+                (1..arity).joinToString(prefix = "callableReferenceFakeCall(", separator = ", ", postfix = ")") { "p$it" }
+        return KtPsiFactory(project, markGenerated = false).createExpression(fakeFunctionCall) as KtCallExpression
+    }
+
+    /**
+     * Returns functions, properties and type aliases in the given [file] which should be generated by the back-end.
+     */
+    @JvmStatic
+    fun getMemberDeclarationsToGenerate(file: KtFile): List<KtDeclaration> {
+        val declarations = ApplicationManager.getApplication().runReadAction<List<KtDeclaration>> { file.declarations }
+        return declarations.filter { declaration ->
+            !declaration.hasExpectModifier() && (declaration is KtNamedFunction || declaration is KtProperty || declaration is KtTypeAlias)
+        }
+    }
+
+    @JvmStatic
+    fun getMemberDescriptorsToGenerate(file: KtFile, bindingContext: BindingContext): List<MemberDescriptor> =
+        getMemberDeclarationsToGenerate(file).mapNotNull { declaration ->
+            bindingContext.get(BindingContext.DECLARATION_TO_DESCRIPTOR, declaration) as MemberDescriptor?
+        }
+
+    @JvmStatic
+    fun findExpectedFunctionForActual(descriptor: FunctionDescriptor): FunctionDescriptor? {
+        val compatibleExpectedFunctions = with(ExpectedActualResolver) {
+            descriptor.findCompatibleExpectedForActual(DescriptorUtils.getContainingModule(descriptor))
+        }
+        return compatibleExpectedFunctions.firstOrNull() as FunctionDescriptor?
+    }
+
+    @JvmStatic
+    fun getFunctionParametersForDefaultValueGeneration(
+        descriptor: FunctionDescriptor,
+        trace: DiagnosticSink?
+    ): List<ValueParameterDescriptor> {
+        if (descriptor.isActual) {
+            val actualParameters = descriptor.valueParameters
+            if (actualParameters.any { it.declaresOrInheritsDefaultValue() }) {
+                // This is incorrect code: actual function cannot have default values, they should be declared in the expected function.
+                // But until KT-22818 is fixed, we need to provide a workaround for the exception that happens on complex default values
+                // in the expected function. One may suppress the error then, and declare default values _both_ in expect and actual.
+                // With this code, we'll generate actual default values if they're present, and expected default values otherwise.
+                return actualParameters
+            }
+
+            val expected = CodegenUtil.findExpectedFunctionForActual(descriptor)
+            if (expected != null && expected.valueParameters.any(ValueParameterDescriptor::declaresDefaultValue)) {
+                val element = DescriptorToSourceUtils.descriptorToDeclaration(expected)
+                if (element == null) {
+                    if (trace != null) {
+                        val actualDeclaration = DescriptorToSourceUtils.descriptorToDeclaration(descriptor)
+                            ?: error("Not a source declaration: $descriptor")
+                        trace.report(Errors.EXPECTED_FUNCTION_SOURCE_WITH_DEFAULT_ARGUMENTS_NOT_FOUND.on(actualDeclaration))
+                    }
+                    return actualParameters
+                }
+
+                return expected.valueParameters
+            }
+        }
+
+        return descriptor.valueParameters
+    }
+
+    // This function is private here because no one is supposed to use it except for the hack above.
+    // Please use ValueParameterDescriptor.hasDefaultValue instead.
+    private fun ValueParameterDescriptor.declaresOrInheritsDefaultValue(): Boolean {
+        return DFS.ifAny(
+            listOf(this),
+            { current -> current.overriddenDescriptors.map(ValueParameterDescriptor::getOriginal) },
+            { it.declaresDefaultValue() }
+        )
+    }
+
+    @JvmStatic
+    fun reportBackendException(exception: Throwable, phase: String, fileUrl: String?): Nothing {
+        // CompilationException (the only KotlinExceptionWithAttachments possible here) is already supposed
+        // to have all information about the context.
+        if (exception is KotlinExceptionWithAttachments) throw exception
+        throw IllegalStateException(
+            getExceptionMessage("Backend", "Exception during $phase", exception, fileUrl),
+            exception
+        )
     }
 }

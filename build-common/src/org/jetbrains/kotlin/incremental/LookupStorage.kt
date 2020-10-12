@@ -26,21 +26,22 @@ import org.jetbrains.kotlin.incremental.storage.*
 import org.jetbrains.kotlin.utils.Printer
 import org.jetbrains.kotlin.utils.keysToMap
 import java.io.File
+import java.io.IOException
 import java.util.*
 
 
-open class LookupStorage(private val targetDataDir: File) : BasicMapsOwner() {
+open class LookupStorage(
+    targetDataDir: File,
+    pathConverter: FileToPathConverter
+) : BasicMapsOwner(targetDataDir) {
     companion object {
         private val DELETED_TO_SIZE_TRESHOLD = 0.5
         private val MINIMUM_GARBAGE_COLLECTIBLE_SIZE = 10000
     }
 
-    private val String.storageFile: File
-        get() = File(targetDataDir, this + "." + CACHE_EXTENSION)
-
     private val countersFile = "counters".storageFile
-    private val idToFile = registerMap(IdToFileMap("id-to-file".storageFile))
-    private val fileToId = registerMap(FileToIdMap("file-to-id".storageFile))
+    private val idToFile = registerMap(IdToFileMap("id-to-file".storageFile, pathConverter))
+    private val fileToId = registerMap(FileToIdMap("file-to-id".storageFile, pathConverter))
     private val lookupMap = registerMap(LookupMap("lookups".storageFile))
 
     @Volatile
@@ -50,11 +51,16 @@ open class LookupStorage(private val targetDataDir: File) : BasicMapsOwner() {
     private var deletedCount: Int = 0
 
     init {
-        if (countersFile.exists()) {
-            val lines = countersFile.readLines()
-            size = lines[0].toInt()
-            deletedCount = lines[1].toInt()
+        try {
+            if (countersFile.exists()) {
+                val lines = countersFile.readLines()
+                size = lines[0].toInt()
+                deletedCount = lines[1].toInt()
+            }
+        } catch (e: Exception) {
+            throw IOException("Could not read $countersFile", e)
         }
+
     }
 
     @Synchronized
@@ -69,12 +75,13 @@ open class LookupStorage(private val targetDataDir: File) : BasicMapsOwner() {
     }
 
     @Synchronized
-    fun addAll(lookups: Set<Map.Entry<LookupSymbol, Collection<String>>>, allPaths: Set<String>) {
-        val pathToId = allPaths.keysToMap { addFileIfNeeded(File(it)) }
+    fun addAll(lookups: MultiMap<LookupSymbol, String>, allPaths: Set<String>) {
+        val pathToId = allPaths.sorted().keysToMap { addFileIfNeeded(File(it)) }
 
-        for ((lookupSymbol, paths) in lookups) {
+        for (lookupSymbol in lookups.keySet().sorted()) {
             val key = LookupSymbolKey(lookupSymbol.name, lookupSymbol.scope)
-            val fileIds = paths.mapTo(HashSet<Int>()) { pathToId[it]!! }
+            val paths = lookups[lookupSymbol]
+            val fileIds = paths.mapTo(TreeSet()) { pathToId[it]!! }
             fileIds.addAll(lookupMap[key] ?: emptySet())
             lookupMap[key] = fileIds
         }
@@ -149,7 +156,7 @@ open class LookupStorage(private val targetDataDir: File) : BasicMapsOwner() {
         size = 0
         deletedCount = 0
 
-        for ((file, oldId) in oldFileToId.entries) {
+        for ((file, oldId) in oldFileToId.entries.sortedBy { it.key.path }) {
             val newId = addFileIfNeeded(file)
             oldIdToNewId[oldId] = newId
         }
@@ -171,11 +178,19 @@ open class LookupStorage(private val targetDataDir: File) : BasicMapsOwner() {
         flush(false)
     }
 
-    @TestOnly fun dump(lookupSymbols: Set<LookupSymbol>, basePath: File? = null): String {
+    @TestOnly
+    fun dump(lookupSymbols: Set<LookupSymbol>): String {
         flush(false)
 
         val sb = StringBuilder()
         val p = Printer(sb)
+
+        p.println("====== File to id map")
+        p.println(fileToId.dump())
+
+        p.println("====== Id to file map")
+        p.println(idToFile.dump())
+
         val lookupsStrings = lookupSymbols.groupBy { LookupSymbolKey(it.name, it.scope) }
 
         for (lookup in lookupMap.keys.sorted()) {
@@ -183,12 +198,11 @@ open class LookupStorage(private val targetDataDir: File) : BasicMapsOwner() {
 
             val key = if (lookup in lookupsStrings) {
                 lookupsStrings[lookup]!!.map { "${it.scope}#${it.name}" }.sorted().joinToString(", ")
-            }
-            else {
+            } else {
                 lookup.toString()
             }
 
-            val value = fileIds.map { idToFile[it]?.let { if (basePath == null) it.absolutePath else it.toRelativeString(basePath) } ?: it.toString() }.sorted().joinToString(", ")
+            val value = fileIds.map { it.toString() }.sorted().joinToString(", ")
             p.println("$key -> $value")
         }
 
@@ -197,7 +211,7 @@ open class LookupStorage(private val targetDataDir: File) : BasicMapsOwner() {
 }
 
 class LookupTrackerImpl(private val delegate: LookupTracker) : LookupTracker {
-    val lookups = MultiMap<LookupSymbol, String>()
+    val lookups = MultiMap.createSet<LookupSymbol, String>()
     val pathInterner = StringInterner()
     private val interner = StringInterner()
 
@@ -214,4 +228,11 @@ class LookupTrackerImpl(private val delegate: LookupTracker) : LookupTracker {
     }
 }
 
-data class LookupSymbol(val name: String, val scope: String)
+data class LookupSymbol(val name: String, val scope: String) : Comparable<LookupSymbol> {
+    override fun compareTo(other: LookupSymbol): Int {
+        val scopeCompare = scope.compareTo(other.scope)
+        if (scopeCompare != 0) return scopeCompare
+
+        return name.compareTo(other.name)
+    }
+}

@@ -53,33 +53,33 @@ public class SimpleFunctionDescriptorImpl extends FunctionDescriptorImpl impleme
     @NotNull
     @Override
     public SimpleFunctionDescriptorImpl initialize(
-            @Nullable KotlinType receiverParameterType,
+            @Nullable ReceiverParameterDescriptor extensionReceiverParameter,
             @Nullable ReceiverParameterDescriptor dispatchReceiverParameter,
             @NotNull List<? extends TypeParameterDescriptor> typeParameters,
             @NotNull List<ValueParameterDescriptor> unsubstitutedValueParameters,
             @Nullable KotlinType unsubstitutedReturnType,
             @Nullable Modality modality,
-            @NotNull Visibility visibility
+            @NotNull DescriptorVisibility visibility
     ) {
-        return initialize(receiverParameterType, dispatchReceiverParameter, typeParameters, unsubstitutedValueParameters,
+        return initialize(extensionReceiverParameter, dispatchReceiverParameter, typeParameters, unsubstitutedValueParameters,
                           unsubstitutedReturnType, modality, visibility, null);
     }
 
     @NotNull
     public SimpleFunctionDescriptorImpl initialize(
-            @Nullable KotlinType receiverParameterType,
+            @Nullable ReceiverParameterDescriptor extensionReceiverParameter,
             @Nullable ReceiverParameterDescriptor dispatchReceiverParameter,
             @NotNull List<? extends TypeParameterDescriptor> typeParameters,
             @NotNull List<ValueParameterDescriptor> unsubstitutedValueParameters,
             @Nullable KotlinType unsubstitutedReturnType,
             @Nullable Modality modality,
-            @NotNull Visibility visibility,
+            @NotNull DescriptorVisibility visibility,
             @Nullable Map<? extends UserDataKey<?>, ?> userData
     ) {
-        super.initialize(receiverParameterType, dispatchReceiverParameter, typeParameters, unsubstitutedValueParameters,
+        super.initialize(extensionReceiverParameter, dispatchReceiverParameter, typeParameters, unsubstitutedValueParameters,
                          unsubstitutedReturnType, modality, visibility);
 
-        if (userData != null) {
+        if (userData != null && !userData.isEmpty()) {
             userDataMap = new LinkedHashMap<UserDataKey<?>, Object>(userData);
         }
 
@@ -117,7 +117,7 @@ public class SimpleFunctionDescriptorImpl extends FunctionDescriptorImpl impleme
     public SimpleFunctionDescriptor copy(
             DeclarationDescriptor newOwner,
             Modality modality,
-            Visibility visibility,
+            DescriptorVisibility visibility,
             Kind kind,
             boolean copyOverrides
     ) {
@@ -126,8 +126,8 @@ public class SimpleFunctionDescriptorImpl extends FunctionDescriptorImpl impleme
 
     @NotNull
     @Override
+    @SuppressWarnings("unchecked")
     public CopyBuilder<? extends SimpleFunctionDescriptor> newCopyBuilder() {
-        //noinspection unchecked
         return (CopyBuilder<? extends SimpleFunctionDescriptor>) super.newCopyBuilder();
     }
 }

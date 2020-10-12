@@ -22,10 +22,11 @@ import com.intellij.util.IncorrectOperationException
 import org.jetbrains.kotlin.j2k.ast.*
 import org.jetbrains.kotlin.psi.psiUtil.parents
 import org.jetbrains.kotlin.psi.psiUtil.siblings
+import kotlin.math.abs
 
 class ForConverter(
-        private val statement: PsiForStatement,
-        private val codeConverter: CodeConverter
+    private val statement: PsiForStatement,
+    private val codeConverter: CodeConverter
 ) {
     private val referenceSearcher = codeConverter.converter.referenceSearcher
     private val settings = codeConverter.settings
@@ -50,8 +51,7 @@ class ForConverter(
 
         val whileBody = if (updateConverted.isEmpty) {
             codeConverter.convertStatementOrBlock(body)
-        }
-        else {
+        } else {
             // we should process all continue-statements because we need to add update statement(s) before them
             val codeConverterToUse = codeConverter.withSpecialStatementConverter(object : SpecialStatementConverter {
                 override fun convertStatement(statement: PsiStatement, codeConverter: CodeConverter): Statement? {
@@ -60,16 +60,15 @@ class ForConverter(
 
                     val continueConverted = this@ForConverter.codeConverter.convertStatement(statement)
                     val statements = listOf(updateConverted, continueConverted)
-                    if (statement.parent is PsiCodeBlock) {
+                    return if (statement.parent is PsiCodeBlock) {
                         // generate fictive statement which will generate multiple statements
-                        return object : Statement() {
+                        object : Statement() {
                             override fun generateCode(builder: CodeBuilder) {
                                 builder.append(statements, "\n")
                             }
                         }
-                    }
-                    else {
-                        return Block.of(statements)
+                    } else {
+                        Block.of(statements)
                     }
                 }
             })
@@ -86,38 +85,38 @@ class ForConverter(
                 if (nameConflict) {
                     val statements = listOf(codeConverterToUse.convertStatement(body), updateConverted)
                     Block.of(statements).assignNoPrototype()
-                }
-                else {
+                } else {
                     val block = codeConverterToUse.convertBlock(body.codeBlock, true)
                     Block(block.statements + listOf(updateConverted), block.lBrace, block.rBrace, true).assignPrototypesFrom(block)
                 }
-            }
-            else {
+            } else {
                 val statements = listOf(codeConverterToUse.convertStatement(body), updateConverted)
                 Block.of(statements).assignNoPrototype()
             }
         }
 
         val whileStatement = WhileStatement(
-                if (condition != null) codeConverter.convertExpression(condition) else LiteralExpression("true").assignNoPrototype(),
-                whileBody,
-                statement.isInSingleLine()).assignNoPrototype()
+            if (condition != null) codeConverter.convertExpression(condition) else LiteralExpression("true").assignNoPrototype(),
+            whileBody,
+            statement.isInSingleLine()
+        ).assignNoPrototype()
         if (initializationConverted.isEmpty) return whileStatement
 
-        val kind = if (statement.parents.filter { it !is PsiLabeledStatement }.first() !is PsiCodeBlock) {
-            WhileWithInitializationPseudoStatement.Kind.WITH_BLOCK
+        val kind = when {
+            statement.parents.filter { it !is PsiLabeledStatement }.first() !is PsiCodeBlock ->
+                WhileWithInitializationPseudoStatement.Kind.WITH_BLOCK
+            hasNameConflict() ->
+                WhileWithInitializationPseudoStatement.Kind.WITH_RUN_BLOCK
+            else ->
+                WhileWithInitializationPseudoStatement.Kind.SIMPLE
         }
-        else if (hasNameConflict())
-            WhileWithInitializationPseudoStatement.Kind.WITH_RUN_BLOCK
-        else
-            WhileWithInitializationPseudoStatement.Kind.SIMPLE
         return WhileWithInitializationPseudoStatement(initializationConverted, whileStatement, kind)
     }
 
     class WhileWithInitializationPseudoStatement(
-            val initialization: Statement,
-            val loop: Statement,
-            val kind: WhileWithInitializationPseudoStatement.Kind
+        val initialization: Statement,
+        val loop: Statement,
+        val kind: Kind
     ) : Statement() {
 
         enum class Kind {
@@ -131,13 +130,11 @@ class ForConverter(
         override fun generateCode(builder: CodeBuilder) {
             if (kind == Kind.SIMPLE) {
                 builder.append(statements, "\n")
-            }
-            else {
+            } else {
                 val block = Block.of(statements).assignNoPrototype()
                 if (kind == Kind.WITH_BLOCK) {
                     block.generateCode(builder)
-                }
-                else {
+                } else {
                     val argumentList = ArgumentList.withNoPrototype(LambdaExpression(null, block))
                     val call = MethodCallExpression.buildNonNull(null, "run", argumentList)
                     call.generateCode(builder)
@@ -151,7 +148,8 @@ class ForConverter(
             val loopVar = initialization.declaredElements.singleOrNull() as? PsiLocalVariable ?: return null
             if (!loopVar.hasWriteAccesses(referenceSearcher, body)
                 && !loopVar.hasWriteAccesses(referenceSearcher, condition)
-                && condition is PsiBinaryExpression) {
+                && condition is PsiBinaryExpression
+            ) {
 
                 val left = condition.lOperand as? PsiReferenceExpression ?: return null
                 val right = condition.rOperand ?: return null
@@ -182,7 +180,13 @@ class ForConverter(
                         PrimitiveType(Identifier.withNoPrototype("Int")).assignNoPrototype()
                     else
                         null
-                    return ForeachStatement(loopVar.declarationIdentifier(), explicitType, range, codeConverter.convertStatementOrBlock(body), statement.isInSingleLine())
+                    return ForeachStatement(
+                        loopVar.declarationIdentifier(),
+                        explicitType,
+                        range,
+                        codeConverter.convertStatementOrBlock(body),
+                        statement.isInSingleLine()
+                    )
                 }
             }
         }
@@ -205,13 +209,19 @@ class ForConverter(
         if (indicesRange != null) return indicesRange
 
         val startConverted = codeConverter.convertExpression(start)
-        return if (reversed)
-            DownToExpression(startConverted, convertBound(bound, if (inclusiveComparison) 0 else +1))
-        else
-            RangeExpression(startConverted, convertBound(bound, if (inclusiveComparison) 0 else -1))
+        return when {
+            reversed -> DownToExpression(startConverted, convertBound(bound, if (inclusiveComparison) 0 else +1))
+            bound !is PsiLiteralExpression && !inclusiveComparison -> UntilExpression(startConverted, convertBound(bound, 0))
+            else -> RangeExpression(startConverted, convertBound(bound, if (inclusiveComparison) 0 else -1))
+        }
     }
 
-    private fun indicesIterationRange(start: PsiExpression, bound: PsiExpression, reversed: Boolean, inclusiveComparison: Boolean): Expression? {
+    private fun indicesIterationRange(
+        start: PsiExpression,
+        bound: PsiExpression,
+        reversed: Boolean,
+        inclusiveComparison: Boolean
+    ): Expression? {
         val collectionSize = if (reversed) {
             if (!inclusiveComparison) return null
 
@@ -221,8 +231,7 @@ class ForConverter(
             if (start.operationTokenType != JavaTokenType.MINUS) return null
             if ((start.rOperand as? PsiLiteralExpression)?.value != 1) return null
             start.lOperand
-        }
-        else {
+        } else {
             if (inclusiveComparison) return null
             if ((start as? PsiLiteralExpression)?.value != 0) return null
             bound
@@ -234,23 +243,33 @@ class ForConverter(
         // check if it's iteration through list indices
         if (collectionSize is PsiMethodCallExpression && collectionSize.argumentList.expressions.isEmpty()) {
             val methodExpr = collectionSize.methodExpression
-            if (methodExpr is PsiReferenceExpression && methodExpr.referenceName == "size") {
+            if (methodExpr.referenceName == "size") {
                 val qualifier = methodExpr.qualifierExpression
                 if (qualifier is PsiReferenceExpression /* we don't convert to .indices if qualifier is method call or something because of possible side effects */) {
-                    val collectionType = PsiElementFactory.SERVICE.getInstance(project).createTypeByFQClassName(CommonClassNames.JAVA_UTIL_COLLECTION)
+                    val collectionType =
+                        PsiElementFactory.SERVICE.getInstance(project).createTypeByFQClassName(CommonClassNames.JAVA_UTIL_COLLECTION)
                     val qualifierType = qualifier.type
                     if (qualifierType != null && collectionType.isAssignableFrom(qualifierType)) {
-                        indices = QualifiedExpression(codeConverter.convertExpression(qualifier), Identifier.withNoPrototype("indices", isNullable = false), null)
+                        indices = QualifiedExpression(
+                            codeConverter.convertExpression(qualifier),
+                            Identifier.withNoPrototype("indices", isNullable = false),
+                            null
+                        )
                     }
                 }
             }
         }
         // check if it's iteration through array indices
         else if (collectionSize is PsiReferenceExpression /* we don't convert to .indices if qualifier is method call or something because of possible side effects */
-            && collectionSize.referenceName == "length") {
+            && collectionSize.referenceName == "length"
+        ) {
             val qualifier = collectionSize.qualifierExpression
             if (qualifier is PsiReferenceExpression && qualifier.type is PsiArrayType) {
-                indices = QualifiedExpression(codeConverter.convertExpression(qualifier), Identifier.withNoPrototype("indices", isNullable = false), null)
+                indices = QualifiedExpression(
+                    codeConverter.convertExpression(qualifier),
+                    Identifier.withNoPrototype("indices", isNullable = false),
+                    null
+                )
             }
         }
 
@@ -276,7 +295,11 @@ class ForConverter(
 
         val converted = codeConverter.convertExpression(bound)
         val sign = if (correction > 0) JavaTokenType.PLUS else JavaTokenType.MINUS
-        return BinaryExpression(converted, LiteralExpression(Math.abs(correction).toString()).assignNoPrototype(), Operator(sign).assignPrototype(bound)).assignNoPrototype()
+        return BinaryExpression(
+            converted,
+            LiteralExpression(abs(correction).toString()).assignNoPrototype(),
+            Operator(sign).assignPrototype(bound)
+        ).assignNoPrototype()
     }
 
     private fun PsiStatement.toContinuedLoop(): PsiLoopStatement? {
@@ -295,8 +318,7 @@ class ForConverter(
         for (name in names) {
             val refExpr = try {
                 factory.createExpressionFromText(name, statement) as? PsiReferenceExpression ?: return true
-            }
-            catch(e: IncorrectOperationException) {
+            } catch (e: IncorrectOperationException) {
                 return true
             }
             if (refExpr.resolve() != null) return true
@@ -304,7 +326,7 @@ class ForConverter(
 
         var hasConflict = false
         for (laterStatement in statement.siblings(forward = true, withItself = false)) {
-            laterStatement.accept(object: JavaRecursiveElementVisitor() {
+            laterStatement.accept(object : JavaRecursiveElementVisitor() {
                 override fun visitDeclarationStatement(statement: PsiDeclarationStatement) {
                     super.visitDeclarationStatement(statement)
 
@@ -321,7 +343,7 @@ class ForConverter(
     private fun PsiStatement.declaredVariableNames(): Collection<String> {
         val declarationStatement = this as? PsiDeclarationStatement ?: return listOf()
         return declarationStatement.declaredElements
-                .filterIsInstance<PsiVariable>()
-                .map { it.name!! }
+            .filterIsInstance<PsiVariable>()
+            .map { it.name!! }
     }
 }

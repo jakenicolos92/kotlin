@@ -32,14 +32,16 @@ import org.jetbrains.kotlin.idea.core.getDirectlyOverriddenDeclarations
 import org.jetbrains.kotlin.idea.search.usagesSearch.propertyDescriptor
 import org.jetbrains.kotlin.psi.KtDeclaration
 import org.jetbrains.kotlin.psi.KtParameter
+import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.renderer.DescriptorRenderer
 import org.jetbrains.kotlin.renderer.RenderingFormat
 import java.awt.event.MouseEvent
 import java.util.*
 
-object SuperDeclarationMarkerTooltip: Function<KtDeclaration, String> {
-    override fun `fun`(ktDeclaration: KtDeclaration?): String? {
-        val (elementDescriptor, overriddenDescriptors) = resolveDeclarationWithParents(ktDeclaration!!)
+object SuperDeclarationMarkerTooltip : Function<PsiElement, String> {
+    override fun `fun`(element: PsiElement): String? {
+        val ktDeclaration = element.getParentOfType<KtDeclaration>(false) ?: return null
+        val (elementDescriptor, overriddenDescriptors) = resolveDeclarationWithParents(ktDeclaration)
         if (overriddenDescriptors.isEmpty()) return ""
 
         val isAbstract = elementDescriptor!!.modality == Modality.ABSTRACT
@@ -53,48 +55,59 @@ object SuperDeclarationMarkerTooltip: Function<KtDeclaration, String> {
 
         val containingStrings = overriddenDescriptors.map {
             val declaration = it.containingDeclaration
-            val memberKind = if (it is PropertyAccessorDescriptor || it is PropertyDescriptor) "property" else "function"
+            val memberKind = if (it is PropertyAccessorDescriptor || it is PropertyDescriptor)
+                KotlinBundle.message("highlighter.tool.tip.text.property")
+            else
+                KotlinBundle.message("highlighter.tool.tip.text.function")
 
             val isBaseAbstract = it.modality == Modality.ABSTRACT
-            "${if (!isAbstract && isBaseAbstract) "Implements" else "Overrides"} $memberKind in '${renderer.render(declaration)}'"
+            KotlinBundle.message(
+                "highlighter.text.in",
+                "${if (!isAbstract && isBaseAbstract)
+                    KotlinBundle.message("highlighter.text.implements")
+                else
+                    KotlinBundle.message("highlighter.text.overrides")
+                } $memberKind",
+                renderer.render(declaration)
+            )
         }
+
 
         return containingStrings.sorted().joinToString(separator = "<br/>")
     }
 }
 
-class SuperDeclarationMarkerNavigationHandler : GutterIconNavigationHandler<KtDeclaration>, TestableLineMarkerNavigator {
-    override fun navigate(e: MouseEvent?, element: KtDeclaration?) {
+class SuperDeclarationMarkerNavigationHandler : GutterIconNavigationHandler<PsiElement>, TestableLineMarkerNavigator {
+    override fun navigate(e: MouseEvent?, element: PsiElement?) {
         getTargetsPopupDescriptor(element)?.showPopup(e)
     }
 
     override fun getTargetsPopupDescriptor(element: PsiElement?): NavigationPopupDescriptor? {
-        if (element !is KtDeclaration) return null
+        val declaration = element?.getParentOfType<KtDeclaration>(false) ?: return null
 
-        val (elementDescriptor, overriddenDescriptors) = resolveDeclarationWithParents(element)
+        val (elementDescriptor, overriddenDescriptors) = resolveDeclarationWithParents(declaration)
         if (overriddenDescriptors.isEmpty()) return null
 
         val superDeclarations = ArrayList<NavigatablePsiElement>()
         for (overriddenMember in overriddenDescriptors) {
             val declarations = DescriptorToSourceUtilsIde.getAllDeclarations(element.project, overriddenMember)
-            for (declaration in declarations) {
-                if (declaration is NavigatablePsiElement) {
-                    superDeclarations.add(declaration)
-                }
-            }
+            superDeclarations += declarations.filterIsInstance<NavigatablePsiElement>()
         }
 
         val elementName = elementDescriptor!!.name
-        return NavigationPopupDescriptor(superDeclarations,
-                                         KotlinBundle.message("navigation.title.super.declaration", elementName),
-                                         KotlinBundle.message("navigation.findUsages.title.super.declaration", elementName),
-                                         KtFunctionPsiElementCellRenderer())
+        return NavigationPopupDescriptor(
+            superDeclarations,
+            KotlinBundle.message("overridden.marker.overrides.choose.implementation.title", elementName),
+            KotlinBundle.message("overridden.marker.overrides.choose.implementation.find.usages", elementName),
+            KtFunctionPsiElementCellRenderer()
+        )
     }
 }
 
 data class ResolveWithParentsResult(
-        val descriptor: CallableMemberDescriptor?,
-        val overriddenDescriptors: Collection<CallableMemberDescriptor>)
+    val descriptor: CallableMemberDescriptor?,
+    val overriddenDescriptors: Collection<CallableMemberDescriptor>
+)
 
 fun resolveDeclarationWithParents(element: KtDeclaration): ResolveWithParentsResult {
     val descriptor = if (element is KtParameter)

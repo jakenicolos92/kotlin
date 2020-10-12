@@ -1,115 +1,100 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.refactoring.nameSuggester
 
 import com.intellij.openapi.util.text.StringUtil
-import com.intellij.testFramework.fixtures.LightCodeInsightFixtureTestCase
 import org.jetbrains.kotlin.idea.caches.resolve.analyze
-import org.jetbrains.kotlin.idea.codeInsight.CodeInsightUtils
+import org.jetbrains.kotlin.idea.core.util.CodeInsightUtils
 import org.jetbrains.kotlin.idea.core.KotlinNameSuggester
 import org.jetbrains.kotlin.idea.refactoring.IntroduceRefactoringException
 import org.jetbrains.kotlin.idea.refactoring.selectElement
-import org.jetbrains.kotlin.idea.test.ConfigLibraryUtil
+import org.jetbrains.kotlin.idea.test.KotlinLightCodeInsightFixtureTestCase
 import org.jetbrains.kotlin.idea.test.PluginTestCaseBase
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
-import org.jetbrains.kotlin.test.InTextDirectivesUtils
+import org.jetbrains.kotlin.test.JUnit3WithIdeaConfigurationRunner
 import org.jetbrains.kotlin.test.KotlinTestUtils
-import java.lang.AssertionError
+import org.junit.runner.RunWith
 
-class KotlinNameSuggesterTest : LightCodeInsightFixtureTestCase() {
-    fun testArrayList() { doTest() }
+@RunWith(JUnit3WithIdeaConfigurationRunner::class)
+class KotlinNameSuggesterTest : KotlinLightCodeInsightFixtureTestCase() {
+    fun testArrayList() = doTest()
 
-    fun testGetterSure() { doTest() }
+    fun testGetterSure() = doTest()
 
-    fun testNameArrayOfClasses() { doTest() }
+    fun testNameArrayOfClasses() = doTest()
 
-    fun testNameArrayOfStrings() { doTest() }
+    fun testNameArrayOfStrings() = doTest()
 
-    fun testNamePrimitiveArray() { doTest() }
+    fun testNamePrimitiveArray() = doTest()
 
-    fun testNameCallExpression() { doTest() }
+    fun testNameCallExpression() = doTest()
 
-    fun testNameClassCamelHump() { doTest() }
+    fun testNameClassCamelHump() = doTest()
 
-    fun testNameLong() { doTest() }
+    fun testNameLong() = doTest()
 
-    fun testNameReferenceExpression() { doTest() }
+    fun testNameReferenceExpression() = doTest()
 
-    fun testNameString() { doTest() }
+    fun testNameReferenceExpressionForConstants() = doTest()
 
-    fun testAnonymousObject() { doTest() }
+    fun testNameString() = doTest()
 
-    fun testAnonymousObjectWithSuper() { doTest() }
+    fun testAnonymousObject() = doTest()
 
-    fun testArrayOfObjectsType() { doTest() }
+    fun testAnonymousObjectWithSuper() = doTest()
 
-    fun testURL() { doTest() }
+    fun testArrayOfObjectsType() = doTest()
 
-    fun testParameterNameByArgumentExpression() { doTest() }
+    fun testURL() = doTest()
 
-    fun testParameterNameByParenthesizedArgumentExpression() { doTest() }
+    fun testParameterNameByArgumentExpression() = doTest()
 
-    fun testIdWithDigits() { doTest() }
+    fun testParameterNameByParenthesizedArgumentExpression() = doTest()
 
-    fun testIdWithNonASCII() { doTest() }
+    fun testIdWithDigits() = doTest()
 
-    fun testFunction1() { doTest() }
+    fun testIdWithNonASCII() = doTest()
 
-    fun testFunction2() { doTest() }
+    fun testFunction1() = doTest()
 
-    fun testExtensionFunction1() { doTest() }
+    fun testFunction2() = doTest()
 
-    fun testExtensionFunction2() { doTest() }
+    fun testExtensionFunction1() = doTest()
 
-    override fun setUp() {
-        super.setUp()
-        myFixture.testDataPath = PluginTestCaseBase.getTestDataPathBase() + "/refactoring/nameSuggester"
+    fun testExtensionFunction2() = doTest()
+
+    fun testNoCamelNamesForBacktickedNonId() = doTest()
+
+    override fun getTestDataPath(): String {
+        return PluginTestCaseBase.getTestDataPathBase() + "/refactoring/nameSuggester"
     }
 
     private fun doTest() {
-        myFixture.configureByFile(getTestName(false) + ".kt")
-        val file = myFixture.file as KtFile
-        val expectedResultText = KotlinTestUtils.getLastCommentInFile(file)
-        val withRuntime = InTextDirectivesUtils.isDirectiveDefined(file.text, "//WITH_RUNTIME")
         try {
-            if (withRuntime) {
-                ConfigLibraryUtil.configureKotlinRuntimeAndSdk(myModule, PluginTestCaseBase.mockJdk())
-            }
+            myFixture.configureByFile(getTestName(false) + ".kt")
+            val file = myFixture.file as KtFile
+            val expectedResultText = KotlinTestUtils.getLastCommentInFile(file)
+
             selectElement(myFixture.editor, file, listOf(CodeInsightUtils.ElementKind.EXPRESSION)) {
                 val names = KotlinNameSuggester
-                        .suggestNamesByExpressionAndType(it as KtExpression,
-                                                         null,
-                                                         it.analyze(BodyResolveMode.PARTIAL),
-                                                         { true },
-                                                         "value")
-                        .sorted()
+                    .suggestNamesByExpressionAndType(
+                        it as KtExpression,
+                        null,
+                        it.analyze(BodyResolveMode.PARTIAL),
+                        { true },
+                        "value"
+                    )
+                    .sorted()
                 val result = StringUtil.join(names, "\n").trim()
                 assertEquals(expectedResultText, result)
             }
-        }
-        catch (e: IntroduceRefactoringException) {
+        } catch (e: IntroduceRefactoringException) {
             throw AssertionError("Failed to find expression: " + e.message)
-        }
-        finally {
-            if (withRuntime) {
-                ConfigLibraryUtil.unConfigureKotlinRuntimeAndSdk(myModule, PluginTestCaseBase.mockJdk())
-            }
         }
     }
 }

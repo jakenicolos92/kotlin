@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,26 +16,22 @@
 
 package org.jetbrains.kotlin.js.translate.callTranslator
 
-import org.jetbrains.kotlin.js.backend.ast.JsExpression
-import org.jetbrains.kotlin.js.backend.ast.JsInvocation
-import org.jetbrains.kotlin.js.backend.ast.JsNameRef
-import org.jetbrains.kotlin.js.backend.ast.metadata.SideEffectKind
-import org.jetbrains.kotlin.js.backend.ast.metadata.sideEffects
 import org.jetbrains.kotlin.descriptors.CallableDescriptor
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.descriptors.impl.LocalVariableDescriptor
-import org.jetbrains.kotlin.js.backend.ast.JsLiteral
+import org.jetbrains.kotlin.js.backend.ast.*
+import org.jetbrains.kotlin.js.backend.ast.metadata.SideEffectKind
+import org.jetbrains.kotlin.js.backend.ast.metadata.sideEffects
 import org.jetbrains.kotlin.js.translate.context.Namer
 import org.jetbrains.kotlin.js.translate.context.Namer.getCapturedVarAccessor
 import org.jetbrains.kotlin.js.translate.declaration.contextWithPropertyMetadataCreationIntrinsified
 import org.jetbrains.kotlin.js.translate.reference.ReferenceTranslator
-import org.jetbrains.kotlin.js.translate.utils.JsAstUtils
 import org.jetbrains.kotlin.js.translate.reference.buildReifiedTypeArgs
+import org.jetbrains.kotlin.js.translate.utils.JsAstUtils
 import org.jetbrains.kotlin.js.translate.utils.JsAstUtils.pureFqn
 import org.jetbrains.kotlin.js.translate.utils.JsDescriptorUtils
 import org.jetbrains.kotlin.js.translate.utils.TranslationUtils
 import org.jetbrains.kotlin.resolve.BindingContext
-import org.jetbrains.kotlin.resolve.BindingContextUtils.isVarCapturedInClosure
 import org.jetbrains.kotlin.resolve.calls.util.FakeCallableDescriptorForObject
 import java.util.*
 
@@ -90,7 +86,7 @@ object DefaultVariableAccessCase : VariableAccessCase() {
         }
 
         val functionRef = ReferenceTranslator.translateAsValueReference(callableDescriptor, context)
-        val ref = if (isVarCapturedInClosure(context.bindingContext(), callableDescriptor)) {
+        val ref = if (context.isBoxedLocalCapturedInClosure(callableDescriptor)) {
             getCapturedVarAccessor(functionRef)
         }
         else {
@@ -106,7 +102,7 @@ object DefaultVariableAccessCase : VariableAccessCase() {
         val delegatedCall = accessorDescriptor?.let { context.bindingContext()[BindingContext.DELEGATED_PROPERTY_RESOLVED_CALL, it] }
         if (delegatedCall != null) {
             val delegateContext = context.contextWithPropertyMetadataCreationIntrinsified(
-                    delegatedCall, localVariableDescriptor!!, JsLiteral.NULL)
+                    delegatedCall, localVariableDescriptor!!, JsNullLiteral())
             val delegateContextWithArgs = if (!isGetAccess()) {
                 val valueArg = delegatedCall.valueArgumentsByIndex!![2].arguments[0].getArgumentExpression()
                 delegateContext.innerContextWithAliasesForExpressions(mapOf(valueArg to value!!))
@@ -176,7 +172,7 @@ object DelegatePropertyAccessIntrinsic : DelegateIntrinsic<VariableAccessInfo> {
 
 object SuperPropertyAccessCase : VariableAccessCase() {
     override fun VariableAccessInfo.dispatchReceiver(): JsExpression {
-        val variableName = context.program().getStringLiteral(this.variableName.ident)
+        val variableName = JsStringLiteral(this.variableName.ident)
         val descriptor = resolvedCall.resultingDescriptor
 
         return if (descriptor is PropertyDescriptor && TranslationUtils.shouldAccessViaFunctions(descriptor)) {
@@ -198,7 +194,7 @@ object SuperPropertyAccessCase : VariableAccessCase() {
 private val VariableAccessInfo.additionalArguments: List<JsExpression> get() = value?.let { listOf(it) }.orEmpty()
 
 fun VariableAccessInfo.translateVariableAccess(): JsExpression {
-    val intrinsic = DelegatePropertyAccessIntrinsic.intrinsic(this)
+    val intrinsic = DelegatePropertyAccessIntrinsic.intrinsic(this, context)
 
     return when {
         intrinsic != null ->

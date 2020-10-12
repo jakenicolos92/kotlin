@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.refactoring.rename
@@ -22,9 +11,12 @@ import com.intellij.refactoring.util.MoveRenameUsageInfo
 import com.intellij.usageView.UsageInfo
 import com.intellij.usageView.UsageViewUtil
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.idea.FrontendInternals
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.analysis.analyzeInContext
 import org.jetbrains.kotlin.idea.caches.resolve.analyze
-import org.jetbrains.kotlin.idea.caches.resolve.resolveToDescriptor
+import org.jetbrains.kotlin.idea.caches.resolve.getResolutionFacade
+import org.jetbrains.kotlin.idea.caches.resolve.unsafeResolveToDescriptor
 import org.jetbrains.kotlin.idea.codeInsight.DescriptorToSourceUtilsIde
 import org.jetbrains.kotlin.idea.core.NewDeclarationNameValidator
 import org.jetbrains.kotlin.idea.core.copied
@@ -32,9 +24,11 @@ import org.jetbrains.kotlin.idea.imports.importableFqName
 import org.jetbrains.kotlin.idea.refactoring.explicateAsText
 import org.jetbrains.kotlin.idea.refactoring.getThisLabelName
 import org.jetbrains.kotlin.idea.references.mainReference
+import org.jetbrains.kotlin.idea.resolve.ResolutionFacade
 import org.jetbrains.kotlin.idea.search.and
 import org.jetbrains.kotlin.idea.search.restrictToKotlinSources
 import org.jetbrains.kotlin.idea.util.IdeDescriptorRenderers
+import org.jetbrains.kotlin.idea.util.getAllAccessibleFunctions
 import org.jetbrains.kotlin.idea.util.getAllAccessibleVariables
 import org.jetbrains.kotlin.idea.util.getResolutionScope
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation
@@ -44,11 +38,15 @@ import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.*
 import org.jetbrains.kotlin.renderer.DescriptorRenderer
 import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
+import org.jetbrains.kotlin.resolve.OverloadChecker
 import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.calls.resolvedCallUtil.getExplicitReceiverValue
 import org.jetbrains.kotlin.resolve.calls.resolvedCallUtil.getImplicitReceiverValue
+import org.jetbrains.kotlin.resolve.calls.results.TypeSpecificityComparator
 import org.jetbrains.kotlin.resolve.descriptorUtil.getImportableDescriptor
+import org.jetbrains.kotlin.resolve.descriptorUtil.module
 import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.resolve.scopes.LexicalScope
@@ -59,6 +57,7 @@ import org.jetbrains.kotlin.resolve.scopes.utils.getImplicitReceiversHierarchy
 import org.jetbrains.kotlin.resolve.source.getPsi
 import org.jetbrains.kotlin.types.ErrorUtils
 import org.jetbrains.kotlin.utils.SmartList
+import org.jetbrains.kotlin.utils.addIfNotNull
 import java.util.*
 
 internal fun ResolvedCall<*>.noReceivers() = dispatchReceiver == null && extensionReceiver == null
@@ -69,47 +68,45 @@ internal fun PsiNamedElement.renderDescription(): String {
     return "$type '$name'".trim()
 }
 
-internal fun PsiElement.representativeContainer(): PsiNamedElement? =
-        when (this) {
-            is KtDeclaration -> containingClassOrObject
-                                ?: getStrictParentOfType<KtNamedDeclaration>()
-                                ?: JavaPsiFacade.getInstance(project).findPackage(containingKtFile.packageFqName.asString())
-            is PsiMember -> containingClass
-            else -> null
-        }
+internal fun PsiElement.representativeContainer(): PsiNamedElement? = when (this) {
+    is KtDeclaration -> containingClassOrObject
+        ?: getStrictParentOfType<KtNamedDeclaration>()
+        ?: JavaPsiFacade.getInstance(project).findPackage(containingKtFile.packageFqName.asString())
+    is PsiMember -> containingClass
+    else -> null
+}
 
 internal fun DeclarationDescriptor.canonicalRender(): String = DescriptorRenderer.FQ_NAMES_IN_TYPES.render(this)
 
 internal fun checkRedeclarations(
-        descriptor: DeclarationDescriptor,
-        newName: String,
-        result: MutableList<UsageInfo>
+    declaration: KtNamedDeclaration,
+    newName: String,
+    result: MutableList<UsageInfo>,
+    resolutionFacade: ResolutionFacade = declaration.getResolutionFacade(),
+    descriptor: DeclarationDescriptor = declaration.unsafeResolveToDescriptor(resolutionFacade)
 ) {
-    fun DeclarationDescriptor.isTopLevelPrivate(): Boolean {
-        return this is DeclarationDescriptorWithVisibility
-               && visibility == Visibilities.PRIVATE
-               && containingDeclaration is PackageFragmentDescriptor
-    }
+    fun DeclarationDescriptor.isTopLevelPrivate(): Boolean =
+        this is DeclarationDescriptorWithVisibility && visibility == DescriptorVisibilities.PRIVATE && containingDeclaration is PackageFragmentDescriptor
 
-    fun isInSameFile(d1: DeclarationDescriptor, d2: DeclarationDescriptor): Boolean {
-        return (d1 as? DeclarationDescriptorWithSource)?.source?.getPsi()?.containingFile == (d2 as? DeclarationDescriptorWithSource)?.source?.getPsi()?.containingFile
-    }
+    fun isInSameFile(d1: DeclarationDescriptor, d2: DeclarationDescriptor): Boolean =
+        (d1 as? DeclarationDescriptorWithSource)?.source?.getPsi()?.containingFile == (d2 as? DeclarationDescriptorWithSource)?.source
+            ?.getPsi()?.containingFile
 
     fun MemberScope.findSiblingsByName(): List<DeclarationDescriptor> {
         val descriptorKindFilter = when (descriptor) {
-            is ClassDescriptor -> DescriptorKindFilter.CLASSIFIERS
-            is PropertyDescriptor -> DescriptorKindFilter.VARIABLES
+            is ClassifierDescriptor -> DescriptorKindFilter.CLASSIFIERS
+            is VariableDescriptor -> DescriptorKindFilter.VARIABLES
             is FunctionDescriptor -> DescriptorKindFilter.FUNCTIONS
             else -> return emptyList()
         }
         return getDescriptorsFiltered(descriptorKindFilter) { it.asString() == newName }.filter { it != descriptor }
     }
 
-    fun getSiblingWithNewName(): DeclarationDescriptor? {
+    fun getSiblingsWithNewName(): List<DeclarationDescriptor> {
         val containingDescriptor = descriptor.containingDeclaration
 
         if (descriptor is ValueParameterDescriptor) {
-            return (containingDescriptor as CallableDescriptor).valueParameters.firstOrNull { it.name.asString() == newName }
+            return (containingDescriptor as CallableDescriptor).valueParameters.filter { it.name.asString() == newName }
         }
 
         if (descriptor is TypeParameterDescriptor) {
@@ -118,92 +115,112 @@ internal fun checkRedeclarations(
                 is CallableDescriptor -> containingDescriptor.typeParameters
                 else -> emptyList()
             }
-            typeParameters.firstOrNull { it.name.asString() == newName }?.let { return it }
 
-            val containingDeclaration = (containingDescriptor as? DeclarationDescriptorWithSource)?.source?.getPsi() as? KtDeclaration
-                                        ?: return null
-            val dummyVar = KtPsiFactory(containingDeclaration).createProperty("val foo: $newName")
-            val outerScope = containingDeclaration.getResolutionScope()
-            val context = dummyVar.analyzeInContext(outerScope, containingDeclaration)
-            return context[BindingContext.VARIABLE, dummyVar]?.type?.constructor?.declarationDescriptor
+            return SmartList<DeclarationDescriptor>().apply {
+                typeParameters.filterTo(this) { it.name.asString() == newName }
+                val containingDeclaration = (containingDescriptor as? DeclarationDescriptorWithSource)?.source?.getPsi() as? KtDeclaration
+                    ?: return emptyList()
+                val dummyVar = KtPsiFactory(containingDeclaration).createProperty("val foo: $newName")
+                val outerScope = containingDeclaration.getResolutionScope()
+                val context = dummyVar.analyzeInContext(outerScope, containingDeclaration)
+                addIfNotNull(context[BindingContext.VARIABLE, dummyVar]?.type?.constructor?.declarationDescriptor)
+            }
         }
 
         return when (containingDescriptor) {
-            is ClassDescriptor -> containingDescriptor.unsubstitutedMemberScope.findSiblingsByName().firstOrNull()
-            is PackageFragmentDescriptor -> containingDescriptor.getMemberScope().findSiblingsByName().firstOrNull {
-                it != descriptor
-                && (!(descriptor.isTopLevelPrivate() || it.isTopLevelPrivate()) || isInSameFile(descriptor, it))
+            is ClassDescriptor -> containingDescriptor.unsubstitutedMemberScope.findSiblingsByName()
+            is PackageFragmentDescriptor -> containingDescriptor.getMemberScope().findSiblingsByName().filter {
+                it != descriptor && (!(descriptor.isTopLevelPrivate() || it.isTopLevelPrivate()) || isInSameFile(descriptor, it))
             }
             else -> {
-                val block = (descriptor as? DeclarationDescriptorWithSource)?.source?.getPsi()?.parent as? KtBlockExpression
-                            ?: return null
-                (block.statements.firstOrNull {
-                    if (it.name != newName) return@firstOrNull false
-                    when (descriptor) {
+                val block =
+                    (descriptor as? DeclarationDescriptorWithSource)?.source?.getPsi()?.parent as? KtBlockExpression ?: return emptyList()
+                block.statements.mapNotNull {
+                    if (it.name != newName) return@mapNotNull null
+                    val isAccepted = when (descriptor) {
                         is ClassDescriptor -> it is KtClassOrObject
-                        is PropertyDescriptor -> it is KtProperty
+                        is VariableDescriptor -> it is KtProperty
                         is FunctionDescriptor -> it is KtNamedFunction
                         else -> false
                     }
-                } as? KtDeclaration)?.resolveToDescriptor()
+                    if (!isAccepted) return@mapNotNull null
+                    (it as? KtDeclaration)?.unsafeResolveToDescriptor()
+                }
             }
         }
     }
 
-    val candidateDescriptor = getSiblingWithNewName() ?: return
-    val candidate = (candidateDescriptor as? DeclarationDescriptorWithSource)?.source?.getPsi() as? KtNamedDeclaration ?: return
-    val what = candidate.renderDescription().capitalize()
-    val where = candidate.representativeContainer()?.renderDescription() ?: return
-    val message = "$what is already declared in $where"
-    result += BasicUnresolvableCollisionUsageInfo(candidate, candidate, message)
+    val overloadChecker = when (descriptor) {
+        is PropertyDescriptor,
+        is FunctionDescriptor,
+        is ClassifierDescriptor -> {
+
+            @OptIn(FrontendInternals::class)
+            val typeSpecificityComparator = resolutionFacade.getFrontendService(descriptor.module, TypeSpecificityComparator::class.java)
+            OverloadChecker(typeSpecificityComparator)
+        }
+        else -> null
+    }
+    for (candidateDescriptor in getSiblingsWithNewName()) {
+        val candidate = (candidateDescriptor as? DeclarationDescriptorWithSource)?.source?.getPsi() as? KtNamedDeclaration ?: continue
+        if (overloadChecker != null && overloadChecker.isOverloadable(descriptor, candidateDescriptor)) continue
+        val what = candidate.renderDescription()
+        val where = candidate.representativeContainer()?.renderDescription() ?: continue
+        val message = KotlinBundle.message("text.0.already.declared.in.1", what, where).capitalize()
+        result += BasicUnresolvableCollisionUsageInfo(candidate, candidate, message)
+    }
 }
 
 private fun LexicalScope.getRelevantDescriptors(
-        declaration: PsiNamedElement,
-        name: String
+    declaration: PsiNamedElement,
+    name: String
 ): Collection<DeclarationDescriptor> {
     val nameAsName = Name.identifier(name)
     return when (declaration) {
         is KtProperty, is KtParameter, is PsiField -> getAllAccessibleVariables(nameAsName)
+        is KtNamedFunction -> getAllAccessibleFunctions(nameAsName)
         is KtClassOrObject, is PsiClass -> listOfNotNull(findClassifier(nameAsName, NoLookupLocation.FROM_IDE))
         else -> emptyList()
     }
 }
 
 fun reportShadowing(
-        declaration: PsiNamedElement,
-        elementToBindUsageInfoTo: PsiElement,
-        candidateDescriptor: DeclarationDescriptor,
-        refElement: PsiElement,
-        result: MutableList<UsageInfo>
+    declaration: PsiNamedElement,
+    elementToBindUsageInfoTo: PsiElement,
+    candidateDescriptor: DeclarationDescriptor,
+    refElement: PsiElement,
+    result: MutableList<UsageInfo>
 ) {
     val candidate = DescriptorToSourceUtilsIde.getAnyDeclaration(declaration.project, candidateDescriptor) as? PsiNamedElement ?: return
     if (declaration.parent == candidate.parent) return
-    val message = "${declaration.renderDescription().capitalize()} will be shadowed by ${candidate.renderDescription()}"
+    val message = KotlinBundle.message(
+        "text.0.will.be.shadowed.by.1",
+        declaration.renderDescription(),
+        candidate.renderDescription()
+    ).capitalize()
     result += BasicUnresolvableCollisionUsageInfo(refElement, elementToBindUsageInfoTo, message)
 }
 
 // todo: break into smaller functions
 private fun checkUsagesRetargeting(
-        elementToBindUsageInfosTo: PsiElement,
-        declaration: PsiNamedElement,
-        name: String,
-        isNewName: Boolean,
-        accessibleDescriptors: Collection<DeclarationDescriptor>,
-        originalUsages: MutableList<UsageInfo>,
-        newUsages: MutableList<UsageInfo>
+    elementToBindUsageInfosTo: PsiElement,
+    declaration: PsiNamedElement,
+    name: String,
+    isNewName: Boolean,
+    accessibleDescriptors: Collection<DeclarationDescriptor>,
+    originalUsages: MutableList<UsageInfo>,
+    newUsages: MutableList<UsageInfo>
 ) {
     val usageIterator = originalUsages.listIterator()
     while (usageIterator.hasNext()) {
         val usage = usageIterator.next()
         val refElement = usage.element as? KtSimpleNameExpression ?: continue
         val context = refElement.analyze(BodyResolveMode.PARTIAL)
-        val scope = refElement
-                            .parentsWithSelf
-                            .filterIsInstance<KtElement>()
-                            .mapNotNull { context[BindingContext.LEXICAL_SCOPE, it] }
-                            .firstOrNull()
-                    ?: continue
+        val scope = refElement.parentsWithSelf
+            .filterIsInstance<KtElement>()
+            .mapNotNull { context[BindingContext.LEXICAL_SCOPE, it] }
+            .firstOrNull()
+            ?: continue
 
         if (scope.getRelevantDescriptors(declaration, name).isEmpty()) {
             if (declaration !is KtProperty && declaration !is KtParameter) continue
@@ -225,10 +242,10 @@ private fun checkUsagesRetargeting(
             if (referencedClassInNewContext == null
                 || ErrorUtils.isError(referencedClassInNewContext)
                 || referencedClass.canonicalRender() == candidateText
-                || accessibleDescriptors.any { it.canonicalRender() == candidateText }) {
+                || accessibleDescriptors.any { it.canonicalRender() == candidateText }
+            ) {
                 usageIterator.set(UsageInfoWithFqNameReplacement(refElement, declaration, newFqName))
-            }
-            else {
+            } else {
                 reportShadowing(declaration, elementToBindUsageInfosTo, referencedClassInNewContext, refElement, newUsages)
             }
             continue
@@ -239,24 +256,20 @@ private fun checkUsagesRetargeting(
 
         val qualifiedExpression = if (resolvedCall.noReceivers()) {
             val resultingDescriptor = resolvedCall.resultingDescriptor
-            val fqName =
-                    resultingDescriptor.importableFqName
-                    ?: (resultingDescriptor as? ClassifierDescriptor)?.let {
-                        FqName(IdeDescriptorRenderers.SOURCE_CODE.renderClassifierName(it))
-                    }
-                    ?: continue
+            val fqName = resultingDescriptor.importableFqName
+                ?: (resultingDescriptor as? ClassifierDescriptor)?.let {
+                    FqName(IdeDescriptorRenderers.SOURCE_CODE.renderClassifierName(it))
+                }
+                ?: continue
             if (fqName.parent().isRoot) {
                 callExpression.copied()
-            }
-            else {
+            } else {
                 psiFactory.createExpressionByPattern("${fqName.parent().asString()}.$0", callExpression)
             }
-        }
-        else {
+        } else {
             resolvedCall.getExplicitReceiverValue()?.let {
                 fullCallExpression.copied()
-            }
-            ?: resolvedCall.getImplicitReceiverValue()?.let { implicitReceiver ->
+            } ?: resolvedCall.getImplicitReceiverValue()?.let { implicitReceiver ->
                 val expectedLabelName = implicitReceiver.declarationDescriptor.getThisLabelName()
                 val implicitReceivers = scope.getImplicitReceiversHierarchy()
                 val receiversWithExpectedName = implicitReceivers.filter {
@@ -264,18 +277,16 @@ private fun checkUsagesRetargeting(
                 }
 
                 val canQualifyThis = receiversWithExpectedName.isEmpty()
-                                     || receiversWithExpectedName.size == 1 && (declaration !is KtClassOrObject || expectedLabelName != name)
+                        || receiversWithExpectedName.size == 1 && (declaration !is KtClassOrObject || expectedLabelName != name)
                 if (canQualifyThis) {
                     psiFactory.createExpressionByPattern("${implicitReceiver.explicateAsText()}.$0", callExpression)
-                }
-                else {
+                } else {
                     val defaultReceiverClassText =
-                            implicitReceivers.firstOrNull()?.value?.type?.constructor?.declarationDescriptor?.canonicalRender()
+                        implicitReceivers.firstOrNull()?.value?.type?.constructor?.declarationDescriptor?.canonicalRender()
                     val canInsertUnqualifiedThis = accessibleDescriptors.any { it.canonicalRender() == defaultReceiverClassText }
                     if (canInsertUnqualifiedThis) {
                         psiFactory.createExpressionByPattern("this.$0", callExpression)
-                    }
-                    else {
+                    } else {
                         callExpression.copied()
                     }
                 }
@@ -288,14 +299,16 @@ private fun checkUsagesRetargeting(
             newCallee.getReferencedNameElement().replace(psiFactory.createNameIdentifier(name))
         }
 
-        val newContext = qualifiedExpression.analyzeInContext(scope, refElement)
+        qualifiedExpression.parentSubstitute = fullCallExpression.parent
+        val newContext = qualifiedExpression.analyzeInContext(scope, refElement, DelegatingBindingTrace(context, ""))
 
         val newResolvedCall = newCallee.getResolvedCall(newContext)
         val candidateText = newResolvedCall?.candidateDescriptor?.getImportableDescriptor()?.canonicalRender()
 
         if (newResolvedCall != null
             && !accessibleDescriptors.any { it.canonicalRender() == candidateText }
-            && resolvedCall.candidateDescriptor.canonicalRender() != candidateText) {
+            && resolvedCall.candidateDescriptor.canonicalRender() != candidateText
+        ) {
             reportShadowing(declaration, elementToBindUsageInfosTo, newResolvedCall.candidateDescriptor, refElement, newUsages)
             continue
         }
@@ -307,22 +320,22 @@ private fun checkUsagesRetargeting(
 }
 
 internal fun checkOriginalUsagesRetargeting(
-        declaration: KtNamedDeclaration,
-        newName: String,
-        originalUsages: MutableList<UsageInfo>,
-        newUsages: MutableList<UsageInfo>
+    declaration: KtNamedDeclaration,
+    newName: String,
+    originalUsages: MutableList<UsageInfo>,
+    newUsages: MutableList<UsageInfo>
 ) {
     val accessibleDescriptors = declaration.getResolutionScope().getRelevantDescriptors(declaration, newName)
     checkUsagesRetargeting(declaration, declaration, newName, true, accessibleDescriptors, originalUsages, newUsages)
 }
 
 internal fun checkNewNameUsagesRetargeting(
-        declaration: KtNamedDeclaration,
-        newName: String,
-        newUsages: MutableList<UsageInfo>
+    declaration: KtNamedDeclaration,
+    newName: String,
+    newUsages: MutableList<UsageInfo>
 ) {
     val currentName = declaration.name ?: return
-    val descriptor = declaration.resolveToDescriptor()
+    val descriptor = declaration.unsafeResolveToDescriptor()
 
     if (declaration is KtParameter && !declaration.hasValOrVar()) {
         val ownerFunction = declaration.ownerFunction
@@ -331,14 +344,14 @@ internal fun checkNewNameUsagesRetargeting(
         val usagesByCandidate = LinkedHashMap<PsiElement, MutableList<UsageInfo>>()
 
         searchScope.accept(
-                object: KtTreeVisitorVoid() {
-                    override fun visitSimpleNameExpression(expression: KtSimpleNameExpression) {
-                        if (expression.getReferencedName() != newName) return
-                        val ref = expression.mainReference
-                        val candidate = ref.resolve() as? PsiNamedElement ?: return
-                        usagesByCandidate.getOrPut(candidate) { SmartList() }.add(MoveRenameUsageInfo(ref, candidate))
-                    }
+            object : KtTreeVisitorVoid() {
+                override fun visitSimpleNameExpression(expression: KtSimpleNameExpression) {
+                    if (expression.getReferencedName() != newName) return
+                    val ref = expression.mainReference
+                    val candidate = ref.resolve() as? PsiNamedElement ?: return
+                    usagesByCandidate.getOrPut(candidate) { SmartList() }.add(MoveRenameUsageInfo(ref, candidate))
                 }
+            }
         )
 
         for ((candidate, usages) in usagesByCandidate) {
@@ -350,10 +363,10 @@ internal fun checkNewNameUsagesRetargeting(
     }
 
     for (candidateDescriptor in declaration.getResolutionScope().getRelevantDescriptors(declaration, newName)) {
-        val candidate = DescriptorToSourceUtilsIde.getAnyDeclaration(declaration.project, candidateDescriptor) as? PsiNamedElement ?: continue
-        val usages = ReferencesSearch
-                .search(candidate, candidate.useScope.restrictToKotlinSources() and declaration.useScope)
-                .mapTo(SmartList<UsageInfo>()) { MoveRenameUsageInfo(it, candidate) }
+        val candidate =
+            DescriptorToSourceUtilsIde.getAnyDeclaration(declaration.project, candidateDescriptor) as? PsiNamedElement ?: continue
+        val usages = ReferencesSearch.search(candidate, candidate.useScope.restrictToKotlinSources() and declaration.useScope)
+            .mapTo(SmartList<UsageInfo>()) { MoveRenameUsageInfo(it, candidate) }
         checkUsagesRetargeting(candidate, declaration, currentName, false, listOf(descriptor), usages, newUsages)
         usages.filterIsInstanceTo<KtResolvableCollisionUsageInfo, MutableList<UsageInfo>>(newUsages)
     }

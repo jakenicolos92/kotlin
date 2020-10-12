@@ -21,6 +21,7 @@ import java.io.File
 import java.io.Serializable
 import java.util.*
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.jvm.internal.TypeIntrinsics
 import kotlin.reflect.KClass
 
 const val REPL_CODE_LINE_FIRST_NO = 1
@@ -58,12 +59,17 @@ interface ReplCheckAction {
 }
 
 sealed class ReplCheckResult : Serializable {
-    class Ok : ReplCheckResult()
+    class Ok : ReplCheckResult() {
+        companion object { private val serialVersionUID: Long = 1L }
+    }
 
-    class Incomplete : ReplCheckResult()
+    class Incomplete : ReplCheckResult() {
+        companion object { private val serialVersionUID: Long = 1L }
+    }
 
     class Error(val message: String, val location: CompilerMessageLocation? = null) : ReplCheckResult() {
         override fun toString(): String = "Error(message = \"$message\")"
+        companion object { private val serialVersionUID: Long = 1L }
     }
 
     companion object {
@@ -83,12 +89,20 @@ sealed class ReplCompileResult : Serializable {
                           val mainClassName: String,
                           val classes: List<CompiledClassData>,
                           val hasResult: Boolean,
-                          val classpathAddendum: List<File>) : ReplCompileResult()
+                          val classpathAddendum: List<File>,
+                          val type: String?,
+                          val data: Any? // TODO: temporary; migration to new scripting infrastructure
+    ) : ReplCompileResult() {
+        companion object { private val serialVersionUID: Long = 2L }
+    }
 
-    class Incomplete : ReplCompileResult()
+    class Incomplete(val message: String) : ReplCompileResult() {
+        companion object { private val serialVersionUID: Long = 1L }
+    }
 
     class Error(val message: String, val location: CompilerMessageLocation? = null) : ReplCompileResult() {
         override fun toString(): String = "Error(message = \"$message\""
+        companion object { private val serialVersionUID: Long = 1L }
     }
 
     companion object {
@@ -96,7 +110,9 @@ sealed class ReplCompileResult : Serializable {
     }
 }
 
-interface ReplCompiler : ReplCompileAction, ReplCheckAction, CreateReplStageStateAction
+interface ReplCompilerWithoutCheck : ReplCompileAction, CreateReplStageStateAction
+
+interface ReplCompiler : ReplCompilerWithoutCheck, ReplCheckAction
 
 // --- eval
 
@@ -110,22 +126,39 @@ interface ReplEvalAction {
 }
 
 sealed class ReplEvalResult : Serializable {
-    class ValueResult(val value: Any?) : ReplEvalResult() {
-        override fun toString(): String = "Result: $value"
+    class ValueResult(val name: String, val value: Any?, val type: String?) : ReplEvalResult() {
+        override fun toString(): String {
+            val v = if (value is Function<*>) "<function${TypeIntrinsics.getFunctionArity(value)}>" else value
+            return "$name: $type = $v"
+        }
+
+        companion object { private val serialVersionUID: Long = 1L }
     }
 
-    class UnitResult : ReplEvalResult()
+    class UnitResult : ReplEvalResult() {
+        companion object { private val serialVersionUID: Long = 1L }
+    }
 
-    class Incomplete : ReplEvalResult()
+    class Incomplete(val message: String) : ReplEvalResult() {
+        companion object { private val serialVersionUID: Long = 1L }
+    }
 
-    class HistoryMismatch(val lineNo: Int) : ReplEvalResult()
+    class HistoryMismatch(val lineNo: Int) : ReplEvalResult() {
+        companion object { private val serialVersionUID: Long = 1L }
+    }
 
     sealed class Error(val message: String) : ReplEvalResult() {
-        class Runtime(message: String, val cause: Exception? = null) : Error(message)
+        class Runtime(message: String, val cause: Exception? = null) : Error(message) {
+            companion object { private val serialVersionUID: Long = 1L }
+        }
 
-        class CompileTime(message: String, val location: CompilerMessageLocation? = null) : Error(message)
+        class CompileTime(message: String, val location: CompilerMessageLocation? = null) : Error(message) {
+            companion object { private val serialVersionUID: Long = 1L }
+        }
 
         override fun toString(): String = "${this::class.simpleName}Error(message = \"$message\""
+
+        companion object { private val serialVersionUID: Long = 1L }
     }
 
     companion object {
@@ -144,7 +177,7 @@ interface ReplAtomicEvalAction {
                        invokeWrapper: InvokeWrapper? = null): ReplEvalResult
 }
 
-interface ReplAtomicEvaluator : ReplAtomicEvalAction, ReplCheckAction
+interface ReplAtomicEvaluator : ReplAtomicEvalAction
 
 interface ReplDelayedEvalAction {
     fun compileToEvaluable(state: IReplStageState<*>,

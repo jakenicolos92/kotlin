@@ -80,4 +80,5 @@ fun box(): String {
         else "OK"
     } ()
 
+    return "OK"
 }

@@ -1,4 +1,4 @@
-// IGNORE_BACKEND: NATIVE
+// TARGET_BACKEND: JVM
 // FILE: 1.kt
 // WITH_RUNTIME
 package builders
@@ -26,7 +26,7 @@ abstract class Tag(val name: String) : Element() {
     val children = ArrayList<Element>()
     val attributes = HashMap<String, String>()
 
-    inline protected fun <T : Element> initTag(tag: T, init: T.() -> Unit): T {
+    inline fun <T : Element> initTag(tag: T, init: T.() -> Unit): T {
         tag.init()
         children.add(tag)
         return tag
@@ -129,14 +129,14 @@ fun testAllInline() : String {
                     p { +"this format can be used as an alternative markup to XML" }
 
                     // an element with attributes and text content
-                    a(href = "http://jetbrains.com/kotlin") { +"Kotlin" }
+                    a(href = "https://jetbrains.com/kotlin") { +"Kotlin" }
 
                     // mixed content
                     p {
                         +"This is some"
                         b { +"mixed" }
                         +"text. For more see the"
-                        a(href = "http://jetbrains.com/kotlin") { +"Kotlin" }
+                        a(href = "https://jetbrains.com/kotlin") { +"Kotlin" }
                         +"project"
                     }
                     p { +"some text" }
@@ -169,14 +169,14 @@ fun testHtmlNoInline() : String {
                     p { +"this format can be used as an alternative markup to XML" }
 
                     // an element with attributes and text content
-                    a(href = "http://jetbrains.com/kotlin") { +"Kotlin" }
+                    a(href = "https://jetbrains.com/kotlin") { +"Kotlin" }
 
                     // mixed content
                     p {
                         +"This is some"
                         b { +"mixed" }
                         +"text. For more see the"
-                        a(href = "http://jetbrains.com/kotlin") { +"Kotlin" }
+                        a(href = "https://jetbrains.com/kotlin") { +"Kotlin" }
                         +"project"
                     }
                     p { +"some text" }
@@ -209,14 +209,14 @@ fun testBodyNoInline() : String {
                     p { +"this format can be used as an alternative markup to XML" }
 
                     // an element with attributes and text content
-                    a(href = "http://jetbrains.com/kotlin") { +"Kotlin" }
+                    a(href = "https://jetbrains.com/kotlin") { +"Kotlin" }
 
                     // mixed content
                     p {
                         +"This is some"
                         b { +"mixed" }
                         +"text. For more see the"
-                        a(href = "http://jetbrains.com/kotlin") { +"Kotlin" }
+                        a(href = "https://jetbrains.com/kotlin") { +"Kotlin" }
                         +"project"
                     }
                     p { +"some text" }
@@ -249,14 +249,14 @@ fun testBodyHtmlNoInline() : String {
                     p { +"this format can be used as an alternative markup to XML" }
 
                     // an element with attributes and text content
-                    a(href = "http://jetbrains.com/kotlin") { +"Kotlin" }
+                    a(href = "https://jetbrains.com/kotlin") { +"Kotlin" }
 
                     // mixed content
                     p {
                         +"This is some"
                         b { +"mixed" }
                         +"text. For more see the"
-                        a(href = "http://jetbrains.com/kotlin") { +"Kotlin" }
+                        a(href = "https://jetbrains.com/kotlin") { +"Kotlin" }
                         +"project"
                     }
                     p { +"some text" }

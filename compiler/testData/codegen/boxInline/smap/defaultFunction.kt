@@ -1,6 +1,7 @@
-// FILE: 1.kt
-package test
 
+// FILE: 1.kt
+
+package test
 inline fun inlineFun(capturedParam: String, noinline lambda: () -> String = { capturedParam }): String {
     return lambda()
 }
@@ -14,19 +15,6 @@ fun box(): String {
 }
 
 // FILE: 1.smap
-//TODO maybe do smth with default method body mapping
-SMAP
-1.kt
-Kotlin
-*S Kotlin
-*F
-+ 1 1.kt
-test/_1Kt
-*L
-1#1,8:1
-5#1:9
-*E
-
 SMAP
 1.kt
 Kotlin
@@ -35,7 +23,7 @@ Kotlin
 + 1 1.kt
 test/_1Kt$inlineFun$1
 *L
-1#1,8:1
+1#1,9:1
 *E
 
 // FILE: 2.TODO

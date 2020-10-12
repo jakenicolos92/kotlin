@@ -17,12 +17,15 @@
 package org.jetbrains.kotlin.j2k
 
 import com.intellij.psi.PsiMethod
+import org.jetbrains.kotlin.idea.j2k.DocCommentConverter
+import org.jetbrains.kotlin.idea.j2k.EmptyDocCommentConverter
 
 interface JavaToKotlinConverterServices {
     val referenceSearcher: ReferenceSearcher
     val superMethodsSearcher: SuperMethodsSearcher
     val resolverForConverter: ResolverForConverter
     val docCommentConverter: DocCommentConverter
+    val javaDataFlowAnalyzerFacade: JavaDataFlowAnalyzerFacade
 }
 
 object EmptyJavaToKotlinServices: JavaToKotlinConverterServices {
@@ -37,6 +40,9 @@ object EmptyJavaToKotlinServices: JavaToKotlinConverterServices {
 
     override val docCommentConverter: DocCommentConverter
         get() = EmptyDocCommentConverter
+
+    override val javaDataFlowAnalyzerFacade: JavaDataFlowAnalyzerFacade
+        get() = JavaDataFlowAnalyzerFacade.Default
 }
 
 interface SuperMethodsSearcher {

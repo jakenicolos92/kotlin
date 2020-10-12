@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.navigation;
@@ -19,7 +8,6 @@ package org.jetbrains.kotlin.idea.navigation;
 import com.intellij.testFramework.TestDataPath;
 import org.jetbrains.kotlin.test.JUnit3RunnerWithInners;
 import org.jetbrains.kotlin.test.KotlinTestUtils;
-import org.jetbrains.kotlin.test.TargetBackend;
 import org.jetbrains.kotlin.test.TestMetadata;
 import org.junit.runner.RunWith;
 
@@ -32,121 +20,116 @@ import java.util.regex.Pattern;
 @TestDataPath("$PROJECT_ROOT")
 @RunWith(JUnit3RunnerWithInners.class)
 public class KotlinGotoImplementationTestGenerated extends AbstractKotlinGotoImplementationTest {
+    private void runTest(String testDataFilePath) throws Exception {
+        KotlinTestUtils.runTest(this::doTest, this, testDataFilePath);
+    }
+
     @TestMetadata("AbstractClassImplementorsWithDeclaration.kt")
     public void testAbstractClassImplementorsWithDeclaration() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/AbstractClassImplementorsWithDeclaration.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/AbstractClassImplementorsWithDeclaration.kt");
     }
 
     public void testAllFilesPresentInImplementations() throws Exception {
-        KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("idea/testData/navigation/implementations"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.ANY, false);
+        KotlinTestUtils.assertAllTestsPresentByMetadataWithExcluded(this.getClass(), new File("idea/testData/navigation/implementations"), Pattern.compile("^(.+)\\.kt$"), null, false);
     }
 
     @TestMetadata("ClassImplementorsWithDeclaration.kt")
     public void testClassImplementorsWithDeclaration() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/ClassImplementorsWithDeclaration.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/ClassImplementorsWithDeclaration.kt");
     }
 
     @TestMetadata("ClassNavigation.kt")
     public void testClassNavigation() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/ClassNavigation.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/ClassNavigation.kt");
     }
 
     @TestMetadata("ConstructorPropertyOverriddenNavigation.kt")
     public void testConstructorPropertyOverriddenNavigation() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/ConstructorPropertyOverriddenNavigation.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/ConstructorPropertyOverriddenNavigation.kt");
     }
 
     @TestMetadata("DefaultImplFunction.kt")
     public void testDefaultImplFunction() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/DefaultImplFunction.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/DefaultImplFunction.kt");
     }
 
     @TestMetadata("DefaultImplProperty.kt")
     public void testDefaultImplProperty() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/DefaultImplProperty.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/DefaultImplProperty.kt");
     }
 
     @TestMetadata("DelegatedAndDefaultImplFunction.kt")
     public void testDelegatedAndDefaultImplFunction() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/DelegatedAndDefaultImplFunction.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/DelegatedAndDefaultImplFunction.kt");
     }
 
     @TestMetadata("DelegatedFunction.kt")
     public void testDelegatedFunction() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/DelegatedFunction.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/DelegatedFunction.kt");
     }
 
     @TestMetadata("DelegatedProperty.kt")
     public void testDelegatedProperty() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/DelegatedProperty.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/DelegatedProperty.kt");
     }
 
     @TestMetadata("EnumEntriesInheritance.kt")
     public void testEnumEntriesInheritance() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/EnumEntriesInheritance.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/EnumEntriesInheritance.kt");
     }
 
     @TestMetadata("FakeOverride.kt")
     public void testFakeOverride() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/FakeOverride.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/FakeOverride.kt");
     }
 
     @TestMetadata("FunctionOverrideNavigation.kt")
     public void testFunctionOverrideNavigation() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/FunctionOverrideNavigation.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/FunctionOverrideNavigation.kt");
     }
 
     @TestMetadata("GenericDelegatedAndDefaultImplFunction.kt")
     public void testGenericDelegatedAndDefaultImplFunction() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/GenericDelegatedAndDefaultImplFunction.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/GenericDelegatedAndDefaultImplFunction.kt");
     }
 
     @TestMetadata("GenericFakeOverride.kt")
     public void testGenericFakeOverride() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/GenericFakeOverride.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/GenericFakeOverride.kt");
     }
 
     @TestMetadata("ImplementGenericWithPrimitives.kt")
     public void testImplementGenericWithPrimitives() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/ImplementGenericWithPrimitives.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/ImplementGenericWithPrimitives.kt");
+    }
+
+    @TestMetadata("ImplementsInInlineClass.kt")
+    public void testImplementsInInlineClass() throws Exception {
+        runTest("idea/testData/navigation/implementations/ImplementsInInlineClass.kt");
     }
 
     @TestMetadata("ObjectImported.kt")
     public void testObjectImported() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/ObjectImported.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/ObjectImported.kt");
     }
 
     @TestMetadata("OverridesInEnumEntries.kt")
     public void testOverridesInEnumEntries() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/OverridesInEnumEntries.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/OverridesInEnumEntries.kt");
+    }
+
+    @TestMetadata("OverridesInInlineClass.kt")
+    public void testOverridesInInlineClass() throws Exception {
+        runTest("idea/testData/navigation/implementations/OverridesInInlineClass.kt");
     }
 
     @TestMetadata("PropertyOverriddenNavigation.kt")
     public void testPropertyOverriddenNavigation() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/PropertyOverriddenNavigation.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/PropertyOverriddenNavigation.kt");
     }
 
     @TestMetadata("TraitImplementorsWithDeclaration.kt")
     public void testTraitImplementorsWithDeclaration() throws Exception {
-        String fileName = KotlinTestUtils.navigationMetadata("idea/testData/navigation/implementations/TraitImplementorsWithDeclaration.kt");
-        doTest(fileName);
+        runTest("idea/testData/navigation/implementations/TraitImplementorsWithDeclaration.kt");
     }
 }

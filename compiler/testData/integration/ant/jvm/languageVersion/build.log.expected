@@ -3,9 +3,9 @@ Buildfile: [TestData]/build.xml
 
 build:
   [kotlinc] Compiling [[TestData]/main.kt] => [[Temp]/hello.jar]
-  [kotlinc] [TestData]/main.kt:3:17: error: this type is sealed, so it can be inherited by only its own nested classes or objects
-  [kotlinc] class Derived : Base()
-  [kotlinc]                 ^
+  [kotlinc] [TestData]/main.kt:4:21: error: 'break' and 'continue' are not allowed in 'when' statements. Consider using labels to continue/break from the outer loop
+  [kotlinc]             true -> break
+  [kotlinc]                     ^
 
 ERR:
 

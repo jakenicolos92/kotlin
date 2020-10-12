@@ -1,0 +1,11 @@
+pluginManagement {
+    repositories {
+        mavenCentral()
+        gradlePluginPortal()
+        maven {
+            url 'KOTLIN_REPO'
+        }
+    }
+    
+}
+rootProject.name = 'multiplatformApplication'

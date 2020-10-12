@@ -16,60 +16,21 @@
 
 package org.jetbrains.kotlin.idea
 
-import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.PsiConstantEvaluationHelper
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiExpression
 import com.intellij.psi.impl.ConstantExpressionEvaluator
-import org.jetbrains.kotlin.asJava.elements.KtLightAnnotationForSourceEntry
-import org.jetbrains.kotlin.idea.caches.resolve.getResolutionFacade
-import org.jetbrains.kotlin.idea.project.languageVersionSettings
+import org.jetbrains.kotlin.asJava.computeExpression
 import org.jetbrains.kotlin.psi.KtExpression
-import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
-import org.jetbrains.kotlin.resolve.constants.ArrayValue
-import org.jetbrains.kotlin.resolve.constants.ConstantValue
-import org.jetbrains.kotlin.types.TypeUtils
-import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator as FrontendConstantExpressionEvaluator
 
 class KotlinLightConstantExpressionEvaluator : ConstantExpressionEvaluator {
-    private fun evalConstantValue(constantValue: ConstantValue<*>): Any? {
-        return if (constantValue is ArrayValue) {
-            val items = constantValue.value.map { evalConstantValue(it) }
-            items.singleOrNull() ?: items
-        }
-        else constantValue.value
-    }
 
     override fun computeConstantExpression(expression: PsiElement, throwExceptionOnOverflow: Boolean): Any? {
         return computeExpression(expression, throwExceptionOnOverflow, null)
     }
 
     override fun computeExpression(
-            expression: PsiElement,
-            throwExceptionOnOverflow: Boolean,
-            auxEvaluator: PsiConstantEvaluationHelper.AuxEvaluator?
-    ): Any? {
-        if (expression !is KtLightAnnotationForSourceEntry.LightExpressionValue<*>) return null
-        val expressionToCompute = expression.originalExpression ?: return null
-        return when (expressionToCompute) {
-            is KtExpression -> {
-                val resolutionFacade = expressionToCompute.getResolutionFacade()
-                val evaluator = FrontendConstantExpressionEvaluator(resolutionFacade.moduleDescriptor.builtIns,
-                                                                    expressionToCompute.languageVersionSettings)
-                val evaluatorTrace = DelegatingBindingTrace(resolutionFacade.analyze(expressionToCompute), "Evaluating annotation argument")
-
-                val constant = evaluator.evaluateExpression(expressionToCompute, evaluatorTrace) ?: return null
-                if (constant.isError) return null
-                evalConstantValue(constant.toConstantValue(TypeUtils.NO_EXPECTED_TYPE))
-            }
-
-            is PsiExpression -> {
-                JavaPsiFacade.getInstance(expressionToCompute.project)
-                        .constantEvaluationHelper
-                        .computeExpression(expression, throwExceptionOnOverflow, auxEvaluator)
-            }
-
-            else -> null
-        }
-    }
+        expression: PsiElement,
+        throwExceptionOnOverflow: Boolean,
+        auxEvaluator: PsiConstantEvaluationHelper.AuxEvaluator?
+    ): Any? = computeExpression(expression)
 }

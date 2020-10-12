@@ -16,15 +16,18 @@
 
 package org.jetbrains.kotlin.daemon
 
-import org.jetbrains.kotlin.daemon.common.CompilerCallbackServicesFacade
 import org.jetbrains.kotlin.daemon.common.DummyProfiler
 import org.jetbrains.kotlin.daemon.common.Profiler
+import org.jetbrains.kotlin.daemon.common.withMeasure
 import org.jetbrains.kotlin.load.kotlin.incremental.components.IncrementalCache
 import org.jetbrains.kotlin.load.kotlin.incremental.components.JvmPackagePartProto
 import org.jetbrains.kotlin.modules.TargetId
 
-class RemoteIncrementalCacheClient(val facade: CompilerCallbackServicesFacade, val target: TargetId, val profiler: Profiler = DummyProfiler()): IncrementalCache {
-
+class RemoteIncrementalCacheClient(
+    @Suppress("DEPRECATION") val facade: org.jetbrains.kotlin.daemon.common.CompilerCallbackServicesFacade,
+    val target: TargetId,
+    val profiler: Profiler = DummyProfiler()
+): IncrementalCache {
     override fun getObsoletePackageParts(): Collection<String> = profiler.withMeasure(this) { facade.incrementalCache_getObsoletePackageParts(target) }
 
     override fun getObsoleteMultifileClasses(): Collection<String> = profiler.withMeasure(this) { facade.incrementalCache_getObsoleteMultifileClassFacades(target) }
@@ -34,10 +37,6 @@ class RemoteIncrementalCacheClient(val facade: CompilerCallbackServicesFacade, v
     override fun getPackagePartData(partInternalName: String): JvmPackagePartProto? = profiler.withMeasure(this) { facade.incrementalCache_getPackagePartData(target, partInternalName) }
 
     override fun getModuleMappingData(): ByteArray? = profiler.withMeasure(this) { facade.incrementalCache_getModuleMappingData(target) }
-
-    override fun registerInline(fromPath: String, jvmSignature: String, toPath: String) {
-        profiler.withMeasure(this) { facade.incrementalCache_registerInline(target, fromPath, jvmSignature, toPath) }
-    }
 
     override fun getClassFilePath(internalClassName: String): String = profiler.withMeasure(this) { facade.incrementalCache_getClassFilePath(target,internalClassName) }
 

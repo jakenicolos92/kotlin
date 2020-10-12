@@ -1,5 +1,4 @@
 // FILE: 1.kt
-// LANGUAGE_VERSION: 1.2
 // SKIP_INLINE_CHECK_IN: inlineFun$default
 package test
 
@@ -9,7 +8,7 @@ inline fun inlineFun(crossinline inlineLambda: () -> String, noinline noInlineLa
 
 // FILE: 2.kt
 //NO_CHECK_LAMBDA_INLINING
-// CHECK_CALLED_IN_SCOPE: function=inlineFun$f scope=inlineFun
+// CHECK_CALLED_IN_SCOPE: function=inlineFun$lambda scope=inlineFun
 import test.*
 
 fun box(): String {

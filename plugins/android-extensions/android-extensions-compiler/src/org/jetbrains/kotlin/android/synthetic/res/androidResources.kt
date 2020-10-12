@@ -18,16 +18,17 @@ package org.jetbrains.kotlin.android.synthetic.res
 
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
+import com.intellij.psi.SmartPsiElementPointer
 import com.intellij.psi.util.CachedValue
 import com.intellij.psi.util.CachedValueProvider
 import com.intellij.psi.util.CachedValuesManager
 import org.jetbrains.kotlin.android.synthetic.AndroidConst
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
+import org.jetbrains.kotlin.descriptors.findClassAcrossModuleDependencies
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.isValidJavaFqName
-import org.jetbrains.kotlin.serialization.deserialization.findClassAcrossModuleDependencies
 
 class AndroidVariant(val name: String, val resDirectories: List<String>) {
     val packageName: String = name
@@ -61,19 +62,35 @@ class ResourceIdentifier(val name: String, val packageName: String?) {
     }
 }
 
-sealed class AndroidResource(val id: ResourceIdentifier, val sourceElement: PsiElement?) {
+class AndroidLayoutGroup(val name: String, val layouts: List<AndroidLayout>)
+
+class AndroidLayout(val resources: List<AndroidResource>)
+
+sealed class AndroidResource(
+    val id: ResourceIdentifier,
+    val sourceElement: SmartPsiElementPointer<PsiElement>?,
+    val partiallyDefined: Boolean
+) {
     open fun sameClass(other: AndroidResource): Boolean = false
+    open fun partiallyDefined(): AndroidResource = this
 
     class Widget(
             id: ResourceIdentifier,
             val xmlType: String,
-            sourceElement: PsiElement?
-    ) : AndroidResource(id, sourceElement) {
+            sourceElement: SmartPsiElementPointer<PsiElement>?,
+            partiallyDefined: Boolean = false
+    ) : AndroidResource(id, sourceElement, partiallyDefined) {
         override fun sameClass(other: AndroidResource) = other is Widget
+        override fun partiallyDefined() = Widget(id, xmlType, sourceElement, true)
     }
 
-    class Fragment(id: ResourceIdentifier, sourceElement: PsiElement?) : AndroidResource(id, sourceElement) {
+    class Fragment(
+            id: ResourceIdentifier,
+            sourceElement: SmartPsiElementPointer<PsiElement>?,
+            partiallyDefined: Boolean = false
+    ) : AndroidResource(id, sourceElement, partiallyDefined) {
         override fun sameClass(other: AndroidResource) = other is Fragment
+        override fun partiallyDefined() = Fragment(id, sourceElement, true)
     }
 }
 

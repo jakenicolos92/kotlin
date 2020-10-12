@@ -21,69 +21,62 @@ import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiElementVisitor
-import org.jetbrains.kotlin.idea.caches.resolve.analyze
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.intentions.getArguments
-import org.jetbrains.kotlin.idea.intentions.getCallableDescriptor
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.*
-import org.jetbrains.kotlin.resolve.calls.callUtil.getType
-import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator
-import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameUnsafe
-import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 
-private val REGEX_RANGE_TO = """kotlin.(Char|Byte|Short|Int|Long).rangeTo""".toRegex()
-
-class ReplaceRangeToWithUntilInspection : AbstractKotlinInspection() {
-
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        return object : KtVisitorVoid() {
-            override fun visitExpression(expression: KtExpression) {
-                super.visitExpression(expression)
-
-                if (expression !is KtBinaryExpression && expression !is KtDotQualifiedExpression) return
-
-                val fqName = expression.getCallableDescriptor()?.fqNameUnsafe?.asString() ?: return
-                if (!fqName.matches(REGEX_RANGE_TO)) return
-
-                if (expression.getArguments()?.second?.isMinusOne() != true) return
-
-                holder.registerProblem(
-                        expression,
-                        "'rangeTo' or the '..' call can be replaced with 'until'",
-                        ProblemHighlightType.WEAK_WARNING,
-                        ReplaceWithUntilQuickFix()
-                )
-            }
-        }
+class ReplaceRangeToWithUntilInspection : AbstractPrimitiveRangeToInspection() {
+    override fun visitRangeToExpression(expression: KtExpression, holder: ProblemsHolder) {
+        if (!isApplicable(expression)) return
+        holder.registerProblem(
+            expression,
+            KotlinBundle.message("rangeto.or.the.call.should.be.replaced.with.until"),
+            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+            ReplaceWithUntilQuickFix()
+        )
     }
 
     class ReplaceWithUntilQuickFix : LocalQuickFix {
-
-        override fun getName() = "Replace with until"
+        override fun getName() = KotlinBundle.message("replace.with.until.quick.fix.text")
 
         override fun getFamilyName() = name
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
             val element = descriptor.psiElement as KtExpression
+            applyFix(element)
+        }
+    }
+
+    companion object {
+        fun applyFixIfApplicable(expression: KtExpression) {
+            if (isApplicable(expression)) applyFix(expression)
+        }
+
+        private fun isApplicable(expression: KtExpression): Boolean {
+            return expression.getArguments()?.second?.deparenthesize()?.isMinusOne() == true
+        }
+
+        private fun applyFix(element: KtExpression) {
             val args = element.getArguments() ?: return
-            element.replace(KtPsiFactory(element).createExpressionByPattern(
+            element.replace(
+                KtPsiFactory(element).createExpressionByPattern(
                     "$0 until $1",
                     args.first ?: return,
-                    (args.second as? KtBinaryExpression)?.left ?: return)
+                    (args.second?.deparenthesize() as? KtBinaryExpression)?.left ?: return
+                )
             )
         }
 
-    }
+        private fun KtExpression.isMinusOne(): Boolean {
+            if (this !is KtBinaryExpression) return false
+            if (operationToken != KtTokens.MINUS) return false
 
-    private fun KtExpression.isMinusOne(): Boolean {
-        if (this !is KtBinaryExpression) return false
-        if (operationToken != KtTokens.MINUS) return false
-
-        val right = right as? KtConstantExpression ?: return false
-        val context = right.analyze(BodyResolveMode.PARTIAL)
-        val constantValue = ConstantExpressionEvaluator.getConstant(right, context)?.toConstantValue(right.getType(context) ?: return false)
-        val rightValue = (constantValue?.value as? Number)?.toInt() ?: return false
-        return rightValue == 1
+            val constantValue = right?.constantValueOrNull()
+            val rightValue = (constantValue?.value as? Number)?.toInt() ?: return false
+            return rightValue == 1
+        }
     }
 }
+
+private fun KtExpression.deparenthesize() = KtPsiUtil.safeDeparenthesize(this)

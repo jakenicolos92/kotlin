@@ -1,3 +1,4 @@
+// !WITH_NEW_INFERENCE
 // !CHECK_TYPE
 // !DIAGNOSTICS: -UNUSED_PARAMETER,-UNUSED_VARIABLE
 
@@ -19,7 +20,7 @@ class A<F> {
         fooInv1<Inv<F>>(Inv<F>())
         fooInv2<<!UPPER_BOUND_VIOLATED!>Inv<F><!>>(Inv<F>())
         fooInv1(Inv<F>())
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInv2<!>(Inv<F>())
+        <!OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInv2<!>(<!NI;TYPE_MISMATCH!>Inv<F>()<!>)
 
         fooIn1<In<F?>>(In<F?>())
         fooIn2<In<F?>>(In<F?>())
@@ -34,13 +35,13 @@ class A<F> {
         // Z
         fooInv1<<!UPPER_BOUND_VIOLATED!>Inv<Z><!>>(Inv<Z>())
         fooInv2<<!UPPER_BOUND_VIOLATED!>Inv<Z><!>>(Inv<Z>())
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInv1<!>(Inv<Z>())
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInv2<!>(Inv<Z>())
+        <!OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInv1<!>(<!NI;TYPE_MISMATCH!>Inv<Z>()<!>)
+        <!OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInv2<!>(<!NI;TYPE_MISMATCH!>Inv<Z>()<!>)
 
         fooIn1<<!UPPER_BOUND_VIOLATED!>In<Z?><!>>(In<Z?>())
         fooIn2<<!UPPER_BOUND_VIOLATED!>In<Z?><!>>(In<Z?>())
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooIn1<!>(In<Z?>())
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooIn2<!>(In<Z?>())
+        <!OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooIn1<!>(<!NI;TYPE_MISMATCH!>In<Z?>()<!>)
+        <!OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooIn2<!>(<!NI;TYPE_MISMATCH!>In<Z?>()<!>)
 
         fooOut1<Out<Z>>(Out<Z>())
         fooOut2<Out<Z>>(Out<Z>())
@@ -50,17 +51,17 @@ class A<F> {
         // W
         fooInv1<<!UPPER_BOUND_VIOLATED!>Inv<W><!>>(Inv<W>())
         fooInv2<<!UPPER_BOUND_VIOLATED!>Inv<W><!>>(Inv<W>())
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInv1<!>(Inv<W>())
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInv2<!>(Inv<W>())
+        <!OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInv1<!>(<!NI;TYPE_MISMATCH!>Inv<W>()<!>)
+        <!OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInv2<!>(<!NI;TYPE_MISMATCH!>Inv<W>()<!>)
 
         fooIn1<<!UPPER_BOUND_VIOLATED!>In<W?><!>>(In<W?>())
         fooIn2<<!UPPER_BOUND_VIOLATED!>In<W?><!>>(In<W?>())
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooIn1<!>(In<W?>())
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooIn2<!>(In<W?>())
+        <!OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooIn1<!>(<!NI;TYPE_MISMATCH!>In<W?>()<!>)
+        <!OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooIn2<!>(<!NI;TYPE_MISMATCH!>In<W?>()<!>)
 
         fooOut1<<!UPPER_BOUND_VIOLATED!>Out<W><!>>(Out<W>())
         fooOut2<Out<W>>(Out<W>())
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooOut1<!>(Out<W>())
+        <!OI;TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooOut1<!>(<!NI;TYPE_MISMATCH!>Out<W>()<!>)
         fooOut2(Out<W>())
     }
 }

@@ -1,5 +1,4 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
 // WITH_RUNTIME
 // FULL_JDK
@@ -36,7 +35,7 @@ fun box(): String {
 
     try {
         Test2::class.java.getDeclaredField("\$\$delegate_0")
-        return "\$\$delegate_0 field generated for class Test but should not"
+        return "\$\$delegate_0 field generated for class Test2 but should not"
     }
     catch (e: NoSuchFieldException) {
         // ok

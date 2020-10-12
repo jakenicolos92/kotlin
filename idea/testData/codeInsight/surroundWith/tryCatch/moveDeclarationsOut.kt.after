@@ -1,10 +1,9 @@
 fun foo() {
     val a: String
-    val b: String
-    try {
+    val b = try {
         a = "aaa"
-        b = "aaa"
-    } catch(e: <selection>Exception</selection>) {
+        "aaa"
+    } catch (e: <selection>Exception</selection>) {
     }
 
     a.charAt(1)

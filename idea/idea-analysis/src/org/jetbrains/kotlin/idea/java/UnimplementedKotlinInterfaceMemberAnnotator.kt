@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.java
@@ -26,9 +15,13 @@ import com.intellij.lang.annotation.Annotation
 import com.intellij.lang.annotation.AnnotationHolder
 import com.intellij.lang.annotation.Annotator
 import com.intellij.psi.*
+import org.jetbrains.kotlin.asJava.KtLightClassMarker
 import org.jetbrains.kotlin.asJava.classes.KtLightClassForSourceDeclaration
 import org.jetbrains.kotlin.asJava.elements.KtLightMethod
 import org.jetbrains.kotlin.idea.KotlinLanguage
+import org.jetbrains.kotlin.load.java.structure.LightClassOriginKind
+import org.jetbrains.kotlin.resolve.annotations.JVM_STATIC_ANNOTATION_FQ_NAME
+import org.jetbrains.kotlin.resolve.jvm.annotations.JVM_DEFAULT_FQ_NAME
 import org.jetbrains.kotlin.utils.ifEmpty
 
 class UnimplementedKotlinInterfaceMemberAnnotator : Annotator {
@@ -51,16 +44,26 @@ class UnimplementedKotlinInterfaceMemberAnnotator : Annotator {
         }.ifEmpty { return null }
 
         val kotlinSuperClass = generateSequence(psiClass) { it.superClass }.firstOrNull { it is KtLightClassForSourceDeclaration }
-                               ?: return signaturesFromKotlinInterfaces.first().method as? KtLightMethod
 
-        val signaturesVisibleThroughKotlinSuperClass = kotlinSuperClass.visibleSignatures
-        return signaturesFromKotlinInterfaces.firstOrNull { it !in signaturesVisibleThroughKotlinSuperClass }?.method as? KtLightMethod
+        val signaturesVisibleThroughKotlinSuperClass = kotlinSuperClass?.visibleSignatures ?: emptyList()
+        return signaturesFromKotlinInterfaces.firstOrNull {
+            it !in signaturesVisibleThroughKotlinSuperClass &&
+                    !it.method.isBinaryOrigin &&
+                    it.method.modifierList.annotations.none { annotation ->
+                        val qualifiedName = annotation.qualifiedName
+                        qualifiedName == JVM_DEFAULT_FQ_NAME.asString() || qualifiedName == JVM_STATIC_ANNOTATION_FQ_NAME.asString()
+                    }
+        }?.method as? KtLightMethod
     }
+
+    private val PsiMethod.isBinaryOrigin get() = (containingClass as? KtLightClassMarker)?.originKind == LightClassOriginKind.BINARY
 
     private fun report(method: KtLightMethod, holder: AnnotationHolder, psiClass: PsiClass) {
         val key = if (psiClass is PsiEnumConstantInitializer) "enum.constant.should.implement.method" else "class.must.be.abstract"
-        val message = JavaErrorMessages.message(key, HighlightUtil.formatClass(psiClass, false), JavaHighlightUtil.formatMethod(method),
-                                                HighlightUtil.formatClass(method.containingClass, false))
+        val message = JavaErrorMessages.message(
+            key, HighlightUtil.formatClass(psiClass, false), JavaHighlightUtil.formatMethod(method),
+            HighlightUtil.formatClass(method.containingClass, false)
+        )
         val errorAnnotation = holder.createErrorAnnotation(getClassDeclarationTextRange(psiClass), message)
         registerFixes(errorAnnotation, psiClass)
     }
@@ -70,7 +73,7 @@ class UnimplementedKotlinInterfaceMemberAnnotator : Annotator {
         // this code is untested
         // see com.intellij.codeInsight.daemon.impl.analysis.HighlightClassUtil.checkClassWithAbstractMethods
         errorAnnotation.registerFix(quickFixFactory.createImplementMethodsFix(psiClass))
-        if (psiClass !is PsiAnonymousClass && !(psiClass.modifierList?.hasExplicitModifier(PsiModifier.FINAL) ?: false)) {
+        if (psiClass !is PsiAnonymousClass && psiClass.modifierList?.hasExplicitModifier(PsiModifier.FINAL) != true) {
             errorAnnotation.registerFix(quickFixFactory.createModifierListFix(psiClass, PsiModifier.ABSTRACT, true, false))
         }
     }

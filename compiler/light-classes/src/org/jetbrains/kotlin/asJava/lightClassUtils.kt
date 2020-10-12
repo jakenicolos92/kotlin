@@ -17,37 +17,56 @@
 package org.jetbrains.kotlin.asJava
 
 import com.intellij.psi.*
+import com.intellij.psi.impl.light.LightField
 import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.util.IncorrectOperationException
 import org.jetbrains.kotlin.asJava.classes.KtLightClass
 import org.jetbrains.kotlin.asJava.classes.KtLightClassForFacade
-import org.jetbrains.kotlin.asJava.elements.KtLightAnnotationForSourceEntry
-import org.jetbrains.kotlin.asJava.elements.KtLightElement
-import org.jetbrains.kotlin.asJava.elements.KtLightIdentifier
-import org.jetbrains.kotlin.asJava.elements.KtLightMethod
+import org.jetbrains.kotlin.asJava.classes.KtUltraLightElementWithNullabilityAnnotation
+import org.jetbrains.kotlin.asJava.classes.runReadAction
+import org.jetbrains.kotlin.asJava.elements.PsiElementWithOrigin
+import org.jetbrains.kotlin.asJava.elements.*
+import org.jetbrains.kotlin.builtins.jvm.JavaToKotlinClassMap
+import org.jetbrains.kotlin.codegen.state.KotlinTypeMapper
+import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.load.java.JvmAbi
 import org.jetbrains.kotlin.load.java.propertyNameByGetMethodName
 import org.jetbrains.kotlin.load.java.propertyNameBySetMethodName
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
-import org.jetbrains.kotlin.psi.psiUtil.getNonStrictParentOfType
-import org.jetbrains.kotlin.psi.psiUtil.getStrictParentOfType
-import org.jetbrains.kotlin.psi.psiUtil.isExtensionDeclaration
+import org.jetbrains.kotlin.psi.psiUtil.*
+import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
+import org.jetbrains.kotlin.resolve.constants.ArrayValue
+import org.jetbrains.kotlin.resolve.constants.ConstantValue
+import org.jetbrains.kotlin.types.TypeUtils
 
-fun KtClassOrObject.toLightClass(): KtLightClass? = LightClassGenerationSupport.getInstance(project).getLightClass(this)
+/**
+ * Can be null in scripts and for elements from non-jvm modules.
+ */
+fun KtClassOrObject.toLightClass(): KtLightClass? = KotlinAsJavaSupport.getInstance(project).getLightClass(this)
+
+fun KtClassOrObject.toLightClassWithBuiltinMapping(): PsiClass? {
+    toLightClass()?.let { return it }
+
+    val fqName = fqName ?: return null
+    val javaClassFqName = JavaToKotlinClassMap.mapKotlinToJava(fqName.toUnsafe())?.asSingleFqName() ?: return null
+    val searchScope = useScope as? GlobalSearchScope ?: return null
+    return JavaPsiFacade.getInstance(project).findClass(javaClassFqName.asString(), searchScope)
+}
 
 fun KtFile.findFacadeClass(): KtLightClass? {
-    return LightClassGenerationSupport.getInstance(project)
+    return KotlinAsJavaSupport.getInstance(project)
             .getFacadeClassesInPackage(packageFqName, this.useScope as? GlobalSearchScope ?: GlobalSearchScope.projectScope(project))
             .firstOrNull { it is KtLightClassForFacade && this in it.files } as? KtLightClass
 }
+
+fun KtScript.toLightClass(): KtLightClass? = KotlinAsJavaSupport.getInstance(project).getLightClassForScript(this)
 
 fun KtElement.toLightElements(): List<PsiNamedElement> =
         when (this) {
             is KtClassOrObject -> listOfNotNull(toLightClass())
             is KtNamedFunction,
-            is KtSecondaryConstructor -> LightClassUtil.getLightClassMethods(this as KtFunction)
+            is KtConstructor<*> -> LightClassUtil.getLightClassMethods(this as KtFunction)
             is KtProperty -> LightClassUtil.getLightClassPropertyMethods(this).allDeclarations
             is KtPropertyAccessor -> listOfNotNull(LightClassUtil.getLightClassAccessorMethod(this))
             is KtParameter -> mutableListOf<PsiNamedElement>().also { elements ->
@@ -85,6 +104,7 @@ fun KtParameter.toPsiParameters(): Collection<PsiParameter> {
     val paramList = getNonStrictParentOfType<KtParameterList>() ?: return emptyList()
 
     val paramIndex = paramList.parameters.indexOf(this)
+    if (paramIndex < 0) return emptyList()
     val owner = paramList.parent
     val lightParamIndex = if (owner is KtDeclaration && owner.isExtensionDeclaration()) paramIndex + 1 else paramIndex
 
@@ -95,9 +115,7 @@ fun KtParameter.toPsiParameters(): Collection<PsiParameter> {
                 else -> null
             } ?: return emptyList()
 
-    return methods.mapNotNull {
-        if (it.parameterList.parametersCount > lightParamIndex) it.parameterList.parameters[lightParamIndex] else null
-    }
+    return methods.mapNotNull { it.parameterList.parameters.getOrNull(lightParamIndex) }
 }
 
 private fun KtParameter.toAnnotationLightMethod(): PsiMethod? {
@@ -107,6 +125,10 @@ private fun KtParameter.toAnnotationLightMethod(): PsiMethod? {
 
     return LightClassUtil.getLightClassMethod(this)
 }
+
+fun KtParameter.toLightGetter(): PsiMethod? = LightClassUtil.getLightClassPropertyMethods(this).getter
+
+fun KtParameter.toLightSetter(): PsiMethod? = LightClassUtil.getLightClassPropertyMethods(this).setter
 
 fun KtTypeParameter.toPsiTypeParameters(): List<PsiTypeParameter> {
     val paramList = getNonStrictParentOfType<KtTypeParameterList>() ?: return listOf()
@@ -123,9 +145,9 @@ fun KtTypeParameter.toPsiTypeParameters(): List<PsiTypeParameter> {
 // Returns original declaration if given PsiElement is a Kotlin light element, and element itself otherwise
 val PsiElement.unwrapped: PsiElement?
     get() = when {
+        this is PsiElementWithOrigin<*> -> origin
         this is KtLightElement<*, *> -> kotlinOrigin
-        this is KtLightIdentifier -> origin
-        this is KtLightAnnotationForSourceEntry.LightExpressionValue<*> -> originalExpression
+        this is KtLightElementBase -> kotlinOrigin
         else -> this
     }
 
@@ -149,13 +171,29 @@ private val DEFAULT_IMPLS_CLASS_NAME = Name.identifier(JvmAbi.DEFAULT_IMPLS_CLAS
 fun FqName.defaultImplsChild() = child(DEFAULT_IMPLS_CLASS_NAME)
 
 @Suppress("unused")
-fun KtAnnotationEntry.toLightAnnotation(): PsiAnnotation? {
+fun KtElement.toLightAnnotation(): PsiAnnotation? {
     val ktDeclaration = getStrictParentOfType<KtModifierList>()?.parent as? KtDeclaration ?: return null
     for (lightElement in ktDeclaration.toLightElements()) {
         if (lightElement !is PsiModifierListOwner) continue
-        lightElement.modifierList?.annotations?.firstOrNull { it is KtLightAnnotationForSourceEntry && it.kotlinOrigin == this }?.let { return it }
+        for (rootAnnotation in lightElement.modifierList?.annotations ?: continue) {
+            for (annotation in rootAnnotation.withNestedAnnotations()) {
+                if (annotation is KtLightAnnotationForSourceEntry && annotation.kotlinOrigin == this)
+                    return annotation
+            }
+        }
     }
     return null
+}
+
+private fun PsiAnnotation.withNestedAnnotations(): Sequence<PsiAnnotation> {
+    fun handleValue(memberValue: PsiAnnotationMemberValue?): Sequence<PsiAnnotation> =
+        when (memberValue) {
+            is PsiArrayInitializerMemberValue ->
+                memberValue.initializers.asSequence().flatMap { handleValue(it) }
+            is PsiAnnotation -> memberValue.withNestedAnnotations()
+            else -> emptySequence()
+        }
+    return sequenceOf(this) + parameterList.attributes.asSequence().flatMap { handleValue(it.value) }
 }
 
 fun propertyNameByAccessor(name: String, accessor: KtLightMethod): String? {
@@ -182,4 +220,75 @@ fun accessorNameByPropertyName(name: String, accessor: KtLightMethod): String? {
 
 fun getAccessorNamesCandidatesByPropertyName(name: String): List<String> {
     return listOf(JvmAbi.setterName(name), JvmAbi.getterName(name))
+}
+
+fun KtLightMethod.checkIsMangled(): Boolean {
+    val demangledName = KotlinTypeMapper.InternalNameMapper.demangleInternalName(name) ?: return false
+    val originalName = propertyNameByAccessor(demangledName, this) ?: demangledName
+    return originalName == kotlinOrigin?.name
+}
+
+fun fastCheckIsNullabilityApplied(lightElement: KtLightElement<*, PsiModifierListOwner>): Boolean {
+
+    val elementIsApplicable =
+        (lightElement is KtLightMember<*> && lightElement !is KtLightFieldImpl.KtLightEnumConstant) || lightElement is LightParameter
+    if (!elementIsApplicable) return false
+
+    val annotatedElement = lightElement.kotlinOrigin ?: return true
+
+    // all data-class generated members are not-null
+    if (annotatedElement is KtClass && annotatedElement.isData()) return true
+
+    // backing fields for lateinit props are skipped
+    if (lightElement is KtLightField && annotatedElement is KtProperty && annotatedElement.hasModifier(KtTokens.LATEINIT_KEYWORD)) return false
+
+    if (lightElement is KtLightField && (annotatedElement as? KtModifierListOwner)?.isPrivate() == true) {
+        return false
+    }
+
+    if (annotatedElement is KtParameter) {
+        val containingClassOrObject = annotatedElement.containingClassOrObject
+        if (containingClassOrObject?.isAnnotation() == true) return false
+        if ((containingClassOrObject as? KtClass)?.isEnum() == true) {
+            if (annotatedElement.parent.parent is KtPrimaryConstructor) return false
+        }
+
+        val parent = annotatedElement.parent.parent
+        if (parent is KtModifierListOwner && parent.isPrivate()) return false
+
+        if (parent is KtPropertyAccessor) {
+            val propertyOfAccessor = parent.parent
+            if (propertyOfAccessor is KtProperty && propertyOfAccessor.isPrivate()) return false
+        }
+    } else {
+        // private properties
+        if ((annotatedElement as? KtModifierListOwner)?.isPrivate() == true) return false
+    }
+
+    return true
+}
+
+fun computeExpression(expression: PsiElement): Any? {
+    fun evalConstantValue(constantValue: ConstantValue<*>): Any? {
+        return if (constantValue is ArrayValue) {
+            val items = constantValue.value.map { evalConstantValue(it) }
+            items.singleOrNull() ?: items
+        } else constantValue.value
+    }
+
+    val expressionToCompute = when (expression) {
+        is KtLightElementBase -> expression.kotlinOrigin as? KtExpression ?: return null
+        else -> return null
+    }
+
+    val generationSupport = LightClassGenerationSupport.getInstance(expressionToCompute.project)
+    val evaluator = generationSupport.createConstantEvaluator(expressionToCompute)
+
+    val constant = runReadAction {
+        val evaluatorTrace = DelegatingBindingTrace(generationSupport.analyze(expressionToCompute), "Evaluating annotation argument")
+        evaluator.evaluateExpression(expressionToCompute, evaluatorTrace)
+    } ?: return null
+
+    if (constant.isError) return null
+    return evalConstantValue(constant.toConstantValue(TypeUtils.NO_EXPECTED_TYPE))
 }

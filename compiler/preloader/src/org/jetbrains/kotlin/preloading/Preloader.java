@@ -26,12 +26,20 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @SuppressWarnings("UseOfSystemOutOrSystemErr")
 public class Preloader {
     public static final int DEFAULT_CLASS_NUMBER_ESTIMATE = 4096;
 
     public static void main(String[] args) throws Exception {
+        String javaVersion = System.getProperty("java.specification.version");
+        if (javaVersion.equals("1.6") || javaVersion.equals("1.7")) {
+            System.err.println("error: running the Kotlin compiler under Java " + javaVersion + " is not supported. " +
+                               "Java 1.8 or later is required");
+            System.exit(1);
+        }
+
         try {
             run(args);
         }
@@ -44,31 +52,44 @@ public class Preloader {
     }
 
     private static void run(String[] args) throws Exception {
-        long startTime = System.nanoTime();
+        final long startTime = System.nanoTime();
 
-        Options options = parseOptions(args);
+        final Options options = parseOptions(args);
 
         ClassLoader classLoader = createClassLoader(options);
 
-        Handler handler = getHandler(options, classLoader);
+        final Handler handler = getHandler(options, classLoader);
         ClassLoader preloaded = ClassPreloadingUtils.preloadClasses(options.classpath, options.estimate, classLoader, null, handler);
 
         Class<?> mainClass = preloaded.loadClass(options.mainClass);
         Method mainMethod = mainClass.getMethod("main", String[].class);
 
+        Thread.currentThread().setContextClassLoader(preloaded);
+        String classPathString = options.classpath.stream().map(File::getPath).collect(Collectors.joining(File.pathSeparator));
+        String savedClasspathProperty = System.setProperty("java.class.path", classPathString);
+
         Runtime.getRuntime().addShutdownHook(
-                new Thread(() -> {
-                    if (options.measure) {
-                        System.out.println();
-                        System.out.println("=== Preloader's measurements: ");
-                        System.out.format("Total time: %.3fs\n", (System.nanoTime() - startTime) / 1e9);
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (options.measure) {
+                            System.out.println();
+                            System.out.println("=== Preloader's measurements: ");
+                            System.out.format("Total time: %.3fs\n", (System.nanoTime() - startTime) / 1e9);
+                        }
+                        handler.done();
                     }
-                    handler.done();
                 })
         );
 
-        //noinspection SSBasedInspection
-        mainMethod.invoke(0, (Object) options.arguments.toArray(new String[options.arguments.size()]));
+        try {
+            //noinspection SSBasedInspection
+            mainMethod.invoke(0, (Object) options.arguments.toArray(new String[options.arguments.size()]));
+        }
+        finally {
+            if (savedClasspathProperty == null) System.clearProperty("java.class.path");
+            else System.setProperty("java.class.path", savedClasspathProperty);
+        }
     }
 
     private static ClassLoader createClassLoader(Options options) throws MalformedURLException {
@@ -120,10 +141,10 @@ public class Preloader {
     private static Options parseOptions(String[] args) throws Exception {
         List<File> classpath = Collections.emptyList();
         boolean measure = false;
-        List<File> instrumenters = new ArrayList<>();
+        List<File> instrumenters = new ArrayList<File>();
         int estimate = DEFAULT_CLASS_NUMBER_ESTIMATE;
         String mainClass = null;
-        List<String> arguments = new ArrayList<>();
+        List<String> arguments = new ArrayList<String>();
 
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
@@ -162,7 +183,7 @@ public class Preloader {
 
     private static List<File> parseClassPath(String classpath) {
         String[] paths = classpath.split(File.pathSeparator);
-        List<File> files = new ArrayList<>(paths.length);
+        List<File> files = new ArrayList<File>(paths.length);
         for (String path : paths) {
             File file = new File(path);
             if (!file.exists()) {
@@ -176,10 +197,10 @@ public class Preloader {
     private static Handler getHandler(Options options, ClassLoader withInstrumenter) {
         if (!options.measure) return new Handler();
 
-        Instrumenter instrumenter = options.instrumenters.isEmpty() ? Instrumenter.DO_NOTHING : loadInstrumenter(withInstrumenter);
+        final Instrumenter instrumenter = options.instrumenters.isEmpty() ? Instrumenter.DO_NOTHING : loadInstrumenter(withInstrumenter);
 
-        int[] counter = new int[1];
-        int[] size = new int[1];
+        final int[] counter = new int[1];
+        final int[] size = new int[1];
         return new Handler() {
             @Override
             public void beforeDefineClass(String name, int sizeInBytes) {
@@ -256,9 +277,13 @@ public class Preloader {
         }
     }
 
-    private static class PreloaderException extends RuntimeException {
+    public static class PreloaderException extends RuntimeException {
         public PreloaderException(String message) {
             super(message);
+        }
+
+        public PreloaderException(String message, Throwable cause) {
+            super(message, cause);
         }
     }
 

@@ -24,7 +24,7 @@ import com.intellij.psi.util.PsiFormatUtilBase
 import org.jetbrains.kotlin.asJava.unwrapped
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
-import org.jetbrains.kotlin.idea.caches.resolve.resolveToDescriptor
+import org.jetbrains.kotlin.idea.caches.resolve.unsafeResolveToDescriptor
 import org.jetbrains.kotlin.idea.util.IdeDescriptorRenderers
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtDeclaration
@@ -33,19 +33,20 @@ import org.jetbrains.kotlin.resolve.DescriptorToSourceUtils
 
 fun wrapOrSkip(s: String, inCode: Boolean) = if (inCode) "<code>$s</code>" else s
 
-fun formatClassDescriptor(classDescriptor: DeclarationDescriptor) = IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES.render(classDescriptor)
+fun formatClassDescriptor(classDescriptor: DeclarationDescriptor) =
+    IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_NO_ANNOTATIONS.render(classDescriptor)
 
 fun formatPsiClass(
-        psiClass: PsiClass,
-        markAsJava: Boolean,
-        inCode: Boolean
+    psiClass: PsiClass,
+    markAsJava: Boolean,
+    inCode: Boolean
 ): String {
     var description: String
 
     val kind = if (psiClass.isInterface) "interface " else "class "
     description = kind + PsiFormatUtil.formatClass(
-            psiClass,
-            PsiFormatUtilBase.SHOW_CONTAINING_CLASS or PsiFormatUtilBase.SHOW_NAME or PsiFormatUtilBase.SHOW_PARAMETERS or PsiFormatUtilBase.SHOW_TYPE
+        psiClass,
+        PsiFormatUtilBase.SHOW_CONTAINING_CLASS or PsiFormatUtilBase.SHOW_NAME or PsiFormatUtilBase.SHOW_PARAMETERS or PsiFormatUtilBase.SHOW_TYPE
     )
     description = wrapOrSkip(description, inCode)
 
@@ -56,8 +57,7 @@ fun formatClass(classDescriptor: DeclarationDescriptor, inCode: Boolean): String
     val element = DescriptorToSourceUtils.descriptorToDeclaration(classDescriptor)
     return if (element is PsiClass) {
         formatPsiClass(element, false, inCode)
-    }
-    else {
+    } else {
         wrapOrSkip(formatClassDescriptor(classDescriptor), inCode)
     }
 }
@@ -66,8 +66,7 @@ fun formatFunction(functionDescriptor: DeclarationDescriptor, inCode: Boolean): 
     val element = DescriptorToSourceUtils.descriptorToDeclaration(functionDescriptor)
     return if (element is PsiMethod) {
         formatPsiMethod(element, false, inCode)
-    }
-    else {
+    } else {
         wrapOrSkip(formatFunctionDescriptor(functionDescriptor), inCode)
     }
 }
@@ -75,9 +74,9 @@ fun formatFunction(functionDescriptor: DeclarationDescriptor, inCode: Boolean): 
 private fun formatFunctionDescriptor(functionDescriptor: DeclarationDescriptor) = DescriptorRenderer.COMPACT.render(functionDescriptor)
 
 fun formatPsiMethod(
-        psiMethod: PsiMethod,
-        showContainingClass: Boolean,
-        inCode: Boolean
+    psiMethod: PsiMethod,
+    showContainingClass: Boolean,
+    inCode: Boolean
 ): String {
     var options = PsiFormatUtilBase.SHOW_NAME or PsiFormatUtilBase.SHOW_PARAMETERS or PsiFormatUtilBase.SHOW_TYPE
     if (showContainingClass) {
@@ -94,11 +93,10 @@ fun formatPsiMethod(
 fun formatJavaOrLightMethod(method: PsiMethod): String {
     val originalDeclaration = method.unwrapped
     return if (originalDeclaration is KtDeclaration) {
-        formatFunctionDescriptor(originalDeclaration.resolveToDescriptor())
-    }
-    else {
-        formatPsiMethod(method, false, false)
+        formatFunctionDescriptor(originalDeclaration.unsafeResolveToDescriptor())
+    } else {
+        formatPsiMethod(method, showContainingClass = false, inCode = false)
     }
 }
 
-fun formatClass(classOrObject: KtClassOrObject) = formatClassDescriptor(classOrObject.resolveToDescriptor() as ClassDescriptor)
+fun formatClass(classOrObject: KtClassOrObject) = formatClassDescriptor(classOrObject.unsafeResolveToDescriptor() as ClassDescriptor)

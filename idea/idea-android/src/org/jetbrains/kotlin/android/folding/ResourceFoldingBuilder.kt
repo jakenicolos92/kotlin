@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.android.folding
@@ -47,12 +36,13 @@ class ResourceFoldingBuilder : FoldingBuilderEx() {
         // See lint's StringFormatDetector
         private val FORMAT = Pattern.compile("%(\\d+\\$)?([-+#, 0(<]*)?(\\d+)?(\\.\\d+)?([tT])?([a-zA-Z%])")
         private val FOLD_MAX_LENGTH = 60
-        private val FORCE_PROJECT_RESOURCE_LOADING = true
         private val UNIT_TEST_MODE: Boolean = ApplicationManager.getApplication().isUnitTestMode
-        private val RESOURCE_TYPES = listOf(ResourceType.STRING,
-                                            ResourceType.DIMEN,
-                                            ResourceType.INTEGER,
-                                            ResourceType.PLURALS)
+        private val RESOURCE_TYPES = listOf(
+            ResourceType.STRING,
+            ResourceType.DIMEN,
+            ResourceType.INTEGER,
+            ResourceType.PLURALS
+        )
     }
 
     private val isFoldingEnabled = AndroidFoldingSettings.getInstance().isCollapseAndroidStrings
@@ -100,23 +90,27 @@ class ResourceFoldingBuilder : FoldingBuilderEx() {
             FoldingDescriptor(psi.node, psi.textRange, null, dependencies)
         }
 
-        val element = getOutermostQualified() ?: this
-
-        (element.uastParent as? UCallExpression)?.run {
-            if (isFoldableGetResourceValueCall()) {
-                return getOutermostQualified()?.createFoldingDescriptor() ?: createFoldingDescriptor()
+        val element = uastParent as? UQualifiedReferenceExpression ?: this
+        val getResourceValueCall = (element.uastParent as? UCallExpression)?.takeIf { it.isFoldableGetResourceValueCall() }
+        if (getResourceValueCall != null) {
+            val qualifiedCall = getResourceValueCall.uastParent as? UQualifiedReferenceExpression
+            if (qualifiedCall?.selector == getResourceValueCall) {
+                return qualifiedCall.createFoldingDescriptor()
             }
+
+            return getResourceValueCall.createFoldingDescriptor()
         }
 
         return element.createFoldingDescriptor()
     }
 
-    private fun UCallExpression.isFoldableGetResourceValueCall() =
-        methodName == "getString" ||
-        methodName == "getText" ||
-        methodName == "getInteger" ||
-        methodName?.startsWith("getDimension") ?: false ||
-        methodName?.startsWith("getQuantityString") ?: false
+    private fun UCallExpression.isFoldableGetResourceValueCall(): Boolean {
+        return methodName == "getString" ||
+                methodName == "getText" ||
+                methodName == "getInteger" ||
+                methodName?.startsWith("getDimension") ?: false ||
+                methodName?.startsWith("getQuantityString") ?: false
+    }
 
     private fun PsiElement.getAndroidResourceType(): ResourceType? {
         val elementType = parent as? PsiClass ?: return null
@@ -132,20 +126,13 @@ class ResourceFoldingBuilder : FoldingBuilderEx() {
     private fun UReferenceExpression.getAndroidResourceValue(resources: LocalResourceRepository, call: UCallExpression? = null): String? {
         val resourceType = resolve()?.getAndroidResourceType() ?: return null
         val referenceConfig = FolderConfiguration().apply { localeQualifier = LocaleQualifier("xx") }
-        val key = resolvedName
-        val resourceValue = resources.getConfiguredValue(resourceType, key, referenceConfig)?.value ?: return null
+        val key = resolvedName ?: return null
+        val resourceValue = resources.getResourceValue(resourceType, key, referenceConfig) ?: return null
         val text = if (call != null) formatArguments(call, resourceValue) else resourceValue
 
-        if (resourceType == ResourceType.PLURALS && text.startsWith(STRING_PREFIX)) {
-            resources.getConfiguredValue(ResourceType.STRING, text.substring(STRING_PREFIX.length), referenceConfig)?.value?.let {
-                return '"' + StringUtil.shortenTextWithEllipsis(it, FOLD_MAX_LENGTH - 2, 0) + '"'
-            }
-        }
-
-        if (resourceType == ResourceType.STRING) {
+        if (resourceType == ResourceType.STRING || resourceType == ResourceType.PLURALS) {
             return '"' + StringUtil.shortenTextWithEllipsis(text, FOLD_MAX_LENGTH - 2, 0) + '"'
-        }
-        else if (text.length <= 1) {
+        } else if (text.length <= 1) {
             // Don't just inline empty or one-character replacements: they can't be expanded by a mouse click
             // so are hard to use without knowing about the folding keyboard shortcut to toggle folding.
             // This is similar to how IntelliJ 14 handles call parameters
@@ -153,6 +140,21 @@ class ResourceFoldingBuilder : FoldingBuilderEx() {
         }
 
         return StringUtil.shortenTextWithEllipsis(text, FOLD_MAX_LENGTH, 0)
+    }
+
+    private tailrec fun LocalResourceRepository.getResourceValue(
+        type: ResourceType,
+        name: String,
+        referenceConfig: FolderConfiguration
+    ): String? {
+        val value = getConfiguredValue(type, name, referenceConfig)?.value ?: return null
+        if (!value.startsWith('@')) {
+            return value
+        }
+
+        val (referencedTypeName, referencedName) = value.substring(1).split('/').takeIf { it.size == 2 } ?: return value
+        val referencedType = ResourceType.getEnum(referencedTypeName) ?: return value
+        return getResourceValue(referencedType, referencedName, referenceConfig)
     }
 
     // Converted from com.android.tools.idea.folding.InlinedResource#insertArguments
@@ -204,8 +206,7 @@ class ResourceFoldingBuilder : FoldingBuilderEx() {
                     numberString = numberString.substring(0, numberString.length - 1)
                     number = Integer.parseInt(numberString)
                     nextNumber = number + 1
-                }
-                else {
+                } else {
                     number = nextNumber++
                 }
 
@@ -226,8 +227,7 @@ class ResourceFoldingBuilder : FoldingBuilderEx() {
                     sb.append('}')
                     start = index
                 }
-            }
-            else {
+            } else {
                 var i = start
                 val n = formatString.length
                 while (i < n) {
@@ -242,6 +242,6 @@ class ResourceFoldingBuilder : FoldingBuilderEx() {
     }
 
     private fun getAppResources(element: PsiElement): LocalResourceRepository? = ModuleUtilCore.findModuleForPsiElement(element)?.let {
-        AppResourceRepository.getAppResources(it, FORCE_PROJECT_RESOURCE_LOADING)
+        AppResourceRepository.findExistingInstance(it)
     }
 }

@@ -1,8 +1,11 @@
 // !DIAGNOSTICS: -UNUSED_PARAMETER
 
 @Target(AnnotationTarget.EXPRESSION)
+@Retention(AnnotationRetention.SOURCE)
 annotation class Ann1
+
 @Target(AnnotationTarget.EXPRESSION)
+@Retention(AnnotationRetention.SOURCE)
 annotation class Ann2(val x: String)
 
 fun bar() {}
@@ -45,8 +48,8 @@ fun foo(y: IntArray) {
     <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 x<!> + 6 * 2 > 0
     <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 x<!> * 6 + 2 > 0
 
-    <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 object { operator fun plus(<!NAME_SHADOWING!>x<!>: Int) = 1 }<!> + 1
-    <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 object { operator fun plus(<!NAME_SHADOWING!>x<!>: Int) = 1 }<!> + 1 * 4 > 0
+    <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 object { operator fun plus(x: Int) = 1 }<!> + 1
+    <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 object { operator fun plus(x: Int) = 1 }<!> + 1 * 4 > 0
 
     <!ANNOTATIONS_ON_BLOCK_LEVEL_EXPRESSION_ON_THE_SAME_LINE!>@Ann1 x<!> foo z + 8
 

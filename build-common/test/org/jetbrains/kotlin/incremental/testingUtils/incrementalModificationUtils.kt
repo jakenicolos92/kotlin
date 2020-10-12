@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.incremental.testingUtils
 import com.intellij.openapi.util.io.FileUtil
 import java.io.File
 import java.util.*
+import kotlin.math.max
 
 private val COMMANDS = listOf("new", "touch", "delete")
 private val COMMANDS_AS_REGEX_PART = COMMANDS.joinToString("|")
@@ -39,14 +40,14 @@ fun copyTestSources(testDataDir: File, sourceDestinationDir: File, filePrefix: S
         if (!file.isFile) continue
 
         val renamedFile =
-                if (filePrefix.isEmpty()) {
-                    file
+            if (filePrefix.isEmpty()) {
+                file
+            }
+            else {
+                File(sourceDestinationDir, file.name.removePrefix(filePrefix)).apply {
+                    file.renameTo(this)
                 }
-                else {
-                    File(sourceDestinationDir, file.name.removePrefix(filePrefix)).apply {
-                        file.renameTo(this)
-                    }
-                }
+            }
 
         mapping[renamedFile] = File(testDataDir, file.name)
     }
@@ -55,10 +56,10 @@ fun copyTestSources(testDataDir: File, sourceDestinationDir: File, filePrefix: S
 }
 
 fun getModificationsToPerform(
-        testDataDir: File,
-        moduleNames: Collection<String>?,
-        allowNoFilesWithSuffixInTestData: Boolean,
-        touchPolicy: TouchPolicy
+    testDataDir: File,
+    moduleNames: Collection<String>?,
+    allowNoFilesWithSuffixInTestData: Boolean,
+    touchPolicy: TouchPolicy
 ): List<List<Modification>> {
 
     fun getModificationsForIteration(newSuffix: String, touchSuffix: String, deleteSuffix: String): List<Modification> {
@@ -67,12 +68,18 @@ fun getModificationsToPerform(
             val underscore = fileName.indexOf("_")
 
             if (underscore != -1) {
-                val module = fileName.substring(0, underscore)
+                var moduleName = fileName.substring(0, underscore)
+                var moduleFileName = fileName.substring(underscore + 1)
+                if (moduleName.all { it.isDigit() }) {
+                    val (moduleName1, moduleFileName1) = moduleFileName.split("_")
+                    moduleName = moduleName1
+                    moduleFileName = moduleFileName1
+                }
 
                 assert(moduleNames != null) { "File name has module prefix, but multi-module environment is absent" }
-                assert(module in moduleNames!!) { "Module not found for file with prefix: $fileName" }
+                assert(moduleName in moduleNames!!) { "Module not found for file with prefix: $fileName" }
 
-                return Pair(module, fileName.substring(underscore + 1))
+                return Pair(moduleName, moduleFileName)
             }
 
             assert(moduleNames == null) { "Test is multi-module, but file has no module prefix: $fileName" }
@@ -80,9 +87,9 @@ fun getModificationsToPerform(
         }
 
         val rules = mapOf<String, (String, File) -> Modification>(
-                newSuffix to { path, file -> ModifyContent(path, file) },
-                touchSuffix to { path, _ -> TouchFile(path, touchPolicy) },
-                deleteSuffix to { path, _ -> DeleteFile(path) }
+            newSuffix to { path, file -> ModifyContent(path, file) },
+            touchSuffix to { path, _ -> TouchFile(path, touchPolicy) },
+            deleteSuffix to { path, _ -> DeleteFile(path) }
         )
 
         val modifications = ArrayList<Modification>()
@@ -122,19 +129,19 @@ fun getModificationsToPerform(
     }
     else {
         return (1..10)
-                .map { getModificationsForIteration(".new.$it", ".touch.$it", ".delete.$it") }
-                .filter { it.isNotEmpty() }
+            .map { getModificationsForIteration(".new.$it", ".touch.$it", ".delete.$it") }
+            .filter { it.isNotEmpty() }
     }
 }
 
 abstract class Modification(val path: String) {
-    abstract fun perform(workDir: File, mapping: MutableMap<File, File>)
+    abstract fun perform(workDir: File, mapping: MutableMap<File, File>): File?
 
     override fun toString(): String = "${this::class.java.simpleName} $path"
 }
 
 class ModifyContent(path: String, val dataFile: File) : Modification(path) {
-    override fun perform(workDir: File, mapping: MutableMap<File, File>) {
+    override fun perform(workDir: File, mapping: MutableMap<File, File>): File? {
         val file = File(workDir, path)
 
         val oldLastModified = file.lastModified()
@@ -148,34 +155,37 @@ class ModifyContent(path: String, val dataFile: File) : Modification(path) {
         }
 
         mapping[file] = dataFile
+        return file
     }
 }
 
 class TouchFile(path: String, private val touchPolicy: TouchPolicy) : Modification(path) {
-    override fun perform(workDir: File, mapping: MutableMap<File, File>) {
+    override fun perform(workDir: File, mapping: MutableMap<File, File>): File? {
         val file = File(workDir, path)
 
         when (touchPolicy) {
             TouchPolicy.TIMESTAMP -> {
                 val oldLastModified = file.lastModified()
                 //Mac OS and some versions of Linux truncate timestamp to nearest second
-                file.setLastModified(Math.max(System.currentTimeMillis(), oldLastModified + 1000))
+                file.setLastModified(max(System.currentTimeMillis(), oldLastModified + 1000))
             }
             TouchPolicy.CHECKSUM -> {
                 file.appendText(" ")
             }
         }
 
+        return file
     }
 }
 
 class DeleteFile(path: String) : Modification(path) {
-    override fun perform(workDir: File, mapping: MutableMap<File, File>) {
+    override fun perform(workDir: File, mapping: MutableMap<File, File>): File? {
         val fileToDelete = File(workDir, path)
         if (!fileToDelete.delete()) {
             throw AssertionError("Couldn't delete $fileToDelete")
         }
 
         mapping.remove(fileToDelete)
+        return null
     }
 }

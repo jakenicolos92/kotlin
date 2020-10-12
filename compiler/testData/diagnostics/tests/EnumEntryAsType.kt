@@ -1,3 +1,4 @@
+// !WITH_NEW_INFERENCE
 // !DIAGNOSTICS: -UNUSED_PARAMETER
 
 enum class Color {
@@ -43,7 +44,7 @@ typealias ArrayOfEnumEntry = Array<Color.<!ENUM_ENTRY_AS_TYPE!>RED<!>>
 
 typealias ArrayOfEnumEntryAlias = Array<RedAlias>
 
-fun <T> bar(a: Any): T = <!UNCHECKED_CAST!>a as T<!>
+fun <T> bar(a: Any): T = a <!UNCHECKED_CAST!>as T<!>
 
 fun <T> foo() {
     foo<Color.<!ENUM_ENTRY_AS_TYPE!>RED<!>>()

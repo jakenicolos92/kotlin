@@ -25,9 +25,9 @@ import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.KtFunction
 
 class KtLightParameterList(
-        private val parent: KtLightMethod,
-        private val parametersCount: Int,
-        computeParameters: () -> List<PsiParameter>
+    private val parent: KtLightMethod,
+    private val parametersCount: Int,
+    computeParameters: () -> List<PsiParameter>
 ) : KtLightElementBase(parent), PsiParameterList {
 
     override val kotlinOrigin: KtElement?
@@ -45,4 +45,15 @@ class KtLightParameterList(
             visitor.visitParameterList(this)
         }
     }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        other as KtLightParameterList
+        if (parent != other.parent) return false
+        return true
+    }
+
+    override fun hashCode(): Int = parent.hashCode()
+
 }

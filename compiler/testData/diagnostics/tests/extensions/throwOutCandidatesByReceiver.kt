@@ -1,3 +1,4 @@
+// !WITH_NEW_INFERENCE
 package bar
 
 
@@ -34,22 +35,22 @@ fun test4() {
 // should be an error on receiver, shouldn't be thrown away
 
 fun test5() {
-    <!TYPE_MISMATCH!>1<!>.(fun String.()=1)()
+    <!OI;TYPE_MISMATCH!>1<!>.<!NI;FUNCTION_EXPECTED!>(fun String.()=1)<!>()
 }
 
 fun <R: Any> R?.sure() : R = this!!
 
 fun <T> test6(l: List<T>?) {
-    <!TYPE_MISMATCH!>l<!>.sure<<!UPPER_BOUND_VIOLATED!>T<!>>()
+    <!OI;TYPE_MISMATCH!>l<!>.<!NI;UNRESOLVED_REFERENCE_WRONG_RECEIVER!>sure<!><<!OI;UPPER_BOUND_VIOLATED!>T<!>>()
 }
 
 
 fun List<String>.b() {}
 
 fun test7(l: List<String?>) {
-    <!TYPE_MISMATCH!>l<!>.b()
+    <!OI;TYPE_MISMATCH!>l<!>.<!NI;UNRESOLVED_REFERENCE_WRONG_RECEIVER!>b<!>()
 }
 
 fun test8(l: List<Any>?) {
-    <!TYPE_MISMATCH!>l<!>.b()
+    <!OI;TYPE_MISMATCH!>l<!>.<!NI;UNRESOLVED_REFERENCE_WRONG_RECEIVER!>b<!>()
 }

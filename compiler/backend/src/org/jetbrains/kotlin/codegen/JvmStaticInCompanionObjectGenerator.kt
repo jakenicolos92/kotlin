@@ -25,9 +25,9 @@ import org.jetbrains.kotlin.resolve.jvm.diagnostics.Synthetic
 import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodSignature
 
 class JvmStaticInCompanionObjectGenerator(
-        val descriptor: FunctionDescriptor,
-        val declarationOrigin: JvmDeclarationOrigin,
-        val state: GenerationState,
+        private val descriptor: FunctionDescriptor,
+        private val declarationOrigin: JvmDeclarationOrigin,
+        private val state: GenerationState,
         parentBodyCodegen: ImplementationBodyCodegen
 ) : Function2<ImplementationBodyCodegen, ClassBuilder, Unit> {
     private val typeMapper = state.typeMapper
@@ -44,11 +44,12 @@ class JvmStaticInCompanionObjectGenerator(
                 Synthetic(originElement, staticFunctionDescriptor),
                 staticFunctionDescriptor,
                 object : FunctionGenerationStrategy.CodegenBased(state) {
+                    override fun skipNotNullAssertionsForParameters(): Boolean = true
+
                     override fun doGenerateBody(codegen: ExpressionCodegen, signature: JvmMethodSignature) {
                         val iv = codegen.v
                         val classDescriptor = descriptor.containingDeclaration as ClassDescriptor
-                        val singletonValue = StackValue.singleton(classDescriptor, typeMapper)
-                        singletonValue.put(singletonValue.type, iv)
+                        StackValue.singleton(classDescriptor, typeMapper).put(iv)
                         var index = 0
                         val asmMethod = signature.asmMethod
                         for (paramType in asmMethod.argumentTypes) {
@@ -61,7 +62,7 @@ class JvmStaticInCompanionObjectGenerator(
                                 propertyValue.put(signature.returnType, iv)
                             }
                             else {
-                                propertyValue.store(StackValue.onStack(propertyValue.type), iv, true)
+                                propertyValue.store(StackValue.onStack(propertyValue.type, propertyValue.kotlinType), iv, true)
                             }
                         }
                         else {
@@ -94,8 +95,7 @@ class JvmStaticInCompanionObjectGenerator(
                     CallableMemberDescriptor.Kind.SYNTHESIZED,
                     false
             )
-            val staticFunctionDescriptor = copies[descriptor]!!
-            return staticFunctionDescriptor
+            return copies[descriptor]!!
         }
     }
 }

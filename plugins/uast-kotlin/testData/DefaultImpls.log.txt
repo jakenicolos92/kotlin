@@ -1,6 +1,8 @@
 UFile (package = )
     UClass (name = Foo)
-        UAnnotationMethod (name = bar)
-            ULiteralExpression (value = "Hello!")
+        UMethod (name = bar)
+            UBlockExpression
+                UReturnExpression
+                    ULiteralExpression (value = "Hello!")
     UClass (name = Baz)
-        UAnnotationMethod (name = Baz)
+        UMethod (name = Baz)

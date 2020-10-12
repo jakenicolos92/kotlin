@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.refactoring.introduce.introduceVariable;
@@ -41,7 +30,8 @@ import kotlin.jvm.functions.Function1;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.idea.intentions.SpecifyTypeExplicitlyIntention;
-import org.jetbrains.kotlin.idea.references.ReferenceUtilKt;
+import org.jetbrains.kotlin.idea.KotlinBundle;
+import org.jetbrains.kotlin.idea.references.ReferenceUtilsKt;
 import org.jetbrains.kotlin.idea.util.IdeDescriptorRenderers;
 import org.jetbrains.kotlin.lexer.KtTokens;
 import org.jetbrains.kotlin.psi.*;
@@ -212,9 +202,9 @@ public class KotlinInplaceVariableIntroducer<D extends KtCallableDeclaration> ex
         return new Function0<JComponent>() {
             @Override
             public JComponent invoke() {
-                final JCheckBox exprTypeCheckbox = new NonFocusableCheckBox("Specify type explicitly");
+                final JCheckBox exprTypeCheckbox = new NonFocusableCheckBox(
+                        KotlinBundle.message("checkbox.text.specify.type.explicitly"));
                 exprTypeCheckbox.setSelected(false);
-                exprTypeCheckbox.setMnemonic('t');
                 exprTypeCheckbox.addActionListener(new ActionListener() {
                     @Override
                     public void actionPerformed(@NotNull ActionEvent e) {
@@ -224,7 +214,7 @@ public class KotlinInplaceVariableIntroducer<D extends KtCallableDeclaration> ex
                                     public void run() {
                                         if (exprTypeCheckbox.isSelected()) {
                                             String renderedType =
-                                                    IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_IN_TYPES.renderType(myExprType);
+                                                    IdeDescriptorRenderers.SOURCE_CODE_SHORT_NAMES_NO_ANNOTATIONS.renderType(myExprType);
                                             myDeclaration.setTypeReference(new KtPsiFactory(myProject).createType(renderedType));
                                         }
                                         else {
@@ -248,9 +238,8 @@ public class KotlinInplaceVariableIntroducer<D extends KtCallableDeclaration> ex
         return new Function0<JComponent>() {
             @Override
             public JComponent invoke() {
-                final JCheckBox varCheckbox = new NonFocusableCheckBox("Declare with var");
+                final JCheckBox varCheckbox = new NonFocusableCheckBox(KotlinBundle.message("checkbox.text.declare.with.var"));
                 varCheckbox.setSelected(isVar);
-                varCheckbox.setMnemonic('v');
                 varCheckbox.addActionListener(new ActionListener() {
                     @Override
                     public void actionPerformed(@NotNull ActionEvent e) {
@@ -303,7 +292,7 @@ public class KotlinInplaceVariableIntroducer<D extends KtCallableDeclaration> ex
                         TemplateManagerImpl.getTemplateState(InjectedLanguageUtil.getTopLevelEditor(myEditor));
                 if (templateState != null) {
                     myEditor.putUserData(INTRODUCE_RESTART, true);
-                    templateState.cancelTemplate();
+                    templateState.gotoEnd(true);
                 }
             }
         }.execute();
@@ -354,7 +343,7 @@ public class KotlinInplaceVariableIntroducer<D extends KtCallableDeclaration> ex
 
     protected void addTypeReferenceVariable(TemplateBuilderImpl builder) {
         KtTypeReference typeReference = myDeclaration.getTypeReference();
-        Expression expression = SpecifyTypeExplicitlyIntention.Companion.createTypeExpressionForTemplate(myExprType, myDeclaration);
+        Expression expression = SpecifyTypeExplicitlyIntention.Companion.createTypeExpressionForTemplate(myExprType, myDeclaration, false);
         if (typeReference != null && expression != null) {
             builder.replaceElement(typeReference, TYPE_REFERENCE_VARIABLE_NAME, expression, false);
         }
@@ -393,7 +382,7 @@ public class KotlinInplaceVariableIntroducer<D extends KtCallableDeclaration> ex
                 new Function1<KtSimpleNameExpression, PsiReference>() {
                     @Override
                     public PsiReference invoke(KtSimpleNameExpression expression) {
-                        return ReferenceUtilKt.getMainReference(expression);
+                        return ReferenceUtilsKt.getMainReference(expression);
                     }
                 }
         );

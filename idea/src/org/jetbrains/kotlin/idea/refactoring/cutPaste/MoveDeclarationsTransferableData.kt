@@ -20,11 +20,11 @@ import com.intellij.codeInsight.editorActions.TextBlockTransferableData
 import org.jetbrains.kotlin.idea.util.IdeDescriptorRenderers
 import java.awt.datatransfer.DataFlavor
 
-//TODO: how to make it work inside same project only?
 class MoveDeclarationsTransferableData(
-        val sourceFileUrl: String,
-        val stubTexts: List<String>,
-        val declarationNames: Set<String>
+    val sourceFileUrl: String,
+    val sourceObjectFqName: String?,
+    val declarationTexts: List<String>,
+    val imports: List<String>
 ) : TextBlockTransferableData {
 
     override fun getFlavor() = DATA_FLAVOR

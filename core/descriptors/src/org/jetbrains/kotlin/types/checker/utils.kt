@@ -47,16 +47,16 @@ fun findCorrespondingSupertype(
 
             while (currentPathNode != null) {
                 val currentType = currentPathNode.type
-                if (currentType.arguments.any { it.projectionKind != Variance.INVARIANT }) {
-                    substituted = TypeConstructorSubstitution.create(currentType)
-                                        .wrapWithCapturingSubstitution().buildSubstitutor()
-                                        .safeSubstitute(substituted, Variance.INVARIANT)
-                                        .approximate()
+                substituted = if (currentType.arguments.any { it.projectionKind != Variance.INVARIANT }) {
+                    TypeConstructorSubstitution.create(currentType)
+                            .wrapWithCapturingSubstitution().buildSubstitutor()
+                            .safeSubstitute(substituted, Variance.INVARIANT)
+                            .approximate()
                 }
                 else {
-                    substituted = TypeConstructorSubstitution.create(currentType)
-                                        .buildSubstitutor()
-                                        .safeSubstitute(substituted, Variance.INVARIANT)
+                    TypeConstructorSubstitution.create(currentType)
+                            .buildSubstitutor()
+                            .safeSubstitute(substituted, Variance.INVARIANT)
                 }
 
                 isAnyMarkedNullable = isAnyMarkedNullable || currentType.isMarkedNullable
@@ -86,7 +86,7 @@ fun findCorrespondingSupertype(
 private fun KotlinType.approximate() = approximateCapturedTypes(this).upper
 
 private fun TypeConstructor.debugInfo() = buildString {
-    operator fun String.unaryPlus() = appendln(this)
+    operator fun String.unaryPlus() = appendLine(this)
 
     + "type: ${this@debugInfo}"
     + "hashCode: ${this@debugInfo.hashCode()}"

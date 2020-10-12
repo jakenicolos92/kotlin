@@ -24,15 +24,14 @@ import com.intellij.refactoring.classMembers.MemberInfoChange
 import com.intellij.refactoring.extractSuperclass.JavaExtractSuperBaseDialog
 import com.intellij.refactoring.util.DocCommentPolicy
 import com.intellij.refactoring.util.RefactoringMessageUtil
-import com.intellij.ui.DocumentAdapter
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.FormBuilder
 import org.jetbrains.kotlin.asJava.toLightClass
 import org.jetbrains.kotlin.asJava.unwrapped
 import org.jetbrains.kotlin.idea.KotlinFileType
-import org.jetbrains.kotlin.idea.core.KotlinNameSuggester
-import org.jetbrains.kotlin.idea.core.quoteIfNeeded
 import org.jetbrains.kotlin.idea.core.unquote
+import org.jetbrains.kotlin.idea.core.util.onTextChange
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.refactoring.introduce.extractClass.ExtractSuperInfo
 import org.jetbrains.kotlin.idea.refactoring.memberInfo.KotlinMemberInfo
 import org.jetbrains.kotlin.idea.refactoring.memberInfo.KotlinMemberSelectionPanel
@@ -40,17 +39,18 @@ import org.jetbrains.kotlin.idea.refactoring.memberInfo.KotlinUsesAndInterfacesD
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtNamedDeclaration
+import org.jetbrains.kotlin.psi.psiUtil.isIdentifier
+import org.jetbrains.kotlin.psi.psiUtil.quoteIfNeeded
 import java.awt.BorderLayout
 import javax.swing.*
-import javax.swing.event.DocumentEvent
 
 abstract class KotlinExtractSuperDialogBase(
-        protected val originalClass: KtClassOrObject,
-        protected val targetParent: PsiElement,
-        private val conflictChecker: (KotlinExtractSuperDialogBase) -> Boolean,
-        private val isExtractInterface: Boolean,
-        refactoringName: String,
-        private val refactoring: (ExtractSuperInfo) -> Unit
+    protected val originalClass: KtClassOrObject,
+    protected val targetParent: PsiElement,
+    private val conflictChecker: (KotlinExtractSuperDialogBase) -> Boolean,
+    private val isExtractInterface: Boolean,
+    refactoringName: String,
+    private val refactoring: (ExtractSuperInfo) -> Unit
 ) : JavaExtractSuperBaseDialog(originalClass.project, originalClass.toLightClass()!!, emptyList(), refactoringName) {
     private var initComplete: Boolean = false
 
@@ -62,10 +62,15 @@ abstract class KotlinExtractSuperDialogBase(
     private val fileNameField = JTextField()
 
     open class MemberInfoModelBase(
-            originalClass: KtClassOrObject,
-            val memberInfos: List<KotlinMemberInfo>,
-            interfaceContainmentVerifier: (KtNamedDeclaration) -> Boolean
-    ) : KotlinUsesAndInterfacesDependencyMemberInfoModel<KtNamedDeclaration, KotlinMemberInfo>(originalClass, null, false, interfaceContainmentVerifier) {
+        originalClass: KtClassOrObject,
+        val memberInfos: List<KotlinMemberInfo>,
+        interfaceContainmentVerifier: (KtNamedDeclaration) -> Boolean
+    ) : KotlinUsesAndInterfacesDependencyMemberInfoModel<KtNamedDeclaration, KotlinMemberInfo>(
+        originalClass,
+        null,
+        false,
+        interfaceContainmentVerifier
+    ) {
         override fun isMemberEnabled(member: KotlinMemberInfo): Boolean {
             val declaration = member.member ?: return false
             return !declaration.hasModifier(KtTokens.CONST_KEYWORD)
@@ -74,8 +79,8 @@ abstract class KotlinExtractSuperDialogBase(
         override fun isAbstractEnabled(memberInfo: KotlinMemberInfo): Boolean {
             val member = memberInfo.member
             return !(member.hasModifier(KtTokens.INLINE_KEYWORD) ||
-                     member.hasModifier(KtTokens.EXTERNAL_KEYWORD) ||
-                     member.hasModifier(KtTokens.LATEINIT_KEYWORD))
+                    member.hasModifier(KtTokens.EXTERNAL_KEYWORD) ||
+                    member.hasModifier(KtTokens.LATEINIT_KEYWORD))
         }
 
         override fun isFixedAbstract(memberInfo: KotlinMemberInfo?) = true
@@ -94,7 +99,7 @@ abstract class KotlinExtractSuperDialogBase(
 
     protected abstract fun createMemberInfoModel(): MemberInfoModelBase
 
-    override fun getDocCommentPanelName() = "KDoc for abstracts"
+    override fun getDocCommentPanelName() = KotlinBundle.message("name.kdoc.for.abstracts")
 
     override fun checkConflicts() = conflictChecker(this)
 
@@ -102,13 +107,7 @@ abstract class KotlinExtractSuperDialogBase(
 
     override fun createExtractedSuperNameField(): JTextField {
         return super.createExtractedSuperNameField().apply {
-            document.addDocumentListener(
-                    object : DocumentAdapter() {
-                        override fun textChanged(e: DocumentEvent?) {
-                            resetFileNameField()
-                        }
-                    }
-            )
+            onTextChange { resetFileNameField() }
         }
     }
 
@@ -118,17 +117,17 @@ abstract class KotlinExtractSuperDialogBase(
         val targetDirectoryPanel = super.createDestinationRootPanel()
         val targetFileNamePanel = JPanel(BorderLayout()).apply {
             border = BorderFactory.createEmptyBorder(10, 0, 0, 0)
-            val label = JBLabel("Target file name:")
+            val label = JBLabel(KotlinBundle.message("label.text.target.file.name"))
             add(label, BorderLayout.NORTH)
             label.labelFor = fileNameField
             add(fileNameField, BorderLayout.CENTER)
         }
 
-        return FormBuilder
-                .createFormBuilder()
-                .addComponent(targetDirectoryPanel)
-                .addComponent(targetFileNamePanel)
-                .panel
+        val formBuilder = FormBuilder.createFormBuilder()
+        if (targetDirectoryPanel != null) {
+            formBuilder.addComponent(targetDirectoryPanel)
+        }
+        return formBuilder.addComponent(targetFileNamePanel).panel
     }
 
     override fun createNorthPanel(): JComponent? {
@@ -147,9 +146,9 @@ abstract class KotlinExtractSuperDialogBase(
 
         return JPanel(BorderLayout()).apply {
             val memberSelectionPanel = KotlinMemberSelectionPanel(
-                    RefactoringBundle.message(if (isExtractInterface) "members.to.form.interface" else "members.to.form.superclass"),
-                    memberInfoModel.memberInfos,
-                    RefactoringBundle.message("make.abstract")
+                RefactoringBundle.message(if (isExtractInterface) "members.to.form.interface" else "members.to.form.superclass"),
+                memberInfoModel.memberInfos,
+                RefactoringBundle.message("make.abstract")
             )
             memberSelectionPanel.table.memberInfoModel = memberInfoModel
             memberSelectionPanel.table.addMemberInfoChangeListener(memberInfoModel)
@@ -175,8 +174,8 @@ abstract class KotlinExtractSuperDialogBase(
 
     override fun validateName(name: String): String? {
         return when {
-            !KotlinNameSuggester.isIdentifier(name.quoteIfNeeded()) -> RefactoringMessageUtil.getIncorrectIdentifierMessage(name)
-            name.unquote() == mySourceClass.name -> "Different name expected"
+            !name.quoteIfNeeded().isIdentifier() -> RefactoringMessageUtil.getIncorrectIdentifierMessage(name)
+            name.unquote() == mySourceClass.name -> KotlinBundle.message("error.text.different.name.expected")
             else -> null
         }
     }
@@ -185,13 +184,13 @@ abstract class KotlinExtractSuperDialogBase(
 
     override fun executeRefactoring() {
         val extractInfo = ExtractSuperInfo(
-                mySourceClass.unwrapped as KtClassOrObject,
-                selectedMembers,
-                if (targetParent is PsiDirectory) targetDirectory else targetParent,
-                targetFileName,
-                extractedSuperName.quoteIfNeeded(),
-                isExtractInterface,
-                DocCommentPolicy<PsiComment>(docCommentPolicy)
+            mySourceClass.unwrapped as KtClassOrObject,
+            selectedMembers,
+            if (targetParent is PsiDirectory) targetDirectory else targetParent,
+            targetFileName,
+            extractedSuperName.quoteIfNeeded(),
+            isExtractInterface,
+            DocCommentPolicy<PsiComment>(docCommentPolicy)
         )
         refactoring(extractInfo)
     }

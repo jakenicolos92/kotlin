@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 // FILE: I.java
 
 public interface I {
@@ -17,14 +18,14 @@ open class K : C(), I
 
 // FILE: D.java
 
-public class D extends K, I {
+public class D extends K implements I {
     static int c = 1;
     static void baz() {}
 }
 
 // FILE: E.java
 
-public class E extends D, I {
+public class E extends D implements I {
     static int a = 1;
 }
 

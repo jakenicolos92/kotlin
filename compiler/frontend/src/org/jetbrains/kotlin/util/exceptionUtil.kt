@@ -1,56 +1,30 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2017 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.util
 
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.psi.PsiElement
-import org.jetbrains.kotlin.diagnostics.DiagnosticUtils
 
 fun getExceptionMessage(
-        subsystemName: String,
-        message: String,
-        cause: Throwable?,
-        element: PsiElement?
+    subsystemName: String,
+    message: String,
+    cause: Throwable?,
+    location: String?
 ): String = ApplicationManager.getApplication().runReadAction<String> {
-        val result = StringBuilder(subsystemName + " Internal error: ").append(message).append("\n")
-        if (cause != null) {
-            val causeMessage = cause.message
-            result.append("Cause: ").append(causeMessage ?: cause.toString()).append("\n")
-        }
+    buildString {
+        append(subsystemName).append(" Internal error: ").appendLine(message)
 
-        if (element != null) {
-            result.append("File being compiled and position: ").append(DiagnosticUtils.atLocation(element)).append("\n")
-            result.append("PsiElement: ").append(element.text).append("\n")
-        }
-        else {
-            result.append("Element is unknown")
+        if (location != null) {
+            append("File being compiled: ").appendLine(location)
+        } else {
+            appendLine("File is unknown")
         }
 
         if (cause != null) {
-            result.append("The root cause was thrown at: ").append(where(cause))
+            append("The root cause ${cause::class.java.name} was thrown at: ")
+            append(cause.stackTrace?.firstOrNull()?.toString() ?: "unknown")
         }
-
-        result.toString()
     }
-
-private fun where(cause: Throwable): String {
-    val stackTrace = cause.stackTrace
-    if (stackTrace != null && stackTrace.size > 0) {
-        return stackTrace[0].fileName + ":" + stackTrace[0].lineNumber
-    }
-    return "unknown"
 }

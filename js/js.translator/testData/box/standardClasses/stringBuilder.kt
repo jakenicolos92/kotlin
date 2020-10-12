@@ -1,6 +1,6 @@
-// EXPECTED_REACHABLE_NODES: 503
+// KJS_WITH_FULL_RUNTIME
+// EXPECTED_REACHABLE_NODES: 1280
 package foo
-
 
 fun box(): String {
     val s = StringBuilder()

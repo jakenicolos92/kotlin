@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,8 @@ import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiElement;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.kotlin.idea.codeInsight.surroundWith.KotlinSurrounderUtils;
-import org.jetbrains.kotlin.idea.codeInsight.surroundWith.MoveDeclarationsOutHelper;
+import org.jetbrains.kotlin.idea.codeInsight.surroundWith.MoveDeclarationsOutHelperKt;
+import org.jetbrains.kotlin.idea.core.surroundWith.KotlinSurrounderUtils;
 import org.jetbrains.kotlin.psi.KtBlockExpression;
 import org.jetbrains.kotlin.psi.KtExpression;
 import org.jetbrains.kotlin.psi.KtIfExpression;
@@ -33,13 +33,18 @@ import org.jetbrains.kotlin.psi.KtPsiFactoryKt;
 
 public abstract class KotlinIfSurrounderBase extends KotlinStatementsSurrounder {
 
+    @Override
+    protected boolean isApplicableWhenUsedAsExpression() {
+        return false;
+    }
+
     @Nullable
     @Override
     protected TextRange surroundStatements(Project project, Editor editor, PsiElement container, PsiElement[] statements) {
-        statements = MoveDeclarationsOutHelper.move(container, statements, isGenerateDefaultInitializers());
+        statements = MoveDeclarationsOutHelperKt.move(container, statements, isGenerateDefaultInitializers());
 
         if (statements.length == 0) {
-            KotlinSurrounderUtils.showErrorHint(project, editor, KotlinSurrounderUtils.SURROUND_WITH_ERROR);
+            KotlinSurrounderUtils.showErrorHint(project, editor, KotlinSurrounderUtils.SURROUND_WITH_ERROR());
             return null;
         }
 
@@ -57,7 +62,15 @@ public abstract class KotlinIfSurrounderBase extends KotlinStatementsSurrounder 
         container.deleteChildRange(statements[0], statements[statements.length - 1]);
 
         ifExpression = CodeInsightUtilBase.forcePsiPostprocessAndRestoreElement(ifExpression);
+        if (ifExpression == null) {
+            return null;
+        }
 
+        return getRange(editor, ifExpression);
+    }
+
+    @NotNull
+    public static TextRange getRange(Editor editor, @NotNull KtIfExpression ifExpression) {
         KtExpression condition = ifExpression.getCondition();
         assert condition != null : "Condition should exists for created if expression: " + ifExpression.getText();
         // Delete condition from created if

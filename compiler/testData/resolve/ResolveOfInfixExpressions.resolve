@@ -40,7 +40,7 @@ fun f_plus(): Int {
   1 `contains`!in x
 }
 
-~Foo~class Foo {
+open ~Foo~class Foo {
   ~set1~fun set(i : Int, val1 : String) {}
   ~get1~fun get(i : Int) : Int {}
   ~get2~fun get(i : Int, j : Int) : String {}
@@ -69,7 +69,6 @@ fun <T> tt(t : T) : T {
   (x`java::java.util.ArrayList.set()`[1]) = null
   x`java::java.util.ArrayList.set()`[null] = null
   (x`java::java.util.ArrayList.set()`[null, 2]) = null
-  (`not`!foo)[1]`:kotlin::Char`
   val y = Bar()
   y`inc`++
   `inc`++y

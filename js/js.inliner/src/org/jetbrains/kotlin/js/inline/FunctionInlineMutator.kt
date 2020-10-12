@@ -29,34 +29,42 @@ import org.jetbrains.kotlin.js.translate.context.Namer
 class FunctionInlineMutator
 private constructor(
         private val call: JsInvocation,
-        private val inliningContext: InliningContext
+        private val inliningContext: InliningContext,
+        function: JsFunction
 ) {
     private val invokedFunction: JsFunction
-    private val namingContext = inliningContext.newNamingContext()
-    private val body: JsBlock
-    private var resultExpr: JsExpression? = null
+    val namingContext = inliningContext.newNamingContext()
+    val body: JsBlock
+    var resultExpr: JsNameRef? = null
     private var resultName: JsName? = null
-    private var breakLabel: JsLabel? = null
-    private val currentStatement = inliningContext.statementContext.currentNode
+    var breakLabel: JsLabel? = null
+    private val currentStatement = inliningContext.currentStatement
 
     init {
-        val functionContext = inliningContext.functionContext
-        invokedFunction = uncoverClosure(functionContext.getFunctionDefinition(call).deepCopy())
+        invokedFunction = uncoverClosure(function.deepCopy())
         body = invokedFunction.body
     }
 
     private fun process() {
-        val arguments = getArguments()
+        var arguments = getArguments()
         val parameters = getParameters()
 
+        if (arguments.size > parameters.size) {
+            // Due to suspend conversions it is possible to have an extra argument, e.g. `fn($this$)` for `function fn() {...}`
+            // In such cases all missing arguments for default parameters are passed as `void 0` explicitly.
+            // Thus it is safe to drop it.
+            assert(arguments.size == parameters.size + 1) { "arguments.size (${arguments.size}) may only exceed the parameters.size (${parameters.size}) by one and only in case of suspend conversions" }
+            arguments = arguments.subList(0, parameters.size)
+        }
+
         removeDefaultInitializers(arguments, parameters, body)
-        aliasArgumentsIfNeeded(namingContext, arguments, parameters)
+        aliasArgumentsIfNeeded(namingContext, arguments, parameters, call.source)
         renameLocalNames(namingContext, invokedFunction)
         processReturns()
 
         namingContext.applyRenameTo(body)
         resultExpr = resultExpr?.let {
-            namingContext.applyRenameTo(it) as JsExpression
+            namingContext.applyRenameTo(it) as JsNameRef
         }
     }
 
@@ -89,7 +97,7 @@ private constructor(
         val namingContext = inliningContext.newNamingContext()
         val arguments = call.arguments
         val parameters = outer.parameters
-        aliasArgumentsIfNeeded(namingContext, arguments, parameters)
+        aliasArgumentsIfNeeded(namingContext, arguments, parameters, call.source)
         namingContext.applyRenameTo(inner)
     }
 
@@ -97,10 +105,10 @@ private constructor(
         if (!hasThisReference(block)) return
 
         var thisReplacement = getThisReplacement(call)
-        if (thisReplacement == null || thisReplacement is JsLiteral.JsThisRef) return
+        if (thisReplacement == null || thisReplacement is JsThisRef) return
 
         val thisName = JsScope.declareTemporaryName(getThisAlias())
-        namingContext.newVar(thisName, thisReplacement)
+        namingContext.newVar(thisName, thisReplacement, source = call.source)
         thisReplacement = thisName.makeRef()
 
         replaceThisReference(block, thisReplacement)
@@ -112,7 +120,7 @@ private constructor(
         val breakName = JsScope.declareTemporaryName(getBreakLabel())
         this.breakLabel = JsLabel(breakName).apply { synthetic = true }
 
-        val visitor = ReturnReplacingVisitor(resultExpr as? JsNameRef, breakName.makeRef(), invokedFunction, call.isSuspend)
+        val visitor = ReturnReplacingVisitor(resultExpr, breakName.makeRef(), invokedFunction, call.isSuspend)
         visitor.accept(body)
     }
 
@@ -121,7 +129,7 @@ private constructor(
 
         val resultName = JsScope.declareTemporaryName(getResultLabel())
         this.resultName = resultName
-        namingContext.newVar(resultName, null)
+        namingContext.newVar(resultName, source = call.source)
         return resultName.makeRef()
     }
 
@@ -166,9 +174,11 @@ private constructor(
     }
 
     companion object {
-
-        @JvmStatic fun getInlineableCallReplacement(call: JsInvocation, inliningContext: InliningContext): InlineableResult {
-            val mutator = FunctionInlineMutator(call, inliningContext)
+        @JvmStatic fun getInlineableCallReplacement(
+                call: JsInvocation, function: JsFunction,
+                inliningContext: InliningContext
+        ): InlineableResult {
+            val mutator = FunctionInlineMutator(call, inliningContext, function)
             mutator.process()
 
             var inlineableBody: JsStatement = mutator.body
@@ -195,7 +205,7 @@ private constructor(
         }
 
         private fun hasThisReference(body: JsBlock): Boolean {
-            val thisRefs = collectInstances(JsLiteral.JsThisRef::class.java, body)
+            val thisRefs = collectInstances(JsThisRef::class.java, body)
             return !thisRefs.isEmpty()
         }
     }

@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 
 interface A<out K> {
     fun foo(x: @UnsafeVariance K): Unit

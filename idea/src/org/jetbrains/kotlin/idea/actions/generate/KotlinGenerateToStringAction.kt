@@ -28,20 +28,24 @@ import com.intellij.util.IncorrectOperationException
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+import org.jetbrains.kotlin.descriptors.PropertyDescriptor
 import org.jetbrains.kotlin.descriptors.VariableDescriptor
-import org.jetbrains.kotlin.idea.caches.resolve.analyzeFully
-import org.jetbrains.kotlin.idea.caches.resolve.resolveToDescriptor
+import org.jetbrains.kotlin.idea.KotlinBundle
+import org.jetbrains.kotlin.idea.caches.resolve.analyzeWithContent
+import org.jetbrains.kotlin.idea.caches.resolve.unsafeResolveToDescriptor
 import org.jetbrains.kotlin.idea.codeInsight.DescriptorToSourceUtilsIde
 import org.jetbrains.kotlin.idea.core.insertMembersAfter
-import org.jetbrains.kotlin.idea.core.quoteIfNeeded
 import org.jetbrains.kotlin.idea.core.util.DescriptorMemberChooserObject
 import org.jetbrains.kotlin.idea.util.application.runWriteAction
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.getElementTextWithContext
+import org.jetbrains.kotlin.psi.psiUtil.hasExpectModifier
+import org.jetbrains.kotlin.psi.psiUtil.quoteIfNeeded
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
 import org.jetbrains.kotlin.resolve.descriptorUtil.getSuperClassOrAny
 import org.jetbrains.kotlin.resolve.source.getPsi
+import org.jetbrains.kotlin.types.isNullable
 import org.jetbrains.kotlin.utils.addToStdlib.lastIsInstanceOrNull
 
 private fun ClassDescriptor.findDeclaredToString(checkSupers: Boolean): FunctionDescriptor? {
@@ -55,21 +59,24 @@ class KotlinGenerateToStringAction : KotlinGenerateMemberActionBase<KotlinGenera
         var KtClass.adjuster: ((Info) -> Info)? by UserDataProperty(Key.create("ADJUSTER"))
     }
 
-    data class Info(val classDescriptor: ClassDescriptor,
-                    val variablesToUse: List<VariableDescriptor>,
-                    val generateSuperCall: Boolean,
-                    val generator: Generator,
-                    val project: Project)
+    data class Info(
+        val classDescriptor: ClassDescriptor,
+        val variablesToUse: List<VariableDescriptor>,
+        val generateSuperCall: Boolean,
+        val generator: Generator,
+        val project: Project
+    )
 
     enum class Generator(val text: String) {
-        SINGLE_TEMPLATE("Single template") {
+        SINGLE_TEMPLATE(KotlinBundle.message("action.generate.tostring.template.single")) {
             override fun generate(info: Info): String {
                 val className = info.classDescriptor.name.asString()
 
                 return buildString {
                     append("return \"${className.quoteIfNeeded()}(")
                     info.variablesToUse.joinTo(this) {
-                        val ref = (DescriptorToSourceUtilsIde.getAnyDeclaration(info.project, it) as PsiNameIdentifierOwner).nameIdentifier!!.text
+                        val ref =
+                            (DescriptorToSourceUtilsIde.getAnyDeclaration(info.project, it) as PsiNameIdentifierOwner).nameIdentifier!!.text
                         "$ref=${renderVariableValue(it, ref)}"
                     }
                     append(")")
@@ -81,7 +88,7 @@ class KotlinGenerateToStringAction : KotlinGenerateMemberActionBase<KotlinGenera
             }
         },
 
-        MULTIPLE_TEMPLATES("Multiple templates with concatenation") {
+        MULTIPLE_TEMPLATES(KotlinBundle.message("action.generate.tostring.template.multiple")) {
             override fun generate(info: Info): String {
                 val className = info.classDescriptor.name.asString()
 
@@ -91,16 +98,16 @@ class KotlinGenerateToStringAction : KotlinGenerateMemberActionBase<KotlinGenera
                         val varIterator = info.variablesToUse.iterator()
                         while (varIterator.hasNext()) {
                             val it = varIterator.next()
-                            val ref = (DescriptorToSourceUtilsIde.getAnyDeclaration(info.project, it) as PsiNameIdentifierOwner).nameIdentifier!!.text
+                            val ref = (DescriptorToSourceUtilsIde.getAnyDeclaration(info.project, it) as PsiNameIdentifierOwner)
+                                .nameIdentifier!!.text
                             append("\"$ref=${renderVariableValue(it, ref)}")
                             if (varIterator.hasNext()) {
-                                append(',')
+                                append(", ")
                             }
                             append("\" +\n")
                         }
                         append("\")\"")
-                    }
-                    else {
+                    } else {
                         append("return \"$className()\"")
                     }
 
@@ -113,27 +120,26 @@ class KotlinGenerateToStringAction : KotlinGenerateMemberActionBase<KotlinGenera
 
         protected fun renderVariableValue(variableDescriptor: VariableDescriptor, ref: String): String {
             val type = variableDescriptor.type
-            val rhs = when {
-                KotlinBuiltIns.isArray(type) || KotlinBuiltIns.isPrimitiveArray(type) -> "\${java.util.Arrays.toString($ref)}"
+            return when {
+                KotlinBuiltIns.isArray(type) || KotlinBuiltIns.isPrimitiveArray(type) -> {
+                    val dot = if (type.isNullable()) "?." else "."
+                    "\${$ref${dot}contentToString()}"
+                }
                 KotlinBuiltIns.isString(type) -> "'$$ref'"
                 else -> "$$ref"
             }
-            return rhs
         }
 
         abstract fun generate(info: Info): String
     }
 
-    override fun isValidForClass(targetClass: KtClassOrObject): Boolean {
-        return targetClass is KtClass
-               && !targetClass.isAnnotation()
-               && !targetClass.isInterface()
-    }
+    override fun isValidForClass(targetClass: KtClassOrObject): Boolean =
+        targetClass is KtClass && !targetClass.isAnnotation() && !targetClass.isInterface()
 
     override fun prepareMembersInfo(klass: KtClassOrObject, project: Project, editor: Editor?): Info? {
         if (klass !is KtClass) throw AssertionError("Not a class: ${klass.getElementTextWithContext()}")
 
-        val context = klass.analyzeFully()
+        val context = klass.analyzeWithContent()
         val classDescriptor = context.get(BindingContext.CLASS, klass) ?: return null
 
         classDescriptor.findDeclaredToString(false)?.let {
@@ -142,8 +148,7 @@ class KotlinGenerateToStringAction : KotlinGenerateMemberActionBase<KotlinGenera
             runWriteAction {
                 try {
                     it.source.getPsi()?.delete()
-                }
-                catch(e: IncorrectOperationException) {
+                } catch (e: IncorrectOperationException) {
                     LOG.error(e)
                 }
             }
@@ -151,26 +156,31 @@ class KotlinGenerateToStringAction : KotlinGenerateMemberActionBase<KotlinGenera
 
         val properties = getPropertiesToUseInGeneratedMember(klass)
         if (ApplicationManager.getApplication().isUnitTestMode) {
-            val info = Info(classDescriptor,
-                            properties.map { context[BindingContext.DECLARATION_TO_DESCRIPTOR, it] as VariableDescriptor },
-                            false,
-                            Generator.SINGLE_TEMPLATE,
-                            project)
+            val info = Info(
+                classDescriptor,
+                properties.map { context[BindingContext.DECLARATION_TO_DESCRIPTOR, it] as VariableDescriptor },
+                false,
+                Generator.SINGLE_TEMPLATE,
+                project
+            )
             return klass.adjuster?.let { it(info) } ?: info
         }
 
         val superToString = classDescriptor.getSuperClassOrAny().findDeclaredToString(true)!!
 
-        val memberChooserObjects = properties.map { DescriptorMemberChooserObject(it, it.resolveToDescriptor()) }.toTypedArray()
+        val memberChooserObjects = properties.map { DescriptorMemberChooserObject(it, it.unsafeResolveToDescriptor()) }.toTypedArray()
+        val selectedElements = memberChooserObjects.filter { (it.descriptor as? PropertyDescriptor)?.getter?.isDefault ?: true }.toTypedArray()
         val headerPanel = ToStringMemberChooserHeaderPanel(!superToString.builtIns.isMemberOfAny(superToString))
         val chooser = MemberChooser<DescriptorMemberChooserObject>(memberChooserObjects, true, true, project, false, headerPanel).apply {
-            title = "Generate toString()"
+            title = KotlinBundle.message("action.generate.tostring.name")
             setCopyJavadocVisible(false)
-            selectElements(memberChooserObjects)
+            selectElements(selectedElements)
         }
 
-        chooser.show()
-        if (chooser.exitCode != DialogWrapper.OK_EXIT_CODE) return null
+        if (!klass.hasExpectModifier()) {
+            chooser.show()
+            if (chooser.exitCode != DialogWrapper.OK_EXIT_CODE) return null
+        }
 
         return Info(classDescriptor,
                     chooser.selectedElements?.map { it.descriptor as VariableDescriptor } ?: emptyList(),
@@ -179,16 +189,18 @@ class KotlinGenerateToStringAction : KotlinGenerateMemberActionBase<KotlinGenera
                     project)
     }
 
-    private fun generateToString(project: Project, info: Info): KtNamedFunction? {
+    private fun generateToString(targetClass: KtClassOrObject, info: Info): KtNamedFunction? {
         val superToString = info.classDescriptor.getSuperClassOrAny().findDeclaredToString(true)!!
-        return generateFunctionSkeleton(superToString, project).apply {
-            bodyExpression!!.replace(KtPsiFactory(project).createExpression("{\n${info.generator.generate(info)}\n}"))
+        return generateFunctionSkeleton(superToString, targetClass).apply {
+            replaceBody {
+                KtPsiFactory(targetClass).createExpression("{\n${info.generator.generate(info)}\n}")
+            }
         }
     }
 
     override fun generateMembers(project: Project, editor: Editor?, info: Info): List<KtDeclaration> {
         val targetClass = info.classDescriptor.source.getPsi() as KtClass
-        val prototype = generateToString(project, info) ?: return emptyList()
+        val prototype = generateToString(targetClass, info) ?: return emptyList()
         val anchor = with(targetClass.declarations) { lastIsInstanceOrNull<KtNamedFunction>() ?: lastOrNull() }
         return insertMembersAfter(editor, targetClass, listOf(prototype), anchor)
     }

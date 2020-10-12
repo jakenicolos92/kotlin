@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.quickfix.migration
@@ -20,10 +9,10 @@ import com.intellij.codeInsight.intention.IntentionAction
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElement
-import org.jetbrains.kotlin.builtins.KotlinBuiltIns
-import org.jetbrains.kotlin.descriptors.annotations.checkAnnotationName
+import org.jetbrains.kotlin.builtins.StandardNames
 import org.jetbrains.kotlin.diagnostics.Diagnostic
 import org.jetbrains.kotlin.diagnostics.Errors
+import org.jetbrains.kotlin.idea.KotlinBundle
 import org.jetbrains.kotlin.idea.caches.resolve.analyze
 import org.jetbrains.kotlin.idea.intentions.SpecifyTypeExplicitlyIntention
 import org.jetbrains.kotlin.idea.intentions.declarations.ConvertMemberToExtensionIntention
@@ -43,10 +32,9 @@ import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.lazy.BodyResolveMode
 
-class MigrateExternalExtensionFix(declaration: KtNamedDeclaration)
-    : KotlinQuickFixAction<KtNamedDeclaration>(declaration), CleanupFix {
+class MigrateExternalExtensionFix(declaration: KtNamedDeclaration) : KotlinQuickFixAction<KtNamedDeclaration>(declaration), CleanupFix {
 
-    override fun getText() = "Fix with 'asDynamic'"
+    override fun getText() = KotlinBundle.message("fix.with.asdynamic")
     override fun getFamilyName() = text
 
     override fun invoke(project: Project, editor: Editor?, file: KtFile) {
@@ -65,11 +53,13 @@ class MigrateExternalExtensionFix(declaration: KtNamedDeclaration)
     }
 
     private fun fixNativeClass(containingClass: KtClassOrObject) {
-        val membersToFix = containingClass.declarations.filterIsInstance<KtCallableDeclaration>().filter { isMemberDeclaration(it) && !isMemberExtensionDeclaration(it) }. map {
-             it to fetchJsNativeAnnotations(it)
-        }.filter {
-            it.second.annotations.isNotEmpty()
-        }
+        val membersToFix =
+            containingClass.declarations.asSequence().filterIsInstance<KtCallableDeclaration>()
+                .filter { isMemberDeclaration(it) && !isMemberExtensionDeclaration(it) }.map {
+                    it to fetchJsNativeAnnotations(it)
+                }.filter {
+                    it.second.annotations.isNotEmpty()
+                }.toList()
 
         membersToFix.asReversed().forEach { (memberDeclaration, annotations) ->
             if (annotations.nativeAnnotation != null && !annotations.isGetter && !annotations.isSetter && !annotations.isInvoke) {
@@ -86,29 +76,39 @@ class MigrateExternalExtensionFix(declaration: KtNamedDeclaration)
         fixAnnotations(containingClass, classAnnotations, null)
     }
 
-    private data class JsNativeAnnotations(val annotations: List<KtAnnotationEntry>, val nativeAnnotation: KtAnnotationEntry?, val isGetter: Boolean, val isSetter: Boolean, val isInvoke: Boolean)
+    private data class JsNativeAnnotations(
+        val annotations: List<KtAnnotationEntry>,
+        val nativeAnnotation: KtAnnotationEntry?,
+        val isGetter: Boolean,
+        val isSetter: Boolean,
+        val isInvoke: Boolean
+    )
 
-    private fun fetchJsNativeAnnotations(declaration: KtNamedDeclaration) : JsNativeAnnotations {
-        var isGetter: Boolean = false
-        var isSetter: Boolean = false
-        var isInvoke: Boolean = false
+    private fun fetchJsNativeAnnotations(declaration: KtNamedDeclaration): JsNativeAnnotations {
+        var isGetter = false
+        var isSetter = false
+        var isInvoke = false
         var nativeAnnotation: KtAnnotationEntry? = null
         val nativeAnnotations = ArrayList<KtAnnotationEntry>()
 
         declaration.modifierList?.annotationEntries?.forEach {
-            if (it.isJsAnnotation(PredefinedAnnotation.NATIVE_GETTER)) {
-                isGetter = true
-                nativeAnnotations.add(it)
-            } else if (it.isJsAnnotation(PredefinedAnnotation.NATIVE_SETTER)) {
-                isSetter = true
-                nativeAnnotations.add(it)
-            } else if (it.isJsAnnotation(PredefinedAnnotation.NATIVE_INVOKE)) {
-                isInvoke = true
-                nativeAnnotations.add(it)
-            } else if (it.isJsAnnotation(PredefinedAnnotation.NATIVE)) {
-                nativeAnnotations.add(it)
-                nativeAnnotation = it
-
+            when {
+                it.isJsAnnotation(PredefinedAnnotation.NATIVE_GETTER) -> {
+                    isGetter = true
+                    nativeAnnotations.add(it)
+                }
+                it.isJsAnnotation(PredefinedAnnotation.NATIVE_SETTER) -> {
+                    isSetter = true
+                    nativeAnnotations.add(it)
+                }
+                it.isJsAnnotation(PredefinedAnnotation.NATIVE_INVOKE) -> {
+                    isInvoke = true
+                    nativeAnnotations.add(it)
+                }
+                it.isJsAnnotation(PredefinedAnnotation.NATIVE) -> {
+                    nativeAnnotations.add(it)
+                    nativeAnnotation = it
+                }
             }
         }
         return JsNativeAnnotations(nativeAnnotations, nativeAnnotation, isGetter, isSetter, isInvoke)
@@ -122,30 +122,35 @@ class MigrateExternalExtensionFix(declaration: KtNamedDeclaration)
         val ktPsiFactory = KtPsiFactory(declaration)
         val body = ktPsiFactory.buildExpression {
             appendName(Name.identifier("asDynamic"))
-            if (annotations.isGetter) {
-                appendFixedText("()")
-                if (declaration is KtNamedFunction) {
-                    appendParameters(declaration, "[", "]")
-                }
-            } else if (annotations.isSetter) {
-                appendFixedText("()")
-                if (declaration is KtNamedFunction) {
-                    appendParameters(declaration, "[", "]", skipLast = true)
-                    declaration.valueParameters.last().nameAsName?.let {
-                        appendFixedText(" = ")
-                        appendName(it)
+            when {
+                annotations.isGetter -> {
+                    appendFixedText("()")
+                    if (declaration is KtNamedFunction) {
+                        appendParameters(declaration, "[", "]")
                     }
                 }
-            } else if (annotations.isInvoke) {
-                appendFixedText("()")
-                if (declaration is KtNamedFunction) {
-                    appendParameters(declaration, "(", ")")
+                annotations.isSetter -> {
+                    appendFixedText("()")
+                    if (declaration is KtNamedFunction) {
+                        appendParameters(declaration, "[", "]", skipLast = true)
+                        declaration.valueParameters.last().nameAsName?.let {
+                            appendFixedText(" = ")
+                            appendName(it)
+                        }
+                    }
                 }
-            } else {
-                appendFixedText("().")
-                appendName(name)
-                if (declaration is KtNamedFunction) {
-                    appendParameters(declaration, "(", ")")
+                annotations.isInvoke -> {
+                    appendFixedText("()")
+                    if (declaration is KtNamedFunction) {
+                        appendParameters(declaration, "(", ")")
+                    }
+                }
+                else -> {
+                    appendFixedText("().")
+                    appendName(name)
+                    if (declaration is KtNamedFunction) {
+                        appendParameters(declaration, "(", ")")
+                    }
                 }
             }
         }
@@ -161,8 +166,7 @@ class MigrateExternalExtensionFix(declaration: KtNamedDeclaration)
                 declaration.add(ktPsiFactory.createEQ())
                 declaration.add(body)
             }
-        }
-        else if (declaration is KtProperty) {
+        } else if (declaration is KtProperty) {
             declaration.setter?.delete()
             declaration.getter?.delete()
             val getter = ktPsiFactory.createPropertyGetter(body)
@@ -178,7 +182,7 @@ class MigrateExternalExtensionFix(declaration: KtNamedDeclaration)
                 }
 
                 val setterStubProperty = ktPsiFactory.createProperty("val x: Unit set(value) { Unit }")
-                val block = setterStubProperty.setter!!.bodyExpression as KtBlockExpression
+                val block = setterStubProperty.setter!!.bodyBlockExpression!!
                 block.statements.single().replace(setterBody)
                 declaration.add(setterStubProperty.setter!!)
             }
@@ -196,7 +200,7 @@ class MigrateExternalExtensionFix(declaration: KtNamedDeclaration)
         }
 
         if (declaration is KtFunction) {
-            declaration.addAnnotation(KotlinBuiltIns.FQ_NAMES.suppress.toSafe(), "\"NOTHING_TO_INLINE\"")
+            declaration.addAnnotation(StandardNames.FqNames.suppress, "\"NOTHING_TO_INLINE\"")
         }
 
         convertNativeAnnotationToJsName(declaration, annotations)
@@ -213,9 +217,14 @@ class MigrateExternalExtensionFix(declaration: KtNamedDeclaration)
         }
     }
 
-    private fun BuilderByPattern<KtExpression>.appendParameters(declaration: KtNamedFunction, lParenth: String, rParenth: String, skipLast: Boolean = false) {
+    private fun BuilderByPattern<KtExpression>.appendParameters(
+        declaration: KtNamedFunction,
+        lParenth: String,
+        rParenth: String,
+        skipLast: Boolean = false
+    ) {
         appendFixedText(lParenth)
-        for ((index, param) in declaration.valueParameters.let { if (skipLast) it.take(it.size-1) else it }.withIndex()) {
+        for ((index, param) in declaration.valueParameters.let { if (skipLast) it.take(it.size - 1) else it }.withIndex()) {
             param.nameAsName?.let { paramName ->
                 if (index > 0) {
                     appendFixedText(",")
@@ -230,22 +239,23 @@ class MigrateExternalExtensionFix(declaration: KtNamedDeclaration)
         private fun KtAnnotationEntry.isJsAnnotation(vararg predefinedAnnotations: PredefinedAnnotation): Boolean {
             val bindingContext = analyze(BodyResolveMode.PARTIAL)
             val annotationDescriptor = bindingContext[BindingContext.ANNOTATION, this]
-            return annotationDescriptor != null && predefinedAnnotations.any { checkAnnotationName(annotationDescriptor, it.fqName) }
+            return annotationDescriptor != null && predefinedAnnotations.any { annotationDescriptor.fqName == it.fqName }
         }
 
-        private fun KtAnnotationEntry.isJsNativeAnnotation(): Boolean {
-            return isJsAnnotation(PredefinedAnnotation.NATIVE, PredefinedAnnotation.NATIVE_GETTER, PredefinedAnnotation.NATIVE_SETTER, PredefinedAnnotation.NATIVE_INVOKE )
-        }
+        private fun KtAnnotationEntry.isJsNativeAnnotation(): Boolean = isJsAnnotation(
+            PredefinedAnnotation.NATIVE,
+            PredefinedAnnotation.NATIVE_GETTER,
+            PredefinedAnnotation.NATIVE_SETTER,
+            PredefinedAnnotation.NATIVE_INVOKE
+        )
 
         private fun isMemberExtensionDeclaration(psiElement: PsiElement): Boolean {
             return (psiElement is KtNamedFunction && psiElement.receiverTypeReference != null) ||
-                   (psiElement is KtProperty && psiElement.receiverTypeReference != null)
+                    (psiElement is KtProperty && psiElement.receiverTypeReference != null)
         }
 
-        private fun isMemberDeclaration(psiElement: PsiElement): Boolean {
-            return (psiElement is KtNamedFunction && psiElement.receiverTypeReference == null) ||
-                   (psiElement is KtProperty && psiElement.receiverTypeReference == null)
-        }
+        private fun isMemberDeclaration(psiElement: PsiElement): Boolean =
+            (psiElement is KtNamedFunction && psiElement.receiverTypeReference == null) || (psiElement is KtProperty && psiElement.receiverTypeReference == null)
 
         override fun createAction(diagnostic: Diagnostic): IntentionAction? {
             val e = diagnostic.psiElement
@@ -262,7 +272,7 @@ class MigrateExternalExtensionFix(declaration: KtNamedDeclaration)
                         }
                     }
                     if ((e as? KtNamedDeclaration)?.modifierList?.annotationEntries?.any { it.isJsNativeAnnotation() } == true) {
-                        return MigrateExternalExtensionFix(e as KtNamedDeclaration)
+                        return MigrateExternalExtensionFix(e)
                     }
                 }
             }

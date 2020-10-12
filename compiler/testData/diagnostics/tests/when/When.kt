@@ -1,3 +1,18 @@
+// !WITH_NEW_INFERENCE
+/*
+ * KOTLIN DIAGNOSTICS SPEC TEST (NEGATIVE)
+ *
+ * SPEC VERSION: 0.1-152
+ * PRIMARY LINKS: expressions, when-expression -> paragraph 2 -> sentence 5
+ * expressions, when-expression -> paragraph 5 -> sentence 1
+ * expressions, when-expression -> paragraph 6 -> sentence 1
+ * expressions, when-expression -> paragraph 6 -> sentence 3
+ * expressions, when-expression -> paragraph 6 -> sentence 5
+ * expressions, when-expression -> paragraph 6 -> sentence 9
+ * expressions, when-expression -> paragraph 6 -> sentence 10
+ * expressions, when-expression -> paragraph 6 -> sentence 11
+ */
+
 fun Int.foo() : Boolean = true
 
 fun foo() : Int {
@@ -27,7 +42,7 @@ fun test() {
 
   when (x) {
     <!INCOMPATIBLE_TYPES!>s<!> -> <!UNUSED_EXPRESSION!>1<!>
-    <!INCOMPATIBLE_TYPES, DUPLICATE_LABEL_IN_WHEN!>""<!> -> <!UNUSED_EXPRESSION!>1<!>
+    <!DUPLICATE_LABEL_IN_WHEN, INCOMPATIBLE_TYPES!>""<!> -> <!UNUSED_EXPRESSION!>1<!>
     x -> <!UNUSED_EXPRESSION!>1<!>
     1 -> <!UNUSED_EXPRESSION!>1<!>
   }

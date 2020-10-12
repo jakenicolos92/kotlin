@@ -1,4 +1,5 @@
-// IGNORE_BACKEND: NATIVE
+// IGNORE_BACKEND_FIR: JVM_IR
+// TARGET_BACKEND: JVM
 // FILE: A.kt
 
 package constants

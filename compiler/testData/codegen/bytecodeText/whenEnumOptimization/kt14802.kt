@@ -1,3 +1,6 @@
+// IGNORE_BACKEND: JVM_IR
+// TODO KT-36845 Generate enum-based TABLESWITCH/LOOKUPSWITCH on a value with smart cast to enum in JVM_IR
+
 class EncapsulatedEnum<T : Enum<T>>(val value: T)
 
 enum class MyEnum(val value: String) {
@@ -24,4 +27,4 @@ fun box(): String {
     return res
 }
 
-// 1 LOOKUPSWITCH
+// 1 TABLESWITCH

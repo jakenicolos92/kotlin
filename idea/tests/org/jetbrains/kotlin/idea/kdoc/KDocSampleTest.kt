@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.idea.kdoc
@@ -19,28 +8,24 @@ package org.jetbrains.kotlin.idea.kdoc
 import com.intellij.codeInsight.documentation.DocumentationManager
 import com.intellij.openapi.util.io.FileUtil
 import com.intellij.openapi.util.text.StringUtil
-import com.intellij.openapi.vfs.newvfs.impl.VfsRootAccess
 import com.intellij.rt.execution.junit.FileComparisonFailure
 import org.jetbrains.kotlin.idea.caches.resolve.analyze
 import org.jetbrains.kotlin.idea.caches.resolve.getResolutionFacade
 import org.jetbrains.kotlin.idea.editor.quickDoc.AbstractQuickDocProviderTest.wrapToFileComparisonFailure
 import org.jetbrains.kotlin.idea.stubs.AbstractMultiModuleTest
+import org.jetbrains.kotlin.idea.test.PluginTestCaseBase
 import org.jetbrains.kotlin.kdoc.psi.impl.KDocSection
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.resolve.BindingContext.DECLARATION_TO_DESCRIPTOR
 import org.jetbrains.kotlin.test.InTextDirectivesUtils
-import org.jetbrains.kotlin.test.KotlinTestUtils
+import org.jetbrains.kotlin.test.JUnit3WithIdeaConfigurationRunner
+import org.junit.runner.RunWith
 import java.io.File
 
+@RunWith(JUnit3WithIdeaConfigurationRunner::class)
 class KDocSampleTest : AbstractMultiModuleTest() {
 
-    override val testPath: String = "${super.testPath}/kdoc/multiModuleSamples/"
-    override fun getTestDataPath() = testPath
-
-    override fun setUp() {
-        VfsRootAccess.allowRootAccess(KotlinTestUtils.getHomeDirectory())
-        super.setUp()
-    }
+    override fun getTestDataPath() = "${PluginTestCaseBase.getTestDataPathBase()}/kdoc/multiModuleSamples/"
 
     fun testSimple() {
 
@@ -73,6 +58,17 @@ class KDocSampleTest : AbstractMultiModuleTest() {
         doResolveTest("fqName/code/usage.kt", "samplez.a.b.c.Samplez")
     }
 
+    fun testTypeParameters() {
+
+        val code = module("code")
+        val samples = module("samples", hasTestRoot = true)
+
+        samples.addDependency(code)
+
+        doInfoTest("typeParameters/code/usageSingleTypeParameter.kt")
+        doInfoTest("typeParameters/code/usageNestedTypeParameters.kt")
+    }
+
     fun doResolveTest(path: String, link: String) {
 
         configureByFile(path)
@@ -90,7 +86,7 @@ class KDocSampleTest : AbstractMultiModuleTest() {
     }
 
     fun doInfoTest(path: String) {
-        val testDataFile = File(testPath, path)
+        val testDataFile = File(testDataPath, path)
         configureByFile(path)
         val documentationManager = DocumentationManager.getInstance(myProject)
         val targetElement = documentationManager.findTargetElement(myEditor, file)
@@ -105,24 +101,23 @@ class KDocSampleTest : AbstractMultiModuleTest() {
         }
 
         val textData = FileUtil.loadFile(testDataFile, true)
-        val directives = InTextDirectivesUtils.findLinesWithPrefixesRemoved(textData, false, "INFO:")
+        val directives = InTextDirectivesUtils.findLinesWithPrefixesRemoved(textData, false, true, "INFO:")
 
         if (directives.isEmpty()) {
             throw FileComparisonFailure(
-                    "'// INFO:' directive was expected",
-                    textData,
-                    textData + "\n\n//INFO: " + info,
-                    testDataFile.absolutePath)
-        }
-        else {
+                "'// INFO:' directive was expected",
+                textData,
+                textData + "\n\n//INFO: " + info,
+                testDataFile.absolutePath
+            )
+        } else {
             val expectedInfo = directives.joinToString("\n", postfix = "\n")
 
             if (expectedInfo.endsWith("...\n")) {
                 if (!info!!.startsWith(expectedInfo.removeSuffix("...\n"))) {
                     wrapToFileComparisonFailure(info, testDataFile.absolutePath, textData)
                 }
-            }
-            else if (expectedInfo != info) {
+            } else if (expectedInfo != info) {
                 wrapToFileComparisonFailure(info!!, testDataFile.absolutePath, textData)
             }
         }

@@ -10,6 +10,9 @@ class B {
     }
 }
 
+class AfterClasses {
+}
+
 <caret>
 
 // EXIST:  abstract
@@ -28,14 +31,15 @@ class B {
 // EXIST:  operator
 // EXIST:  infix
 // EXIST:  sealed class
-// EXIST:  data
+// EXIST:  data class
 // EXIST:  inline
 // EXIST:  tailrec
 // EXIST:  external
 // EXIST:  annotation class
-// EXIST:  const
-// EXIST:  suspend
+// EXIST:  const val
+// EXIST:  suspend fun
 // EXIST:  typealias
-// EXIST:  header
-// EXIST:  impl
+// EXIST:  expect
+// EXIST:  actual
+// EXIST:  lateinit var
 // NOTHING_ELSE
