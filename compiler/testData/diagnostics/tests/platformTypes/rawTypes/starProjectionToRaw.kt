@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 // FILE: A.java
 
 import java.util.*;
@@ -23,3 +24,5 @@ class Test {
 fun main(x: B<*>) {
     Test.foo(x)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaType, starProjection */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: k.kt
 
 interface G<T>
@@ -17,3 +18,5 @@ interface J extends K {
     SubG bar();
     SubG baz();
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, nullableType, typeParameter */

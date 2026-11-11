@@ -1,0 +1,68 @@
+/*
+ * Copyright 2010-2023 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.test.backend.ir
+
+import org.jetbrains.kotlin.test.Constructor
+import org.jetbrains.kotlin.test.FirParser
+import org.jetbrains.kotlin.test.backend.handlers.AbstractIrHandler
+import org.jetbrains.kotlin.test.backend.handlers.findByPath
+import org.jetbrains.kotlin.test.directives.DiagnosticsDirectives
+import org.jetbrains.kotlin.test.directives.FirDiagnosticsDirectives
+import org.jetbrains.kotlin.test.directives.model.singleOrZeroValue
+import org.jetbrains.kotlin.test.frontend.fir.handlers.FullDiagnosticsRenderer
+import org.jetbrains.kotlin.test.frontend.fir.handlers.diagnosticCodeMetaInfos
+import org.jetbrains.kotlin.test.model.TestModule
+import org.jetbrains.kotlin.test.services.*
+
+class IrDiagnosticsHandler(
+    testServices: TestServices,
+    private val diagnosticsDumpFileExtension: String = IR_DIAG,
+) : AbstractIrHandler(testServices) {
+    companion object {
+        const val IR_DIAG = ".ir.diag.txt"
+        const val LOWERED_IR_DIAG = ".lowered.ir.diag.txt"
+
+        val forLoweredIr: Constructor<IrDiagnosticsHandler>
+            get() = { IrDiagnosticsHandler(it, LOWERED_IR_DIAG) }
+    }
+
+    private val globalMetadataInfoHandler: GlobalMetadataInfoHandler
+        get() = testServices.globalMetadataInfoHandler
+
+    private val diagnosticsService: DiagnosticsService
+        get() = testServices.diagnosticsService
+
+    override val additionalServices: List<ServiceRegistrationData>
+        get() = listOf(service(::DiagnosticsService))
+
+    private val fullDiagnosticsRenderer = FullDiagnosticsRenderer(DiagnosticsDirectives.RENDER_IR_DIAGNOSTICS_FULL_TEXT)
+
+    override fun processModule(module: TestModule, info: IrBackendInput) {
+        val diagnosticsByFile = info.diagnosticReporter.diagnosticsByFile
+        for (currentModule in testServices.moduleStructure.modules) {
+            val lightTreeComparingModeEnabled = FirDiagnosticsDirectives.COMPARE_WITH_LIGHT_TREE in currentModule.directives
+            val lightTreeEnabled = currentModule.directives.singleOrZeroValue(FirDiagnosticsDirectives.FIR_PARSER) == FirParser.LightTree
+            for (file in currentModule.files) {
+                val diagnostics = file.findByPath(testServices) { file ->
+                    diagnosticsByFile.entries.firstOrNull { it.key?.path == file }?.value
+                }
+                if (diagnostics != null && diagnostics.isNotEmpty()) {
+                    val diagnosticsMetadataInfos =
+                        diagnostics.diagnosticCodeMetaInfos(
+                            module, file, diagnosticsService, globalMetadataInfoHandler,
+                            lightTreeEnabled, lightTreeComparingModeEnabled
+                        )
+                    globalMetadataInfoHandler.addMetadataInfosForFile(file, diagnosticsMetadataInfos)
+                    fullDiagnosticsRenderer.storeFullDiagnosticRender(module, diagnostics, file, testServices)
+                }
+            }
+        }
+    }
+
+    override fun processAfterAllModules(someAssertionWasFailed: Boolean) {
+        fullDiagnosticsRenderer.assertCollectedDiagnostics(testServices, diagnosticsDumpFileExtension)
+    }
+}

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 open class KotlinClass1 : JavaClass1() {
     public fun getSomethingKotlin1(): Int = 1
@@ -18,7 +19,7 @@ fun foo(k: KotlinClass2) {
     k.<!UNRESOLVED_REFERENCE!>somethingKotlin2<!>
 }
 
-fun useInt(<!UNUSED_PARAMETER!>i<!>: Int) {}
+fun useInt(i: Int) {}
 
 // FILE: JavaClass1.java
 public class JavaClass1 {
@@ -29,3 +30,5 @@ public class JavaClass1 {
 public class JavaClass2 extends KotlinClass1 {
     public int getSomething2() { return 1; }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, javaFunction, javaProperty, javaType */

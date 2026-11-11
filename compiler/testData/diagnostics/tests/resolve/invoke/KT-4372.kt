@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 //KT-4372 Invalid error position and failing to resolve invoke with receiver from other module
 
@@ -20,3 +21,7 @@ val <T> T.javaClass : Class<T>
     get() = throw Exception()
 
 fun <<!REIFIED_TYPE_PARAMETER_NO_INLINE!>reified<!> T> javaClass() : Class<T> = throw Exception()
+
+/* GENERATED_FIR_TAGS: classDeclaration, enumDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+getter, nullableType, objectDeclaration, primaryConstructor, propertyDeclaration, propertyWithExtensionReceiver, reified,
+typeParameter, typeWithExtension */

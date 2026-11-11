@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Super.kt
 
 interface Super {
@@ -14,3 +15,5 @@ interface Sub extends Super {
 class SubSub : Sub {
     override fun foo(<!PARAMETER_NAME_CHANGED_ON_OVERRIDE!>subName<!>: Int) {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, javaType, override */

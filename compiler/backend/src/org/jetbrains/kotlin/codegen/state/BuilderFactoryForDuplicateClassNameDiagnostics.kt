@@ -18,33 +18,27 @@ package org.jetbrains.kotlin.codegen.state
 
 import org.jetbrains.kotlin.codegen.ClassBuilderFactory
 import org.jetbrains.kotlin.codegen.ClassNameCollectionClassBuilderFactory
-import org.jetbrains.kotlin.diagnostics.DiagnosticSink
-import org.jetbrains.kotlin.renderer.DescriptorRenderer
-import org.jetbrains.kotlin.resolve.jvm.diagnostics.ErrorsJvm
-import org.jetbrains.kotlin.resolve.jvm.diagnostics.JvmDeclarationOrigin
-
+import org.jetbrains.kotlin.ir.declarations.IrClass
+import java.util.concurrent.ConcurrentHashMap
 
 class BuilderFactoryForDuplicateClassNameDiagnostics(
-        builderFactory: ClassBuilderFactory,
-        private val diagnostics: DiagnosticSink
+    builderFactory: ClassBuilderFactory,
+    private val state: GenerationState,
 ) : ClassNameCollectionClassBuilderFactory(builderFactory) {
+    private val className = ConcurrentHashMap<String, Any>()
 
-    private val className = hashMapOf<String, JvmDeclarationOrigin> ()
-
-    override fun handleClashingNames(internalName: String, origin: JvmDeclarationOrigin) {
-        val another = className.getOrPut(internalName, { origin })
-        //workaround for inlined anonymous objects
-        if (origin.element != another.element) {
-            reportError(internalName, origin, another)
+    override fun handleClashingNames(internalName: String, origin: IrClass?) {
+        val another = className.getOrPut(internalName) { origin ?: NO_ORIGIN }.takeUnless { it === NO_ORIGIN } as IrClass?
+        // Allow clashing classes if they are originated from the same source element. For example, this happens during inlining anonymous
+        // objects. In JVM IR, this also happens for anonymous classes in default arguments of tailrec functions, because default arguments
+        // are deep-copied (see JvmTailrecLowering).
+        if (origin != null && another != null && origin.attributeOwnerId != another.attributeOwnerId) {
+            state.reportDuplicateClassNameError(origin, internalName, another)
+            state.reportDuplicateClassNameError(another, internalName, origin)
         }
     }
 
-    private fun reportError(internalName: String, vararg another: JvmDeclarationOrigin) {
-        val fromString = another.mapNotNull { it.descriptor }.
-                joinToString { DescriptorRenderer.ONLY_NAMES_WITH_SHORT_TYPES.render(it) }
-
-        another.mapNotNull { it.element }.forEach {
-            diagnostics.report(ErrorsJvm.DUPLICATE_CLASS_NAMES.on(it, internalName, fromString))
-        }
+    private companion object {
+        val NO_ORIGIN = Any()
     }
 }

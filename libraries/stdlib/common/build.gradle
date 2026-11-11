@@ -1,55 +1,42 @@
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    id("maven-publish")
+}
+
 description = 'Kotlin Common Standard Library'
 
-apply plugin: 'kotlin-platform-common'
+def stdlibCommonDependencies = configurations.create("stdlibCommonDependencies") {
+    canBeResolved = true
+    canBeConsumed = false
+}
+def stdlibCommonElements = configurations.create("stdlibCommonElements") {
+    canBeResolved = false
+    canBeConsumed = true
+    attributes {
+        attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category, Category.LIBRARY))
+    }
+    extendsFrom(stdlibCommonDependencies)
+}
+dependencies {
+    add(stdlibCommonDependencies.name, project(":kotlin-stdlib"))
+}
 
-configurePublishing(project)
+SoftwareComponentFactory componentFactory = plugins.publishing.CustomVariantPublishingDslKt.getComponentFactory(project)
 
-ext.commonSrcDir = "${buildDir}/common-sources"
+def rootComponent = componentFactory.adhoc("root")
+rootComponent.addVariantsFromConfiguration(stdlibCommonElements) {
+    mapToOptional()
+}
 
-sourceSets {
-    main {
-        kotlin {
-            srcDir 'src'
-            srcDir commonSrcDir
+plugins.KotlinBuildPublishingPluginKt.configureDefaultPublishing(project)
+
+publishing {
+    publications {
+        def mainPublication = register("main", MavenPublication) {
+            from(rootComponent)
+            plugins.KotlinBuildPublishingPluginKt.configureKotlinPomAttributes(it, project, "Kotlin Common Standard Library (legacy, use kotlin-stdlib instead)", "pom", null)
         }
+        SbomKt.configureSbom(project, "Main", "kotlin-stdlib-common", ["stdlibCommonDependencies"], mainPublication)
     }
 }
-
-createPreprocessorTask(project, "Main", "${projectDir}/../src/kotlin", commonSrcDir)
-
-compileKotlinCommon.dependsOn preprocessSourcesMain
-
-/*
-// TODO: currently unsupported
-compileKotlinCommon {
-    kotlinOptions {
-        freeCompilerArgs = [
-                "-module-name", "${project.name}".toString()
-        ]
-    }
-}
-*/
-
-jar {
-    manifestAttributes(manifest, project, 'Main')
-}
-
-
-task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
-    from sourceSets.main.kotlin
-}
-
-artifacts {
-    archives sourcesJar
-    archives javadocJar
-}
-
-// TODO: call the "dist" task instead, once we need to publish kotlin-stdlib-common.jar with the compiler distribution
-task distCommon(type: Copy) {
-    from(jar)
-    into "$distDir/common"
-    rename "-${java.util.regex.Pattern.quote(version)}", ''
-}
-
-dist.dependsOn distCommon

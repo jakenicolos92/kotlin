@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
 
 fun println() {}
 fun foo(x: Any) {}
@@ -16,36 +17,36 @@ fun testResultOfLambda2() =
 
 fun testResultOfAnonFun1() =
         run(fun () =
-                if (true) <!IMPLICIT_CAST_TO_ANY!>42<!>
-                else <!IMPLICIT_CAST_TO_ANY!>println()<!>
+                if (true) 42
+                else println()
         )
 
 fun testResultOfAnonFun2() =
         run(fun () {
-            if (true) <!UNUSED_EXPRESSION!>42<!> else println()
+            if (true) 42 else println()
         })
 
 fun testReturnFromAnonFun() =
         run(fun () {
-            return if (true) <!CONSTANT_EXPECTED_TYPE_MISMATCH!>42<!> else println()
+            return <!RETURN_TYPE_MISMATCH, RETURN_TYPE_MISMATCH!>if (true) 42 else println()<!>
         })
 
 fun <!IMPLICIT_NOTHING_RETURN_TYPE!>testReturn1<!>() =
         run {
-            return <!TYPE_MISMATCH!>if (true) <!IMPLICIT_CAST_TO_ANY!>42<!>
-                   else <!IMPLICIT_CAST_TO_ANY!>println()<!><!>
+            <!RETURN_IN_FUNCTION_WITH_EXPRESSION_BODY_AND_IMPLICIT_TYPE!>return<!> <!RETURN_TYPE_MISMATCH!>if (true) 42
+                   else println()<!>
         }
 
 fun <!IMPLICIT_NOTHING_RETURN_TYPE!>testReturn2<!>() =
         run {
-            return <!TYPE_MISMATCH!>if (true) <!IMPLICIT_CAST_TO_ANY!>42<!>
-                   else if (true) <!IMPLICIT_CAST_TO_ANY!>42<!>
-                   else <!IMPLICIT_CAST_TO_ANY!>println()<!><!>
+            <!RETURN_IN_FUNCTION_WITH_EXPRESSION_BODY_AND_IMPLICIT_TYPE!>return<!> <!RETURN_TYPE_MISMATCH!>if (true) 42
+                   else if (true) 42
+                   else println()<!>
         }
 
 fun testUsage1() =
-        if (true) <!IMPLICIT_CAST_TO_ANY!>42<!>
-        else <!IMPLICIT_CAST_TO_ANY!>println()<!>
+        if (true) 42
+        else println()
 
 fun testUsage2() =
         foo(if (true) 42 else println())
@@ -54,8 +55,11 @@ fun testUsage2Generic() =
         fooGeneric(if (true) 42 else println())
 
 val testUsage3 =
-        if (true) <!IMPLICIT_CAST_TO_ANY!>42<!>
-        else <!IMPLICIT_CAST_TO_ANY!>println()<!>
+        if (true) 42
+        else println()
 
 val testUsage4: Any get() =
         if (true) 42 else println()
+
+/* GENERATED_FIR_TAGS: anonymousFunction, functionDeclaration, getter, ifExpression, integerLiteral, lambdaLiteral,
+nullableType, propertyDeclaration, typeParameter */

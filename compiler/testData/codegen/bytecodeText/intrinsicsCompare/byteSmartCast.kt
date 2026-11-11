@@ -10,8 +10,9 @@ fun less4(a: Byte?, b: Byte?) = if (a is Byte && b is Byte) a < b else true
 
 fun less5(a: Any?, b: Any?) = if (a is Byte && b is Byte) a < b else true
 
-// 3 Intrinsics\.areEqual
-// 3 Intrinsics\.compare
-// for compare:
-// 3 IFGE
-// 0 IF_ICMPGE
+// 0 Intrinsics\.areEqual
+// 0 Intrinsics\.compare
+// 8 INVOKEVIRTUAL java/lang/Byte\.byteValue \(\)B
+// 4 INVOKEVIRTUAL java/lang/Number\.byteValue \(\)B
+// 0 IFGE
+// 3 IF_ICMPGE

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Outer {
     fun foo(): Int {
         if (outerState > 0) return outerState
@@ -16,3 +17,6 @@ class Outer {
     
     val outerState = 42
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, comparisonExpression, functionDeclaration, ifExpression, inner, integerLiteral,
+localClass, propertyDeclaration */

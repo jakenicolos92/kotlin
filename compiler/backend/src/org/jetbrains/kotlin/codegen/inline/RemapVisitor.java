@@ -18,26 +18,32 @@ package org.jetbrains.kotlin.codegen.inline;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.kotlin.codegen.StackValue;
+import org.jetbrains.kotlin.codegen.state.KotlinTypeMapperBase;
 import org.jetbrains.org.objectweb.asm.Label;
 import org.jetbrains.org.objectweb.asm.MethodVisitor;
 import org.jetbrains.org.objectweb.asm.Opcodes;
 import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter;
 import org.jetbrains.org.objectweb.asm.tree.FieldInsnNode;
 
-public class RemapVisitor extends MethodBodyVisitor {
+import static org.jetbrains.kotlin.codegen.inline.InlineCodegenUtilsKt.CAPTURED_FIELD_FOLD_PREFIX;
+
+public class RemapVisitor extends SkipMaxAndEndVisitor {
     private final LocalVarRemapper remapper;
     private final FieldRemapper nodeRemapper;
     private final InstructionAdapter instructionAdapter;
+    private final KotlinTypeMapperBase typeMapper;
 
     public RemapVisitor(
             @NotNull MethodVisitor mv,
             @NotNull LocalVarRemapper remapper,
-            @NotNull FieldRemapper nodeRemapper
+            @NotNull FieldRemapper nodeRemapper,
+            @NotNull KotlinTypeMapperBase typeMapper
     ) {
         super(mv);
         this.instructionAdapter = new InstructionAdapter(mv);
         this.remapper = remapper;
         this.nodeRemapper = nodeRemapper;
+        this.typeMapper = typeMapper;
     }
 
     @Override
@@ -47,7 +53,7 @@ public class RemapVisitor extends MethodBodyVisitor {
 
     @Override
     public void visitVarInsn(int opcode, int var) {
-        remapper.visitVarInsn(opcode, var, instructionAdapter);
+        remapper.visitVarInsn(opcode, var, instructionAdapter, typeMapper);
     }
 
     @Override
@@ -59,16 +65,16 @@ public class RemapVisitor extends MethodBodyVisitor {
 
     @Override
     public void visitFieldInsn(int opcode, @NotNull String owner, @NotNull String name, @NotNull String desc) {
-        if (name.startsWith(InlineCodegenUtil.CAPTURED_FIELD_FOLD_PREFIX) &&
+        if (name.startsWith(CAPTURED_FIELD_FOLD_PREFIX) &&
             (nodeRemapper instanceof RegeneratedLambdaFieldRemapper || nodeRemapper.isRoot())) {
             FieldInsnNode fin = new FieldInsnNode(opcode, owner, name, desc);
             StackValue inline = nodeRemapper.getFieldForInline(fin, null);
             assert inline != null : "Captured field should have not null stackValue " + fin;
             if (Opcodes.PUTSTATIC == opcode) {
-                inline.store(StackValue.onStack(inline.type), this);
+                inline.store(inline.type, inline.irType, this, typeMapper);
             }
             else {
-                inline.put(inline.type, this);
+                inline.put(inline.type, inline.irType, this, typeMapper);
             }
             return;
         }

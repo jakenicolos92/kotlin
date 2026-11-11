@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //  Base  Interface
 //     \  /
 //      \/
@@ -45,13 +46,16 @@ class Derived : Base(), Interface {
             super.prop
 
     fun getAmbiguousSuperProp(): Int =
-            <!AMBIGUOUS_SUPER!>super<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>ambiguousProp<!>
+            <!AMBIGUOUS_SUPER!>super<!>.ambiguousProp
 
     fun callsFunFromSuperInterface() {
         super.bar()
     }
 
     fun callsAmbiguousSuperFun() {
-        <!AMBIGUOUS_SUPER!>super<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>ambiguous<!>()
+        <!AMBIGUOUS_SUPER!>super<!>.ambiguous()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, getter, integerLiteral, interfaceDeclaration, override,
+primaryConstructor, propertyDeclaration, superExpression */

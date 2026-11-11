@@ -16,27 +16,30 @@
 
 package org.jetbrains.kotlin.serialization.jvm
 
-import org.jetbrains.kotlin.load.kotlin.JvmNameResolver
+import org.jetbrains.kotlin.metadata.jvm.JvmProtoBuf
+import org.jetbrains.kotlin.metadata.jvm.JvmProtoBuf.StringTableTypes.Record
+import org.jetbrains.kotlin.metadata.jvm.JvmProtoBuf.StringTableTypes.Record.Operation.*
+import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmNameResolver
+import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmNameResolverBase
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.serialization.jvm.JvmProtoBuf.StringTableTypes.Record
-import org.jetbrains.kotlin.serialization.jvm.JvmProtoBuf.StringTableTypes.Record.Operation.*
-import org.jetbrains.kotlin.test.testFramework.KtUsefulTestCase
-import java.util.*
+import org.jetbrains.kotlin.serialization.deserialization.getClassId
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
 
-class JvmNameResolverTest : KtUsefulTestCase() {
+class JvmNameResolverTest {
     private class Context {
         val types = JvmProtoBuf.StringTableTypes.newBuilder()
         val strings = ArrayList<String>()
 
         fun string(
-                string: String?,
-                range: Int? = null,
-                predefinedIndex: Int? = null,
-                internalString: String? = null,
-                operation: Record.Operation? = null,
-                substringIndex: List<Int>? = null,
-                replaceChar: List<Char>? = null
+            string: String?,
+            range: Int? = null,
+            predefinedIndex: Int? = null,
+            internalString: String? = null,
+            operation: Record.Operation? = null,
+            substringIndex: List<Int>? = null,
+            replaceChar: List<Char>? = null
         ) {
             types.addRecord(Record.newBuilder().apply {
                 range?.let { setRange(it) }
@@ -44,7 +47,7 @@ class JvmNameResolverTest : KtUsefulTestCase() {
                 internalString?.let { setString(it) }
                 operation?.let { setOperation(it) }
                 substringIndex?.let { addAllSubstringIndex(it) }
-                replaceChar?.let { addAllReplaceChar(it.map(Char::toInt)) }
+                replaceChar?.let { addAllReplaceChar(it.map(Char::code)) }
             }.build())
 
             string?.let { strings.add(it) }
@@ -62,37 +65,44 @@ class JvmNameResolverTest : KtUsefulTestCase() {
         return create { string(string, null, predefinedIndex, null, operation, null, null) }.getString(0)
     }
 
+    @Test
     fun testSimpleString() {
         assertEquals("abc", str("abc"))
     }
 
+    @Test
     fun testSimpleClassId() {
         assertEquals(
-                ClassId.topLevel(FqName("foo.bar.Baz")),
-                create { string("Lfoo/bar/Baz;", operation = DESC_TO_CLASS_ID) }.getClassId(0)
+            ClassId.topLevel(FqName("foo.bar.Baz")),
+            create { string("Lfoo/bar/Baz;", operation = DESC_TO_CLASS_ID) }.getClassId(0)
         )
     }
 
+    @Test
     fun testBasicOperations() {
         assertEquals("java/util/Map.Entry", str("Ljava/util/Map\$Entry;", operation = DESC_TO_CLASS_ID))
         assertEquals("java/util/Map.Entry", str("java/util/Map\$Entry", operation = INTERNAL_TO_CLASS_ID))
     }
 
+    @Test
     fun testPredefined() {
-        for ((index, predefined) in JvmNameResolver.PREDEFINED_STRINGS.withIndex()) {
-            assertEquals("Predefined string failed: $predefined (index $index)", predefined, str("ignored", predefinedIndex = index))
+        for ([index, predefined] in JvmNameResolverBase.PREDEFINED_STRINGS.withIndex()) {
+            assertEquals(predefined, str("ignored", predefinedIndex = index), "Predefined string failed: $predefined (index $index)")
         }
     }
 
+    @Test
     fun testNotExistingPredefinedString() {
         assertEquals("not-ignored", str("not-ignored", predefinedIndex = 123456789))
     }
 
+    @Test
     fun testOperationOnBadString() {
         assertEquals("X", str("X", operation = DESC_TO_CLASS_ID))
         assertEquals("", str("", operation = DESC_TO_CLASS_ID))
     }
 
+    @Test
     fun testSubstring() {
         val n = create {
             string("kotlin", substringIndex = listOf(0, 6))
@@ -113,12 +123,14 @@ class JvmNameResolverTest : KtUsefulTestCase() {
         (3..5).forEach { assertEquals("kotlin", n.getString(it)) }
     }
 
+    @Test
     fun testSubstringHappensAfterOperation() {
         assertEquals("tl", create {
             string("kotlin", substringIndex = listOf(1, 5), operation = DESC_TO_CLASS_ID)
         }.getString(0))
     }
 
+    @Test
     fun testReplaceAll() {
         val n = create {
             string("kotlin", replaceChar = listOf('k', 'm'))
@@ -136,6 +148,7 @@ class JvmNameResolverTest : KtUsefulTestCase() {
         (2..3).forEach { assertEquals("kotlin", n.getString(it)) }
     }
 
+    @Test
     fun testRange() {
         val n = create {
             string("a\$b\$c", operation = INTERNAL_TO_CLASS_ID, range = 2)
@@ -148,6 +161,7 @@ class JvmNameResolverTest : KtUsefulTestCase() {
         assertEquals("def", n.getString(3))
     }
 
+    @Test
     fun testRangeWithDifferentOperations() {
         val n = create {
             string("a\$b\$c", operation = INTERNAL_TO_CLASS_ID, range = 2)
@@ -158,6 +172,7 @@ class JvmNameResolverTest : KtUsefulTestCase() {
         assertEquals("d.e.f", n.getString(1))
     }
 
+    @Test
     fun testString() {
         val n = create {
             string("java", internalString = "kotlin", range = 5)

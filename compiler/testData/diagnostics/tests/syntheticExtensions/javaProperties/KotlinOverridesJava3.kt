@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: KotlinFile.kt
 abstract class KotlinClass : JavaInterface1, JavaInterface2 {
     override fun getSomething(): String = ""
@@ -12,7 +13,7 @@ fun foo(k: KotlinClass) {
     k.something = ""
 }
 
-fun useString(<!UNUSED_PARAMETER!>i<!>: String) {}
+fun useString(i: String) {}
 
 // FILE: JavaInterface1.java
 public interface JavaInterface1 {
@@ -23,3 +24,6 @@ public interface JavaInterface1 {
 public interface JavaInterface2 {
     void setSomething(String value);
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, equalityExpression, functionDeclaration, ifExpression, javaFunction,
+javaProperty, javaType, override, stringLiteral */

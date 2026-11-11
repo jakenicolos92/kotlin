@@ -1,5 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE
-// !LANGUAGE: +InlineDefaultFunctionalParameters
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE
 
 fun test() = "OK"
 
@@ -39,9 +39,12 @@ abstract class Base {
 }
 
 class Derived : Base() {
-    <!OVERRIDE_BY_INLINE!>override final inline fun foo(<!NOT_YET_SUPPORTED_IN_INLINE!>f: () -> Unit<!>)<!> {
+    override final inline <!OVERRIDE_BY_INLINE!>fun foo(<!NOT_YET_SUPPORTED_IN_INLINE!>f: () -> Unit<!>)<!> {
         f()
     }
 }
 
 inline fun default11(s : () -> Derived = ::Derived) {}
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, callableReference, classDeclaration, functionDeclaration,
+functionalType, inline, lambdaLiteral, objectDeclaration, operator, override, propertyDeclaration, stringLiteral */

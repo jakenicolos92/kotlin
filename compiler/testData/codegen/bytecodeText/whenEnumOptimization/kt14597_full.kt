@@ -1,24 +1,19 @@
-enum class En { A, B, С }
+enum class En { A, B, C }
 
-fun main(args: Array<String>) {
-
-}
-
-fun box(): String {
-    var res1 = "fail"
-    var res2 = "fail2"
+fun box() {
+    var r = ""
 
     val en: En = En.A
     when (en) {
-        En.A -> {res1 = ""}
+        En.A -> { r = "when-1" }
         En.B -> {}
-        En.С -> {}
+        En.C -> {}
     }
 
     when (en as En) {
-        En.A -> {res1 += "O"}
+        En.A -> { r = "when-2" }
         En.B -> {}
-        En.С -> {}
+        En.C -> {}
     }
 
 
@@ -26,15 +21,15 @@ fun box(): String {
     val en2: Any? = En.A
     if (en2 is En) {
         when (en2) {
-            En.A -> {res1 += "K"}
+            En.A -> { r = "when-3" }
             En.B -> {}
-            En.С -> {}
+            En.C -> {}
         }
 
         when (en2 as En) {
-            En.A -> {res2 = ""}
+            En.A -> { r = "when-4" }
             En.B -> {}
-            En.С -> {}
+            En.C -> {}
         }
     }
 
@@ -43,20 +38,17 @@ fun box(): String {
     val en1: Any = En.A
     if (en1 is En) {
         when (en1) {
-            En.A -> {res2 += "O"}
+            En.A -> { r = "when-5" }
             En.B -> {}
-            En.С -> {}
+            En.C -> {}
         }
         // Working without other examples
         when (en1 as En) {
-            En.A -> {res2 += "K"}
+            En.A -> { r = "when-6" }
             En.B -> {}
-            En.С -> {}
+            En.C -> {}
         }
     }
-
-    if (res1 != res2) return "different results: $res1 != $res2"
-    return res1
 }
 
 // 6 TABLESWITCH

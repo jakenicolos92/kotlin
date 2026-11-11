@@ -1,15 +1,16 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 fun example() {
     val a = if (true) true else false
-    val b = <!INVALID_IF_AS_EXPRESSION!>if (true) else false<!>
-    val c = <!INVALID_IF_AS_EXPRESSION!>if (true) true<!>
-    val d = <!INVALID_IF_AS_EXPRESSION!>if (true) true else<!>;
-    val e = if (true) <!IMPLICIT_CAST_TO_ANY!>{}<!> else <!IMPLICIT_CAST_TO_ANY!>false<!>
-    val f = if (true) <!IMPLICIT_CAST_TO_ANY!>true<!> else <!IMPLICIT_CAST_TO_ANY!>{}<!>
+    val b = <!INVALID_IF_AS_EXPRESSION!>if<!> (true) else false
+    val c = <!INVALID_IF_AS_EXPRESSION!>if<!> (true) true
+    val d = <!INVALID_IF_AS_EXPRESSION!>if<!> (true) true else;
+    val e = if (true) {} else false
+    val f = if (true) true else {}
 
     {
-        if (true) <!UNUSED_EXPRESSION!>true<!>
+        if (true) true
     }();
 
     {
@@ -26,8 +27,11 @@ fun example() {
     }()
 
     fun t(): Boolean {
-        return <!TYPE_MISMATCH, INVALID_IF_AS_EXPRESSION!>if (true) true<!>
+        return <!INVALID_IF_AS_EXPRESSION!>if<!> (true) true
     }
 
-    return if (true) <!CONSTANT_EXPECTED_TYPE_MISMATCH!>true<!> else {}
+    return <!RETURN_TYPE_MISMATCH!>if (true) true else {}<!>
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, ifExpression, lambdaLiteral, localFunction, localProperty,
+propertyDeclaration */

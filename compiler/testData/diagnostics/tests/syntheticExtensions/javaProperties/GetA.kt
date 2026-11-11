@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 fun foo(javaClass: JavaClass) {
     javaClass.a
@@ -8,3 +9,5 @@ fun foo(javaClass: JavaClass) {
 public class JavaClass {
     public int getA() { return 1; }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaProperty, javaType */

@@ -1,4 +1,0 @@
-package
-
-public fun takeJ(/*0*/ j: p.J): kotlin.Unit
-public fun test(): kotlin.Unit

@@ -20,48 +20,62 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Type
-import java.util.ArrayList
+import java.util.*
+import org.jetbrains.kotlin.K1Deprecation
 
+@K1Deprecation
 interface ValueResolver {
     fun resolve(request: Type, context: ValueResolveContext): ValueDescriptor?
 }
 
+@K1Deprecation
 interface ValueResolveContext {
     fun resolve(registration: Type): ValueDescriptor?
 }
 
+@K1Deprecation
 class ComponentResolveContext(
-        val container: StorageComponentContainer,
-        val requestingDescriptor: ValueDescriptor,
-        val parentContext: ValueResolveContext? = null
+    val container: StorageComponentContainer,
+    val requestingDescriptor: ValueDescriptor,
+    val parentContext: ValueResolveContext? = null
 ) : ValueResolveContext {
-    override fun resolve(registration: Type): ValueDescriptor? = container.resolve(registration, this) ?: parentContext?.resolve(registration)
+    override fun resolve(registration: Type): ValueDescriptor? =
+        container.resolve(registration, this) ?: parentContext?.resolve(registration)
 
     override fun toString(): String = "for $requestingDescriptor in $container"
 }
 
+@K1Deprecation
 class ConstructorBinding(val constructor: Constructor<*>, val argumentDescriptors: List<ValueDescriptor>)
 
-class MethodBinding(val method: Method, val argumentDescriptors: List<ValueDescriptor>) {
+@K1Deprecation
+class MethodBinding(val method: Method, private val argumentDescriptors: List<ValueDescriptor>) {
     fun invoke(instance: Any) {
         val arguments = computeArguments(argumentDescriptors).toTypedArray()
-        method.invoke(instance, *arguments)
+        runWithUnwrappingInvocationException { method.invoke(instance, *arguments) }
     }
 }
 
+@K1Deprecation
 fun computeArguments(argumentDescriptors: List<ValueDescriptor>): List<Any> = argumentDescriptors.map { it.getValue() }
 
-fun Class<*>.bindToConstructor(context: ValueResolveContext): ConstructorBinding {
-    val constructorInfo = getInfo().constructorInfo ?: error("No constructor for $this: ${getInfo()}")
+@K1Deprecation
+fun Class<*>.bindToConstructor(containerId: String, context: ValueResolveContext): ConstructorBinding {
+    val constructorInfo = getInfo().constructorInfo ?: error("No constructor for $this: ${getInfo()} in $containerId")
     val candidate = constructorInfo.constructor
-    return ConstructorBinding(candidate, candidate.bindArguments(constructorInfo.parameters, context))
+    return ConstructorBinding(candidate, candidate.bindArguments(containerId, constructorInfo.parameters, context))
 }
 
-fun Method.bindToMethod(context: ValueResolveContext): MethodBinding {
-    return MethodBinding(this, bindArguments(genericParameterTypes.toList(), context))
+@K1Deprecation
+fun Method.bindToMethod(containerId: String, context: ValueResolveContext): MethodBinding {
+    return MethodBinding(this, bindArguments(containerId, genericParameterTypes.toList(), context))
 }
 
-private fun Member.bindArguments(parameters: List<Type>, context: ValueResolveContext): List<ValueDescriptor> {
+private fun Member.bindArguments(
+    containerId: String,
+    parameters: List<Type>,
+    context: ValueResolveContext
+): List<ValueDescriptor> {
     val bound = ArrayList<ValueDescriptor>(parameters.size)
     var unsatisfied: MutableList<Type>? = null
 
@@ -71,15 +85,15 @@ private fun Member.bindArguments(parameters: List<Type>, context: ValueResolveCo
             if (unsatisfied == null)
                 unsatisfied = ArrayList<Type>()
             unsatisfied.add(parameter)
-        }
-        else {
+        } else {
             bound.add(descriptor)
         }
     }
     if (unsatisfied != null) {
-        throw UnresolvedDependenciesException("Dependencies for `$this` cannot be satisfied:\n  $unsatisfied")
+        throw UnresolvedDependenciesException("$containerId: Dependencies for `$this` cannot be satisfied:\n  $unsatisfied")
     }
     return bound
 }
 
+@K1Deprecation
 class UnresolvedDependenciesException(message: String) : Exception(message)

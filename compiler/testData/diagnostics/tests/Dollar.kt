@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package dollar
 
 open class `$$$$$`() {
@@ -10,3 +11,5 @@ open class `$$`(`$$$$` : `$$$$$`?) : `$`() {
         return `$$$`
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, nullableType, primaryConstructor, propertyDeclaration */

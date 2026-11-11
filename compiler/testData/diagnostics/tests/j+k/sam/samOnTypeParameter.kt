@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: FormFieldValidatorPresenterTest.java
 public class FormFieldValidatorPresenterTest<V extends String> {
 
@@ -15,3 +16,5 @@ fun <P : FormFieldValidatorPresenterTest<String>> setValidationListener(
 ) {
     presenter.setValidationListenerTest(validationListener) // Error: Type mismatch: inferred type is (Boolean) -> Unit but FormFieldValidatorPresenterTest.ValidationListenerTest! was expected
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, javaType, samConversion, typeConstraint, typeParameter */

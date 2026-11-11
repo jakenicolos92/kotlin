@@ -1,0 +1,12 @@
+/* MODULE name=<main> */
+
+/* FILE package=<root> fileName=useInfixTailrecPrivateTopLevelFunThroughInternalInlineFun.kt */
+
+/* TARGET declaration */ private tailrec infix fun Int.gcd(other: Int): Int
+    /* TARGET use-site */ gcd(/* <this> = other, */ other = <this>.rem(other = other))
+internal inline fun internalFun(x: Int): Int
+    /* ACCESSOR use-site */ access$gcd$tUseInfixTailrecPrivateTopLevelFunThroughInternalInlineFunKt($receiver = x.minus(other = 2), other = x)
+public fun box(): String
+    /* ACCESSOR use-site */ access$gcd$tUseInfixTailrecPrivateTopLevelFunThroughInternalInlineFunKt($receiver = x.minus(other = 2), other = x)
+/* ACCESSOR declaration */ internal fun access$gcd$tUseInfixTailrecPrivateTopLevelFunThroughInternalInlineFunKt($receiver: Int, other: Int): Int
+    /* TARGET use-site */ gcd(/* <this> = $receiver, */ other = other)

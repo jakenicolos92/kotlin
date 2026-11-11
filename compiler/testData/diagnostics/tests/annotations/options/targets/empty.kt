@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 @Target() annotation class empty
 
 <!WRONG_ANNOTATION_TARGET!>@empty<!> annotation class derived
@@ -19,3 +20,7 @@
 }
 
 <!WRONG_ANNOTATION_TARGET!>@empty<!> val z = <!WRONG_ANNOTATION_TARGET!>@empty<!> 0
+
+/* GENERATED_FIR_TAGS: additiveExpression, annotationDeclaration, classDeclaration, enumDeclaration, enumEntry,
+functionDeclaration, integerLiteral, localFunction, localProperty, primaryConstructor, propertyDeclaration,
+secondaryConstructor */

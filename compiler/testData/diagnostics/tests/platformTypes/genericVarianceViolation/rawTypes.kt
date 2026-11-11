@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 // FILE: A.java
 
 import java.util.*;
@@ -12,3 +13,5 @@ fun main(a: A, ml: MutableList<String>, l: List<String>) {
     a.foo(ml)
     a.foo(l)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaType */

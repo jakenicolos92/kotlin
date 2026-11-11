@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Test.java
 public interface Test {
     default String test() {
@@ -8,7 +9,7 @@ public interface Test {
 // FILE: test.kt
 interface KTrait : Test {
     fun ktest() {
-        super.<!INTERFACE_CANT_CALL_DEFAULT_METHOD_VIA_SUPER!>test<!>()
+        super.test()
 
         test()
     }
@@ -17,7 +18,7 @@ interface KTrait : Test {
 
 interface KTrait2 : KTrait {
     fun ktest2() {
-        super.<!INTERFACE_CANT_CALL_DEFAULT_METHOD_VIA_SUPER!>test<!>()
+        super.test()
 
         test()
     }
@@ -25,7 +26,7 @@ interface KTrait2 : KTrait {
 
 class A : KTrait {
     fun a() {
-        super.<!DEFAULT_METHOD_CALL_FROM_JAVA6_TARGET!>test<!>()
+        super.test()
 
         test()
     }
@@ -34,8 +35,11 @@ class A : KTrait {
 
 class A2 : KTrait2 {
     fun a() {
-        super.<!DEFAULT_METHOD_CALL_FROM_JAVA6_TARGET!>test<!>()
+        super.test()
 
         test()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, functionDeclaration, interfaceDeclaration, javaFunction, javaType,
+superExpression */

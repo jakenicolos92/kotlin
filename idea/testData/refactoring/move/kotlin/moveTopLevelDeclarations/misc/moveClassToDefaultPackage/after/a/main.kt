@@ -1,5 +1,0 @@
-package a
-
-class Y {
-
-}

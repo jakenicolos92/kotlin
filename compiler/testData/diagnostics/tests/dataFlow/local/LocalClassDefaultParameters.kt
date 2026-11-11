@@ -1,8 +1,11 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun test(x: Any) {
   if (x !is String) return
 
-  class Local(<!UNUSED_PARAMETER!>s<!>: String = <!DEBUG_INFO_SMARTCAST!>x<!>) {
-    fun foo(s: String = <!DEBUG_INFO_SMARTCAST!>x<!>): String = s
+  class Local(s: String = x) {
+    fun foo(s: String = x): String = s
   }
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, isExpression, localClass, primaryConstructor,
+smartcast */

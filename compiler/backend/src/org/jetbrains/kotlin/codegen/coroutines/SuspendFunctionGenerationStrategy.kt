@@ -1,74 +1,39 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.codegen.coroutines
 
-import org.jetbrains.kotlin.codegen.ExpressionCodegen
-import org.jetbrains.kotlin.codegen.FunctionGenerationStrategy
-import org.jetbrains.kotlin.codegen.binding.CodegenBinding
-import org.jetbrains.kotlin.codegen.state.GenerationState
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
-import org.jetbrains.kotlin.descriptors.FunctionDescriptor
-import org.jetbrains.kotlin.psi.KtFunction
-import org.jetbrains.kotlin.resolve.jvm.diagnostics.OtherOrigin
-import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodSignature
-import org.jetbrains.kotlin.utils.addToStdlib.safeAs
+import org.jetbrains.kotlin.codegen.TransformationMethodVisitor
+import org.jetbrains.kotlin.codegen.inline.coroutines.FOR_INLINE_SUFFIX
+import org.jetbrains.kotlin.codegen.inline.preprocessSuspendMarkers
+import org.jetbrains.kotlin.ir.declarations.IrFunction
 import org.jetbrains.org.objectweb.asm.MethodVisitor
 import org.jetbrains.org.objectweb.asm.Opcodes
+import org.jetbrains.org.objectweb.asm.tree.MethodNode
 
-class SuspendFunctionGenerationStrategy(
-        state: GenerationState,
-        private val originalSuspendDescriptor: FunctionDescriptor,
-        private val declaration: KtFunction,
-        private val containingClassInternalName: String
-) : FunctionGenerationStrategy.CodegenBased(state) {
-
-    private lateinit var transformer: CoroutineTransformerMethodVisitor
-    private lateinit var codegen: ExpressionCodegen
-
-    private val classBuilderForCoroutineState by lazy {
-        state.factory.newVisitor(
-            OtherOrigin(declaration, originalSuspendDescriptor),
-            CodegenBinding.asmTypeForAnonymousClass(state.bindingContext, originalSuspendDescriptor),
-            declaration.containingFile
-        ).also {
-            val coroutineCodegen =
-                    CoroutineCodegenForNamedFunction.create(it, codegen, originalSuspendDescriptor, declaration)
-            coroutineCodegen.generate()
+// For named suspend function we generate two methods:
+// 1) to use as noinline function, which have state machine
+// 2) to use from inliner: private one without state machine
+class SuspendForInlineCopyingMethodVisitor(
+    delegate: MethodVisitor, access: Int, name: String, desc: String,
+    private val newMethod: (IrFunction?, Int, String, String, String?, Array<String>?) -> MethodVisitor,
+    private val keepAccess: Boolean = true
+) : TransformationMethodVisitor(delegate, access, name, desc, null, null) {
+    override fun performTransformations(methodNode: MethodNode) {
+        val newMethodNode = with(methodNode) {
+            val newAccess = if (keepAccess) access else
+                access or Opcodes.ACC_PRIVATE and Opcodes.ACC_PUBLIC.inv() and Opcodes.ACC_PROTECTED.inv()
+            MethodNode(newAccess, name + FOR_INLINE_SUFFIX, desc, signature, exceptions.toTypedArray())
         }
-    }
-
-    override fun wrapMethodVisitor(mv: MethodVisitor, access: Int, name: String, desc: String): MethodVisitor {
-        if (access and Opcodes.ACC_ABSTRACT != 0) return mv
-
-        return CoroutineTransformerMethodVisitor(
-                mv, access, name, desc, null, null, containingClassInternalName, this::classBuilderForCoroutineState,
-                isForNamedFunction = true,
-                needDispatchReceiver = originalSuspendDescriptor.dispatchReceiverParameter != null,
-                internalNameForDispatchReceiver = containingClassInternalNameOrNull()
-        ).also {
-            transformer = it
+        val newMethodVisitor = with(newMethodNode) {
+            newMethod(null, access, name, desc, signature, exceptions.toTypedArray())
         }
-    }
-
-    private fun containingClassInternalNameOrNull() =
-            originalSuspendDescriptor.containingDeclaration.safeAs<ClassDescriptor>()?.let(state.typeMapper::mapClass)?.internalName
-
-    override fun doGenerateBody(codegen: ExpressionCodegen, signature: JvmMethodSignature) {
-        this.codegen = codegen
-        codegen.returnExpression(declaration.bodyExpression)
+        methodNode.instructions.resetLabels()
+        methodNode.accept(newMethodNode)
+        methodNode.preprocessSuspendMarkers(forInline = false, keepFakeContinuation = false)
+        newMethodNode.preprocessSuspendMarkers(forInline = true, keepFakeContinuation = true)
+        newMethodNode.accept(newMethodVisitor)
     }
 }

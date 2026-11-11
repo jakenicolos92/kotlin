@@ -1,7 +1,8 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class SuperFoo {
     public fun bar(): String {
         if (this is Foo) {
-            <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>superFoo<!>()
+            superFoo()
             return baz()
         }
         return baz()
@@ -13,3 +14,6 @@ open class SuperFoo {
 class Foo : SuperFoo() {
     public fun superFoo() {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, isExpression, smartcast, stringLiteral,
+thisExpression */

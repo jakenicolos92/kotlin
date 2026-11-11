@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 public interface A {
     class A_S {
@@ -36,7 +37,7 @@ public class F extends D {
 class X: D() {
     init {
         B_()
-        B.<!RESOLUTION_TO_CLASSIFIER!>B_<!>()
+        B.<!INNER_CLASS_CONSTRUCTOR_NO_RECEIVER!>B_<!>()
         C.<!UNRESOLVED_REFERENCE!>B_<!>()
         D.<!UNRESOLVED_REFERENCE!>B_<!>()
         X.<!UNRESOLVED_REFERENCE!>B_<!>()
@@ -80,3 +81,5 @@ class Y: F() {
         Y.<!UNRESOLVED_REFERENCE!>E_S<!>()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, init, interfaceDeclaration, javaFunction, javaType, nestedClass */

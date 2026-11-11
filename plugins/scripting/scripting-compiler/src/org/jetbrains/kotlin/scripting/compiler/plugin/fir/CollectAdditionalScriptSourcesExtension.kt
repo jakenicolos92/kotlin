@@ -1,0 +1,237 @@
+/*
+ * Copyright 2010-2025 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.scripting.compiler.plugin.fir
+
+import com.intellij.openapi.vfs.VirtualFile
+import org.jetbrains.kotlin.KtSourceFile
+import org.jetbrains.kotlin.KtVirtualFileSourceFile
+import org.jetbrains.kotlin.backend.common.pop
+import org.jetbrains.kotlin.cli.CliDiagnostics
+import org.jetbrains.kotlin.cli.jvm.compiler.VfsBasedProjectEnvironment
+import org.jetbrains.kotlin.cli.report
+import org.jetbrains.kotlin.compiler.plugin.getCompilerExtensions
+import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.config.allowAnyScriptsInSourceRoots
+import org.jetbrains.kotlin.config.disableStandardScriptDefinition
+import org.jetbrains.kotlin.config.languageVersionSettings
+import org.jetbrains.kotlin.config.scriptingHostConfiguration
+import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.fir.SessionConfiguration
+import org.jetbrains.kotlin.fir.extensions.CollectAdditionalSourceFilesExtension
+import org.jetbrains.kotlin.fir.extensions.FirExtensionRegistrar
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.scripting.compiler.plugin.legacyScriptRuntimeToAdd
+import org.jetbrains.kotlin.scripting.compiler.plugin.requiresLegacyScriptRuntime
+import org.jetbrains.kotlin.scripting.compiler.plugin.definitions.*
+import org.jetbrains.kotlin.scripting.compiler.plugin.dependencies.toSystemIndependentScriptPath
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.ScriptingModuleDataProvider
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.compilationClasspathOf
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.createScriptingLibrarySessions
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.createScriptSourceSession
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.createScriptingSessionFactoryContext
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.effectiveHostConfiguration
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.refineAllWithFirAnnotationSession
+import org.jetbrains.kotlin.scripting.compiler.plugin.report
+import org.jetbrains.kotlin.scripting.configuration.ScriptingConfigurationKeys
+import org.jetbrains.kotlin.scripting.resolve.toSourceCode
+import org.jetbrains.kotlin.utils.topologicalSort
+import java.io.File
+import kotlin.script.experimental.api.*
+import kotlin.script.experimental.host.FileBasedScriptSource
+import kotlin.script.experimental.host.ScriptingHostConfiguration
+import kotlin.script.experimental.host.configurationDependencies
+import kotlin.script.experimental.host.with
+import kotlin.script.experimental.jvm.defaultJvmScriptingHostConfiguration
+import kotlin.script.experimental.jvm.util.toClassPathOrEmpty
+
+class CollectAdditionalScriptSourcesExtension : CollectAdditionalSourceFilesExtension() {
+    override fun isApplicable(configuration: CompilerConfiguration): Boolean =
+        configuration.getBoolean(ScriptingConfigurationKeys.DISABLE_SCRIPTING_PLUGIN_OPTION) == false
+
+    @OptIn(SessionConfiguration::class)
+    override fun collectSources(
+        environment: Any,
+        configuration: CompilerConfiguration,
+        findVirtualFile: (File) -> VirtualFile?,
+        sources: Iterable<KtSourceFile>
+    ): Iterable<KtSourceFile> {
+        environment as VfsBasedProjectEnvironment
+        val providedHostConfiguration = configuration.scriptingHostConfiguration as? ScriptingHostConfiguration
+
+        val definitionProvider =
+            providedHostConfiguration?.get(ScriptingHostConfiguration.scriptCompilationConfigurationProvider)
+                ?: ScriptCompilationConfigurationProviderOverDefinitionProvider(
+                    CliScriptDefinitionProvider(
+                        configuration.disableStandardScriptDefinition
+                    ).also {
+                        it.setScriptDefinitionsSources(configuration.getList(ScriptingConfigurationKeys.SCRIPT_DEFINITIONS_SOURCES))
+                        it.setScriptDefinitions(configuration.getList(ScriptingConfigurationKeys.SCRIPT_DEFINITIONS))
+                    }
+                )
+
+        val hostConfiguration = ensureUpdatedHostConfiguration(providedHostConfiguration, definitionProvider, configuration)
+        val updatedClasspath = LinkedHashSet<File>()
+
+        fun SourceCode.collectImports(): List<SourceCode>? {
+            val refinedScriptCompilationConfiguration =
+                hostConfiguration.getOrStoreRefinedCompilationConfiguration(this) { script, scriptCompilationConfiguration ->
+                    scriptCompilationConfiguration.refineAllWithFirAnnotationSession(
+                        script, hostConfiguration, { _, scriptCompilationConfiguration ->
+                            getOrCreateSessionForAnnotationResolution(
+                                scriptCompilationConfiguration,
+                                effectiveHostConfiguration(hostConfiguration, scriptCompilationConfiguration),
+                                configuration,
+                                environment
+                            )
+                        }
+                    )
+                }.onFailure {
+                    for (report in it.reports) {
+                        configuration.report(report.severity, report.render(withSeverity = false), null)
+                    }
+                }.valueOrNull()
+
+            updatedClasspath.addAll(refinedScriptCompilationConfiguration?.get(ScriptCompilationConfiguration.dependencies).toClassPathOrEmpty())
+            if (refinedScriptCompilationConfiguration?.requiresLegacyScriptRuntime == true) {
+                configuration.legacyScriptRuntimeToAdd()?.let(updatedClasspath::add)
+            }
+            return refinedScriptCompilationConfiguration?.get(ScriptCompilationConfiguration.importScripts)?.takeIf { it.isNotEmpty() }
+        }
+
+        fun toSourceFile(import: SourceCode): KtVirtualFileSourceFile? =
+            if (import is FileBasedScriptSource)
+                findVirtualFile(import.file.absoluteFile)?.let { virtualFile -> KtVirtualFileSourceFile(virtualFile) } ?: run {
+                    configuration.report(
+                        CliDiagnostics.SCRIPTING_ERROR,
+                        "Unable to find imported script ${import.file}"
+                    )
+                    null
+                }
+            else null  // TODO: support non-file sources (KT-83973)
+
+        val acceptsAnyValid = configuration.allowAnyScriptsInSourceRoots
+
+        fun SourceCode.isAcceptedOrReport(): Boolean {
+            val scriptDefinition = definitionProvider.findBaseCompilationConfiguration(this)?.valueOr { failure ->
+                if (acceptsAnyValid) {
+                    val reportsDescription = failure.reports.joinToString(prefix = "\n",separator = "\n") { report ->
+                        report.render(withSeverity = false)
+                    }
+                    configuration.report(
+                        CliDiagnostics.SCRIPTING_WARNING,
+                        "Unable to find script definition for ${locationId ?: "script"}: $reportsDescription"
+                    )
+                }
+                return false
+            } ?: run {
+                if (acceptsAnyValid) {
+                    configuration.report(
+                        CliDiagnostics.SCRIPTING_WARNING,
+                        "Unable to find script definition for ${locationId ?: "script"}"
+                    )
+                }
+                return false
+            }
+            // We ignore 'isStandalone' scripts silently (this flag is true by default)
+            // See KT-52525
+            return acceptsAnyValid || scriptDefinition[ScriptCompilationConfiguration.isStandalone] == false
+        }
+
+        val sourcesToFiles = sources
+            .associateBy(KtSourceFile::toSourceCode)
+            .filterTo(mutableMapOf()) { it.key.isAcceptedOrReport() }
+
+        val remainingSources = ArrayList<SourceCode>().also { it.addAll(sourcesToFiles.keys) }
+        val knownSources = sourcesToFiles.keys.mapTo(mutableSetOf()) { it.locationId?.toSystemIndependentScriptPath() }
+        val sourceDependencies = mutableMapOf<SourceCode, List<SourceCode>>()
+
+        while (remainingSources.isNotEmpty()) {
+            val sourceCode = remainingSources.pop()
+            sourceCode.collectImports()?.let { imports ->
+                imports.filter {
+                    knownSources.add(it.locationId?.toSystemIndependentScriptPath()) && it.isAcceptedOrReport()
+                }.forEach { newImport ->
+                    remainingSources.add(newImport)
+                    toSourceFile(newImport)?.let {
+                        sourcesToFiles[newImport] = it
+                    }
+                }
+                sourceDependencies[sourceCode] = imports
+            }
+        }
+
+        environment.updateClasspath(updatedClasspath.toList())
+
+        class CycleDetected(val node: SourceCode) : Throwable()
+        return try {
+            topologicalSort(
+                sourcesToFiles.keys, reportCycle = { throw CycleDetected(it) }
+            ) {
+                sourceDependencies[this] ?: emptyList()
+            }.reversed().mapNotNull { sourcesToFiles[it] }
+        } catch (e: CycleDetected) {
+            configuration.report(
+                CliDiagnostics.SCRIPTING_ERROR,
+                "Unable to handle recursive script dependencies, cycle detected on file ${e.node.name ?: e.node.locationId}",
+            )
+            sourcesToFiles.values
+        }
+    }
+
+    private fun ensureUpdatedHostConfiguration(
+        providedHostConfiguration: ScriptingHostConfiguration?,
+        definitionProvider: ScriptCompilationConfigurationProvider,
+        configuration: CompilerConfiguration
+    ): ScriptingHostConfiguration {
+        val refinedCache =
+            providedHostConfiguration?.get(ScriptingHostConfiguration.scriptRefinedCompilationConfigurationsCache)
+                ?: ScriptRefinedCompilationConfigurationCacheImpl()
+        val updatedHostConfiguration = (providedHostConfiguration ?: defaultJvmScriptingHostConfiguration).with {
+            scriptCompilationConfigurationProvider.replaceOnlyDefault(definitionProvider)
+            scriptRefinedCompilationConfigurationsCache.replaceOnlyDefault(refinedCache)
+        }
+        configuration.scriptingHostConfiguration = updatedHostConfiguration
+        return updatedHostConfiguration
+    }
+
+    @SessionConfiguration
+    @Synchronized
+    private fun getOrCreateSessionForAnnotationResolution(
+        scriptCompilationConfiguration: ScriptCompilationConfiguration,
+        hostConfiguration: ScriptingHostConfiguration,
+        configuration: CompilerConfiguration,
+        projectEnvironment: VfsBasedProjectEnvironment,
+    ): FirSession =
+        dummySessionForAnnotationResolution ?: run {
+            val extensionRegistrars = configuration.getCompilerExtensions(FirExtensionRegistrar)
+
+            val dependencies = hostConfiguration[ScriptingHostConfiguration.configurationDependencies].orEmpty() +
+                    scriptCompilationConfiguration[ScriptCompilationConfiguration.dependencies].orEmpty()
+            val classpath = dependencies.compilationClasspathOf(scriptCompilationConfiguration)
+            projectEnvironment.updateClasspath(classpath)
+
+            val moduleDataProvider = ScriptingModuleDataProvider("dummy", classpath.map(File::toPath))
+
+            val sessionFactoryContext = createScriptingSessionFactoryContext(configuration, projectEnvironment)
+            createScriptingLibrarySessions(
+                Name.special("<dummy>"),
+                moduleDataProvider,
+                extensionRegistrars,
+                configuration.languageVersionSettings,
+                sessionFactoryContext,
+            )
+
+            createScriptSourceSession(
+                moduleDataProvider.addNewScriptModuleData(Name.special("<raw-script>"), isDummy = true),
+                extensionRegistrars,
+                configuration,
+                sessionFactoryContext,
+                hostConfiguration,
+            ).also { dummySessionForAnnotationResolution = it }
+        }
+
+    private var dummySessionForAnnotationResolution: FirSession? = null
+}

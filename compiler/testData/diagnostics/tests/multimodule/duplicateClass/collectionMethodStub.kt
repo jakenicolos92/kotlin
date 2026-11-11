@@ -1,5 +1,6 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// ALLOW_KOTLIN_PACKAGE
 // FILE: f1.kt
-// SKIP_TXT
 
 package kotlin
 
@@ -19,3 +20,5 @@ class C: MutableIterator<Int> {
     }
 
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, operator, override */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
 // MODULE: m1
 // FILE: a.kt
 
@@ -36,7 +37,10 @@ public fun d(d: D<Int>) {
 import p.*
 
 fun test() {
-    a(<!TYPE_MISMATCH!>M1().b<!>) // Type arguments do not match
-    c(<!TYPE_MISMATCH!>M1().b<!>) // Type arguments do not match
+    a(<!ARGUMENT_TYPE_MISMATCH!>M1().b<!>) // Type arguments do not match
+    c(<!ARGUMENT_TYPE_MISMATCH!>M1().b<!>) // Type arguments do not match
     d(M1().b) // Type arguments do match
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, nullableType, propertyDeclaration,
+typeParameter */

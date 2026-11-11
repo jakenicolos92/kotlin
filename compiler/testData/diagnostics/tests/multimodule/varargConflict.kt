@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
 // MODULE: m1
 // FILE: a.kt
 
@@ -24,3 +25,5 @@ import p.foo
 fun main() {
     foo(12)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, vararg */

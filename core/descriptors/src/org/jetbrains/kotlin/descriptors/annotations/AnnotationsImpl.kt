@@ -16,53 +16,13 @@
 
 package org.jetbrains.kotlin.descriptors.annotations
 
-import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.resolve.DescriptorUtils
-import org.jetbrains.kotlin.resolve.descriptorUtil.annotationClass
+/**
+ * Use [Annotations.create] to create an instance of this class if necessary.
+ */
+internal class AnnotationsImpl(private val annotations: List<AnnotationDescriptor>) : Annotations {
+    override fun isEmpty(): Boolean = annotations.isEmpty()
 
-class AnnotationsImpl : Annotations {
-    private val annotations: List<AnnotationDescriptor>
-    private val targetedAnnotations: List<AnnotationWithTarget>
+    override fun iterator(): Iterator<AnnotationDescriptor> = annotations.iterator()
 
-    constructor(annotations: List<AnnotationDescriptor>) {
-        this.annotations = annotations
-        this.targetedAnnotations = annotations.map { AnnotationWithTarget(it, null) }
-    }
-
-    // List<AnnotationDescriptor> and List<AnnotationWithTarget> have the same signature
-    private constructor(
-            targetedAnnotations: List<AnnotationWithTarget>,
-            @Suppress("UNUSED_PARAMETER") i: Int
-    ) {
-        this.targetedAnnotations = targetedAnnotations
-        this.annotations = targetedAnnotations.filter { it.target == null }.map { it.annotation }
-    }
-
-    override fun isEmpty() = targetedAnnotations.isEmpty()
-
-    override fun findAnnotation(fqName: FqName) = annotations.firstOrNull {
-        val descriptor = it.annotationClass
-        descriptor != null && fqName.toUnsafe() == DescriptorUtils.getFqName(descriptor)
-    }
-
-    override fun getUseSiteTargetedAnnotations(): List<AnnotationWithTarget> {
-        return targetedAnnotations
-                .filter { it.target != null }
-                .map { AnnotationWithTarget(it.annotation, it.target!!) }
-    }
-
-    override fun getAllAnnotations() = targetedAnnotations
-
-    override fun findExternalAnnotation(fqName: FqName) = null
-
-    override fun iterator() = annotations.iterator()
-
-    override fun toString() = annotations.toString()
-
-    companion object {
-        @JvmStatic
-        fun create(annotationsWithTargets: List<AnnotationWithTarget>): AnnotationsImpl {
-            return AnnotationsImpl(annotationsWithTargets, 0)
-        }
-    }
+    override fun toString(): String = annotations.toString()
 }

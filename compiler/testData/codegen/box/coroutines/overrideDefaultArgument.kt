@@ -1,8 +1,8 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 fun box(): String {
     async {
@@ -48,26 +48,24 @@ suspend fun sleep(): Unit = suspendCoroutine { c ->
 
 fun async(f: suspend () -> Unit) {
     f.startCoroutine(object : Continuation<Unit> {
-        override fun resume(x: Unit) {
+        override fun resumeWith(x: Result<Unit>) {
             proceed = {
                 result += "done;"
                 finished = true
             }
         }
-        override fun resumeWithException(x: Throwable) {}
         override val context = EmptyCoroutineContext
     })
 }
 
 fun asyncSuspend(f: suspend () -> Unit) {
     val coroutine = f.createCoroutine(object : Continuation<Unit> {
-        override fun resume(x: Unit) {
+        override fun resumeWith(x: Result<Unit>) {
             proceed = {
                 result += "done;"
                 finished = true
             }
         }
-        override fun resumeWithException(x: Throwable) {}
         override val context = EmptyCoroutineContext
     })
     coroutine.resume(Unit)

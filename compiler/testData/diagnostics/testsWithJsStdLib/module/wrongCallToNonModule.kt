@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // MODULE: m1
 // FILE: a.kt
 package foo
@@ -22,7 +23,7 @@ external open class B {
 external fun bar(): Unit
 
 // MODULE: m2(m1)
-// MODULE_KIND: AMD
+// JS_MODULE_KIND: AMD
 // TODO: it's hard to test @JsNonModule on file from an external module
 // FILE: c.kt
 package bar
@@ -36,7 +37,7 @@ fun box() {
     B.<!CALL_TO_JS_NON_MODULE_WITH_MODULE_SYSTEM!>Nested<!>()
 
     println(::<!CALL_TO_JS_NON_MODULE_WITH_MODULE_SYSTEM!>bar<!>.name)
-    println(<!CALL_TO_JS_NON_MODULE_WITH_MODULE_SYSTEM!>A<!>::f.name)
+    println(<!CALL_TO_JS_NON_MODULE_WITH_MODULE_SYSTEM!>A<!>::<!CALL_TO_JS_NON_MODULE_WITH_MODULE_SYSTEM!>f<!>.name)
 
     boo<<!CALL_TO_JS_NON_MODULE_WITH_MODULE_SYSTEM!>B?<!>>(null)
     <!CALL_TO_JS_NON_MODULE_WITH_MODULE_SYSTEM!>boo<!>(null as B?)
@@ -44,6 +45,9 @@ fun box() {
 
     println(<!CALL_TO_JS_NON_MODULE_WITH_MODULE_SYSTEM!>B::class<!>)
     println(<!CALL_TO_JS_NON_MODULE_WITH_MODULE_SYSTEM!>B.Nested::class<!>)
+
+    val x: Any = 1
+    println(x is B)
 }
 
 external class DerivedB : <!CALL_TO_JS_NON_MODULE_WITH_MODULE_SYSTEM!>B<!>

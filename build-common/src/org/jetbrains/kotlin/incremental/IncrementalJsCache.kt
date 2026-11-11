@@ -1,0 +1,495 @@
+/*
+ * Copyright 2010-2017 JetBrains s.r.o.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.jetbrains.kotlin.incremental
+
+import com.intellij.util.io.BooleanDataDescriptor
+import com.intellij.util.io.DataExternalizer
+import org.jetbrains.annotations.TestOnly
+import org.jetbrains.kotlin.build.report.debug
+import org.jetbrains.kotlin.incremental.js.*
+import org.jetbrains.kotlin.incremental.storage.*
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.serialization.SerializerExtensionProtocol
+import java.io.DataInput
+import java.io.DataOutput
+import java.io.File
+
+open class IncrementalJsCache(
+    cachesDir: File,
+    icContext: IncrementalCompilationContext,
+    serializerProtocol: SerializerExtensionProtocol,
+) : AbstractIncrementalCache<FqName>(cachesDir, icContext) {
+    companion object {
+        private const val TRANSLATION_RESULT_MAP = "translation-result"
+        private const val IR_TRANSLATION_RESULT_MAP = "ir-translation-result"
+        private const val INLINE_FUNCTIONS = "inline-functions"
+        private const val INLINE_FUNCTIONS_REPRESENTATION = "inline-functions-representation"
+
+        private const val METADATA_MAP = "metadata"
+        private const val DIRTY_METADATA_MAP = "dirty-metadata"
+    }
+
+    private val protoData = ProtoDataProvider(serializerProtocol)
+
+    override val sourceToClassesMap = registerMap(SourceToFqNameMap(SOURCE_TO_CLASSES.storageFile, icContext))
+    override val dirtyOutputClassesMap = registerMap(DirtyClassesFqNameMap(DIRTY_OUTPUT_CLASSES.storageFile, icContext))
+    private val translationResults = registerMap(TranslationResultMap(TRANSLATION_RESULT_MAP.storageFile, protoData, icContext))
+    private val irTranslationResults = registerMap(IrTranslationResultMap(IR_TRANSLATION_RESULT_MAP.storageFile, icContext))
+    private val irInlineTranslationResults = registerMap(IrTranslationResultMap(INLINE_FUNCTIONS.storageFile, icContext))
+    private val irInlineFunctionRepresentationMap = registerMap(IrInlineIdsMap(INLINE_FUNCTIONS_REPRESENTATION.storageFile, icContext))
+
+    // KMP only
+    private val metadataMap = registerMap(MetadataMap(METADATA_MAP.storageFile, protoData, icContext))
+    private val dirtyMetadataMap = registerMap(DirtyMetadataMap(DIRTY_METADATA_MAP.storageFile, icContext))
+
+    private val dirtySources = hashSetOf<File>()
+
+    override fun markDirty(removedAndCompiledSources: Collection<File>) {
+        super.markDirty(removedAndCompiledSources)
+        dirtySources.addAll(removedAndCompiledSources)
+
+        val removedAndCompiledMetadata = removedAndCompiledSources.filter { source ->
+            metadataMap.keys.any { fragmentName ->
+                metadataMap[fragmentName, source] != null
+            }
+        }
+        dirtyMetadataMap.markDirty(removedAndCompiledMetadata)
+    }
+
+    fun compare(translatedFiles: Map<File, TranslationResultValue>, changesCollector: ChangesCollector) {
+        for ([srcFile, data] in translatedFiles) {
+            val oldProtoMap = translationResults[srcFile]?.metadata?.let { protoData(srcFile, it) } ?: emptyMap()
+            val newProtoMap = protoData(srcFile, data.metadata)
+
+            for (classId in oldProtoMap.keys + newProtoMap.keys) {
+                changesCollector.collectProtoChanges(oldProtoMap[classId], newProtoMap[classId])
+            }
+        }
+    }
+
+    fun compareAndUpdate(incrementalResults: IncrementalResultsConsumerImpl, changesCollector: ChangesCollector) {
+        if (incrementalResults is KmpIncrementalResultsConsumer) {
+            for ([fragmentName, metadata] in incrementalResults.commonPackageParts) {
+                dirtyMetadataMap.notDirty(metadata.keys)
+                metadataMap.putAndCollect(fragmentName, metadata, changesCollector)
+            }
+        }
+
+        for ([srcFile, newData] in incrementalResults.packageParts) {
+            dirtySources.remove(srcFile)
+            val oldProtoMap = translationResults[srcFile]?.metadata?.let { protoData(srcFile, it) } ?: emptyMap()
+            val newProtoMap = protoData(srcFile, newData.metadata)
+
+            for ([classId, protoData] in newProtoMap) {
+                registerOutputForFile(srcFile, classId.asSingleFqName())
+
+                if (protoData is ClassProtoData) {
+                    addToClassStorage(protoData, srcFile)
+                }
+            }
+
+            for (classId in oldProtoMap.keys + newProtoMap.keys) {
+                changesCollector.collectProtoChanges(oldProtoMap[classId], newProtoMap[classId])
+            }
+
+            translationResults.put(srcFile, newData.metadata)
+        }
+
+        for ([srcFile, newIrData] in incrementalResults.irFileData) {
+            val (fileData, types, signatures, strings, declarations, bodies, fqn, debugInfos = debugInfo, fileEntries) = newIrData
+            irTranslationResults.put(
+                srcFile, fileData, types, signatures, strings, declarations, bodies, fqn, debugInfos, fileEntries
+            )
+        }
+
+        for ([srcFile, newIrData] in incrementalResults.irInlineFileData) {
+            val (fileData, types, signatures, strings, declarations, bodies, fqn, debugInfos = debugInfo, fileEntries) = newIrData
+            irInlineTranslationResults.put(
+                srcFile, fileData, types, signatures, strings, declarations, bodies, fqn, debugInfos, fileEntries
+            )
+        }
+
+        // If all inline functions from a file were deleted, then there will be no data associated with this file in `incrementalResults.irInlineFileData`.
+        // But we still would like to precess it and mark old inline functions as deleted.
+        for (srcFile in incrementalResults.irFileData.keys) {
+            val newIrInlineFunctionRepresentations = compareInlineFunctions(srcFile, incrementalResults, changesCollector)
+            irInlineFunctionRepresentationMap.put(srcFile, newIrInlineFunctionRepresentations)
+        }
+    }
+
+    private fun compareInlineFunctions(
+        srcFile: File,
+        incrementalResults: IncrementalResultsConsumerImpl,
+        changesCollector: ChangesCollector,
+    ): List<IrInlineFunctionRepresentation> {
+        val oldRepresentation = irInlineFunctionRepresentationMap[srcFile]?.associate { it.callableId to it.hashes } ?: emptyMap()
+        val newRepresentation =
+            incrementalResults.inlineFunctionRepresentationData[srcFile]?.associate { it.callableId to it.hashes } ?: emptyMap()
+
+        (newRepresentation + oldRepresentation).forEach { [callableId, _] ->
+            val scope = callableId.classId?.asSingleFqName() ?: callableId.packageName
+            val name = callableId.callableName.asString()
+            changesCollector.collectMemberIfValueWasChanged(scope, name, oldRepresentation[callableId], newRepresentation[callableId])
+        }
+
+        return newRepresentation.entries.map { IrInlineFunctionRepresentation(it.key, it.value) }
+    }
+
+    private fun registerOutputForFile(srcFile: File, name: FqName) {
+        sourceToClassesMap.append(srcFile, name)
+        dirtyOutputClassesMap.notDirty(name)
+    }
+
+    override fun clearCacheForRemovedClasses(changesCollector: ChangesCollector) {
+        dirtySources.forEach {
+            translationResults.remove(it, changesCollector)
+            irTranslationResults.remove(it)
+            irInlineTranslationResults.remove(it)
+            irInlineFunctionRepresentationMap.remove(it)
+        }
+        removeAllFromClassStorage(dirtyOutputClassesMap.getDirtyOutputClasses(), changesCollector)
+        dirtySources.clear()
+        dirtyOutputClassesMap.clear()
+
+        val dirtyMetadataSources = dirtyMetadataMap.getDirtySources()
+        for (fragmentName in metadataMap.keys) {
+            metadataMap.remove(fragmentName, dirtyMetadataSources, changesCollector)
+        }
+        dirtyMetadataMap.clear()
+    }
+
+    fun nonDirtyMetadata(fragmentName: String): Map<File, ByteArray> {
+        val metadata = metadataMap[fragmentName] ?: return emptyMap()
+        val dirtyMetadataSources = dirtyMetadataMap.getDirtySources()
+
+        return if (dirtyMetadataSources.isEmpty()) metadata else metadata.filterKeys { it !in dirtyMetadataSources }
+    }
+
+    fun nonDirtyPackageParts(): Map<File, TranslationResultValue> =
+        buildMap {
+            for (file in translationResults.keys) {
+
+                if (file !in dirtySources) {
+                    put(file, translationResults[file]!!)
+                }
+            }
+        }
+
+    fun nonDirtyIrParts(): Map<File, IrTranslationResultValue> =
+        buildMap {
+            for (file in irTranslationResults.keys) {
+
+                if (file !in dirtySources) {
+                    put(file, irTranslationResults[file]!!)
+                }
+            }
+        }
+
+    fun nonDirtyIrInlineParts(): Map<File, IrTranslationResultValue> =
+        buildMap {
+            for (file in irInlineTranslationResults.keys) {
+
+                if (file !in dirtySources) {
+                    put(file, irInlineTranslationResults[file]!!)
+                }
+            }
+        }
+}
+
+private object TranslationResultValueExternalizer : DataExternalizer<TranslationResultValue> {
+    override fun save(output: DataOutput, value: TranslationResultValue) {
+        output.writeInt(value.metadata.size)
+        output.write(value.metadata)
+    }
+
+    override fun read(input: DataInput): TranslationResultValue {
+        val metadataSize = input.readInt()
+        val metadata = ByteArray(metadataSize)
+        input.readFully(metadata)
+
+        return TranslationResultValue(metadata = metadata)
+    }
+}
+
+// TODO (unify with JVM)
+private class MetadataMap(
+    storageFile: File,
+    private val protoDataProvider: ProtoDataProvider,
+    private val icContext: IncrementalCompilationContext,
+) : BasicStringMap<Map<File, ByteArray>>(
+    storageFile,
+    MapExternalizer(icContext.fileDescriptorForSourceFiles, ByteArrayExternalizer),
+    icContext,
+) {
+    operator fun get(key: String, file: File): ByteArray? = storage[key]?.get(file)
+
+    @Synchronized
+    fun putAndCollect(key: String, entries: Map<File, ByteArray>, changesCollector: ChangesCollector) {
+        if (entries.isEmpty()) return
+
+        val old = storage[key]
+        for ([file, newBytes] in entries) {
+            collectChanges(file, old?.get(file), newBytes, changesCollector)
+        }
+
+        val merged = old?.let { HashMap(it) } ?: HashMap(entries.size)
+        merged.putAll(entries)
+
+        storage[key] = merged
+
+        for ([file, _] in entries) {
+            icContext.reporter.debug { "[$key] Saved metadata for file: ${file.path}" }
+        }
+    }
+
+    @Synchronized
+    fun remove(key: String, files: Collection<File>, changesCollector: ChangesCollector) {
+        val inner = storage[key] ?: return
+
+        val filesToRemove = files.filterTo(hashSetOf()) { it in inner }
+        if (filesToRemove.isEmpty()) return
+
+        for (file in filesToRemove) {
+            collectChanges(file, inner.getValue(file), null, changesCollector)
+        }
+
+        val merged = HashMap(inner).apply { keys.removeAll(filesToRemove) }
+
+        if (merged.isEmpty()) {
+            storage.remove(key)
+        } else {
+            storage[key] = merged
+        }
+
+        for (file in filesToRemove) {
+            icContext.reporter.debug { "[$key] Removed metadata for file: ${file.path}" }
+        }
+    }
+
+    private fun collectChanges(sourceFile: File, oldBytes: ByteArray?, newBytes: ByteArray?, changesCollector: ChangesCollector) {
+        if (oldBytes != null && newBytes != null && oldBytes.contentEquals(newBytes)) return
+
+        val oldProtoMap = oldBytes?.let { protoDataProvider(sourceFile, it) } ?: emptyMap()
+        val newProtoMap = newBytes?.let { protoDataProvider(sourceFile, it) } ?: emptyMap()
+
+        for (classId in oldProtoMap.keys + newProtoMap.keys) {
+            changesCollector.collectProtoChanges(oldProtoMap[classId], newProtoMap[classId])
+        }
+    }
+
+    override fun dumpValue(value: Map<File, ByteArray>): String =
+        value.entries.sortedBy { it.key.path }
+            .joinToString(", ", "{", "}") { "${it.key} -> ${java.lang.Long.toHexString(it.value.md5())}" }
+}
+
+/**
+ * The source files whose entries in [MetadataMap] are stale, in the same way [AbstractIncrementalCache.dirtyOutputClassesMap] tracks stale
+ * classes.
+ */
+private class DirtyMetadataMap(
+    storageFile: File,
+    icContext: IncrementalCompilationContext,
+) : AbstractBasicMap<File, Boolean>(storageFile, icContext.fileDescriptorForSourceFiles, BooleanDataDescriptor.INSTANCE, icContext) {
+    @Synchronized
+    fun markDirty(sourceFiles: Collection<File>) {
+        for (sourceFile in sourceFiles) {
+            this[sourceFile] = true
+        }
+    }
+
+    @Synchronized
+    fun notDirty(sourceFiles: Collection<File>) {
+        for (sourceFile in sourceFiles) {
+            remove(sourceFile)
+        }
+    }
+
+    @Synchronized
+    fun getDirtySources(): Set<File> = keys
+}
+
+private class TranslationResultMap(
+    storageFile: File,
+    private val protoData: ProtoDataProvider,
+    icContext: IncrementalCompilationContext,
+) : AbstractBasicMap<File, TranslationResultValue>(
+    storageFile,
+    icContext.fileDescriptorForSourceFiles,
+    TranslationResultValueExternalizer,
+    icContext
+) {
+
+    @TestOnly
+    override fun dumpValue(value: TranslationResultValue): String =
+        "Metadata: ${value.metadata.md5()}"
+
+    @Synchronized
+    fun put(sourceFile: File, newMetadata: ByteArray) {
+        this[sourceFile] =
+            TranslationResultValue(metadata = newMetadata)
+    }
+
+    @Synchronized
+    fun remove(sourceFile: File, changesCollector: ChangesCollector) {
+        val protoBytes = this[sourceFile]!!.metadata
+        val protoMap = protoData(sourceFile, protoBytes)
+
+        for ([_, protoData] in protoMap) {
+            changesCollector.collectProtoChanges(oldData = protoData, newData = null)
+        }
+        remove(sourceFile)
+    }
+}
+
+private object IrTranslationResultValueExternalizer : DataExternalizer<IrTranslationResultValue> {
+    override fun save(output: DataOutput, value: IrTranslationResultValue) {
+        output.writeArray(value.fileData)
+        output.writeArray(value.types)
+        output.writeArray(value.signatures)
+        output.writeArray(value.strings)
+        output.writeArray(value.declarations)
+        output.writeArray(value.bodies)
+        output.writeArray(value.fqn)
+        output.writeOptionalArray(value.debugInfo)
+        output.writeOptionalArray(value.fileEntries)
+    }
+
+    private fun DataOutput.writeArray(array: ByteArray) {
+        writeInt(array.size)
+        write(array)
+    }
+
+    private fun DataOutput.writeOptionalArray(array: ByteArray?) {
+        if (array != null)
+            writeArray(array)
+        else {
+            writeInt(-1)
+        }
+    }
+
+    private fun DataInput.readArray(): ByteArray {
+        val dataSize = readInt()
+        val filedata = ByteArray(dataSize)
+        readFully(filedata)
+        return filedata
+    }
+
+    private fun DataInput.readOptionalArray(): ByteArray? {
+        val dataSize = readInt()
+        return if (dataSize == -1)
+            null
+        else {
+            val filedata = ByteArray(dataSize)
+            readFully(filedata)
+            filedata
+        }
+    }
+
+    override fun read(input: DataInput): IrTranslationResultValue {
+        val fileData = input.readArray()
+        val types = input.readArray()
+        val signatures = input.readArray()
+        val strings = input.readArray()
+        val declarations = input.readArray()
+        val bodies = input.readArray()
+        val fqn = input.readArray()
+        val debugInfos = input.readOptionalArray()
+        val fileEntries = input.readOptionalArray()
+
+        return IrTranslationResultValue(
+            fileData, types, signatures, strings, declarations, bodies, fqn, debugInfos, fileEntries
+        )
+    }
+}
+
+private class IrTranslationResultMap(
+    storageFile: File,
+    icContext: IncrementalCompilationContext,
+) : AbstractBasicMap<File, IrTranslationResultValue>(
+    storageFile,
+    icContext.fileDescriptorForSourceFiles,
+    IrTranslationResultValueExternalizer,
+    icContext
+) {
+
+    @TestOnly
+    override fun dumpValue(value: IrTranslationResultValue): String =
+        "Filedata: ${value.fileData.md5()}, " +
+                "Types: ${value.types.md5()}, " +
+                "Signatures: ${value.signatures.md5()}, " +
+                "Strings: ${value.strings.md5()}, " +
+                "Declarations: ${value.declarations.md5()}, " +
+                "Bodies: ${value.bodies.md5()}"
+
+    @Synchronized
+    fun put(
+        sourceFile: File,
+        newFiledata: ByteArray,
+        newTypes: ByteArray,
+        newSignatures: ByteArray,
+        newStrings: ByteArray,
+        newDeclarations: ByteArray,
+        newBodies: ByteArray,
+        fqn: ByteArray,
+        debugInfos: ByteArray?,
+        fileEntries: ByteArray?,
+    ) {
+        this[sourceFile] =
+            IrTranslationResultValue(
+                newFiledata, newTypes, newSignatures, newStrings, newDeclarations, newBodies, fqn, debugInfos, fileEntries
+            )
+    }
+}
+
+private class IrInlineIdsMap(
+    storageFile: File,
+    icContext: IncrementalCompilationContext,
+) : AbstractBasicMap<File, List<IrInlineFunctionRepresentation>>(
+    storageFile,
+    icContext.fileDescriptorForSourceFiles,
+    ListExternalizer(IrInlineFunctionRepresentationExternalizer),
+    icContext
+) {
+
+    @TestOnly
+    override fun dumpValue(value: List<IrInlineFunctionRepresentation>): String {
+        return "IrInlineFunctionRepresentation: ${value.joinToString().toByteArray().md5()}"
+    }
+
+    @Synchronized
+    fun put(
+        sourceFile: File,
+        irInlineFunctionRepresentations: List<IrInlineFunctionRepresentation>,
+    ) {
+        this[sourceFile] = irInlineFunctionRepresentations
+    }
+}
+
+private object IrInlineFunctionRepresentationExternalizer : DataExternalizer<IrInlineFunctionRepresentation> {
+    override fun save(output: DataOutput, value: IrInlineFunctionRepresentation) {
+        CallableIdExternalizer.save(output, value.callableId)
+        ListExternalizer(LongExternalizer).save(output, value.hashes)
+    }
+
+    override fun read(input: DataInput): IrInlineFunctionRepresentation {
+        val callableId = CallableIdExternalizer.read(input)
+        val hash = ListExternalizer(LongExternalizer).read(input)
+
+        return IrInlineFunctionRepresentation(callableId, hash)
+    }
+}
+

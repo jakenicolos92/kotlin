@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 fun foo(x: Cloneable) = x
 
@@ -23,3 +24,6 @@ fun test() {
     floatArrayOf().clone() checkType { _<FloatArray>() }
     booleanArrayOf().clone() checkType { _<BooleanArray>() }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, infix,
+lambdaLiteral, nullableType, stringLiteral, typeParameter, typeWithExtension */

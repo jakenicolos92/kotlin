@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 
 inline fun <R> onlyLocal(crossinline p: () -> R) {
     inlineAll(p)
@@ -6,3 +7,5 @@ inline fun <R> onlyLocal(crossinline p: () -> R) {
 inline fun <R> inlineAll(p: () -> R) {
     p()
 }
+
+/* GENERATED_FIR_TAGS: crossinline, functionDeclaration, functionalType, inline, nullableType, typeParameter */

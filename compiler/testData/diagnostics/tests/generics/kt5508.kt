@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // KT-5508 Stackoverflow in type substitution
 
 abstract class A<T> {
@@ -21,3 +22,5 @@ abstract class A<T> {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, inner, nullableType, override, typeParameter */

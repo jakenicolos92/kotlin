@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: MyEnum.java
 
 public enum MyEnum {
@@ -10,3 +12,5 @@ public enum MyEnum {
 fun foo() {
     MyEnum.A.getOrdinal()
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaProperty, javaType */

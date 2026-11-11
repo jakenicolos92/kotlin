@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // Check that it works with inherited members
 //
 //  DeeperBase  DeeperInterface
@@ -49,3 +50,6 @@ class DeepDerived : DeepBase(), DeepInterface {
         super<DeepInterface>.deepInterfaceFun()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, getter, integerLiteral, interfaceDeclaration, override,
+propertyDeclaration, superExpression */

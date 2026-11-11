@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 
 public abstract class A {
@@ -17,3 +18,5 @@ abstract class C1 : B()
 abstract class C2 : B() {
     override fun get(index: Int) = '1'
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaType, operator, override */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // Ambiguity between fun and callable property
 
 open class BaseWithCallableProp {
@@ -13,8 +14,11 @@ interface InterfaceWithFun {
 
 class DerivedUsingFun : BaseWithCallableProp(), InterfaceWithFun {
     fun foo(): String =
-    <!AMBIGUOUS_SUPER!>super<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>fn<!>()
+    <!AMBIGUOUS_SUPER!>super<!>.fn()
 
     override fun bar(): String =
             super.bar()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, lambdaLiteral, override,
+propertyDeclaration, stringLiteral, superExpression */

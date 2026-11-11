@@ -1,7 +1,7 @@
-// EXPECTED_REACHABLE_NODES: 488
 package foo
 
-external val c: Any? = definedExternally
+external interface MyAny
+external val c: MyAny? = definedExternally
 
 fun box(): String {
     if (c != null) return "fail1"

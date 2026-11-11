@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class Base(val x: String) {
     fun foo() = bar()
 
@@ -6,6 +7,8 @@ open class Base(val x: String) {
 
 class Derived(x: String): Base(x) {
     // It's still dangerous: we're not sure that foo() does not call some open function inside
-    val y = <!DEBUG_INFO_LEAKING_THIS!>foo<!>()
+    val y = foo()
     val z = x
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, primaryConstructor, propertyDeclaration */

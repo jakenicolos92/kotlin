@@ -22,7 +22,9 @@ import com.intellij.psi.tree.IElementType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
+import org.jetbrains.kotlin.config.LanguageFeature;
 import org.jetbrains.kotlin.config.LanguageVersionSettings;
+import org.jetbrains.kotlin.contracts.EffectSystem;
 import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.diagnostics.DiagnosticUtilsKt;
 import org.jetbrains.kotlin.incremental.KotlinLookupLocation;
@@ -32,16 +34,16 @@ import org.jetbrains.kotlin.resolve.BindingContext;
 import org.jetbrains.kotlin.resolve.BindingTrace;
 import org.jetbrains.kotlin.resolve.DescriptorUtils;
 import org.jetbrains.kotlin.resolve.calls.checkers.AdditionalTypeChecker;
+import org.jetbrains.kotlin.resolve.calls.checkers.NewSchemeOfIntegerOperatorResolutionChecker;
 import org.jetbrains.kotlin.resolve.calls.context.ResolutionContext;
+import org.jetbrains.kotlin.resolve.calls.inference.BuilderInferenceSession;
 import org.jetbrains.kotlin.resolve.calls.smartcasts.*;
 import org.jetbrains.kotlin.resolve.constants.*;
 import org.jetbrains.kotlin.resolve.constants.evaluate.ConstantExpressionEvaluator;
-import org.jetbrains.kotlin.types.KotlinType;
-import org.jetbrains.kotlin.types.KotlinTypeKt;
-import org.jetbrains.kotlin.types.TypeConstructor;
-import org.jetbrains.kotlin.types.TypeUtils;
+import org.jetbrains.kotlin.types.*;
 import org.jetbrains.kotlin.types.checker.KotlinTypeChecker;
 import org.jetbrains.kotlin.types.expressions.typeInfoFactory.TypeInfoFactoryKt;
+import org.jetbrains.kotlin.types.typeUtil.TypeUtilsKt;
 import org.jetbrains.kotlin.util.OperatorNameConventions;
 
 import java.util.Collection;
@@ -51,33 +53,44 @@ import static org.jetbrains.kotlin.resolve.calls.context.ContextDependency.INDEP
 import static org.jetbrains.kotlin.types.TypeUtils.*;
 
 public class DataFlowAnalyzer {
-
     private final Iterable<AdditionalTypeChecker> additionalTypeCheckers;
     private final ConstantExpressionEvaluator constantExpressionEvaluator;
+    private final ModuleDescriptor module;
     private final KotlinBuiltIns builtIns;
-    private final SmartCastManager smartCastManager;
     private final ExpressionTypingFacade facade;
     private final LanguageVersionSettings languageVersionSettings;
+    private final EffectSystem effectSystem;
+    private final DataFlowValueFactory dataFlowValueFactory;
+    private final SmartCastManager smartCastManager;
+    private final KotlinTypeChecker kotlinTypeChecker;
 
     public DataFlowAnalyzer(
             @NotNull Iterable<AdditionalTypeChecker> additionalTypeCheckers,
             @NotNull ConstantExpressionEvaluator constantExpressionEvaluator,
+            @NotNull ModuleDescriptor module,
             @NotNull KotlinBuiltIns builtIns,
-            @NotNull SmartCastManager smartCastManager,
             @NotNull ExpressionTypingFacade facade,
-            @NotNull LanguageVersionSettings languageVersionSettings
+            @NotNull LanguageVersionSettings languageVersionSettings,
+            @NotNull EffectSystem effectSystem,
+            @NotNull DataFlowValueFactory factory,
+            @NotNull SmartCastManager smartCastManager,
+            @NotNull KotlinTypeChecker kotlinTypeChecker
     ) {
         this.additionalTypeCheckers = additionalTypeCheckers;
         this.constantExpressionEvaluator = constantExpressionEvaluator;
+        this.module = module;
         this.builtIns = builtIns;
-        this.smartCastManager = smartCastManager;
         this.facade = facade;
         this.languageVersionSettings = languageVersionSettings;
+        this.effectSystem = effectSystem;
+        this.dataFlowValueFactory = factory;
+        this.smartCastManager = smartCastManager;
+        this.kotlinTypeChecker = kotlinTypeChecker;
     }
 
     // NB: use this method only for functions from 'Any'
     @Nullable
-    private static FunctionDescriptor getOverriddenDescriptorFromClass(@NotNull FunctionDescriptor descriptor) {
+    private FunctionDescriptor getOverriddenDescriptorFromClass(@NotNull FunctionDescriptor descriptor) {
         if (descriptor.getKind() != CallableMemberDescriptor.Kind.FAKE_OVERRIDE) return descriptor;
         Collection<? extends FunctionDescriptor> overriddenDescriptors = descriptor.getOverriddenDescriptors();
         if (overriddenDescriptors.isEmpty()) return descriptor;
@@ -91,9 +104,13 @@ public class DataFlowAnalyzer {
         return null;
     }
 
-    private static boolean typeHasOverriddenEquals(@NotNull KotlinType type, @NotNull KtElement lookupElement) {
-        Collection<SimpleFunctionDescriptor> members = type.getMemberScope().getContributedFunctions(
-                OperatorNameConventions.EQUALS, new KotlinLookupLocation(lookupElement));
+    private boolean typeHasOverriddenEquals(@NotNull KotlinType type, @NotNull KtElement lookupElement) {
+        // `equals` from `String` is not fake override because it is marked as `IntrinsicConstEvaluation`
+        if (KotlinBuiltIns.isString(type)) return false;
+
+        Collection<? extends SimpleFunctionDescriptor> members = type.getMemberScope().getContributedFunctions(
+                OperatorNameConventions.EQUALS, new KotlinLookupLocation(lookupElement)
+        );
         for (FunctionDescriptor member : members) {
             KotlinType returnType = member.getReturnType();
             if (returnType == null || !KotlinBuiltIns.isBoolean(returnType)) continue;
@@ -110,7 +127,7 @@ public class DataFlowAnalyzer {
     }
 
     // Returns true if we can prove that 'type' has equals method from 'Any' base type
-    public static boolean typeHasEqualsFromAny(@NotNull KotlinType type, @NotNull KtElement lookupElement) {
+    public boolean typeHasEqualsFromAny(@NotNull KotlinType type, @NotNull KtElement lookupElement) {
         TypeConstructor constructor = type.getConstructor();
         // Subtypes can override equals for non-final types
         if (!constructor.isFinal()) return false;
@@ -155,7 +172,7 @@ public class DataFlowAnalyzer {
                     }
                     result.set(dataFlowInfo);
                 }
-                else  {
+                else {
                     DataFlowInfo expressionFlowInfo = facade.getTypeInfo(expression, context).getDataFlowInfo();
                     KtExpression left = expression.getLeft();
                     if (left == null) return;
@@ -167,8 +184,8 @@ public class DataFlowAnalyzer {
                     KotlinType rhsType = context.trace.getBindingContext().getType(right);
                     if (rhsType == null) return;
 
-                    DataFlowValue leftValue = DataFlowValueFactory.createDataFlowValue(left, lhsType, context);
-                    DataFlowValue rightValue = DataFlowValueFactory.createDataFlowValue(right, rhsType, context);
+                    DataFlowValue leftValue = dataFlowValueFactory.createDataFlowValue(left, lhsType, context);
+                    DataFlowValue rightValue = dataFlowValueFactory.createDataFlowValue(right, rhsType, context);
 
                     Boolean equals = null;
                     if (operationToken == KtTokens.EQEQ || operationToken == KtTokens.EQEQEQ) {
@@ -226,15 +243,31 @@ public class DataFlowAnalyzer {
                 }
             }
         });
+
+        DataFlowInfo infoFromEffectSystem = effectSystem.extractDataFlowInfoFromCondition(
+                condition, conditionValue, context.trace, DescriptorUtils.getContainingModule(context.scope.getOwnerDescriptor())
+        );
+
         if (result.get() == null) {
-            return context.dataFlowInfo;
+            return context.dataFlowInfo.and(infoFromEffectSystem);
         }
-        return context.dataFlowInfo.and(result.get());
+
+        return context.dataFlowInfo.and(result.get()).and(infoFromEffectSystem);
     }
 
     @Nullable
     public KotlinType checkType(@Nullable KotlinType expressionType, @NotNull KtExpression expression, @NotNull ResolutionContext context) {
-        return checkType(expressionType, expression, context, null);
+        return checkType(expressionType, expression, context, null, true);
+    }
+
+    @Nullable
+    public KotlinType checkType(
+            @Nullable KotlinType expressionType,
+            @NotNull KtExpression expression,
+            @NotNull ResolutionContext context,
+            boolean reportErrorForTypeMismatch
+    ) {
+        return checkType(expressionType, expression, context, null, reportErrorForTypeMismatch);
     }
 
     @NotNull
@@ -247,30 +280,40 @@ public class DataFlowAnalyzer {
             @NotNull KotlinType expressionType,
             @NotNull KtExpression expression,
             @NotNull ResolutionContext c,
-            @NotNull Ref<Boolean> hasError
+            @NotNull Ref<Boolean> hasError,
+            boolean reportErrorForTypeMismatch
     ) {
+        if (!noExpectedType(c.expectedType) && TypeUtilsKt.contains(expressionType, (type) -> type instanceof StubTypeForBuilderInference)) {
+            if (c.inferenceSession instanceof BuilderInferenceSession) {
+                ((BuilderInferenceSession) c.inferenceSession).addExpectedTypeConstraint(expression, expressionType, c.expectedType);
+            }
+        }
         if (noExpectedType(c.expectedType) || !c.expectedType.getConstructor().isDenotable() ||
-            KotlinTypeChecker.DEFAULT.isSubtypeOf(expressionType, c.expectedType)) {
+            kotlinTypeChecker.isSubtypeOf(expressionType, c.expectedType)) {
             return expressionType;
         }
 
-        if (expression instanceof KtConstantExpression) {
+        if (expression instanceof KtConstantExpression && reportErrorForTypeMismatch) {
             ConstantValue<?> constantValue = constantExpressionEvaluator.evaluateToConstantValue(expression, c.trace, c.expectedType);
-            boolean error = new CompileTimeConstantChecker(c, builtIns, true)
+            boolean error = new CompileTimeConstantChecker(c, module, true)
                     .checkConstantExpressionType(constantValue, (KtConstantExpression) expression, c.expectedType);
             hasError.set(error);
             return expressionType;
         }
 
         if (expression instanceof KtWhenExpression) {
-            // No need in additional check because type mismatch is already reported for entries
-            return expressionType;
+            KtWhenExpression whenExpression = (KtWhenExpression) expression;
+            if (!whenExpression.getEntries().isEmpty()) {
+                // No need in additional check because type mismatch is already reported for entries
+                return expressionType;
+            }
         }
 
         SmartCastResult castResult = checkPossibleCast(expressionType, expression, c);
         if (castResult != null) return castResult.getResultType();
 
-        if (!DiagnosticUtilsKt.reportTypeMismatchDueToTypeProjection(c, expression, c.expectedType, expressionType) &&
+        if (reportErrorForTypeMismatch &&
+            !DiagnosticUtilsKt.reportTypeMismatchDueToTypeProjection(c, expression, c.expectedType, expressionType) &&
             !DiagnosticUtilsKt.reportTypeMismatchDueToScalaLikeNamedFunctionSyntax(c, expression, c.expectedType, expressionType)) {
             c.trace.report(TYPE_MISMATCH.on(expression, c.expectedType, expressionType));
         }
@@ -283,7 +326,8 @@ public class DataFlowAnalyzer {
             @Nullable KotlinType expressionType,
             @NotNull KtExpression expressionToCheck,
             @NotNull ResolutionContext c,
-            @Nullable Ref<Boolean> hasError
+            @Nullable Ref<Boolean> hasError,
+            boolean reportErrorForTypeMismatch
     ) {
         if (hasError == null) {
             hasError = Ref.create(false);
@@ -297,7 +341,7 @@ public class DataFlowAnalyzer {
 
         if (expressionType == null) return null;
 
-        KotlinType result = checkTypeInternal(expressionType, expression, c, hasError);
+        KotlinType result = checkTypeInternal(expressionType, expression, c, hasError, reportErrorForTypeMismatch);
         if (Boolean.FALSE.equals(hasError.get())) {
             for (AdditionalTypeChecker checker : additionalTypeCheckers) {
                 checker.checkType(expression, expressionType, result, c);
@@ -308,14 +352,14 @@ public class DataFlowAnalyzer {
     }
 
     @Nullable
-    public static SmartCastResult checkPossibleCast(
+    public SmartCastResult checkPossibleCast(
             @NotNull KotlinType expressionType,
             @NotNull KtExpression expression,
             @NotNull ResolutionContext c
     ) {
-        DataFlowValue dataFlowValue = DataFlowValueFactory.createDataFlowValue(expression, expressionType, c);
+        DataFlowValue dataFlowValue = dataFlowValueFactory.createDataFlowValue(expression, expressionType, c);
 
-        return SmartCastManager.Companion.checkAndRecordPossibleCast(dataFlowValue, c.expectedType, expression, c, null, false);
+        return smartCastManager.checkAndRecordPossibleCast(dataFlowValue, c.expectedType, expression, c, null, false, null);
     }
 
     public void recordExpectedType(@NotNull BindingTrace trace, @NotNull KtExpression expression, @NotNull KotlinType expectedType) {
@@ -336,10 +380,12 @@ public class DataFlowAnalyzer {
     }
 
     @NotNull
-    public static KotlinTypeInfo illegalStatementType(@NotNull KtExpression expression, @NotNull ExpressionTypingContext context, @NotNull ExpressionTypingInternals facade) {
+    public KotlinTypeInfo illegalStatementType(@NotNull KtExpression expression, @NotNull ExpressionTypingContext context, @NotNull ExpressionTypingInternals facade) {
         facade.checkStatementType(
                 expression, context.replaceExpectedType(TypeUtils.NO_EXPECTED_TYPE).replaceContextDependency(INDEPENDENT));
-        context.trace.report(EXPRESSION_EXPECTED.on(expression, expression));
+        if (!context.isDebuggerContext) {
+            context.trace.report(EXPRESSION_EXPECTED.on(expression, expression));
+        }
         return TypeInfoFactoryKt.noTypeInfo(context);
     }
 
@@ -349,18 +395,19 @@ public class DataFlowAnalyzer {
             @NotNull KotlinType type,
             @NotNull ResolutionContext c
     ) {
-        DataFlowValue dataFlowValue = DataFlowValueFactory.createDataFlowValue(expression, type, c);
-        return getAllPossibleTypes(type, c, dataFlowValue);
+        DataFlowValue dataFlowValue = c.dataFlowValueFactory.createDataFlowValue(expression, type, c);
+        return getAllPossibleTypes(type, c, dataFlowValue, c.languageVersionSettings);
     }
 
     @NotNull
     public static Collection<KotlinType> getAllPossibleTypes(
             @NotNull KotlinType type,
             @NotNull ResolutionContext c,
-            @NotNull DataFlowValue dataFlowValue
+            @NotNull DataFlowValue dataFlowValue,
+            @NotNull LanguageVersionSettings languageVersionSettings
     ) {
         Collection<KotlinType> possibleTypes = Sets.newHashSet(type);
-        possibleTypes.addAll(c.dataFlowInfo.getStableTypes(dataFlowValue));
+        possibleTypes.addAll(c.dataFlowInfo.getStableTypes(dataFlowValue, languageVersionSettings));
         return possibleTypes;
     }
 
@@ -393,6 +440,8 @@ public class DataFlowAnalyzer {
         else {
             expressionType = ((TypedCompileTimeConstant<?>) value).getType();
         }
+
+        NewSchemeOfIntegerOperatorResolutionChecker.checkArgument(context.expectedType, expression, context.trace, module);
 
         return createCheckedTypeInfo(expressionType, context, expression);
     }

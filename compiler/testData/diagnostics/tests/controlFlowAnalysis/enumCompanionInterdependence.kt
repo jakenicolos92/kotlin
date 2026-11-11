@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 enum class B(val x: Int) {
     B1(1),
     B2(2);
@@ -9,7 +10,7 @@ enum class B(val x: Int) {
 }
 
 enum class C(val x: Int) {
-    C1(<!UNINITIALIZED_VARIABLE!>SUM<!>),
+    C1(<!UNINITIALIZED_ENUM_COMPANION!>SUM<!>),
     C2(1);
 
     companion object {
@@ -26,13 +27,14 @@ enum class Fruit(personal: Int) {
         val common = 20
     }
 
-    val score = personal + <!UNINITIALIZED_VARIABLE!>common<!>
+    val score = personal + <!UNINITIALIZED_ENUM_COMPANION!>common<!>
+    val score2 = { personal + common }()
 }
 
 // Another example from KT-11769
 enum class EnumCompanion1(val x: Int) {
     INSTANCE(<!UNINITIALIZED_ENUM_COMPANION!>Companion<!>.foo()),
-    ANOTHER(foo());
+    ANOTHER(<!UNINITIALIZED_ENUM_COMPANION!>foo<!>());
 
     companion object {
         fun foo() = 42
@@ -53,3 +55,31 @@ enum class EnumCompanion3(val x: Int) {
 
     companion object
 }
+
+interface ExtractableCodeDescriptor {
+    fun isInterface(): Boolean
+}
+
+enum class ExtractionTarget(val targetName: String) {
+    FUNCTION("function") {
+        override fun isAvailable(descriptor: ExtractableCodeDescriptor) = true
+    },
+
+    LAZY_PROPERTY("lazy property") {
+        override fun isAvailable(descriptor: ExtractableCodeDescriptor): Boolean {
+            // Should not report UNINITIALIZED_ENUM_COMPANION
+            return checkNotTrait(descriptor)
+        }
+    };
+
+    abstract fun isAvailable(descriptor: ExtractableCodeDescriptor): Boolean
+
+    companion object {
+        fun checkNotTrait(descriptor: ExtractableCodeDescriptor): Boolean {
+            return !descriptor.isInterface()
+        }
+    }
+}
+
+/* GENERATED_FIR_TAGS: additiveExpression, companionObject, enumDeclaration, enumEntry, functionDeclaration,
+integerLiteral, interfaceDeclaration, lambdaLiteral, objectDeclaration, primaryConstructor, propertyDeclaration */

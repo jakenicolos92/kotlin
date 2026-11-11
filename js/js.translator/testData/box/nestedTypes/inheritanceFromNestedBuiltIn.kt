@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 494
 package foo
 
 class EntryImplementor() : Map.Entry<String, String> {

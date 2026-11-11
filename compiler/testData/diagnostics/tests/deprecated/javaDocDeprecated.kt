@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -NO_VALUE_FOR_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -NO_VALUE_FOR_PARAMETER
 // FILE: A.java
 
 /**
@@ -16,5 +17,8 @@ public class A {
 // FILE: B.kt
 
 class B(private val foo: String) : <!DEPRECATION!>A<!>() {
-    override fun getFoo(text: String): String = super.<!DEPRECATION!>getFoo<!>(text + foo)
+    override fun <!OVERRIDE_DEPRECATION!>getFoo<!>(text: String): String = super.<!DEPRECATION!>getFoo<!>(text + foo)
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, flexibleType, functionDeclaration, javaFunction, javaType,
+override, primaryConstructor, propertyDeclaration, superExpression */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 fun foo() {
     open class Local {
         val my: Int = 2
@@ -9,3 +10,6 @@ fun foo() {
             get() = field
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, getter, integerLiteral,
+localClass, localProperty, propertyDeclaration */

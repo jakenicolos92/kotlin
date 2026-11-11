@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 @Target(AnnotationTarget.CLASS)
 annotation class base
 
@@ -13,3 +14,5 @@ annotation class meta
         @base <!WRONG_ANNOTATION_TARGET!>@meta<!> class Local
     }
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration, functionDeclaration, localClass, nestedClass */

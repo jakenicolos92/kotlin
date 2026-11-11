@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface I1
 interface I2
 open class C
@@ -29,3 +30,6 @@ interface B5 : A {
 interface B6 : A {
     override fun <T> foo(t: T) where T : I2, T : I1, T : C
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, override, typeConstraint,
+typeParameter */

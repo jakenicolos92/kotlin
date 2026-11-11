@@ -1,0 +1,98 @@
+
+description = "Annotation Processor for Kotlin"
+
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("jvm")
+    id("java-test-fixtures")
+}
+
+dependencies {
+    compileOnly(project(":compiler:util"))
+    compileOnly(project(":compiler:cli"))
+    compileOnly(project(":compiler:backend"))
+    compileOnly(project(":compiler:backend.jvm.entrypoint"))
+    compileOnly(project(":compiler:frontend.common-psi"))
+    compileOnly(project(":compiler:plugin-api"))
+    compileOnly(project(":compiler:fir:fir2ir:jvm-backend"))
+    compileOnly(project(":kotlin-annotation-processing-cli"))
+    compileOnly(project(":kotlin-annotation-processing-base"))
+    compileOnly(project(":kotlin-annotation-processing-runtime"))
+    compileOnly(project(":core:descriptors"))
+    compileOnly(project(":core:descriptors.jvm"))
+    compileOnly(project(":compiler:backend.common.jvm"))
+    compileOnly(intellijCore())
+    compileOnly(toolsJarApi())
+    compileOnly(libs.intellij.asm)
+
+    testFixturesImplementation(intellijCore())
+    testRuntimeOnly(intellijResources()) { isTransitive = false }
+
+    testRuntimeOnly(commonDependency("org.codehaus.woodstox:stax2-api"))
+    testRuntimeOnly(commonDependency("com.fasterxml:aalto-xml"))
+
+    testFixturesApi(platform(libs.junit.bom))
+    testFixturesApi(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testFixturesApi(testFixtures(project(":compiler:tests-common-new")))
+    testFixturesApi(testFixtures(project(":compiler:jvm.tests")))
+    testFixturesApi(testFixtures(project(":compiler:test-infrastructure")))
+    testFixturesApi(testFixtures(project(":compiler:test-infrastructure-utils")))
+
+    testFixturesApi(project(":kotlin-annotation-processing-base"))
+    testFixturesApi(testFixtures(project(":kotlin-annotation-processing-base")))
+    testFixturesApi(project(":kotlin-annotation-processing-runtime"))
+    testFixturesImplementation(testFixtures(project(":generators:test-generator")))
+
+    testFixturesCompileOnly(toolsJarApi())
+    testRuntimeOnly(toolsJar())
+
+    embedded(project(":kotlin-annotation-processing-runtime")) { isTransitive = false }
+    embedded(project(":kotlin-annotation-processing-cli")) { isTransitive = false }
+    embedded(project(":kotlin-annotation-processing-base")) { isTransitive = false }
+
+    testFixturesApi(project(":tools:kotlinp-jvm"))
+    testFixturesApi(project(":kotlin-metadata-jvm"))
+}
+
+optInToExperimentalCompilerApi()
+optInToUnsafeDuringIrConstructionAPI()
+
+sourceSets {
+    "main" { projectDefault() }
+    "test" { projectDefault() }
+    "testFixtures" { projectDefault() }
+}
+
+
+projectTests {
+    fun kaptTestTask(name: String, javaLauncher: JdkMajorVersion) {
+        testTask(
+            taskName = name,
+            javaLauncher = javaLauncher,
+            skipInLocalBuild = false,
+            // JDK21 is required by KaptStubConverterTestGenerated.testJvmRecord
+            defineJDKEnvVariables = listOf(JdkMajorVersion.JDK_21_0)
+        ) {
+            useJUnitPlatform()
+        }
+    }
+
+    kaptTestTask("test", JdkMajorVersion.JDK_17_0)
+    kaptTestTask("testJdk21", JdkMajorVersion.JDK_21_0)
+
+    testGenerator("org.jetbrains.kotlin.kapt.test.TestGeneratorKt", generateTestsInBuildDirectory = true)
+
+    testData(isolated, "testData")
+    withJvmStdlibAndReflect()
+    withTestJar()
+    withMockJdkAnnotationsJar()
+    withMockJdkRuntime()
+}
+
+publish()
+
+runtimeJar()
+sourcesJar()
+javadocJar()

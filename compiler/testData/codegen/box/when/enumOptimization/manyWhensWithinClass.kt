@@ -1,4 +1,6 @@
-// WITH_RUNTIME
+// WITH_STDLIB
+// CHECK_CASES_COUNT: function=A$A$bar2$lambda count=4
+// CHECK_IF_COUNT: function=A$A$bar2$lambda count=0
 
 import kotlin.test.assertEquals
 
@@ -15,9 +17,8 @@ class A {
             Season.WINTER, Season.SPRING -> return "winter_spring"
             Season.SPRING -> return "spring"
             Season.SUMMER -> return "summer"
+            else -> return "autumn";
         }
-
-        return "autumn";
     }
 
     public fun bar2(y : Season) : String {

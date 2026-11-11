@@ -1,5 +1,0 @@
-package
-
-public header fun bar(): kotlin.Unit
-public header fun foo(): kotlin.Unit
-public header fun foo(): kotlin.Unit

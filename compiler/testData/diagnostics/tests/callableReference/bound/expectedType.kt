@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 import kotlin.reflect.KClass
 
@@ -12,3 +13,6 @@ fun test(s: String) {
     val m: KClass<String> = String::class
     val n: KClass<Unit> = Unit::class
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classReference, functionDeclaration, functionalType, localProperty,
+nullableType, outProjection, propertyDeclaration, starProjection */

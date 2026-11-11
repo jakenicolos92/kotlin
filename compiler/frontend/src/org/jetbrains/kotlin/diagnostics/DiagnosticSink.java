@@ -21,8 +21,6 @@ import com.intellij.psi.PsiFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.kotlin.diagnostics.rendering.DefaultErrorMessages;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public interface DiagnosticSink {
@@ -44,7 +42,8 @@ public interface DiagnosticSink {
                 PsiFile psiFile = diagnostic.getPsiFile();
                 List<TextRange> textRanges = diagnostic.getTextRanges();
                 String diagnosticText = DefaultErrorMessages.render(diagnostic);
-                throw new IllegalStateException(diagnostic.getFactory().getName() + ": " + diagnosticText + " " + DiagnosticUtils.atLocation(psiFile, textRanges.get(0)));
+                throw new IllegalStateException(diagnostic.getFactory().getName() + ": " + diagnosticText + " " + PsiDiagnosticUtils
+                        .atLocation(psiFile, textRanges.get(0)));
             }
         }
 
@@ -54,6 +53,26 @@ public interface DiagnosticSink {
         }
     };
 
+    interface DiagnosticsCallback {
+        void callback(Diagnostic diagnostic);
+    }
+
     void report(@NotNull Diagnostic diagnostic);
+
+    /**
+     * use {@link #setCallbackIfNotSet(DiagnosticsCallback)} instead
+     * @param callback
+     */
+    @Deprecated
+    default void setCallback(@NotNull DiagnosticsCallback callback) {
+        setCallbackIfNotSet(callback);
+    }
+
+    default boolean setCallbackIfNotSet(@NotNull DiagnosticsCallback callback) {
+        return false;
+    }
+
+    default void resetCallback() { }
+
     boolean wantsDiagnostics();
 }

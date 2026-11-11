@@ -1,5 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_ANONYMOUS_PARAMETER -UNUSED_VARIABLE
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_ANONYMOUS_PARAMETER -UNUSED_VARIABLE
+// CHECK_TYPE
 fun foo(block: () -> (() -> Int)) {}
 
 fun test() {
@@ -39,5 +40,9 @@ fun test() {
 
     x4 checkType { _<Function1<Int, Function0<Int>>>() }
 
-    <!UNUSED_LAMBDA_EXPRESSION!>{ y: Int -> fun(): Int {return 1} }<!>
+    { y: Int -> fun(): Int {return 1} }
 }
+
+/* GENERATED_FIR_TAGS: anonymousFunction, classDeclaration, equalityExpression, funWithExtensionReceiver,
+functionDeclaration, functionalType, ifExpression, infix, integerLiteral, lambdaLiteral, localProperty, nullableType,
+propertyDeclaration, typeParameter, typeWithExtension, whenExpression, whenWithSubject */

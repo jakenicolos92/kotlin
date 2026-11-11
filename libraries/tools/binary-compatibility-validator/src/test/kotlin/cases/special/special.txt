@@ -2,11 +2,6 @@ public final class cases/special/ClassWithLateInitMembers {
 	public final fun getPublicLateInitWithInternalSet ()Ljava/lang/String;
 }
 
-public final class cases/special/ClassWithOverloads {
-	public final fun getA ()I
-	public final fun getB ()Ljava/lang/String;
-}
-
 public final class cases/special/HiddenClass {
 	public synthetic fun <init> ()V
 	public final synthetic fun getHiddenVal ()I
@@ -28,12 +23,12 @@ public final class cases/special/JvmFieldKt {
 
 public class cases/special/JvmFieldsClass {
 	public static final field JvmFieldsCompanion Lcases/special/JvmFieldsClass$JvmFieldsCompanion;
+	protected static field protectedCField Ljava/lang/String;
 	protected static final field protectedConst I
 	protected field protectedField Ljava/lang/String;
-	protected static field protectedСField Ljava/lang/String;
+	public static field publicCField Ljava/lang/String;
 	public static final field publicConst I
 	public field publicField Ljava/lang/String;
-	public static field publicСField Ljava/lang/String;
 	public fun <init> ()V
 }
 
@@ -50,12 +45,5 @@ public final class cases/special/JvmNamesKt {
 	public static final fun publicFun ()V
 	public static final fun publicVarGetter ()I
 	public static final fun publicVarSetter (I)V
-}
-
-public final class cases/special/JvmOverloadsKt {
-	public static final fun publicFunWithOverloads ()V
-	public static final fun publicFunWithOverloads (I)V
-	public static final fun publicFunWithOverloads (ILjava/lang/String;)V
-	public static synthetic fun publicFunWithOverloads$default (ILjava/lang/String;ILjava/lang/Object;)V
 }
 

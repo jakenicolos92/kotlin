@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: a.kt
 package a
 
@@ -28,3 +29,6 @@ import c.d
 fun A.test() {
     <!OVERLOAD_RESOLUTION_AMBIGUITY!>d<!>
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, getter, integerLiteral,
+propertyDeclaration, propertyWithExtensionReceiver */

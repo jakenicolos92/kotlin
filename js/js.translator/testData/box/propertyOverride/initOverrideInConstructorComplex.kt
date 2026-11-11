@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 506
+// LANGUAGE: -ProhibitOpenValDeferredInitialization
 // Test for KT-5673
 
 package foo

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 @DslMarker
 @Target(AnnotationTarget.TYPE)
 annotation class Ann1
@@ -36,7 +37,7 @@ fun test() {
             baz {
                 y()
 
-                <!UNRESOLVED_REFERENCE_WRONG_RECEIVER, FUNCTION_EXPECTED!>x<!>()
+                <!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>x<!>()
 
                 with(D()) {
                     x()
@@ -103,3 +104,6 @@ fun test() {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, checkNotNullCall, classDeclaration, functionDeclaration, functionalType,
+getter, lambdaLiteral, propertyDeclaration, propertyWithExtensionReceiver, typeWithExtension */

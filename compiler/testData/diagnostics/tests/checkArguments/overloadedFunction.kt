@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
 
 fun foo() {}
 fun foo(s: Int) {}
@@ -9,8 +10,10 @@ fun bar(a: Int) {}
 
 fun test() {
     <!NONE_APPLICABLE!>foo<!>(1, 2)
-    foo(<!TYPE_MISMATCH!>""<!>)
+    foo(<!ARGUMENT_TYPE_MISMATCH!>""<!>)
 
-    <!NONE_APPLICABLE!>bar<!>(1, 2)
-    <!NONE_APPLICABLE!>bar<!>()
+    bar(1, <!TOO_MANY_ARGUMENTS!>2<!>)
+    <!NONE_APPLICABLE, NO_VALUE_FOR_PARAMETER!>bar<!>()
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, stringLiteral */

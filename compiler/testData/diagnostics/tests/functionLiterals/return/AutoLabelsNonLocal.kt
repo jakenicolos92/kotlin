@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun f() {
     foo {
         bar {
@@ -7,5 +8,7 @@ fun f() {
     }
 }
 
-fun foo(<!UNUSED_PARAMETER!>a<!>: Any) {}
-fun bar(<!UNUSED_PARAMETER!>a<!>: Any) {}
+fun foo(a: Any) {}
+fun bar(a: Any) {}
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, lambdaLiteral */

@@ -13,41 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.jetbrains.kotlin.ir.util
 
-import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
-import org.jetbrains.kotlin.descriptors.ModuleDescriptor
-import org.jetbrains.kotlin.descriptors.PackageFragmentDescriptor
-import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
-import org.jetbrains.kotlin.ir.declarations.IrExternalPackageFragment
-import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
-import org.jetbrains.kotlin.ir.descriptors.IrBuiltIns
+import org.jetbrains.kotlin.ir.IrProvider
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
+import org.jetbrains.kotlin.ir.symbols.IrSymbol
 
-class ExternalDependenciesGenerator(val symbolTable: SymbolTable, val irBuiltIns: IrBuiltIns) {
-    private val stubGenerator = DeclarationStubGenerator(symbolTable, IrDeclarationOrigin.IR_EXTERNAL_DECLARATION_STUB)
+class ExternalDependenciesGenerator(
+    private val symbolTable: SymbolTable,
+    private val irProviders: List<IrProvider>
+) {
+    @OptIn(ObsoleteDescriptorBasedAPI::class)
+    fun generateUnboundSymbolsAsDependencies() {
+        // There should be at most one DeclarationStubGenerator (none in closed world?)
+        irProviders.filterIsInstance<DeclarationStubGenerator>().singleOrNull()?.run { unboundSymbolGeneration = true }
 
-    fun generateUnboundSymbolsAsDependencies(irModule: IrModuleFragment) {
-        val collector = DependenciesCollector()
-        collector.collectTopLevelDescriptorsForUnboundSymbols(symbolTable)
-
-        collector.dependencyModules.mapTo(irModule.dependencyModules) { moduleDescriptor ->
-            generateModuleStub(collector, moduleDescriptor)
-        }
+        // Deserializing a reference may lead to new unbound references, so we loop until none are left.
+        var unbound = emptySet<IrSymbol>()
+        do {
+            val prevUnbound = unbound
+            unbound = symbolTable.descriptorExtension.allUnboundSymbols
+            for (symbol in unbound) {
+                // Symbol could get bound as a side effect of deserializing other symbols.
+                if (!symbol.isBound) {
+                    val _ = irProviders.firstNotNullOfOrNull { provider -> provider.getDeclaration(symbol) }
+                }
+            }
+            // We wait for the unbound to stabilize on fake overrides.
+        } while (unbound != prevUnbound)
     }
-
-    private fun generateModuleStub(collector: DependenciesCollector, moduleDescriptor: ModuleDescriptor): IrModuleFragment =
-            stubGenerator.generateEmptyModuleFragmentStub(moduleDescriptor, irBuiltIns).also { irDependencyModule ->
-                collector.getPackageFragments(moduleDescriptor).mapTo(irDependencyModule.externalPackageFragments) { packageFragmentDescriptor ->
-                    generatePackageStub(packageFragmentDescriptor, collector.getTopLevelDescriptors(packageFragmentDescriptor))
-                }
-            }
-
-    private fun generatePackageStub(packageFragmentDescriptor: PackageFragmentDescriptor, topLevelDescriptors: Collection<DeclarationDescriptor>): IrExternalPackageFragment =
-            stubGenerator.generateEmptyExternalPackageFragmentStub(packageFragmentDescriptor).also { irExternalPackageFragment ->
-                topLevelDescriptors.mapTo(irExternalPackageFragment.declarations) {
-                    stubGenerator.generateMemberStub(it)
-                }
-            }
-
 }

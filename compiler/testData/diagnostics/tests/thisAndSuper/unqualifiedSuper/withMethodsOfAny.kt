@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface IFoo
 
 interface IBar
@@ -8,3 +9,6 @@ class A : IFoo, IBar {
     override fun hashCode(): Int = super.hashCode()
     override fun toString(): String = super.toString()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, nullableType, operator, override,
+superExpression */

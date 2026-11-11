@@ -1,0 +1,40 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package kotlin
+
+/**
+ * Marks a regular class that has value semantics and will be converted to a `value class` in the future to preventively discourage its referential usages.
+ *
+ * A class annotated with [WillBecomeValue]:
+ * 1. **Must not be relied upon for identity.** Reference equality (`===`), identity hash codes,
+ *    and synchronization on instances are considered undefined behavior.
+ * 2. **Must be shallow-immutable.** Mutating state through shared references undermines
+ *    the value semantics the annotation promises.
+ * 3. **Is a candidate for future migration to a `value class`,** so the annotation is expected
+ *    to be dropped once the migration is complete.
+ *
+ * The compiler applies every declaration check of a `value class` to the annotated class,
+ * reporting errors just as it would for a real `value class`. Identity-sensitive **usages**,
+ * however, are only reported as warnings, which gives users time to migrate before the class
+ * actually becomes a `value class`.
+ *
+ * A final annotated class also has to override `equals`, `hashCode` and `toString`, because the identity-based
+ * implementations inherited from [Any] would silently turn structural once the class becomes a `value class`.
+ * An annotated object has to override only `toString`: having a single instance, it already compares and hashes
+ * the same way a `value object` would.
+ *
+ * The annotation is applicable to final classes, to `abstract`/`sealed` classes intended as base types,
+ * and to object declarations. It is not applicable to `value class`es, interfaces, annotation classes, enums, `open` classes,
+ * companion objects, or anonymous objects.
+ *
+ * Before Kotlin 2.5.20, the compiler reported no diagnostics for the annotation.
+ */
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.BINARY)
+@MustBeDocumented
+@SinceKotlin("2.5")
+@ExperimentalValueClassesApi
+public annotation class WillBecomeValue

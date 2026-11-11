@@ -1,4 +1,10 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// OPT_IN: kotlin.RequiresOptIn
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
+
+@file:OptIn(ExperimentalTypeInference::class)
+
+import kotlin.experimental.ExperimentalTypeInference
 
 class GenericController<T> {
     suspend fun yield(t: T) {}
@@ -27,3 +33,7 @@ val test4 = generate {
 
 // Util function
 fun <X> setOf(vararg x: X): Set<X> = TODO()
+
+/* GENERATED_FIR_TAGS: annotationUseSiteTargetFile, classDeclaration, classReference, functionDeclaration,
+functionalType, integerLiteral, intersectionType, lambdaLiteral, nullableType, propertyDeclaration, stringLiteral,
+suspend, typeParameter, typeWithExtension, vararg */

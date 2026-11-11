@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package d
 
 interface A {
@@ -15,3 +16,5 @@ interface E {
 }
 
 class D : C() {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, interfaceDeclaration */

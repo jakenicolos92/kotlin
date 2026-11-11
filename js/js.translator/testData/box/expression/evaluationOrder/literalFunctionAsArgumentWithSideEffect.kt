@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 498
 // http://youtrack.jetbrains.com/issue/KT-4225
 // Compiler to JavaScript produces semantically wrong code
 

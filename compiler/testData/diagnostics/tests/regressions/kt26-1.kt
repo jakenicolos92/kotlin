@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: this.kt
 
 // KT-26 Import namespaces defined in this file
@@ -7,3 +8,5 @@ import bar.* // Must not be an error
 
 // FILE: other.kt
 package bar
+
+/* GENERATED_FIR_TAGS:  */

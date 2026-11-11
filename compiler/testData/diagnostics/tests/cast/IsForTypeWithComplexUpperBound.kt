@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface A<T>
 class B : A<String> {}
 
@@ -11,7 +12,7 @@ fun <T, S : A<T>, U : S> test2(a: U) {
 
 fun <T : A<String>, V : A<Int>> test3(a: T, b: V) {
     a is B
-    b is <!INCOMPATIBLE_TYPES!>B<!>
+    b is B
 }
 
 fun <T, V : A<out T>> test4(a: T, b: V) {
@@ -32,3 +33,6 @@ class InNothing : In<Nothing>
 fun <T, S : In<T>> test6(a: S) {
     a is InNothing
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, in, interfaceDeclaration, isExpression, nullableType, out,
+outProjection, typeConstraint, typeParameter */

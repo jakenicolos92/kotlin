@@ -1,0 +1,154 @@
+import org.jetbrains.kotlin.testFederation.testFederation
+
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("jvm")
+}
+
+dependencies {
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(testFixtures("org.jetbrains.kotlin:repo-test-fixtures"))
+    implementation("org.jetbrains.kotlin:test-federation-convention")
+    implementation(gradleApi())
+    implementation("org.jetbrains.kotlin:buildsrc-compat") {
+        isTransitive = false
+    }
+    runtimeOnly(libs.log4j2.slf4j.impl)
+
+    testImplementation(intellijCore())
+    testImplementation(testFixtures(project(":compiler:tests-common")))
+    testImplementation(kotlin("test-junit5", libs.versions.kotlin.`for`.gradle.plugins.compilation.get()))
+    implementation(kotlin("tooling-core", version = libs.versions.kotlin.`for`.gradle.plugins.compilation.get()))
+
+    testImplementation(libs.jackson.dataformat.xml)
+    testImplementation(libs.jackson.module.kotlin)
+    testImplementation(libs.woodstox.core)
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.jgit)
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+
+    testImplementation(testFixtures("org.jetbrains.kotlin:repo-test-fixtures"))
+    testImplementation("org.jetbrains.kotlin:test-federation-convention")
+    testImplementation(project(":repo:test-runtime"))
+    testImplementation(gradleTestKit())
+    testImplementation(libs.intellij.asm)
+    testImplementation(libs.icu4j)
+}
+
+jvmToolchains {
+    jdkVersion = JdkMajorVersion.JDK_21_0
+    targetBytecodeVersion = JdkMajorVersion.JDK_21_0
+}
+
+sourceSets {
+    "main" { projectDefault() }
+    "test" {
+        projectDefault()
+    }
+}
+
+open class TestSystemPropertiesProvider @Inject constructor(
+    objectFactory: ObjectFactory,
+) : CommandLineArgumentProvider {
+
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    val spaceCodeOwnersFile: ConfigurableFileCollection = objectFactory.fileCollection()
+
+    @get:Internal
+    val gradleUserHome: DirectoryProperty = objectFactory.directoryProperty()
+
+    @get:Input
+    @get:Optional
+    val qualityGateMasterTasks = objectFactory.property<String>()
+
+    @get:Input
+    @get:Optional
+    val qualityGateNightlyTasks = objectFactory.property<String>()
+
+    @get:Input
+    val teamcity = objectFactory.property<Boolean>()
+
+    override fun asArguments(): Iterable<String> = listOfNotNull(
+        "-DcodeOwnersTest.spaceCodeOwnersFile=${spaceCodeOwnersFile.singleFile.absolutePath}",
+        "-Dgradle.user.home=${gradleUserHome.asFile.get().absolutePath}",
+        "-Dteamcity=${teamcity.get()}",
+        qualityGateMasterTasks.orNull?.let { "-Dquality.gate.master.tasks=$it" },
+        qualityGateNightlyTasks.orNull?.let { "-Dquality.gate.nightly.tasks=$it" },
+    )
+}
+
+projectTests {
+    testTask(javaLauncher = JdkMajorVersion.JDK_21_0, maxHeapSize = testMaxHeapSizeTiny) {
+        dependsOn(":dist")
+        dependsOn(":compileAll")
+        workingDir = rootDir
+        jvmArgs("--add-opens=java.base/java.io=ALL-UNNAMED")
+
+        jvmArgumentProviders.add(objects.newInstance<TestSystemPropertiesProvider>().apply {
+            spaceCodeOwnersFile.from(rootDir.resolve(".space/CODEOWNERS"))
+            gradleUserHome.set(gradle.gradleUserHomeDir)
+            teamcity = kotlinBuildProperties.isTeamcityBuild
+            qualityGateMasterTasks.set(providers.gradleProperty("quality.gate.master.tasks"))
+            qualityGateNightlyTasks.set(providers.gradleProperty("quality.gate.nightly.tasks"))
+        })
+
+        testFederation {
+            smokeTests { includeAll() }
+        }
+        forkEvery = 1
+    }
+
+    testTask("nightlyTests", javaLauncher = JdkMajorVersion.JDK_21_0, skipInLocalBuild = false) {
+        useJUnitPlatform {
+            includeTags("nightly")
+        }
+    }
+
+    withJvmStdlibAndReflect()
+    withScriptRuntime()
+    withTestJar()
+}
+
+
+tasks.register<JavaExec>("updateTestLifecycleTaskDump") {
+    doNotTrackState("Should always run")
+    description = "Updates the 'testLifecycleTask.dump.txt' file"
+    classpath = files(sourceSets.main.map { it.runtimeClasspath })
+    workingDir = rootDir
+    mainClass = "org.jetbrains.kotlin.code.UpdateTestLifecycleTaskDump"
+}
+
+tasks.register<JavaExec>("updateDomainsDump") {
+    doNotTrackState("Should always run")
+    description = "Updates the 'domains.dump.txt' and 'domains.ignore.dump.txt' files"
+    classpath = files(sourceSets.main.map { it.runtimeClasspath })
+    workingDir = rootDir
+    mainClass = "org.jetbrains.kotlin.code.UpdateDomainsDump"
+}
+
+tasks.configureEach {
+    if (this !is JavaForkOptions) return@configureEach
+
+    /* The dump includes tests from Kotlin/Native */
+    if (this is Test) {
+        val isKotlinNativeEnabled = kotlinBuildProperties.isKotlinNativeEnabled
+        doFirst {
+            if (!isKotlinNativeEnabled.get()) error(
+                "Running '$path' requires Kotlin/Native to be enabled (-Pkotlin.native.enabled=true)"
+            )
+        }
+    }
+
+    /* Nested/Deep debugging support */
+    val debuggerDispatchPort = providers.systemProperty("idea.debugger.dispatch.port")
+    inputs.property("idea.debugger.dispatch.port", debuggerDispatchPort).optional(true)
+
+    doFirst {
+        if (debuggerDispatchPort.isPresent) {
+            systemProperty("idea.debugger.dispatch.port", debuggerDispatchPort.get())
+        }
+    }
+}

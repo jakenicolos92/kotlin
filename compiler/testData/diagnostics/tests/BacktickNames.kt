@@ -1,3 +1,5 @@
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: FRONTEND
 //  !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER -UNUSED_ANONYMOUS_PARAMETER
 // TODO Uncomment all the examples when there will be no problems with light classes
 //package `foo.bar`
@@ -69,7 +71,7 @@ class A() {
 }
 
 fun <!INVALID_CHARACTERS!>`foo:bar`<!>(<!INVALID_CHARACTERS!>`\arg`<!>: Int): Int {
-    val (<!INVALID_CHARACTERS!>`a:b`<!>, c) = Data(10, 20)
+    val [<!INVALID_CHARACTERS!>`a:b`<!>, c] = Data(10, 20)
     val <!INVALID_CHARACTERS!>`a\b`<!> = 10
 
     fun localFun() {}
@@ -92,3 +94,11 @@ fun <!INVALID_CHARACTERS!>`foo:bar`<!>(<!INVALID_CHARACTERS!>`\arg`<!>: Int): In
 
     return `\arg`
 }
+
+enum class FooInputEnum {
+  <!INVALID_CHARACTERS!>`C.1`<!>
+}
+
+/* GENERATED_FIR_TAGS: anonymousFunction, classDeclaration, data, destructuringDeclaration, forLoop, functionDeclaration,
+functionalType, init, integerLiteral, lambdaLiteral, localFunction, localProperty, primaryConstructor,
+propertyDeclaration, rangeExpression, tryExpression */

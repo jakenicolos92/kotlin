@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun println(obj: Any?) = obj
 
 class Demo0 {
@@ -85,3 +86,6 @@ class Demo5 {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, assignment, classDeclaration, functionDeclaration, functionalType,
+ifExpression, lambdaLiteral, nullableType, propertyDeclaration, typeParameter */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/J.java
 
 package p;
@@ -12,9 +13,12 @@ import p.*
 
 fun foo(): J? = null
 
-fun main(args: Array<String>) {
+fun main() {
     val v = foo() ?: J.j()
     if (v != null) {
 
     }
 }
+
+/* GENERATED_FIR_TAGS: elvisExpression, equalityExpression, flexibleType, functionDeclaration, ifExpression,
+javaFunction, javaType, localProperty, nullableType, propertyDeclaration */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 enum class E {
     E1 {
         override fun foo() = outerFun() + super.outerFun()
@@ -10,3 +11,5 @@ enum class E {
     
     fun outerFun() = 42
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, functionDeclaration, integerLiteral */

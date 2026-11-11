@@ -1,8 +1,12 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // Works already in M11
 
 fun test(c : Class<*>) {
-    val sc = <!UNCHECKED_CAST!>c as Class<String><!>
+    val sc = c <!UNCHECKED_CAST!>as Class<String><!>
     // No ambiguous overload
     c.getAnnotations();
     sc.getAnnotations();
 }
+
+/* GENERATED_FIR_TAGS: asExpression, flexibleType, functionDeclaration, localProperty, propertyDeclaration, smartcast,
+starProjection */

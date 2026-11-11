@@ -1,11 +1,19 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
+// NO_CHECK_LAMBDA_INLINING
+// FILE: lib.kt
+
+inline fun run(block: () -> Unit) {
+    block()
+}
+
+// FILE: main.kt
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 class Controller {
-    suspend fun suspendHere(v: String): String = suspendCoroutineOrReturn { x ->
+    suspend fun suspendHere(v: String): String = suspendCoroutineUninterceptedOrReturn { x ->
         x.resume(v)
 
         COROUTINE_SUSPENDED
@@ -14,10 +22,6 @@ class Controller {
 
 fun builder(c: suspend Controller.() -> Unit) {
     c.startCoroutine(Controller(), EmptyContinuation)
-}
-
-inline fun run(block: () -> Unit) {
-    block()
 }
 
 fun box(): String {

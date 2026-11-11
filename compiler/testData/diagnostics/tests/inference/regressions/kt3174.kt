@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-3174 Call resolver doesn't understand type is not-nullable after ?. safe call
 package a
 
@@ -10,3 +11,6 @@ fun test(s: String?, l: MutableList<String>) {
     s?.fff(l)
 
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, nullableType, safeCall, thisExpression,
+typeConstraint, typeParameter */

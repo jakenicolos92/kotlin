@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_ANONYMOUS_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_ANONYMOUS_PARAMETER -UNUSED_VARIABLE
 
 val bar = fun(p: Int = <!ANONYMOUS_FUNCTION_PARAMETER_WITH_DEFAULT_VALUE!>3<!>) {}
 val bas = fun(<!USELESS_VARARG_ON_PARAMETER!>vararg p: Int<!>) {}
@@ -16,3 +17,6 @@ fun outer(b: Any?) {
     outer(fun(p: Int = <!ANONYMOUS_FUNCTION_PARAMETER_WITH_DEFAULT_VALUE!>3<!>) {})
     outer(fun(<!USELESS_VARARG_ON_PARAMETER!>vararg p: Int<!>) {})
 }
+
+/* GENERATED_FIR_TAGS: anonymousFunction, functionDeclaration, integerLiteral, localFunction, localProperty,
+nullableType, propertyDeclaration, vararg */

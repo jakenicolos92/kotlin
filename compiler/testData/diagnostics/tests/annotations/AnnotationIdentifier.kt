@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: a.kt
 
 annotation class annotation
@@ -6,7 +7,7 @@ annotation class annotation
 
 package test
 
-<!NOT_AN_ANNOTATION_CLASS!>@test.annotation<!> class annotation
+@test.<!NOT_AN_ANNOTATION_CLASS!>annotation<!> class annotation
 
 // FILE: other/c.kt
 
@@ -14,6 +15,8 @@ package other
 
 annotation class My
 
-<!NOT_AN_ANNOTATION_CLASS!>@test.annotation<!> class Your
+@test.<!NOT_AN_ANNOTATION_CLASS!>annotation<!> class Your
 
 @My class Our
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration */

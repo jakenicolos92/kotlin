@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 class R<T: R<T>>
 
@@ -7,3 +8,6 @@ open class Base<T> {
 }
 
 class Derived: Base<String>()
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, nullableType, starProjection, typeConstraint,
+typeParameter */

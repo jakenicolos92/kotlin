@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-1647 Pattern matching doesn't work with generics
 
 open class Abs
@@ -9,3 +10,6 @@ fun <F : Abs> patternMatchingAndGenerics(arg : F) : String {
     }
     return "else";
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, isExpression, stringLiteral, typeConstraint,
+typeParameter */

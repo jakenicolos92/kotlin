@@ -1,7 +1,8 @@
-// EXPECTED_REACHABLE_NODES: 499
-// FILE: a.kt
-// MODULE_KIND: UMD
+// LANGUAGE: -ProhibitVarInJsModuleFile
+// ^^^ Keeps testing the pre-KT-88343 behavior of writing to a top-level `var` in a `@file:JsModule` file
+// JS_MODULE_KIND: UMD
 // NO_JS_MODULE_SYSTEM
+// FILE: a.kt
 @file:JsModule("lib")
 @file:JsNonModule
 package foo

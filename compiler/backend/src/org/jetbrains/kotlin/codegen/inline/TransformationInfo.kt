@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.codegen.inline
 
+import org.jetbrains.kotlin.codegen.state.GenerationState
 import org.jetbrains.org.objectweb.asm.tree.FieldInsnNode
 
 interface TransformationInfo {
@@ -26,22 +27,20 @@ interface TransformationInfo {
 
     val nameGenerator: NameGenerator
 
-    val wasAlreadyRegenerated: Boolean
-        get() = false
-
-
     fun shouldRegenerate(sameModule: Boolean): Boolean
 
     fun canRemoveAfterTransformation(): Boolean
 
-    fun createTransformer(inliningContext: InliningContext, sameModule: Boolean): ObjectTransformer<*>
+    fun createTransformer(
+        state: GenerationState, inliningContext: InliningContext, sameModule: Boolean, continuationClassName: String?,
+    ): ObjectTransformer<*>
 }
 
 class WhenMappingTransformationInfo(
-        override val oldClassName: String,
-        parentNameGenerator: NameGenerator,
-        val alreadyRegenerated: Boolean,
-        val fieldNode: FieldInsnNode
+    override val oldClassName: String,
+    parentNameGenerator: NameGenerator,
+    private val alreadyRegenerated: Boolean,
+    val fieldNode: FieldInsnNode
 ) : TransformationInfo {
 
     override val nameGenerator by lazy {
@@ -52,8 +51,13 @@ class WhenMappingTransformationInfo(
 
     override fun canRemoveAfterTransformation(): Boolean = true
 
-    override fun createTransformer(inliningContext: InliningContext, sameModule: Boolean): ObjectTransformer<*> =
-            WhenMappingTransformer(this, inliningContext)
+    override fun createTransformer(
+        state: GenerationState,
+        inliningContext: InliningContext,
+        sameModule: Boolean,
+        continuationClassName: String?,
+    ): ObjectTransformer<*> =
+        WhenMappingTransformer(state, this, inliningContext)
 
     companion object {
         const val TRANSFORMED_WHEN_MAPPING_MARKER = "\$wm$"
@@ -61,15 +65,15 @@ class WhenMappingTransformationInfo(
 }
 
 class AnonymousObjectTransformationInfo internal constructor(
-        override val oldClassName: String,
-        private val needReification: Boolean,
-        val lambdasToInline: Map<Int, LambdaInfo>,
-        private val capturedOuterRegenerated: Boolean,
-        private val alreadyRegenerated: Boolean,
-        val constructorDesc: String?,
-        private val isStaticOrigin: Boolean,
-        parentNameGenerator: NameGenerator,
-        private val capturesAnonymousObjectThatMustBeRegenerated: Boolean = false
+    override val oldClassName: String,
+    private val needReification: Boolean,
+    val functionalArguments: Map<Int, FunctionalArgument>,
+    private val capturedOuterRegenerated: Boolean,
+    private val alreadyRegenerated: Boolean,
+    val constructorDesc: String?,
+    private val isStaticOrigin: Boolean,
+    parentNameGenerator: NameGenerator,
+    private val capturesAnonymousObjectThatMustBeRegenerated: Boolean = false
 ) : TransformationInfo {
 
     override val nameGenerator by lazy {
@@ -82,20 +86,22 @@ class AnonymousObjectTransformationInfo internal constructor(
 
     lateinit var capturedLambdasToInline: Map<String, LambdaInfo>
 
-    override val wasAlreadyRegenerated: Boolean
-        get() = alreadyRegenerated
-
     constructor(
-            ownerInternalName: String,
-            needReification: Boolean,
-            alreadyRegenerated: Boolean,
-            isStaticOrigin: Boolean,
-            nameGenerator: NameGenerator
+        ownerInternalName: String,
+        needReification: Boolean,
+        alreadyRegenerated: Boolean,
+        isStaticOrigin: Boolean,
+        nameGenerator: NameGenerator
     ) : this(ownerInternalName, needReification, hashMapOf(), false, alreadyRegenerated, null, isStaticOrigin, nameGenerator)
 
-    override fun shouldRegenerate(sameModule: Boolean): Boolean =
-            !alreadyRegenerated &&
-            (!lambdasToInline.isEmpty() || !sameModule || capturedOuterRegenerated || needReification || capturesAnonymousObjectThatMustBeRegenerated)
+    // TODO: unconditionally regenerating an object if it has previously been regenerated is a hack that works around
+    //   the fact that TypeRemapper cannot differentiate between different references to the same object. See the test
+    //   boxInline/anonymousObject/constructOriginalInRegenerated.kt for an example where a single anonymous object
+    //   is referenced twice with otherwise different `shouldRegenerate` results and the inliner gets confused, trying
+    //   to map the inner reference to the outer regenerated type and producing an infinite recursion.
+    override fun shouldRegenerate(sameModule: Boolean): Boolean = alreadyRegenerated ||
+            !sameModule || capturedOuterRegenerated || needReification || capturesAnonymousObjectThatMustBeRegenerated ||
+                    functionalArguments.values.any { it != NonInlineArgumentForInlineSuspendParameter.INLINE_LAMBDA_AS_VARIABLE }
 
     override fun canRemoveAfterTransformation(): Boolean {
         // Note: It is unsafe to remove anonymous class that is referenced by GETSTATIC within lambda
@@ -103,6 +109,11 @@ class AnonymousObjectTransformationInfo internal constructor(
         return !isStaticOrigin
     }
 
-    override fun createTransformer(inliningContext: InliningContext, sameModule: Boolean): ObjectTransformer<*> =
-            AnonymousObjectTransformer(this, inliningContext, sameModule)
+    override fun createTransformer(
+        state: GenerationState,
+        inliningContext: InliningContext,
+        sameModule: Boolean,
+        continuationClassName: String?,
+    ): ObjectTransformer<*> =
+        AnonymousObjectTransformer(state, this, inliningContext, sameModule, continuationClassName)
 }

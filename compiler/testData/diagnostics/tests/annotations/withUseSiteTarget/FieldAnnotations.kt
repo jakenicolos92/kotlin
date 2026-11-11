@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 import kotlin.reflect.KProperty
 
 annotation class Ann
@@ -26,11 +27,15 @@ class SomeClass {
         get() = 5
 
     <!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@field:Ann<!>
-    fun anotherFun(<!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@field:Ann<!> <!UNUSED_PARAMETER!>s<!>: String) {
+    fun anotherFun(<!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@field:Ann<!> s: String) {
         <!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@field:Ann<!>
-        val <!UNUSED_VARIABLE!>localVariable<!> = 5
+        val localVariable = 5
     }
 
 }
 
 class WithPrimaryConstructor(@field:Ann val a: String)
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, annotationUseSiteTargetField, classDeclaration, functionDeclaration,
+getter, integerLiteral, localProperty, nullableType, operator, primaryConstructor, propertyDeclaration, propertyDelegate,
+secondaryConstructor, starProjection, stringLiteral */

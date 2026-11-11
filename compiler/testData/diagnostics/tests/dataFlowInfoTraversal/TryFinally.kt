@@ -1,11 +1,12 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 fun tryFinally(x: Int?) {
     try {
     } finally {
         x!!
     }
-    checkSubtype<Int>(<!DEBUG_INFO_SMARTCAST!>x<!>)
+    checkSubtype<Int>(x)
 }
 
 fun tryCatchFinally(x: Int?) {
@@ -14,8 +15,11 @@ fun tryCatchFinally(x: Int?) {
     } catch (e: Exception) {
         x!!
     } finally {
-        checkSubtype<Int>(<!TYPE_MISMATCH!>x<!>)
+        checkSubtype<Int>(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
         x!!
     }
-    checkSubtype<Int>(<!DEBUG_INFO_SMARTCAST!>x<!>)
+    checkSubtype<Int>(x)
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, localProperty, nullableType, propertyDeclaration, smartcast, tryExpression, typeParameter, typeWithExtension */

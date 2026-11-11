@@ -1,0 +1,4 @@
+br s -n ThrowException -s lldb_kt42208WithInlinedFunInKlib.kexe
+r
+bt
+q

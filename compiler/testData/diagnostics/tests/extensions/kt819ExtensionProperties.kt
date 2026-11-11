@@ -1,12 +1,14 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-819 Redeclaration error for extension properties with the same name and different receivers
+// FULL_JDK
 
 import java.io.*
 
 val InputStream.buffered : BufferedInputStream
-    get() = if(this is BufferedInputStream) <!DEBUG_INFO_SMARTCAST!>this<!> else BufferedInputStream(this)
+    get() = if(this is BufferedInputStream) this else BufferedInputStream(this)
 
 val Reader.buffered : BufferedReader
-    get() = if(this is BufferedReader) <!DEBUG_INFO_SMARTCAST!>this<!> else BufferedReader(this)
+    get() = if(this is BufferedReader) this else BufferedReader(this)
 
 
 //more tests
@@ -34,3 +36,7 @@ class B() : A() {
         s.foo()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, getter, ifExpression,
+integerLiteral, isExpression, javaFunction, override, primaryConstructor, propertyDeclaration,
+propertyWithExtensionReceiver, smartcast, thisExpression */

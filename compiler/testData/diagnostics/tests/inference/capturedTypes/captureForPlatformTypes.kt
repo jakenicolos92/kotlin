@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_VARIABLE
 // FILE: A.java
 public class A {
     public static <T> Class<T> foo(Class<T> clazz) {
@@ -25,3 +26,7 @@ fun tes2t(clazz: Class<in Int>) {
     foo1 checkType { _< Class<out Class<in Int>> >() }
     foo1 checkType { _< Class<out Class<in Int?>> >() }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration, functionalType,
+inProjection, infix, javaFunction, lambdaLiteral, localProperty, nullableType, outProjection, propertyDeclaration,
+typeParameter, typeWithExtension */

@@ -1,0 +1,156 @@
+#import <Foundation/NSArray.h>
+#import <Foundation/NSDictionary.h>
+#import <Foundation/NSError.h>
+#import <Foundation/NSObject.h>
+#import <Foundation/NSSet.h>
+#import <Foundation/NSString.h>
+#import <Foundation/NSValue.h>
+
+@class A, B, C, Foo, KotlinArray<T>, KotlinEnum<E>, KotlinEnumCompanion;
+
+@protocol KotlinComparable, KotlinIterator;
+
+NS_ASSUME_NONNULL_BEGIN
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunknown-warning-option"
+#pragma clang diagnostic ignored "-Wincompatible-property-type"
+#pragma clang diagnostic ignored "-Wnullability"
+
+#pragma push_macro("_Nullable_result")
+#if !__has_feature(nullability_nullable_result)
+#undef _Nullable_result
+#define _Nullable_result _Nullable
+#endif
+
+@protocol KotlinComparable
+@required
+- (int32_t)compareToOther:(id _Nullable)other __attribute__((swift_name("compareTo(other:)")));
+@end
+
+@interface KotlinEnum<E> : Base <KotlinComparable>
+- (instancetype)initWithName:(NSString *)name ordinal:(int32_t)ordinal __attribute__((swift_name("init(name:ordinal:)"))) __attribute__((objc_designated_initializer));
+@property (class, readonly, getter=companion) KotlinEnumCompanion *companion __attribute__((swift_name("companion")));
+- (int32_t)compareToOther:(E)other __attribute__((swift_name("compareTo(other:)")));
+- (BOOL)isEqual:(id _Nullable)other __attribute__((swift_name("isEqual(_:)")));
+- (NSUInteger)hash __attribute__((swift_name("hash()")));
+- (NSString *)description __attribute__((swift_name("description()")));
+@property (readonly) NSString *name __attribute__((swift_name("name")));
+@property (readonly) int32_t ordinal __attribute__((swift_name("ordinal")));
+@end
+
+typedef NS_CLOSED_ENUM(int32_t, NULL_) {
+  NULL_Entry1 __attribute__((swift_name("entry1"))) = 0,
+  NULL_Entry2 __attribute__((swift_name("entry2"))) = 1,
+} __attribute__((swift_name("NULL")));
+
+
+__attribute__((objc_subclassing_restricted))
+@interface A : KotlinEnum<A *>
++ (instancetype)alloc __attribute__((unavailable));
++ (instancetype)allocWithZone:(struct _NSZone *)zone __attribute__((unavailable));
+- (instancetype)initWithName:(NSString *)name ordinal:(int32_t)ordinal __attribute__((swift_name("init(name:ordinal:)"))) __attribute__((objc_designated_initializer)) __attribute__((unavailable));
+@property (readonly) NULL_ nsEnum;
+@property (class, readonly) A *entry1 __attribute__((swift_name("entry1")));
+@property (class, readonly) A *entry2 __attribute__((swift_name("entry2")));
++ (KotlinArray<A *> *)values __attribute__((swift_name("values()")));
+@property (class, readonly) NSArray<A *> *entries __attribute__((swift_name("entries")));
+@end
+
+typedef NS_CLOSED_ENUM(int32_t, DE) {
+  DEBUG_ __attribute__((swift_name("BUG"))) = 0,
+} __attribute__((swift_name("DE")));
+
+
+__attribute__((objc_subclassing_restricted))
+@interface B : KotlinEnum<B *>
++ (instancetype)alloc __attribute__((unavailable));
++ (instancetype)allocWithZone:(struct _NSZone *)zone __attribute__((unavailable));
+- (instancetype)initWithName:(NSString *)name ordinal:(int32_t)ordinal __attribute__((swift_name("init(name:ordinal:)"))) __attribute__((objc_designated_initializer)) __attribute__((unavailable));
+@property (readonly) DE nsEnum;
+@property (class, readonly) B *entry3 __attribute__((swift_name("entry3")));
++ (KotlinArray<B *> *)values __attribute__((swift_name("values()")));
+@property (class, readonly) NSArray<B *> *entries __attribute__((swift_name("entries")));
+@end
+
+typedef NS_CLOSED_ENUM(int32_t, N) {
+  NO_ __attribute__((swift_name("O"))) = 0,
+} __attribute__((swift_name("N")));
+
+
+__attribute__((objc_subclassing_restricted))
+@interface C : KotlinEnum<C *>
++ (instancetype)alloc __attribute__((unavailable));
++ (instancetype)allocWithZone:(struct _NSZone *)zone __attribute__((unavailable));
+- (instancetype)initWithName:(NSString *)name ordinal:(int32_t)ordinal __attribute__((swift_name("init(name:ordinal:)"))) __attribute__((objc_designated_initializer)) __attribute__((unavailable));
+@property (readonly) N nsEnum;
+@property (class, readonly) C *O __attribute__((swift_name("O")));
++ (KotlinArray<C *> *)values __attribute__((swift_name("values()")));
+@property (class, readonly) NSArray<C *> *entries __attribute__((swift_name("entries")));
+@end
+
+typedef NS_CLOSED_ENUM(int32_t, FooNSEnum) {
+  FooNSEnumAlphaBeta __attribute__((swift_name("alphaBeta"))) = 0,
+  FooNSEnumAlpha __attribute__((swift_name("alpha"))) = 1,
+  FooNSEnumTheCopy __attribute__((swift_name("theCopy"))) = 2,
+  FooNSEnumObjCName1Renamed __attribute__((swift_name("objCName1Renamed"))) = 3,
+  FooNSEnumObjcName2Renamed __attribute__((swift_name("objcName2Swift"))) = 4,
+  FooNSEnumEntryName1Renamed __attribute__((swift_name("entryName1Renamed"))) = 5,
+  FooNSEnumEntryName2Renamed __attribute__((swift_name("entryName2Swift"))) = 6,
+  FooNSEnumCombination1Renamed __attribute__((swift_name("combination1Renamed"))) = 7,
+  FooNSEnumCombination2Renamed __attribute__((swift_name("combination2Renamed"))) = 8,
+  FooNSEnumCombination3Renamed __attribute__((swift_name("combination3Swift"))) = 9,
+  FooNSEnumNULL __attribute__((swift_name("DEBUG"))) = 10,
+  FooNSEnumYES __attribute__((swift_name("NO"))) = 11,
+} __attribute__((swift_name("FooNSEnum")));
+
+
+__attribute__((objc_subclassing_restricted))
+@interface Foo : KotlinEnum<Foo *>
++ (instancetype)alloc __attribute__((unavailable));
++ (instancetype)allocWithZone:(struct _NSZone *)zone __attribute__((unavailable));
+- (instancetype)initWithName:(NSString *)name ordinal:(int32_t)ordinal __attribute__((swift_name("init(name:ordinal:)"))) __attribute__((objc_designated_initializer)) __attribute__((unavailable));
+@property (readonly) FooNSEnum nsEnum;
+@property (class, readonly) Foo *alphaBeta __attribute__((swift_name("alphaBeta")));
+@property (class, readonly) Foo *alpha __attribute__((swift_name("alpha")));
+@property (class, readonly) Foo *theCopy __attribute__((swift_name("theCopy")));
+@property (class, readonly) Foo *objCName1Renamed __attribute__((swift_name("objCName1Renamed")));
+@property (class, readonly) Foo *objcName2Renamed __attribute__((swift_name("objcName2Swift")));
+@property (class, readonly) Foo *entryName1Original __attribute__((swift_name("entryName1Original")));
+@property (class, readonly) Foo *entryName2Swift __attribute__((swift_name("entryName2Swift")));
+@property (class, readonly) Foo *combination1Bad __attribute__((swift_name("combination1Bad")));
+@property (class, readonly) Foo *combination2BadObjC __attribute__((swift_name("combination2BadSwift")));
+@property (class, readonly) Foo *combination3BadObjC __attribute__((swift_name("combination3BadSwift")));
+@property (class, readonly) Foo *NULL_ __attribute__((swift_name("DEBUG")));
+@property (class, readonly) Foo *entryName3Swift __attribute__((swift_name("entryName3Swift")));
++ (KotlinArray<Foo *> *)values __attribute__((swift_name("values()")));
+@property (class, readonly) NSArray<Foo *> *entries __attribute__((swift_name("entries")));
+@end
+
+__attribute__((objc_subclassing_restricted))
+@interface KotlinEnumCompanion : Base
++ (instancetype)alloc __attribute__((unavailable));
++ (instancetype)allocWithZone:(struct _NSZone *)zone __attribute__((unavailable));
++ (instancetype)companion __attribute__((swift_name("init()")));
+@property (class, readonly, getter=shared) KotlinEnumCompanion *shared __attribute__((swift_name("shared")));
+@end
+
+__attribute__((objc_subclassing_restricted))
+@interface KotlinArray<T> : Base
++ (instancetype)arrayWithSize:(int32_t)size init:(T _Nullable (^)(Int *))init __attribute__((swift_name("init(size:init:)")));
++ (instancetype)alloc __attribute__((unavailable));
++ (instancetype)allocWithZone:(struct _NSZone *)zone __attribute__((unavailable));
+- (T _Nullable)getIndex:(int32_t)index __attribute__((swift_name("get(index:)")));
+- (id<KotlinIterator>)iterator __attribute__((swift_name("iterator()")));
+- (void)setIndex:(int32_t)index value:(T _Nullable)value __attribute__((swift_name("set(index:value:)")));
+@property (readonly) int32_t size __attribute__((swift_name("size")));
+@end
+
+@protocol KotlinIterator
+@required
+- (BOOL)hasNext __attribute__((swift_name("hasNext()")));
+- (id _Nullable)next __attribute__((swift_name("next()")));
+@end
+
+#pragma pop_macro("_Nullable_result")
+#pragma clang diagnostic pop
+NS_ASSUME_NONNULL_END

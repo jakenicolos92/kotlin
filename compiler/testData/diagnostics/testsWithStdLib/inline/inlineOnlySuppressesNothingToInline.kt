@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -INVISIBLE_MEMBER -INVISIBLE_REFERENCE -UNUSED_PARAMETER -NULLABLE_INLINE_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -INVISIBLE_MEMBER -INVISIBLE_REFERENCE -UNUSED_PARAMETER -NULLABLE_INLINE_PARAMETER
 
 @kotlin.internal.InlineOnly
 inline fun test() {
@@ -29,3 +30,6 @@ inline fun Function1<Int, Int>?.test6() {
 inline fun test2(s : ((Int) -> Int)?) {
 
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, inline, noinline, nullableType,
+typeWithExtension */

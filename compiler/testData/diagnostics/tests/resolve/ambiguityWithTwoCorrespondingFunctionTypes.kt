@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun foo(a: Any, f: ()->Int) = f()
 fun foo(a: Any, f: (Any)->Int) = f(a)
@@ -9,3 +10,6 @@ fun test1() {
         <!NO_THIS!>this<!>
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, integerLiteral, lambdaLiteral, thisExpression,
+typeWithExtension */

@@ -1,0 +1,18 @@
+library {
+
+  library fragment {
+    // package name: test
+
+    // class name: test/Annotation
+
+    public final annotation class test/Annotation : kotlin/Annotation {
+
+      public constructor()
+    }
+
+    package {
+
+      public final fun foo(@test/Annotation arg: kotlin/Int): kotlin/Unit
+    }
+  }
+}

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // JET-72 Type inference doesn't work when iterating over ArrayList
 
 import java.util.ArrayList
@@ -16,3 +17,7 @@ fun test(room : <!PLATFORM_CLASS_MAPPED_TO_KOTLIN!>Object<!>) {
     }
   }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, equalityExpression, flexibleType, forLoop,
+functionDeclaration, ifExpression, javaFunction, javaProperty, localProperty, nullableType, primaryConstructor,
+propertyDeclaration, safeCall, smartcast, stringLiteral */

@@ -1,1 +1,0 @@
-fun getCorD() = if (Math.random() > 0.5) getC() else getD()

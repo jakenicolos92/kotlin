@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 // FILE: J.java
 
 import org.jetbrains.annotations.*;
@@ -15,7 +16,7 @@ public class J {
 
 fun test() {
     foo(J.staticNN)
-    foo(<!TYPE_MISMATCH!>J.staticN<!>)
+    foo(<!ARGUMENT_TYPE_MISMATCH!>J.staticN<!>)
     foo(J.staticJ)
 
     bar(J.staticNN)
@@ -25,3 +26,5 @@ fun test() {
 
 fun foo(j: J) {}
 fun bar(j: J?) {}
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaProperty, javaType, nullableType */

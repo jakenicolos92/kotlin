@@ -13,7 +13,7 @@ fun test(ss: List<String?>) {
     }
 }
 
-// 2 POP
 // 0 INVOKESTATIC java/lang/Boolean\.valueOf
 // 0 CHECKCAST java/lang/Boolean
 // 0 ACONST_NULL
+// 2 POP

@@ -1,5 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
+// CHECK_TYPE
 
 fun <T> foo(array: Array<T>): Array<T> = array
 
@@ -14,3 +15,7 @@ fun test2(a2: Array<in Int>) {
     val c2 = foo(a2)
     c2 checkType { _<Array<in Int>>() }
 }
+
+/* GENERATED_FIR_TAGS: capturedType, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+inProjection, infix, lambdaLiteral, localProperty, nullableType, outProjection, propertyDeclaration, typeParameter,
+typeWithExtension */

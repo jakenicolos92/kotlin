@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -UNNECESSARY_NOT_NULL_ASSERTION -UNNECESSARY_SAFE_CALL
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -UNNECESSARY_NOT_NULL_ASSERTION -UNNECESSARY_SAFE_CALL -SAFE_CALL_WILL_CHANGE_NULLABILITY
 
 fun getFun(s: (p: Int) -> Unit): Function1<Int, Int> = {11}
 
@@ -10,3 +11,6 @@ inline fun testExtension(s: (p: Int) -> Unit) {
     getInlineFun(s)!!.invoke(10)
     getInlineFun(s)?.invoke(10)
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, functionDeclaration, functionalType, inline, integerLiteral, lambdaLiteral,
+nullableType, safeCall */

@@ -17,65 +17,27 @@
 package org.jetbrains.kotlin.codegen;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.kotlin.resolve.jvm.diagnostics.JvmDeclarationOrigin;
+import org.jetbrains.annotations.Nullable;
+import org.jetbrains.kotlin.ir.declarations.IrClass;
 import org.jetbrains.org.objectweb.asm.ClassWriter;
 import org.jetbrains.org.objectweb.asm.util.TraceClassVisitor;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
 
-@SuppressWarnings("IOResourceOpenedButNotSafelyClosed")
 public class ClassBuilderFactories {
-    @NotNull
-    public static ClassBuilderFactory THROW_EXCEPTION = new ClassBuilderFactory() {
+    public static ClassBuilderFactory TEST = new TestClassBuilderFactory();
+
+    private static class TestClassBuilderFactory implements ClassBuilderFactory {
         @NotNull
         @Override
         public ClassBuilderMode getClassBuilderMode() {
-            return ClassBuilderMode.full(false);
+            return ClassBuilderMode.FULL;
         }
 
         @NotNull
         @Override
-        public ClassBuilder newClassBuilder(@NotNull JvmDeclarationOrigin origin) {
-            throw new IllegalStateException();
-        }
-
-        @Override
-        public String asText(ClassBuilder builder) {
-            throw new IllegalStateException();
-        }
-
-        @Override
-        public byte[] asBytes(ClassBuilder builder) {
-            throw new IllegalStateException();
-        }
-
-        @Override
-        public void close() {
-            throw new IllegalStateException();
-        }
-    };
-    
-    public static ClassBuilderFactory TEST = new TestClassBuilderFactory(false);
-
-    public static ClassBuilderFactory TEST_WITH_SOURCE_RETENTION_ANNOTATIONS = new TestClassBuilderFactory(true);
-    
-    public static class TestClassBuilderFactory implements ClassBuilderFactory {
-        private final boolean generateSourceRetentionAnnotations;
-
-        public TestClassBuilderFactory(boolean generateSourceRetentionAnnotations) {
-            this.generateSourceRetentionAnnotations = generateSourceRetentionAnnotations;
-        }
-
-        @NotNull
-        @Override
-        public ClassBuilderMode getClassBuilderMode() {
-            return ClassBuilderMode.full(generateSourceRetentionAnnotations);
-        }
-
-        @NotNull
-        @Override
-        public ClassBuilder newClassBuilder(@NotNull JvmDeclarationOrigin origin) {
+        public ClassBuilder newClassBuilder(@Nullable IrClass origin) {
             return new TraceBuilder(new BinaryClassWriter());
         }
 
@@ -93,45 +55,33 @@ public class ClassBuilderFactories {
         public byte[] asBytes(ClassBuilder builder) {
             return ((TraceBuilder) builder).binary.toByteArray();
         }
-
-        @Override
-        public void close() {
-
-        }
     }
     
     @NotNull
-    public static ClassBuilderFactory binaries(boolean generateSourceRetentionAnnotations) {
-        return new ClassBuilderFactory() {
-            @NotNull
-            @Override
-            public ClassBuilderMode getClassBuilderMode() {
-                return ClassBuilderMode.full(generateSourceRetentionAnnotations);
-            }
+    public static ClassBuilderFactory BINARIES = new ClassBuilderFactory() {
+        @NotNull
+        @Override
+        public ClassBuilderMode getClassBuilderMode() {
+            return ClassBuilderMode.FULL;
+        }
 
-            @NotNull
-            @Override
-            public ClassBuilder newClassBuilder(@NotNull JvmDeclarationOrigin origin) {
-                return new AbstractClassBuilder.Concrete(new BinaryClassWriter());
-            }
+        @NotNull
+        @Override
+        public ClassBuilder newClassBuilder(@Nullable IrClass origin) {
+            return new AbstractClassBuilder.Concrete(new BinaryClassWriter());
+        }
 
-            @Override
-            public String asText(ClassBuilder builder) {
-                throw new UnsupportedOperationException("BINARIES generator asked for text");
-            }
+        @Override
+        public String asText(ClassBuilder builder) {
+            throw new UnsupportedOperationException("BINARIES generator asked for text");
+        }
 
-            @Override
-            public byte[] asBytes(ClassBuilder builder) {
-                ClassWriter visitor = (ClassWriter) builder.getVisitor();
-                return visitor.toByteArray();
-            }
-
-            @Override
-            public void close() {
-
-            }
-        };
-    }
+        @Override
+        public byte[] asBytes(ClassBuilder builder) {
+            ClassWriter visitor = (ClassWriter) builder.getVisitor();
+            return visitor.toByteArray();
+        }
+    };
 
     private ClassBuilderFactories() {
     }

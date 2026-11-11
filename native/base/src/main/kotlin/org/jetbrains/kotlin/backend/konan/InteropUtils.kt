@@ -1,0 +1,96 @@
+/*
+ * Copyright 2010-2023 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.backend.konan
+
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
+
+object InteropFqNames {
+
+    const val cPointerName = "CPointer"
+    const val nativePointedName = "NativePointed"
+    const val cVariableName = "CVariable"
+
+    const val objCObjectBaseName = "ObjCObjectBase"
+    const val objCOverrideInitName = "OverrideInit"
+    const val objCOutletName = "ObjCOutlet"
+    const val objCMethodImpName = "ObjCMethodImp"
+    const val exportObjCClassName = "ExportObjCClass"
+    const val nativeHeapName = "nativeHeap"
+
+    const val cValueName = "CValue"
+    const val cValuesName = "CValues"
+    const val cValuesRefName = "CValuesRef"
+    const val cEnumName = "CEnum"
+    const val cStructVarName = "CStructVar"
+    const val cEnumVarName = "CEnumVar"
+    const val cPrimitiveVarName = "CPrimitiveVar"
+    const val cPointedName = "CPointed"
+
+    const val interopStubsName = "InteropStubs"
+    const val managedTypeName = "ManagedType"
+    const val memScopeName = "MemScope"
+    const val foreignObjCObjectName = "ForeignObjCObject"
+    const val cOpaqueName = "COpaque"
+    const val objCObjectName = "ObjCObject"
+    const val objCObjectBaseMetaName = "ObjCObjectBaseMeta"
+    const val objCClassName = "ObjCClass"
+    const val objCClassOfName = "ObjCClassOf"
+    const val objCProtocolName = "ObjCProtocol"
+    const val nativeMemUtilsName = "nativeMemUtils"
+    const val TypeName = "Type"
+
+    const val cstrPropertyName = "cstr"
+    const val wcstrPropertyName = "wcstr"
+    const val nativePointedRawPtrPropertyName = "rawPtr"
+    const val cPointerRawValuePropertyName = "rawValue"
+
+    const val getObjCClassFunName = "getObjCClass"
+    const val objCObjectSuperInitCheckFunName = "superInitCheck"
+    const val allocObjCObjectFunName = "allocObjCObject"
+    const val typeOfFunName = "typeOf"
+    const val objCObjectInitByFunName = "initBy"
+    const val objCObjectRawPtrFunName = "objcPtr"
+    const val interpretObjCPointerFunName = "interpretObjCPointer"
+    const val interpretObjCPointerOrNullFunName = "interpretObjCPointerOrNull"
+    const val interpretNullablePointedFunName = "interpretNullablePointed"
+    const val interpretCPointerFunName = "interpretCPointer"
+    const val nativePointedGetRawPointerFunName = "getRawPointer"
+    const val cPointerGetRawValueFunName = "getRawValue"
+    const val cValueWriteFunName = "write"
+    const val cValueReadFunName = "readValue"
+    const val allocTypeFunName = "alloc"
+
+    const val cToKotlinBridgeName = "CToKotlinBridge"
+    const val kotlinToCBridgeName = "KotlinToCBridge"
+
+    val packageName = FqName("kotlinx.cinterop")
+    val internalPackageName = FqName("kotlinx.cinterop.internal")
+
+    val cPointer = packageName.child(cPointerName).toUnsafe()
+    val nativePointed = packageName.child(nativePointedName).toUnsafe()
+
+    val objCObjectBase = packageName.child(objCObjectBaseName)
+    val objCOverrideInit = objCObjectBase.child(objCOverrideInitName)
+    val objCOutlet = packageName.child(objCOutletName)
+    val objCMethodImp = packageName.child(objCMethodImpName)
+    val exportObjCClass = packageName.child(exportObjCClassName)
+
+    val cValue = packageName.child(cValueName)
+    val cValues = packageName.child(cValuesName)
+    val cValuesRef = packageName.child(cValuesRefName)
+    val cEnum = packageName.child(cEnumName)
+    val cStructVar = packageName.child(cStructVarName)
+    val cPointed = packageName.child(cPointedName)
+
+    val interopStubs = packageName.child(interopStubsName)
+    val managedType = packageName.child(managedTypeName)
+
+    val cToKotlinBridge = internalPackageName.child(cToKotlinBridgeName)
+    val kotlinToCBridge = internalPackageName.child(kotlinToCBridgeName)
+}
+
+private fun FqName.child(nameIdent: String) = child(Name.identifier(nameIdent))

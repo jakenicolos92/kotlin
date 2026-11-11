@@ -16,7 +16,9 @@
 
 package org.jetbrains.kotlin.resolve.calls.results
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.psi.ValueArgument
 import org.jetbrains.kotlin.resolve.DescriptorToSourceUtils
 import org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystemBuilderImpl
@@ -24,22 +26,23 @@ import org.jetbrains.kotlin.resolve.calls.model.DefaultValueArgument
 import org.jetbrains.kotlin.resolve.calls.model.MutableResolvedCall
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.calls.model.VariableAsFunctionResolvedCallImpl
-import org.jetbrains.kotlin.resolve.calls.results.FlatSignature.Companion.argumentValueType
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.types.checker.KotlinTypeRefiner
+import org.jetbrains.kotlin.util.CancellationChecker
 import java.util.*
 
 
+@K1Deprecation
 fun <RC : ResolvedCall<*>> RC.createFlatSignature(): FlatSignature<RC> {
     val originalDescriptor = candidateDescriptor.original
     val originalValueParameters = originalDescriptor.valueParameters
 
     var numDefaults = 0
     val valueArgumentToParameterType = HashMap<ValueArgument, KotlinType>()
-    for ((valueParameter, resolvedValueArgument) in valueArguments.entries) {
+    for ([valueParameter, resolvedValueArgument] in valueArguments.entries) {
         if (resolvedValueArgument is DefaultValueArgument) {
             numDefaults++
-        }
-        else {
+        } else {
             val originalValueParameter = originalValueParameters[valueParameter.index]
             val parameterType = originalValueParameter.argumentValueType
             for (valueArgument in resolvedValueArgument.arguments) {
@@ -51,15 +54,25 @@ fun <RC : ResolvedCall<*>> RC.createFlatSignature(): FlatSignature<RC> {
     return FlatSignature.create(this, originalDescriptor, numDefaults, call.valueArguments.map { valueArgumentToParameterType[it] })
 }
 
+@K1Deprecation
 fun createOverloadingConflictResolver(
-        builtIns: KotlinBuiltIns,
-        specificityComparator: TypeSpecificityComparator
+    builtIns: KotlinBuiltIns,
+    module: ModuleDescriptor,
+    specificityComparator: TypeSpecificityComparator,
+    platformOverloadsSpecificityComparator: PlatformOverloadsSpecificityComparator,
+    cancellationChecker: CancellationChecker,
+    kotlinTypeRefiner: KotlinTypeRefiner,
 ) = OverloadingConflictResolver(
-        builtIns,
-        specificityComparator,
-        MutableResolvedCall<*>::getResultingDescriptor,
-        ConstraintSystemBuilderImpl.Companion::forSpecificity,
-        MutableResolvedCall<*>::createFlatSignature,
-        { (it as? VariableAsFunctionResolvedCallImpl)?.variableCall },
-        { DescriptorToSourceUtils.descriptorToDeclaration(it) != null}
+    builtIns,
+    module,
+    specificityComparator,
+    platformOverloadsSpecificityComparator,
+    cancellationChecker,
+    ResolvedCall<*>::getResultingDescriptor,
+    ConstraintSystemBuilderImpl.Companion::forSpecificity,
+    ResolvedCall<*>::createFlatSignature,
+    { (it as? VariableAsFunctionResolvedCallImpl)?.variableCall },
+    { DescriptorToSourceUtils.descriptorToDeclaration(it) != null },
+    null,
+    kotlinTypeRefiner
 )

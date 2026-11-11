@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: K.kt
 
 open class K {
@@ -13,7 +14,7 @@ class D extends K {
     static void bar() {}
 }
 
-// FILE: K.kt
+// FILE: K2.kt
 
 class K2 {
     companion object {
@@ -35,3 +36,6 @@ fun test() {
     K2.<!UNRESOLVED_REFERENCE!>foo<!>()
     K2.baz()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, javaFunction, javaProperty,
+objectDeclaration */

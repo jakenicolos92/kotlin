@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // MODULE: m1
 // FILE: a.kt
 package p
@@ -18,3 +19,5 @@ fun test() {
     // There should be no "none applicable" error here
     f(
 <!SYNTAX!><!>}
+
+/* GENERATED_FIR_TAGS: additiveExpression, functionDeclaration */

@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -NOTHING_TO_INLINE
 external class A {
     class B
 }

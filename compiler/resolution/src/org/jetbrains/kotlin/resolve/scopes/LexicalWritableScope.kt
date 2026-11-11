@@ -16,21 +16,25 @@
 
 package org.jetbrains.kotlin.resolve.scopes
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.incremental.components.LookupLocation
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.utils.Printer
 
+@K1Deprecation
 class LexicalWritableScope(
-        parent: LexicalScope,
-        override val ownerDescriptor: DeclarationDescriptor,
-        override val isOwnerDescriptorAccessibleByLabel: Boolean,
-        redeclarationChecker: LocalRedeclarationChecker,
-        override val kind: LexicalScopeKind
+    parent: LexicalScope,
+    override val ownerDescriptor: DeclarationDescriptor,
+    override val isOwnerDescriptorAccessibleByLabel: Boolean,
+    redeclarationChecker: LocalRedeclarationChecker,
+    override val kind: LexicalScopeKind
 ) : LexicalScopeStorage(parent, redeclarationChecker) {
 
     override val implicitReceiver: ReceiverParameterDescriptor?
         get() = null
+    override val contextReceiversGroup: List<ReceiverParameterDescriptor>
+        get() = emptyList()
 
     private var canWrite: Boolean = true
     private var lastSnapshot: Snapshot? = null
@@ -68,11 +72,25 @@ class LexicalWritableScope(
     }
 
     private inner class Snapshot(val descriptorLimit: Int) : LexicalScope by this {
-        override fun getContributedDescriptors(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean)
-                = addedDescriptors.subList(0, descriptorLimit)
+        override fun getContributedDescriptors(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean) =
+            addedDescriptors.subList(0, descriptorLimit)
 
-        override fun getContributedClassifier(name: Name, location: LookupLocation) = variableOrClassDescriptorByName(name, descriptorLimit) as? ClassifierDescriptor
-        override fun getContributedVariables(name: Name, location: LookupLocation) = listOfNotNull(variableOrClassDescriptorByName(name, descriptorLimit) as? VariableDescriptor)
+        override fun getContributedClassifier(name: Name, location: LookupLocation) =
+            variableOrClassDescriptorByName(name, descriptorLimit) as? ClassifierDescriptor
+
+        // NB. This is important to have this explicit override, otherwise calls will be delegated to `this`-delegate,
+        // which will use default implementation from `ResolutionScope`, which will call `getContributedClassifier` on
+        // the `LexicalWritableScope` instead of calling it on this snapshot
+        override fun getContributedClassifierIncludeDeprecated(
+            name: Name,
+            location: LookupLocation
+        ): DescriptorWithDeprecation<ClassifierDescriptor>? {
+            return (variableOrClassDescriptorByName(name, descriptorLimit) as? ClassifierDescriptor)
+                ?.let { DescriptorWithDeprecation.createNonDeprecated(it) }
+        }
+
+        override fun getContributedVariables(name: Name, location: LookupLocation) =
+            listOfNotNull(variableOrClassDescriptorByName(name, descriptorLimit) as? VariableDescriptor)
 
         override fun getContributedFunctions(name: Name, location: LookupLocation) = functionsByName(name, descriptorLimit)
 
@@ -88,8 +106,18 @@ class LexicalWritableScope(
     override fun toString(): String = kind.toString()
 
     override fun printStructure(p: Printer) {
-        p.println(this::class.java.simpleName, ": ", kind, "; for descriptor: ", ownerDescriptor.name,
-                  " with implicitReceiver: ", implicitReceiver?.value ?: "NONE", " {")
+        p.println(
+            this::class.java.simpleName,
+            ": ",
+            kind,
+            "; for descriptor: ",
+            ownerDescriptor.name,
+            " with implicitReceivers: ",
+            implicitReceiver?.value ?: "NONE",
+            " with contextReceiversGroup: ",
+            if (contextReceiversGroup.isEmpty()) "NONE" else contextReceiversGroup.joinToString { it.value.toString() },
+            " {"
+        )
         p.pushIndent()
 
         p.print("parent = ")

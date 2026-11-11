@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
 annotation class Ann(vararg val i: String)
 
 const val topLevel = "topLevel"
@@ -12,17 +13,20 @@ fun foo() {
     val a5 = 1.0
 
     @Ann(
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>a1<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>a2<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>a3<!>,
+            <!NON_CONST_VAL_USED_IN_CONSTANT_EXPRESSION!>a1<!>,
+            <!NON_CONST_VAL_USED_IN_CONSTANT_EXPRESSION!>a2<!>,
+            <!NON_CONST_VAL_USED_IN_CONSTANT_EXPRESSION!>a3<!>,
             "$topLevel",
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>"$a1"<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>"$a1 $topLevel"<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>"$a4"<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>"$a5"<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>a1 + a2<!>,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>"a" + a2<!>,
+            "$<!NON_CONST_VAL_USED_IN_CONSTANT_EXPRESSION!>a1<!>",
+            "$<!NON_CONST_VAL_USED_IN_CONSTANT_EXPRESSION!>a1<!> $topLevel",
+            "$<!NON_CONST_VAL_USED_IN_CONSTANT_EXPRESSION!>a4<!>",
+            "$<!NON_CONST_VAL_USED_IN_CONSTANT_EXPRESSION!>a5<!>",
+            <!NON_CONST_VAL_USED_IN_CONSTANT_EXPRESSION!>a1<!> + a2,
+            "a" + <!NON_CONST_VAL_USED_IN_CONSTANT_EXPRESSION!>a2<!>,
             "a" + topLevel,
-            <!ANNOTATION_PARAMETER_MUST_BE_CONST!>"a" + a4<!>
+            "a" + <!NON_CONST_VAL_USED_IN_CONSTANT_EXPRESSION!>a4<!>
     ) val b = 1
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, annotationDeclaration, const, functionDeclaration, integerLiteral,
+localProperty, outProjection, primaryConstructor, propertyDeclaration, stringLiteral, vararg */

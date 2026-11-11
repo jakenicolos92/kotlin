@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // See KT-10824: Smart cast depending on control flow does not work inside `if`
 class A
 fun foo(a: A?, aOther: A?): A {
@@ -9,7 +10,7 @@ fun foo(a: A?, aOther: A?): A {
         if (newA == null) {
             newA = A()
         }
-        <!DEBUG_INFO_SMARTCAST!>newA<!>
+        newA
     }
 }
 fun bar(a: A?, aOther: A?): A {
@@ -21,7 +22,7 @@ fun bar(a: A?, aOther: A?): A {
             return A()
         }
 
-        <!DEBUG_INFO_SMARTCAST!>aOther<!>
+        aOther
     }
 }
 fun foo1(a: A?, aOther: A?): A {
@@ -33,7 +34,7 @@ fun foo1(a: A?, aOther: A?): A {
         if (newA == null) {
             newA = A()
         }
-        <!DEBUG_INFO_SMARTCAST!>newA<!>
+        newA
     }
     return result
 }
@@ -46,7 +47,10 @@ fun bar1(a: A?, aOther: A?): A {
             return A()
         }
 
-        <!DEBUG_INFO_SMARTCAST!>aOther<!>
+        aOther
     }
     return result
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, equalityExpression, functionDeclaration, ifExpression,
+localProperty, nullableType, propertyDeclaration, smartcast */

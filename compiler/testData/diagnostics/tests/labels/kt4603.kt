@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 //KT-4603 Labeling information is lost when passing through local classes or objects
 
 fun foo() {
@@ -10,3 +11,6 @@ fun foo() {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, functionalType, lambdaLiteral, localClass, localProperty,
+primaryConstructor, propertyDeclaration, thisExpression, typeWithExtension */

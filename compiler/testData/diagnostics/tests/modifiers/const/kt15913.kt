@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -CONTEXT_RECEIVERS_DEPRECATED
 // FILE: Context.java
 
 public interface Context {
@@ -17,3 +19,6 @@ class MyController {
     fun setContext() {
     }
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration, companionObject, const, functionDeclaration,
+javaProperty, objectDeclaration, primaryConstructor, propertyDeclaration */

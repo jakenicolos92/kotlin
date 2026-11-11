@@ -1,4 +1,5 @@
-// !API_VERSION: 1.0
+// RUN_PIPELINE_TILL: FRONTEND
+// API_VERSION: 1.0
 // FILE: J.java
 
 public interface J {
@@ -25,10 +26,12 @@ interface BothI1 : I10, I11
 fun f4(x: BothI1) = x.foo()
 
 interface BothI2 : I11, I10
-fun f5(x: BothI2) = x.foo()
+fun f5(x: BothI2) = x.<!UNRESOLVED_REFERENCE!>foo<!>()
 
 interface JAndI10 : J, I10
 fun f6(x: JAndI10) = x.foo()
 
 interface JAndI11 : J, I11
 fun f7(x: JAndI11) = x.foo()
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, javaFunction, javaType, stringLiteral */

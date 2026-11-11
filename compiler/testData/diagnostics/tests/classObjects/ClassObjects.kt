@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -DUPLICATE_CLASS_NAMES
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -DUPLICATE_CLASS_NAMES
 package Jet86
 
 class A {
@@ -41,3 +42,6 @@ fun test() {
   System.out.println()
   java.lang.System.out.println()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, flexibleType, functionDeclaration, integerLiteral,
+javaFunction, javaProperty, objectDeclaration, primaryConstructor, propertyDeclaration */

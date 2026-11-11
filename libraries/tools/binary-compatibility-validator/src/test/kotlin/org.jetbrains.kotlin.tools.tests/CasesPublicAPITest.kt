@@ -1,54 +1,72 @@
+/*
+ * Copyright 2010-2025 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 package org.jetbrains.kotlin.tools.tests
 
-import org.jetbrains.kotlin.tools.*
-import org.junit.*
-import org.junit.rules.TestName
+import kotlinx.validation.api.filterOutNonPublic
+import kotlinx.validation.api.loadApiFromJvmClasses
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInfo
 import java.io.File
 
 class CasesPublicAPITest {
 
     companion object {
-        val visibilities by lazy { readKotlinVisibilities(File("build/cases-declarations.json")) }
-        val baseClassPath = File("build/classes/test/cases").absoluteFile
+        val baseClassPaths: List<File> =
+            System.getProperty("testCasesClassesDirs")
+                .let { requireNotNull(it) { "Specify testCasesClassesDirs with a system property"} }
+                .split(File.pathSeparator)
+                .map { File(it, "cases").canonicalFile }
         val baseOutputPath = File("src/test/kotlin/cases")
     }
 
-    @[Rule JvmField]
-    val testName = TestName()
+    private lateinit var testMethodName: String
 
-    @Test fun companions() { snapshotAPIAndCompare(testName.methodName) }
+    @BeforeEach
+    fun captureTestName(testInfo: TestInfo) {
+        testMethodName = testInfo.testMethod.get().name
+    }
 
-    @Test fun inline() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun companions() { snapshotAPIAndCompare(testMethodName) }
 
-    @Test fun interfaces() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun default() { snapshotAPIAndCompare(testMethodName) }
 
-    @Test fun internal() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun inline() { snapshotAPIAndCompare(testMethodName) }
 
-    @Test fun java() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun interfaces() { snapshotAPIAndCompare(testMethodName) }
 
-    @Test fun localClasses() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun internal() { snapshotAPIAndCompare(testMethodName) }
 
-    @Test fun nestedClasses() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun java() { snapshotAPIAndCompare(testMethodName) }
 
-    @Test fun private() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun localClasses() { snapshotAPIAndCompare(testMethodName) }
 
-    @Test fun protected() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun nestedClasses() { snapshotAPIAndCompare(testMethodName) }
 
-    @Test fun public() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun private() { snapshotAPIAndCompare(testMethodName) }
 
-    @Test fun special() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun protected() { snapshotAPIAndCompare(testMethodName) }
 
-    @Test fun whenMappings() { snapshotAPIAndCompare(testName.methodName) }
+    @Test fun public() { snapshotAPIAndCompare(testMethodName) }
+
+    @Test fun special() { snapshotAPIAndCompare(testMethodName) }
+
+    @Test fun whenMappings() { snapshotAPIAndCompare(testMethodName) }
 
 
     private fun snapshotAPIAndCompare(testClassRelativePath: String) {
-        val testClassPath = baseClassPath.resolve(testClassRelativePath)
-        val testClasses = testClassPath.listFiles() ?: throw IllegalStateException("Cannot list files in $testClassPath")
+        val testClassPaths = baseClassPaths.map { it.resolve(testClassRelativePath) }
+        val testClasses = testClassPaths.flatMap { it.listFiles().orEmpty().asIterable() }
+        check(testClasses.isNotEmpty()) { "No class files are found in paths: $testClassPaths" }
+
         val testClassStreams = testClasses.asSequence().filter { it.name.endsWith(".class") }.map { it.inputStream() }
 
-        val api = getBinaryAPI(testClassStreams, visibilities).filterOutNonPublic()
+        val api = testClassStreams.loadApiFromJvmClasses().filterOutNonPublic()
 
-        val target = baseOutputPath.resolve(testClassRelativePath).resolve(testName.methodName + ".txt")
+        val target = baseOutputPath.resolve(testClassRelativePath).resolve(testMethodName + ".txt")
 
         api.dumpAndCompareWith(target)
     }

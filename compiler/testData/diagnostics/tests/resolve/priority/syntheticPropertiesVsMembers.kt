@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
 
 // FILE: A.java
 public class A {
@@ -34,3 +35,7 @@ fun test(a: A, b: B, c: C) {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, javaProperty, javaType, lambdaLiteral, nullableType, primaryConstructor, propertyDeclaration, typeParameter,
+typeWithExtension */

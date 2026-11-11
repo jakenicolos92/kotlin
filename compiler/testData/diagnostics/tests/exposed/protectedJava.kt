@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Outer.java
 
 public abstract class Outer {
@@ -14,3 +15,5 @@ class OuterDerived: Outer() {
     // valid, My and Your have better visibility
     override fun foo(my: Outer.My) = Outer.Your()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaFunction, javaType, nestedClass, override */

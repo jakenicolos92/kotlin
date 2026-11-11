@@ -1,13 +1,6 @@
-buildscript {
-    repositories {
-        mavenLocal()
-    }
-    dependencies {
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-    }
+plugins {
+    id "org.jetbrains.kotlin.jvm"
 }
-
-apply plugin: "kotlin"
 
 
 repositories {
@@ -16,8 +9,7 @@ repositories {
 }
 
 dependencies {
-    testCompile 'org.testng:testng:6.8'
-    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    testImplementation 'org.testng:testng:6.8'
 }
 
 test {

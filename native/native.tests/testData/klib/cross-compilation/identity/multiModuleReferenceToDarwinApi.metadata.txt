@@ -1,0 +1,25 @@
+// MODULE: lib
+library {
+
+  library fragment {
+    // package name: lib
+
+    package {
+
+      public final fun createNSString(): platform/Foundation/NSString
+    }
+  }
+}
+
+// MODULE: app
+library {
+
+  library fragment {
+    // package name: app
+
+    package {
+
+      public final fun main(): kotlin/Unit
+    }
+  }
+}

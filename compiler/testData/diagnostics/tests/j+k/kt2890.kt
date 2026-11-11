@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //FILE:_03_collections/CollectionTest.java
 package _03_collections;
 
@@ -15,6 +16,8 @@ package _03_collections
 import java.util.ArrayList
 
 fun test() {
-  val <!UNUSED_VARIABLE!>c<!> = CollectionTest()
+  val c = CollectionTest()
   CollectionTest.add(ArrayList())
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaType, localProperty, propertyDeclaration */

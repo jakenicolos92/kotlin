@@ -1,5 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
+// CHECK_TYPE
 // FILE: a.kt
 class B(x: String)
 
@@ -12,3 +13,6 @@ fun A3(x: Any) = "OK"
 fun bar() {
     A3("") checkType { _<B>() }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, infix,
+lambdaLiteral, nullableType, primaryConstructor, stringLiteral, typeAliasDeclaration, typeParameter, typeWithExtension */

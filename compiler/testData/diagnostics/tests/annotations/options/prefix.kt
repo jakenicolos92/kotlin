@@ -1,7 +1,9 @@
+// RUN_PIPELINE_TILL: FRONTEND
 @Target(AnnotationTarget.FUNCTION)
 annotation class FunAnn
 
 @Target(AnnotationTarget.EXPRESSION)
+@Retention(AnnotationRetention.SOURCE)
 annotation class ExprAnn
 
 fun foo(): Int {
@@ -10,3 +12,6 @@ fun foo(): Int {
     @ExprAnn ++x
     return x
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, assignment, functionDeclaration, incrementDecrementExpression,
+integerLiteral, localProperty, propertyDeclaration */

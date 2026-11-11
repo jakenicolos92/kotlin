@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Iter {
     @Deprecated("text")
     operator fun iterator() : IterIterator = throw Exception()
@@ -19,6 +20,9 @@ class Iter2 {
 }
 
 fun use() {
-    for (x in <!DEPRECATION!>Iter()<!>) {}
-    for (x in <!DEPRECATION, DEPRECATION!>Iter2()<!>) {}
+    for (x in <!DEPRECATION!>Iter<!>()) {}
+    for (x in <!DEPRECATION, DEPRECATION!>Iter2<!>()) {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, forLoop, functionDeclaration, localProperty, nestedClass, operator,
+propertyDeclaration, stringLiteral */

@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.resolve.scopes
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.ClassifierDescriptor
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
@@ -26,10 +27,11 @@ import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.utils.Printer
 
+@K1Deprecation
 class SubpackagesImportingScope(
-        override val parent: ImportingScope?,
-        moduleDescriptor: ModuleDescriptor,
-        fqName: FqName
+    override val parent: ImportingScope?,
+    moduleDescriptor: ModuleDescriptor,
+    fqName: FqName
 ) : SubpackagesScope(moduleDescriptor, fqName), ImportingScope by ImportingScope.Empty {
 
     override fun getContributedPackage(name: Name): PackageViewDescriptor? = getPackage(name)
@@ -40,12 +42,20 @@ class SubpackagesImportingScope(
     override fun getContributedFunctions(name: Name, location: LookupLocation) = super.getContributedFunctions(name, location)
 
     //TODO: kept old behavior, but it seems very strange (super call seems more applicable)
-    override fun getContributedClassifier(name: Name, location: LookupLocation): ClassifierDescriptor? {
-        return ImportingScope.Empty.getContributedClassifier(name, location)
-    }
+    override fun getContributedClassifier(name: Name, location: LookupLocation): ClassifierDescriptor? = null
+
+    override fun getContributedDescriptors(
+        kindFilter: DescriptorKindFilter,
+        nameFilter: (Name) -> Boolean
+    ): Collection<DeclarationDescriptor> =
+        emptyList()
 
     //TODO: kept old behavior, but it seems very strange (super call seems more applicable)
-    override fun getContributedDescriptors(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean): Collection<DeclarationDescriptor> {
-        return ImportingScope.Empty.getContributedDescriptors(kindFilter, nameFilter)
-    }
+    override fun getContributedDescriptors(
+        kindFilter: DescriptorKindFilter,
+        nameFilter: (Name) -> Boolean,
+        changeNamesForAliased: Boolean
+    ): Collection<DeclarationDescriptor> = emptyList()
+
+    override fun computeImportedNames() = emptySet<Name>()
 }

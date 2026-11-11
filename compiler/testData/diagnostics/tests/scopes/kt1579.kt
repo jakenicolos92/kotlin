@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //FILE:a.kt
 //KT-1579 Can't import nested class/interface
 package lib
@@ -8,3 +9,5 @@ interface WithInner {
 //FILE:b.kt
 package user
 import lib.WithInner.Inner
+
+/* GENERATED_FIR_TAGS: interfaceDeclaration, nestedClass */

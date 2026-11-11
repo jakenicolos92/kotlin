@@ -1,11 +1,11 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 class TestClass {
-    suspend fun toInt(): Int = suspendCoroutineOrReturn { x ->
+    suspend fun toInt(): Int = suspendCoroutineUninterceptedOrReturn { x ->
         x.resume(14)
         COROUTINE_SUSPENDED
     }

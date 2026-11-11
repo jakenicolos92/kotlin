@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package test
 
 interface A {
@@ -10,5 +11,7 @@ open class C {
 }
 
 class Subject : C(), A {
-    val c = <!INVISIBLE_MEMBER!>a<!>
+    val c = <!NONE_APPLICABLE!>a<!>
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, getter, interfaceDeclaration, propertyDeclaration, stringLiteral */

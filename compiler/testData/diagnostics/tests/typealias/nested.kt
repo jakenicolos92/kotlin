@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER -TOPLEVEL_TYPEALIASES_ONLY
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER -TOPLEVEL_TYPEALIASES_ONLY  -UNSUPPORTED_FEATURE
 
 class Pair<T1, T2>(val x1: T1, val x2: T2)
 
@@ -22,3 +23,6 @@ fun C.testExtFun2(): C.P2 {
     val y = C.P2(1, 1)
     return x
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, integerLiteral, localProperty,
+nullableType, primaryConstructor, propertyDeclaration, typeAliasDeclaration, typeParameter */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: a.kt
 
 /**
@@ -24,14 +25,14 @@ fun main(args : Array<String>) {
         p {+"this format can be used as an alternative markup to XML"}
 
         // an element with attributes and text content
-        a(href = "http://jetbrains.com/kotlin") {+"Kotlin"}
+        a(href = "https://jetbrains.com/kotlin") {+"Kotlin"}
 
         // mixed content
         p {
           +"This is some"
           b {+"mixed"}
           +"text. For more see the"
-          a(href = "http://jetbrains.com/kotlin") {+"Kotlin"}
+          a(href = "https://jetbrains.com/kotlin") {+"Kotlin"}
           +"project"
         }
         p {+"some text"}
@@ -135,7 +136,7 @@ class A() : BodyTag("a") {
     get() = attributes["href"]
     set(value) {
        if (value != null) {
-           attributes.put("href", <!DEBUG_INFO_SMARTCAST!>value<!>)
+           attributes.put("href", value)
 //         attributes["href"] = value //doesn't work: KT-1355
        }
     }
@@ -157,3 +158,8 @@ fun println(message : Any?) {
 fun print(message : Any?) {
   System.out.print(message)
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, classDeclaration, equalityExpression, flexibleType, forLoop,
+funWithExtensionReceiver, functionDeclaration, functionalType, getter, ifExpression, javaFunction, javaProperty,
+lambdaLiteral, localProperty, nullableType, operator, override, primaryConstructor, propertyDeclaration, setter,
+smartcast, stringLiteral, thisExpression, typeConstraint, typeParameter, typeWithExtension, unaryExpression */

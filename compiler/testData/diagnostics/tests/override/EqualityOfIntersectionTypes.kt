@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface Foo
 interface Bar
 
@@ -13,3 +14,6 @@ class B : A {
     = Unit
 
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, override, typeConstraint,
+typeParameter */

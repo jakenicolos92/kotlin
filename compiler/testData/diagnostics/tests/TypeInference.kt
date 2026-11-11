@@ -1,18 +1,22 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class C<T>() {
   fun foo() : T {<!NO_RETURN_IN_FUNCTION_WITH_BLOCK_BODY!>}<!>
 }
 
-fun foo(<!UNUSED_PARAMETER!>c<!>: C<Int>) {}
+fun foo(c: C<Int>) {}
 fun <T> bar() : C<T> {<!NO_RETURN_IN_FUNCTION_WITH_BLOCK_BODY!>}<!>
 
-fun main(args : Array<String>) {
-  val <!UNUSED_VARIABLE!>a<!> : C<Int> = C();
-  val <!UNUSED_VARIABLE!>x<!> : C<in String> = C()
-  val <!UNUSED_VARIABLE!>y<!> : C<out String> = C()
-  val <!UNUSED_VARIABLE!>z<!> : C<*> = <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>C<!>()
+fun main() {
+  val a : C<Int> = C();
+  val x : C<in String> = C()
+  val y : C<out String> = C()
+  val z : C<*> = <!CANNOT_INFER_PARAMETER_TYPE!>C<!>()
 
-  val <!UNUSED_VARIABLE!>ba<!> : C<Int> = bar();
-  val <!UNUSED_VARIABLE!>bx<!> : C<in String> = bar()
-  val <!UNUSED_VARIABLE!>by<!> : C<out String> = bar()
-  val <!UNUSED_VARIABLE!>bz<!> : C<*> = <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>bar<!>()
+  val ba : C<Int> = bar();
+  val bx : C<in String> = bar()
+  val by : C<out String> = bar()
+  val bz : C<*> = <!CANNOT_INFER_PARAMETER_TYPE!>bar<!>()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, inProjection, localProperty, nullableType, outProjection,
+primaryConstructor, propertyDeclaration, starProjection, typeParameter */

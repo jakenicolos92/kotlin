@@ -16,40 +16,102 @@
 
 package org.jetbrains.kotlin.daemon.common
 
+import org.jetbrains.kotlin.buildtools.api.SourcesChanges
+import org.jetbrains.kotlin.incremental.ClasspathChanges
+import org.jetbrains.kotlin.incremental.ConfigurationInputs
+import org.jetbrains.kotlin.incremental.IncrementalCompilationFeatures
+import org.jetbrains.kotlin.incremental.IncrementalModuleInfo
 import java.io.File
 import java.io.Serializable
+import java.util.*
 
 open class CompilationOptions(
-        val compilerMode: CompilerMode,
-        val targetPlatform: CompileService.TargetPlatform,
-        /** @See [ReportCategory] */
-        val reportCategories: Array<Int>,
-        /** @See [ReportSeverity] */
-        val reportSeverity: Int,
-        /** @See [CompilationResultCategory]] */
-        val requestedCompilationResults: Array<Int>
+    val compilerMode: CompilerMode,
+    val targetPlatform: CompileService.TargetPlatform,
+    /** @See [ReportCategory] */
+    val reportCategories: Array<Int>,
+    /** @See [ReportSeverity] */
+    val reportSeverity: Int,
+    /** @See [CompilationResultCategory]] */
+    val requestedCompilationResults: Array<Int>,
+    val kotlinScriptExtensions: Array<String>? = null,
 ) : Serializable {
     companion object {
         const val serialVersionUID: Long = 0
     }
+
+    override fun toString(): String {
+        return "CompilationOptions(" +
+                "compilerMode=$compilerMode, " +
+                "targetPlatform=$targetPlatform, " +
+                "reportCategories=${Arrays.toString(reportCategories)}, " +
+                "reportSeverity=$reportSeverity, " +
+                "requestedCompilationResults=${Arrays.toString(requestedCompilationResults)}, " +
+                "kotlinScriptExtensions=${Arrays.toString(kotlinScriptExtensions)}" +
+                ")"
+    }
 }
 
 class IncrementalCompilationOptions(
-        val areFileChangesKnown: Boolean,
-        val modifiedFiles: List<File>?,
-        val deletedFiles: List<File>?,
-        val workingDir: File,
-        val customCacheVersionFileName: String,
-        val customCacheVersion: Int,
-        compilerMode: CompilerMode,
-        targetPlatform: CompileService.TargetPlatform,
-        /** @See [ReportCategory] */
-        reportCategories: Array<Int>,
-        /** @See [ReportSeverity] */
-        reportSeverity: Int,
-        /** @See [CompilationResultCategory]] */
-        requestedCompilationResults: Array<Int>
-) : CompilationOptions(compilerMode, targetPlatform, reportCategories, reportSeverity, requestedCompilationResults) {
+    val sourceChanges: SourcesChanges,
+    val classpathChanges: ClasspathChanges,
+    val workingDir: File,
+    compilerMode: CompilerMode,
+    targetPlatform: CompileService.TargetPlatform,
+    /** @See [ReportCategory] */
+    reportCategories: Array<Int>,
+    /** @See [ReportSeverity] */
+    reportSeverity: Int,
+    /** @See [CompilationResultCategory]] */
+    requestedCompilationResults: Array<Int>,
+    /** Use new JvmBaseFirRunner */
+    val useJvmFirRunner: Boolean,
+    /**
+     * Directories that should be cleared when IC decides to rebuild
+     */
+    val outputFiles: Collection<File>? = null,
+    val multiModuleICSettings: MultiModuleICSettings? = null,
+    val modulesInfo: IncrementalModuleInfo? = null,
+
+    // rootProjectDir and buildDir are used to resolve relative paths
+    val rootProjectDir: File?,
+    val buildDir: File?,
+
+    kotlinScriptExtensions: Array<String>? = null,
+    val icFeatures: IncrementalCompilationFeatures = IncrementalCompilationFeatures.DEFAULT_CONFIGURATION,
+    /** The directory the compilation writes the compiler reference index to, or `null` to write none */
+    val compilerRefIndexDirectory: File? = null,
+    val configurationInputs: ConfigurationInputs? = null
+) : CompilationOptions(
+    compilerMode,
+    targetPlatform,
+    reportCategories,
+    reportSeverity,
+    requestedCompilationResults,
+    kotlinScriptExtensions,
+) {
+    companion object {
+        const val serialVersionUID: Long = 6
+    }
+
+    override fun toString(): String {
+        return "IncrementalCompilationOptions(" +
+                "super=${super.toString()}, " +
+                "sourceChanges=$sourceChanges, " +
+                "classpathChanges=${classpathChanges::class.simpleName}, " +
+                "workingDir=$workingDir, " +
+                "multiModuleICSettings=$multiModuleICSettings, " +
+                "icFeatures=$icFeatures, " +
+                "outputFiles=$outputFiles, " +
+                "compilerRefIndexDirectory=$compilerRefIndexDirectory" +
+                ")"
+    }
+}
+
+data class MultiModuleICSettings(
+    val buildHistoryFile: File,
+    val useModuleDetection: Boolean,
+) : Serializable {
     companion object {
         const val serialVersionUID: Long = 0
     }

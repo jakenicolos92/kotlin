@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun foo() {
     var x: Int
     fun bar() {
@@ -6,3 +7,6 @@ fun foo() {
     <!UNINITIALIZED_VARIABLE!>x<!>.hashCode()
     bar()
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, integerLiteral, localFunction, localProperty,
+propertyDeclaration */

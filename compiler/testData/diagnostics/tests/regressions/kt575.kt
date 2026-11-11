@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-575 Cannot ++ a companion object member
 
 package kt575
@@ -30,3 +31,6 @@ class Creature() {
         C().ccc++
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, companionObject, incrementDecrementExpression, init, integerLiteral,
+nestedClass, objectDeclaration, primaryConstructor, propertyDeclaration */

@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
 
 class Outer<E> {
     inner class Inner<E> {
@@ -16,3 +17,6 @@ fun main() {
     inner.foo().checkType { _<Int>() }
     inner.outerE().checkType { _<String>() }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, inner, lambdaLiteral, localProperty, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

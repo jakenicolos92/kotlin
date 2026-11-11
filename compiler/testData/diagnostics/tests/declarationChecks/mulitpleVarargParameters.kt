@@ -1,10 +1,11 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -PRIMARY_CONSTRUCTOR_DELEGATION_CALL_EXPECTED
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER -PRIMARY_CONSTRUCTOR_DELEGATION_CALL_EXPECTED
 fun test(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int) {
-    fun test2(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x1<!>: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x2<!>: Int) {
-        class LocalClass(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x1<!>: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x2<!>: Int) {
-        constructor(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x1<!>: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x2<!>: Int, xx: Int) {}
+    fun test2(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int) {
+        class LocalClass(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int) {
+        constructor(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int, xx: Int) {}
     }
-        fun test3(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x1<!>: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> <!NAME_SHADOWING!>x2<!>: Int) {}
+        fun test3(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int) {}
     }
 }
 
@@ -33,3 +34,6 @@ object O {
         fun test(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x1: Int, <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> x2: Int) {}
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, interfaceDeclaration, localClass,
+localFunction, nestedClass, objectDeclaration, primaryConstructor, secondaryConstructor, vararg */

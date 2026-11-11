@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 inline fun inlineFun(s: (p: Int) -> Unit) : (p: Int) -> Unit {
     return <!USAGE_IS_NOT_INLINABLE!>s<!>
 }
@@ -18,3 +19,6 @@ inline fun inlineFunWithExt2(ext: Int.(p: Int) -> Unit) : Int.(p: Int) -> Unit =
 }
 
 <!NOTHING_TO_INLINE!>inline<!> fun Function1<Int, Unit>.inlineExt2(): Function1<Int, Unit> = this
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, inline, thisExpression,
+typeWithExtension */

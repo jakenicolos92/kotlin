@@ -1,0 +1,50 @@
+// ISSUE: KT-58695
+
+// FILE: MyClass.java
+
+import lombok.Builder;
+
+@Builder(toBuilder = true, builderClassName = "MyClassBuilder")
+public class MyClass {
+    public String aString;
+
+    public static MyClassBuilder builder(int x) {
+        return new CustomMyClassBuilder();
+    }
+
+    public static class MyClassBuilder {
+        static int myStaticField = 42;
+    }
+
+    // Make sure Lombok ignores the custom unrelated class
+    public static class MyCustomClass {
+    }
+
+    public static class CustomMyClassBuilder extends MyClassBuilder {
+        @Override
+        public MyClass build() {
+            myStaticField = 100;
+            return super.build();
+        }
+    }
+}
+
+// FILE: test.kt
+
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+
+fun box(): String {
+    MyClass.MyClassBuilder.myStaticField = 84
+
+    val myClassBuilder: MyClass.MyClassBuilder = MyClass.builder(0)
+    val myClass = myClassBuilder.aString("test").build()
+
+    // Check if custom `builder` method is called
+    assertIs<MyClass.CustomMyClassBuilder>(myClassBuilder)
+    // Check if custom `build` method is called
+    assertEquals(100, MyClass.MyClassBuilder.myStaticField)
+    assertEquals("test", myClass.aString)
+
+    return "OK"
+}

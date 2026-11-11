@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/J.java
 
 package p;
@@ -14,3 +15,5 @@ fun test() {
     J().str(J())
     J().str(null)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaType, nullableType */

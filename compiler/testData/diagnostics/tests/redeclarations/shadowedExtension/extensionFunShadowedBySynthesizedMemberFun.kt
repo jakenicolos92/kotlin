@@ -1,5 +1,9 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 data class DataClass(val x: Int)
 
 fun DataClass.<!EXTENSION_SHADOWED_BY_MEMBER!>component1<!>() = 42
+
+/* GENERATED_FIR_TAGS: classDeclaration, data, funWithExtensionReceiver, functionDeclaration, integerLiteral,
+primaryConstructor, propertyDeclaration */

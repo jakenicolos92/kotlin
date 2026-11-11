@@ -1,3 +1,16 @@
+// RUN_PIPELINE_TILL: CODEGEN
+/*
+ * KOTLIN DIAGNOSTICS SPEC TEST (NEGATIVE)
+ *
+ * SPEC VERSION: 0.1-152
+ * PRIMARY LINKS: expressions, when-expression -> paragraph 5 -> sentence 1
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 3
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 6
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 9
+ * expressions, when-expression -> paragraph 6 -> sentence 10
+ * expressions, when-expression -> paragraph 6 -> sentence 11
+ */
+
 // FILE: MyEnum.java
 public enum MyEnum {
     SINGLE;
@@ -66,3 +79,7 @@ fun useJava(): String {
         else -> "FAIL" // no warning
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, enumDeclaration, enumEntry, equalityExpression, flexibleType,
+functionDeclaration, integerLiteral, isExpression, javaFunction, javaProperty, javaType, localProperty, nestedClass,
+nullableType, propertyDeclaration, sealed, smartcast, stringLiteral, whenExpression, whenWithSubject */

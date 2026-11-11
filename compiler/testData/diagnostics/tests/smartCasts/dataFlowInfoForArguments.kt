@@ -1,7 +1,10 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package aaa
 
-fun bar(<!UNUSED_PARAMETER!>a<!>: Int, <!UNUSED_PARAMETER!>b<!>: Int) {}
+fun bar(a: Int, b: Int) {}
 
 fun foo(a: Int?) {
-    bar(a!!, <!DEBUG_INFO_SMARTCAST!>a<!>)
+    bar(a!!, a)
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, functionDeclaration, nullableType, smartcast */

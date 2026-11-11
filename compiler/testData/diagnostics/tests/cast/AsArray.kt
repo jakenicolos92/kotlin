@@ -1,1 +1,4 @@
-fun f(x: Any) = <!UNCHECKED_CAST!>x as Array<String><!>
+// RUN_PIPELINE_TILL: CODEGEN
+fun f(x: Any) = x <!UNCHECKED_CAST!>as Array<String><!>
+
+/* GENERATED_FIR_TAGS: asExpression, functionDeclaration */

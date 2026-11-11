@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 fun foo(javaClass: JavaClass) {
     javaClass.url = javaClass.url + "/"
@@ -18,3 +19,6 @@ public class JavaClass {
     public String getHTMLFile() { return true; }
     public void setHTMLFile(String value) { }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, flexibleType, functionDeclaration, javaProperty, javaType,
+localProperty, propertyDeclaration, stringLiteral */

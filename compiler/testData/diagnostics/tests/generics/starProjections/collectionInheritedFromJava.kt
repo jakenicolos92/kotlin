@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/Base.java
 
 package p;
@@ -12,3 +13,5 @@ public class Base<T> {
 package p
 
 class Derived: p.Base<String>()
+
+/* GENERATED_FIR_TAGS: classDeclaration, javaType */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 
 // FILE: J.java
 
@@ -31,10 +32,12 @@ fun test() {
 
     if (platformN !== null) {}
     if (platformN === null) {}
-    if (a === null && platformN === <!DEBUG_INFO_CONSTANT!>a<!>) {}
+    if (a === null && platformN === a) {}
 
     if (platformJ !== null) {}
     if (platformJ === null) {}
-    if (a === null && platformJ === <!DEBUG_INFO_CONSTANT!>a<!>) {}
+    if (a === null && platformJ === a) {}
 }
 
+/* GENERATED_FIR_TAGS: andExpression, equalityExpression, flexibleType, functionDeclaration, ifExpression, javaProperty,
+javaType, localProperty, nullableType, propertyDeclaration, smartcast */

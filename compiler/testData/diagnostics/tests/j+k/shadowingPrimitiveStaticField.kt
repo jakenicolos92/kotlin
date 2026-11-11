@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: B.kt
 
 import aa.B
@@ -22,3 +23,5 @@ package aa;
 public class B extends A {
     public static String CONST = null;
 }
+
+/* GENERATED_FIR_TAGS: assignment, flexibleType, functionDeclaration, javaProperty, nullableType, safeCall */

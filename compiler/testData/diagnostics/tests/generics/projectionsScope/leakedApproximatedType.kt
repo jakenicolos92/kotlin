@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 class Out<out T>
 class In<in T> {
@@ -14,6 +15,9 @@ fun test(a: A<out CharSequence>, y: Out<CharSequence>) {
     val i = a.foo()
     // TODO: These diagnostic are wrong, type of 'i' --- 'In<Nothing>' is not projected itself,
     // but it's approximation result caused by 'a' projection
-    i.invoke1(<!TYPE_MISMATCH!>""<!>)
-    i.invoke2(<!TYPE_MISMATCH!>y<!>)
+    i.invoke1(<!ARGUMENT_TYPE_MISMATCH!>""<!>)
+    i.invoke2(<!ARGUMENT_TYPE_MISMATCH!>y<!>)
 }
+
+/* GENERATED_FIR_TAGS: capturedType, classDeclaration, functionDeclaration, in, interfaceDeclaration, localProperty,
+nullableType, out, outProjection, propertyDeclaration, stringLiteral, typeParameter */

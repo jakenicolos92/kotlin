@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Base.java
 
 public interface Base {}
@@ -25,7 +26,17 @@ public final class Exotic implements Base, Other {
 
 import kotlin.jvm.functions.Function0;
 
-class Val<T> {
+public class Properties {
+    static <T> Val<T> calcVal(Function0<T> initializer) {
+        return new Val<T>(initializer);
+    }
+}
+
+// FILE: Val.java
+
+import kotlin.jvm.functions.Function0;
+
+public class Val<T> {
 
     Function0<T> initializer;
 
@@ -35,12 +46,6 @@ class Val<T> {
 
     T getValue(Object instance, Object metadata) {
         return initializer.invoke();
-    }
-}
-
-class Properties {
-    static <T> Val<T> calcVal(Function0<T> initializer) {
-        return new Val<T>(initializer);
     }
 }
 
@@ -71,3 +76,8 @@ class My(val x: Int) {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, comparisonExpression, flexibleType, functionDeclaration,
+integerLiteral, intersectionType, javaFunction, javaType, lambdaLiteral, localProperty, objectDeclaration, out,
+primaryConstructor, propertyDeclaration, propertyDelegate, starProjection, stringLiteral, typeConstraint, typeParameter,
+whenExpression */

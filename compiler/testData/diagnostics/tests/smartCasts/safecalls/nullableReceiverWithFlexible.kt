@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: Foo.java
 public class Foo {
     public String bar;
@@ -23,3 +24,6 @@ fun test() {
         foo?.bar?.length
     }
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaProperty, lambdaLiteral, localProperty,
+nullableType, propertyDeclaration, safeCall */

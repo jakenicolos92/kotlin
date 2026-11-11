@@ -1,6 +1,9 @@
-// !DIAGNOSTICS: -UNREACHABLE_CODE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNREACHABLE_CODE
 
 fun foo() {
-    val <!UNUSED_VARIABLE!>text<!>: List<Any> = null!!
-    text.<!UNRESOLVED_REFERENCE!>map<!> <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>Any<!><!SYNTAX!>?<!>::<!UNRESOLVED_REFERENCE!>toString<!>
+    val text: List<Any> = null!!
+    text.<!UNRESOLVED_REFERENCE!>map<!> Any<!SYNTAX!>?<!>::<!UNRESOLVED_REFERENCE!>toString<!>
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, functionDeclaration, localProperty, propertyDeclaration */

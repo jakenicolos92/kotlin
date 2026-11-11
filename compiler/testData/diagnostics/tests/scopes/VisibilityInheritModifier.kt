@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package b
 
 open class A {
@@ -18,10 +19,10 @@ open class D {
 }
 
 class E : D() {
-    internal <!CANNOT_OVERRIDE_INVISIBLE_MEMBER!>override<!> fun self() = this
+    internal <!NOTHING_TO_OVERRIDE!>override<!> fun self() = this
 
     fun test() {
-        val <!UNUSED_VARIABLE!>s<!> : E = self()
+        val s : E = self()
     }
 }
 
@@ -35,7 +36,7 @@ class G : F() {
 }
 
 fun test_fun_stays_protected(g: G) {
-    g.<!INVISIBLE_MEMBER!>protected_fun<!>()
+    g.<!INVISIBLE_REFERENCE!>protected_fun<!>()
 }
 
 //------------
@@ -83,3 +84,6 @@ interface Q : R {
 class S : P, Q {
     <!CANNOT_WEAKEN_ACCESS_PRIVILEGE!>internal<!> override fun foo() {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, localProperty, override,
+propertyDeclaration, thisExpression */

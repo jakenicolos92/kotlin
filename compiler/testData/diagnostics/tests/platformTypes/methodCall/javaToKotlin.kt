@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 // FILE: p/J.java
 
 package p;
@@ -16,3 +17,5 @@ fun takeJ(j: J) {}
 fun test() {
     takeJ(J().j())
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaType */

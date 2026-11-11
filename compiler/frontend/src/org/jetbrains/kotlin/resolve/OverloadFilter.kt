@@ -16,14 +16,17 @@
 
 package org.jetbrains.kotlin.resolve
 
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.container.DefaultImplementation
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptorNonRoot
 
-
+@DefaultImplementation(impl = OverloadFilter.Default::class)
+@K1Deprecation
 interface OverloadFilter {
     fun filterPackageMemberOverloads(overloads: Collection<DeclarationDescriptorNonRoot>): Collection<DeclarationDescriptorNonRoot>
 
-    object DEFAULT : OverloadFilter {
+    object Default : OverloadFilter {
         override fun filterPackageMemberOverloads(overloads: Collection<DeclarationDescriptorNonRoot>): Collection<DeclarationDescriptorNonRoot> =
-                overloads
+            overloads
     }
 }

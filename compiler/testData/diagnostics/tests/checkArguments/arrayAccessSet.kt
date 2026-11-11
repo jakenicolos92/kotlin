@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 object A {
     operator fun set(x: Int, y: String = "y", z: Double) {
@@ -20,16 +21,26 @@ object Z {
     }
 }
 
+object W {
+    operator fun set(vararg va: Int, value: Int) {
+    }
+}
+
 fun test() {
-    A[0] = <!TYPE_MISMATCH!>""<!>
+    A[0] = <!ARGUMENT_TYPE_MISMATCH!>""<!>
     A[0] = 2.72
 
-    B[0] = <!TYPE_MISMATCH!>""<!>
-    B[0] = <!CONSTANT_EXPECTED_TYPE_MISMATCH!>2.72<!>
+    B[0] = <!ARGUMENT_TYPE_MISMATCH!>""<!>
+    B[0] = <!ARGUMENT_TYPE_MISMATCH!>2.72<!>
     B[0] = true
 
-    D[0] = <!TYPE_MISMATCH!>""<!>
+    D[0] = <!ARGUMENT_TYPE_MISMATCH!>""<!>
     D[0] = 2.72
 
     Z[<!TOO_MANY_ARGUMENTS!>0<!>] = <!TOO_MANY_ARGUMENTS!>""<!>
+
+    W[0] = 1
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, integerLiteral, objectDeclaration, operator, stringLiteral,
+vararg */

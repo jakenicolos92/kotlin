@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 
 public class A {
@@ -40,7 +42,7 @@ public class C extends A {
 
 fun use(a: A, b: B, c: C) {
     a.<!DEPRECATION!>f<!>()
-    b.<!DEPRECATION!>f<!>()
+    b.f()
     c.<!DEPRECATION!>f<!>()
 
     A.<!DEPRECATION!>D<!>
@@ -51,3 +53,5 @@ fun use(a: A, b: B, c: C) {
     B.bar()
     C.<!DEPRECATION!>bar<!>()
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaProperty, javaType */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun f() {
     foo {
         return@foo 1
@@ -12,11 +13,12 @@ fun f() {
 
     foo {
         foo {
-            return<!LABEL_NAME_CLASH!>@foo<!> 1
+            return@foo 1
         }
         return@foo 1
     }
 }
 
-fun foo(<!UNUSED_PARAMETER!>a<!>: Any) {}
+fun foo(a: Any) {}
 
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, lambdaLiteral */

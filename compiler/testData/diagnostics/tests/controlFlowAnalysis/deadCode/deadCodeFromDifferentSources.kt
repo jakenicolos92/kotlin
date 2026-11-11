@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package c
 
 fun test1() {
@@ -17,7 +18,10 @@ fun test3() {
 fun throwNPE(): Nothing = null!!
 
 class A {
-    operator fun plus(<!UNUSED_PARAMETER!>a<!>: A): Nothing = throw Exception()
+    operator fun plus(a: A): Nothing = throw Exception()
 }
 
 fun bar() {}
+
+/* GENERATED_FIR_TAGS: additiveExpression, checkNotNullCall, classDeclaration, functionDeclaration, localProperty,
+operator, propertyDeclaration */

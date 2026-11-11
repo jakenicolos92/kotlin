@@ -1,0 +1,251 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.light.classes.symbol.methods
+
+import com.intellij.psi.PsiModifier
+import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaScriptModule
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
+import org.jetbrains.kotlin.analysis.api.symbols.*
+import org.jetbrains.kotlin.config.JvmAnalysisFlags
+import org.jetbrains.kotlin.light.classes.symbol.annotations.hasJvmExposeBoxedAnnotation
+import org.jetbrains.kotlin.light.classes.symbol.classes.SymbolLightClassBase
+import org.jetbrains.kotlin.light.classes.symbol.classes.SymbolLightClassForInterface
+import org.jetbrains.kotlin.light.classes.symbol.classes.SymbolLightClassForInterfaceDefaultImpls
+import org.jetbrains.kotlin.light.classes.symbol.classes.jvmDefaultMode
+import org.jetbrains.kotlin.light.classes.symbol.modifierLists.SymbolLightMemberModifierList
+import org.jetbrains.kotlin.light.classes.symbol.utils.computeSimpleModality
+import org.jetbrains.kotlin.name.JvmStandardClassIds
+
+/**
+ * Computes the JVM modality modifier of the light method for [symbol] in [containingClass], or `null` if it has none.
+ *
+ * The modifier follows the Kotlin modality of [symbol], with these exceptions:
+ * - An interface member with a body which is not compiled to a JVM `default` method is `abstract`. With `-jvm-default=disable`,
+ *   the JVM backend moves such an implementation to the `DefaultImpls` class and leaves an abstract method in the interface, the
+ *   same way as for a member without a body. Otherwise, the implementation is compiled to a `default` method, see
+ *   [SymbolLightMemberModifierList]. Static members of an interface (`@JvmStatic` members of its companion object and members of
+ *   its companion block) keep their implementation in the interface class in any mode, so they are not affected. A private member
+ *   leaves no method in the interface with `-jvm-default=disable`, so [SymbolLightClassForInterface.getOwnMethods] excludes it.
+ *   This mirrors `org.jetbrains.kotlin.backend.jvm.ir.isCompiledToJvmDefault`.
+ * - A method of [SymbolLightClassForInterfaceDefaultImpls] has no modality modifier, as the JVM backend never generates its static
+ *   methods as `final`, see `org.jetbrains.kotlin.backend.jvm.JvmCachedDeclarations.getDefaultImplsFunction`. Otherwise, a private
+ *   member, which is `final` in Kotlin, would be `final` in `DefaultImpls`.
+ * - `final` is suppressed for interface members and generated enum members.
+ */
+context(_: KaSession)
+internal fun computeMethodModality(symbol: KaCallableSymbol, containingClass: SymbolLightClassBase): String? {
+    fun isMovedToDefaultImpls(): Boolean = when {
+        !containingClass.isInterface -> false
+        containingClass.jvmDefaultMode.isEnabled -> false
+        symbol.modality == KaSymbolModality.ABSTRACT -> false
+        symbol.isCompanion -> false
+        // A `@JvmStatic` member of the companion object is materialized in the interface, but it belongs to the companion object
+        (symbol.containingDeclaration as? KaClassSymbol)?.classKind != KaClassKind.INTERFACE -> false
+        else -> true
+    }
+
+    fun String.isSuppressedFinalModifier(): Boolean = this == PsiModifier.FINAL &&
+            (containingClass.isEnum && symbol.origin == KaSymbolOrigin.SOURCE_MEMBER_GENERATED || containingClass.isInterface)
+
+    return when {
+        containingClass is SymbolLightClassForInterfaceDefaultImpls -> null
+        isMovedToDefaultImpls() -> PsiModifier.ABSTRACT
+        else -> symbol.computeSimpleModality()?.takeUnless { it.isSuppressedFinalModifier() }
+    }
+}
+
+/**
+ * Describes how boxed JVM exposure applies to a callable.
+ */
+internal enum class JvmExposeBoxedMode {
+    /**
+     * The callable is directly annotated with [JvmExposeBoxed].
+     *
+     * This is an explicit request for boxed exposure. The annotation remains on the single JVM declaration if the backend
+     * emits no separate boxed wrapper.
+     */
+    EXPLICIT,
+
+    /**
+     * Boxed exposure applies without a [JvmExposeBoxed] annotation directly on the callable.
+     *
+     * It is enabled either by a [JvmExposeBoxed] annotation on the containing class or by
+     * [JvmAnalysisFlags.implicitJvmExposeBoxed] for the module.
+     */
+    IMPLICIT,
+
+    /**
+     * Boxed exposure does not apply to the callable because neither a direct nor an implicit source enables it.
+     */
+    NONE;
+}
+
+/**
+ * Computes [JvmExposeBoxedMode] for this declaration.
+ *
+ * Note: it doesn't work properly for property accessors.
+ *
+ * @see JvmExposeBoxedMode
+ * @see hasJvmExposeBoxedAnnotation
+ */
+context(_: KaSession)
+internal fun KaCallableSymbol.jvmExposeBoxedMode(): JvmExposeBoxedMode {
+    if (hasJvmExposeBoxedAnnotation()) {
+        return JvmExposeBoxedMode.EXPLICIT
+    }
+
+    val containingClass = containingDeclaration as? KaClassSymbol
+    if (containingClass != null && JvmStandardClassIds.JVM_EXPOSE_BOXED_ANNOTATION_CLASS_ID in containingClass.annotations) {
+        return JvmExposeBoxedMode.IMPLICIT
+    }
+
+    val module = containingClass?.containingModule ?: this.containingModule
+    val isFeatureEnabled = when (module) {
+        is KaSourceModule -> module.languageVersionSettings.getFlag(JvmAnalysisFlags.implicitJvmExposeBoxed)
+        is KaScriptModule -> module.languageVersionSettings.getFlag(JvmAnalysisFlags.implicitJvmExposeBoxed)
+        else -> false
+    }
+
+    return if (isFeatureEnabled) JvmExposeBoxedMode.IMPLICIT else JvmExposeBoxedMode.NONE
+}
+
+/**
+ * Describes which light methods are generated for a callable and how each of them behaves.
+ *
+ * The mode controls the JVM type mapping, the Java name, and the visible annotations of a light method.
+ */
+internal sealed class MethodGenerationMode {
+    /**
+     * The regular method with the ordinary JVM type mapping.
+     *
+     * @property isAffectedByJvmExposeBoxed whether the method is the only one generated for an explicitly
+     * [JvmExposeBoxed]-annotated callable, because the JVM backend emits no separate [Boxed] method. Such a method
+     * retains both [JvmExposeBoxed] and [JvmName], and [JvmName] takes precedence over [JvmExposeBoxed.jvmName].
+     * Otherwise, [JvmExposeBoxed] is omitted from the method, as the annotation belongs to the [Boxed] one.
+     */
+    data class Regular(val isAffectedByJvmExposeBoxed: Boolean = false) : MethodGenerationMode()
+
+    /**
+     * The boxed method whose inline-class parameter and return types use boxed JVM representations.
+     *
+     * [JvmExposeBoxed.jvmName] takes precedence over [JvmName], and [JvmName] is omitted from the method.
+     *
+     * @property isRegularMethodRequired whether the [Regular] method is generated in addition to the boxed one
+     */
+    data class Boxed(val isRegularMethodRequired: Boolean) : MethodGenerationMode()
+}
+
+/**
+ * Whether this declaration is effectively private: either it is inaccessible outside its own declaration (e.g., it is `private`, or it is
+ * an anonymous object like the body of an enum entry), or it is a member (transitively) of such a class.
+ *
+ * Mirrors `org.jetbrains.kotlin.ir.overrides.isEffectivelyPrivate` used by the JVM backend so that
+ * light classes do not autogenerate `@JvmExposeBoxed` boxed variants for declarations that cannot be
+ * accessed from Java anyway.
+ */
+context(_: KaSession)
+internal fun KaDeclarationSymbol.isEffectivelyPrivate(): Boolean {
+    val isAccessible = when (visibility) {
+        KaSymbolVisibility.PUBLIC, KaSymbolVisibility.PROTECTED, KaSymbolVisibility.INTERNAL -> true
+        else -> false
+    }
+    if (!isAccessible) return true
+
+    val containingClass = containingDeclaration as? KaClassSymbol ?: return false
+    return containingClass.isEffectivelyPrivate()
+}
+
+/**
+ * Analyzes the requirement for regular and boxed method generation based on given parameters.
+ *
+ * @param exposeBoxedMode The [JvmExposeBoxedMode] for the method.
+ * @param hasInlineClassInParameterType Whether any of the method's parameters contain an inline class.
+ * @param hasInlineClassInReturnType Whether the method's return type is an inline class.
+ * @param isAffectedByInlineClass Whether the method's name is mangled due to inline classes, or the method is declared inside
+ * an inline class and not materialized.
+ * @param hasJvmNameAnnotation Whether the method has a [JvmName] annotation.
+ * @param isOverridable Whether the method can be overridden.
+ * @param isEffectivelyPrivate Whether the method is effectively private and therefore must not be exposed. @see isEffectivelyPrivate
+ * @return the [MethodGenerationMode] of the methods to generate, or `null` if no method is required
+ */
+internal fun methodGeneration(
+    exposeBoxedMode: JvmExposeBoxedMode,
+    hasInlineClassInParameterType: Boolean,
+    hasInlineClassInReturnType: Boolean,
+    isAffectedByInlineClass: Boolean,
+    hasJvmNameAnnotation: Boolean,
+    isSuspend: Boolean,
+    isOverridable: Boolean,
+    isEffectivelyPrivate: Boolean,
+): MethodGenerationMode? {
+    // Explicit mode -> a boxed method is requested (even if it is a JVM name clash)
+    val isBoxedMethodRequestedExplicitly = exposeBoxedMode == JvmExposeBoxedMode.EXPLICIT &&
+            !isEffectivelyPrivate &&
+            (hasInlineClassInParameterType || hasInlineClassInReturnType || isAffectedByInlineClass)
+
+    val isRegularMethodRequired = if (isAffectedByInlineClass) {
+        // JvmName -> unmangled method can be generated
+        hasJvmNameAnnotation
+    } else {
+        // Unmangled name -> regular method is needed
+        true
+    }
+
+    val isBoxedMethodRequired = when {
+        // The check already performed by the explicit mode
+        isBoxedMethodRequestedExplicitly -> true
+
+        // Private declarations are inaccessible from Java -> no boxed methods can be auto-generated
+        isEffectivelyPrivate -> false
+
+        // No implicit feature -> no boxed methods can be auto-generated
+        exposeBoxedMode != JvmExposeBoxedMode.IMPLICIT -> false
+
+        // Suspend function -> no boxed methods can be auto-generated
+        isSuspend -> false
+
+        // In interface or in open class -> no boxed methods can be auto-generated. @JvmName problem
+        isOverridable -> false
+
+        // No JvmName -> the default method has a mangled name, so the boxed method can be generated
+        isAffectedByInlineClass && !hasJvmNameAnnotation -> true
+
+        // At least one parameter has an inline class -> the boxed method won't lead to a JVM name clash
+        else -> hasInlineClassInParameterType
+    }
+
+    return when {
+        isBoxedMethodRequired -> MethodGenerationMode.Boxed(isRegularMethodRequired)
+        !isRegularMethodRequired -> null
+
+        // Explicit mode without a boxed method -> the regular method retains @JvmExposeBoxed
+        else -> MethodGenerationMode.Regular(
+            isAffectedByJvmExposeBoxed = exposeBoxedMode == JvmExposeBoxedMode.EXPLICIT && !isAffectedByInlineClass,
+        )
+    }
+}
+
+/**
+ * Whether the declaration can be overridden.
+ *
+ * Mirrors `org.jetbrains.kotlin.ir.util.isOverridable` used by the JVM backend: a member of a class which cannot be
+ * inherited is not overridable even if the member's own modality is [KaSymbolModality.OPEN].
+ */
+context(_: KaSession)
+internal fun KaDeclarationSymbol.isOverridable(): Boolean {
+    val containingClass = when (this) {
+        is KaPropertyAccessorSymbol -> containingDeclaration?.containingDeclaration
+        else -> containingDeclaration
+    } as? KaClassSymbol ?: return false
+
+    return visibility != KaSymbolVisibility.PRIVATE &&
+            modality != KaSymbolModality.FINAL &&
+            !containingClass.isEffectivelyFinal
+}
+
+private val KaClassSymbol.isEffectivelyFinal: Boolean
+    get() = modality == KaSymbolModality.FINAL && classKind != KaClassKind.ENUM_CLASS

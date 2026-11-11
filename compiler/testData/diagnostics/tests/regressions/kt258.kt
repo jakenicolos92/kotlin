@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-258 Support equality constraints in type inference
 
 import java.util.*
@@ -7,4 +8,7 @@ fun test() {
   attributes["href"] = "1" // inference fails, but it shouldn't
 }
 
-operator fun <K, V> MutableMap<K, V>.set(<!UNUSED_PARAMETER!>key<!> : K, <!UNUSED_PARAMETER!>value<!> : V) {}//= this.put(key, value)
+operator fun <K, V> MutableMap<K, V>.set(key : K, value : V) {}//= this.put(key, value)
+
+/* GENERATED_FIR_TAGS: assignment, funWithExtensionReceiver, functionDeclaration, javaFunction, localProperty,
+nullableType, operator, propertyDeclaration, stringLiteral, typeParameter */

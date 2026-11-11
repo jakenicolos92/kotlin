@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 inline fun <reified T> foo() {}
 
@@ -22,3 +23,4 @@ fun test(x: Array<String>, y: Array<*>) {
     baz(y)
 }
 
+/* GENERATED_FIR_TAGS: functionDeclaration, inline, nullableType, reified, starProjection, typeParameter */

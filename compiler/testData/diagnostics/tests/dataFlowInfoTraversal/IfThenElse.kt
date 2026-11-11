@@ -1,30 +1,34 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun bar(x: Int): Int = x + 1
 
 fun foo() {
     val x: Int? = null
 
-    bar(if (x == null) 0 else <!DEBUG_INFO_SMARTCAST!>x<!>)
+    bar(if (x == null) 0 else x)
 
     if (x == null) {
-        bar(<!TYPE_MISMATCH, DEBUG_INFO_CONSTANT!>x<!>)
+        bar(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
         return
     } else {
-        bar(<!DEBUG_INFO_SMARTCAST!>x<!>)
+        bar(x)
     }
-    bar(<!DEBUG_INFO_SMARTCAST!>x<!>)
+    bar(x)
 
     val y: Int? = null
     if (y is Int) {
-        bar(<!DEBUG_INFO_SMARTCAST!>y<!>)
+        bar(y)
     } else {
-        bar(<!TYPE_MISMATCH!>y<!>)
+        bar(<!ARGUMENT_TYPE_MISMATCH!>y<!>)
         return
     }
-    bar(<!DEBUG_INFO_SMARTCAST!>y<!>)
+    bar(y)
 
     val z: Int? = null
-    if (z != null) bar(<!DEBUG_INFO_SMARTCAST!>z<!>)
-    bar(<!TYPE_MISMATCH!>z<!>)
+    if (z != null) bar(z)
+    bar(<!ARGUMENT_TYPE_MISMATCH!>z<!>)
     bar(z!!)
     if (<!SENSELESS_COMPARISON!>z != null<!>) bar(z<!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>)
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, checkNotNullCall, equalityExpression, functionDeclaration, ifExpression,
+integerLiteral, isExpression, localProperty, nullableType, propertyDeclaration, smartcast */

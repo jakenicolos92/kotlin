@@ -1,4 +1,5 @@
-fun devNull(<!UNUSED_PARAMETER!>obj<!>: Any?) {}
+// RUN_PIPELINE_TILL: FRONTEND
+fun devNull(obj: Any?) {}
 
 open class A {
     companion object {
@@ -19,15 +20,18 @@ open class A {
 fun fromOutside() {
     devNull(A.internal_val)
     devNull(A.public_val)
-    devNull(A.<!INVISIBLE_MEMBER!>private_val<!>)
-    devNull(A.<!INVISIBLE_MEMBER!>protected_val<!>)
+    devNull(A.<!INVISIBLE_REFERENCE!>private_val<!>)
+    devNull(A.<!INVISIBLE_REFERENCE!>protected_val<!>)
 }
 
 class B: A() {
     fun fromSubclass() {
         devNull(A.internal_val)
         devNull(A.public_val)
-        devNull(A.<!INVISIBLE_MEMBER!>private_val<!>)
+        devNull(A.<!INVISIBLE_REFERENCE!>private_val<!>)
         devNull(A.<!SUBCLASS_CANT_CALL_COMPANION_PROTECTED_NON_STATIC!>protected_val<!>)
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, integerLiteral, nullableType,
+objectDeclaration, propertyDeclaration */

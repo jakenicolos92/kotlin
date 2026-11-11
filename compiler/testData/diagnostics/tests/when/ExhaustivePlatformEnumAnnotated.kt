@@ -1,3 +1,12 @@
+// RUN_PIPELINE_TILL: CODEGEN
+/*
+ * KOTLIN DIAGNOSTICS SPEC TEST (POSITIVE)
+ *
+ * SPEC VERSION: 0.1-313
+ * PRIMARY LINKS: expressions, when-expression -> paragraph 5 -> sentence 1
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 9
+ */
+
 // See KT-6399: exhaustive whens on platform enums
 
 // FILE: J.java
@@ -21,3 +30,6 @@ fun foo(): Int {
         J.B -> 2
     }
 }
+
+/* GENERATED_FIR_TAGS: equalityExpression, functionDeclaration, integerLiteral, javaProperty, javaType, smartcast,
+whenExpression, whenWithSubject */

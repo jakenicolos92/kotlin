@@ -1,3 +1,8 @@
+/*
+ * Copyright 2010-2023 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 @file:kotlin.jvm.JvmMultifileClass
 @file:kotlin.jvm.JvmName("StringsKt")
 
@@ -5,11 +10,12 @@ package kotlin.text
 
 /**
  * Trims leading whitespace characters followed by [marginPrefix] from every line of a source string and removes
- * the first and the last lines if they are blank (notice difference blank vs empty).
+ * the first and the last lines if they are blank (note the difference in [isBlank] vs. [isEmpty]).
  *
  * Doesn't affect a line if it doesn't contain [marginPrefix] except the first and the last blank lines.
  *
- * Doesn't preserve the original line endings.
+ * The lines in the original string can be separated with `\r\n` (CRLF), `\n` (LF), or `\r` (CR) characters, however, the lines in the
+ * resulting string will be separated solely with `\n` (LF) character.
  *
  * @param marginPrefix non-blank string, which is used as a margin delimiter. Default is `|` (pipe character).
  *
@@ -17,11 +23,15 @@ package kotlin.text
  * @see trimIndent
  * @see kotlin.text.isWhitespace
  */
+@kotlin.internal.IntrinsicConstEvaluation
 public fun String.trimMargin(marginPrefix: String = "|"): String =
     replaceIndentByMargin("", marginPrefix)
 
 /**
  * Detects indent by [marginPrefix] as it does [trimMargin] and replace it with [newIndent].
+ *
+ * The lines in the original string can be separated with `\r\n` (CRLF), `\n` (LF), or `\r` (CR) characters, however, the lines in the
+ * resulting string will be separated solely with `\n` (LF) character.
  *
  * @param marginPrefix non-blank string, which is used as a margin delimiter. Default is `|` (pipe character).
  */
@@ -49,12 +59,14 @@ public fun String.replaceIndentByMargin(newIndent: String = "", marginPrefix: St
  * In case if there are non-blank lines with no leading whitespace characters (no indent at all) then the
  * common indent is 0, and therefore this function doesn't change the indentation.
  *
- * Doesn't preserve the original line endings.
+ * The lines in the original string can be separated with `\r\n` (CRLF), `\n` (LF), or `\r` (CR) characters, however, the lines in the
+ * resulting string will be separated solely with `\n` (LF) character.
  *
  * @sample samples.text.Strings.trimIndent
  * @see trimMargin
  * @see kotlin.text.isBlank
  */
+@kotlin.internal.IntrinsicConstEvaluation
 public fun String.trimIndent(): String = replaceIndent("")
 
 /**
@@ -64,9 +76,9 @@ public fun String.replaceIndent(newIndent: String = ""): String {
     val lines = lines()
 
     val minCommonIndent = lines
-            .filter(String::isNotBlank)
-            .map(String::indentWidth)
-            .min() ?: 0
+        .filter(String::isNotBlank)
+        .map(String::indentWidth)
+        .minOrNull() ?: 0
 
     return lines.reindent(length + newIndent.length * lines.size, getIndentFunction(newIndent), { line -> line.drop(minCommonIndent) })
 }
@@ -74,22 +86,23 @@ public fun String.replaceIndent(newIndent: String = ""): String {
 /**
  * Prepends [indent] to every line of the original string.
  *
- * Doesn't preserve the original line endings.
+ * The lines in the original string can be separated with `\r\n` (CRLF), `\n` (LF), or `\r` (CR) characters, however, the lines in the
+ * resulting string will be separated solely with `\n` (LF) character.
  */
 public fun String.prependIndent(indent: String = "    "): String =
     lineSequence()
-    .map {
-        when {
-            it.isBlank() -> {
-                when {
-                    it.length < indent.length -> indent
-                    else -> it
+        .map {
+            when {
+                it.isBlank() -> {
+                    when {
+                        it.length < indent.length -> indent
+                        else -> it
+                    }
                 }
+                else -> indent + it
             }
-            else -> indent + it
         }
-    }
-    .joinToString("\n")
+        .joinToString("\n")
 
 private fun String.indentWidth(): Int = indexOfFirst { !it.isWhitespace() }.let { if (it == -1) length else it }
 
@@ -98,14 +111,18 @@ private fun getIndentFunction(indent: String) = when {
     else -> { line: String -> indent + line }
 }
 
-private inline fun List<String>.reindent(resultSizeEstimate: Int, indentAddFunction: (String) -> String, indentCutFunction: (String) -> String?): String {
+private inline fun List<String>.reindent(
+    resultSizeEstimate: Int,
+    indentAddFunction: (String) -> String,
+    indentCutFunction: (String) -> String?
+): String {
     val lastIndex = lastIndex
     return mapIndexedNotNull { index, value ->
-            if ((index == 0 || index == lastIndex) && value.isBlank())
-                null
-            else
-                indentCutFunction(value)?.let(indentAddFunction) ?: value
-        }
+        if ((index == 0 || index == lastIndex) && value.isBlank())
+            null
+        else
+            indentCutFunction(value)?.let(indentAddFunction) ?: value
+    }
         .joinTo(StringBuilder(resultSizeEstimate), "\n")
         .toString()
 }

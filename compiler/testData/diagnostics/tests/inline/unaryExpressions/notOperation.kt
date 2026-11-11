@@ -1,10 +1,11 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE -RECURSION_IN_INLINE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE -RECURSION_IN_INLINE
 inline operator fun <T, V> Function1<T, V>.not() : Boolean {
     return !this
 }
 
 inline fun <T, V> inlineFunWithInvoke(s: (p: T) -> V) {
-    !s
+    !<!USAGE_IS_NOT_INLINABLE!>s<!>
 }
 
 operator fun <T, U, V> Function2<T, U, V>.not() : Boolean {
@@ -19,3 +20,6 @@ inline fun <T, U, V> inlineFunWithInvoke(s: (p: T, l: U) -> V, ext: T.(p: T, l :
     !<!USAGE_IS_NOT_INLINABLE!>s<!>
     !<!USAGE_IS_NOT_INLINABLE!>ext<!>
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, inline, nullableType, operator,
+thisExpression, typeParameter, typeWithExtension */

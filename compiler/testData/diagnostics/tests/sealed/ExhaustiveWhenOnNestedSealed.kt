@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 sealed class Sealed {
     object First: Sealed()
     sealed class NonFirst {
@@ -18,3 +19,6 @@ fun foo(s: Sealed, nf: Sealed.NonFirst): Int {
     }
     return si + nfi
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, equalityExpression, functionDeclaration, integerLiteral,
+localProperty, nestedClass, objectDeclaration, propertyDeclaration, sealed, smartcast, whenExpression, whenWithSubject */

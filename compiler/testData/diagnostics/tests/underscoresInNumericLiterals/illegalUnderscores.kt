@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 
 fun foo() {
     <!ILLEGAL_UNDERSCORE!>1_<!>
@@ -15,3 +16,5 @@ fun foo() {
     <!ILLEGAL_UNDERSCORE!>1.0e+_0<!>
     <!ILLEGAL_UNDERSCORE!>1.0e-_0<!>
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration */

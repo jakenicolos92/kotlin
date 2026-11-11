@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: abc/A.java
 package abc;
 public class A {
@@ -11,20 +12,23 @@ class Data(var x: A)
 
 class B : A() {
     fun baz(a: A, b: B, d: Data) {
-        a.<!INVISIBLE_MEMBER!>foo<!> <!TYPE_MISMATCH!>{ }<!>
+        a.<!INVISIBLE_REFERENCE!>foo<!> { }
 
         b.foo { }
 
         if (a is B) {
-            <!DEBUG_INFO_SMARTCAST!>a<!>.foo {}
+            a.foo {}
         }
 
         if (d.x is B) {
-            <!SMARTCAST_IMPOSSIBLE!>d.x<!>.foo <!TYPE_MISMATCH!>{}<!>
+            d.x.<!INVISIBLE_REFERENCE!>foo<!> {}
         }
     }
 }
 
 fun baz(a: A) {
-    a.<!INVISIBLE_MEMBER!>foo<!> <!TYPE_MISMATCH!>{ }<!>
+    a.<!INVISIBLE_REFERENCE!>foo<!> { }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, isExpression, javaFunction, javaType,
+lambdaLiteral, primaryConstructor, propertyDeclaration, samConversion, smartcast */

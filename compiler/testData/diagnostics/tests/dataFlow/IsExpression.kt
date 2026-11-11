@@ -1,6 +1,9 @@
-fun f(<!UNUSED_PARAMETER!>a<!>: Boolean, <!UNUSED_PARAMETER!>b<!>: Int) {}
+// RUN_PIPELINE_TILL: FRONTEND
+fun f(a: Boolean, b: Int) {}
 
 fun foo(a: Any) {
-    f(a is Int, <!TYPE_MISMATCH!>a<!>)
+    f(a is Int, <!ARGUMENT_TYPE_MISMATCH!>a<!>)
     1 <!NONE_APPLICABLE!>+<!> a
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, functionDeclaration, isExpression */

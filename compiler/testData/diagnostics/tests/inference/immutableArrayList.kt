@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/J.java
 package p;
 
@@ -15,3 +16,5 @@ class Foo<T>: Sub<T> {
         return Foo()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, functionDeclaration, javaType, nullableType, typeParameter */

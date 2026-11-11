@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun x(): Boolean { return true }
 
 public fun foo(p: String?, r: String?, q: String?): Int {
@@ -11,7 +12,10 @@ public fun foo(p: String?, r: String?, q: String?): Int {
         if (!x()) break
     }
     // Smart cast is possible everywhere
-    <!DEBUG_INFO_SMARTCAST!>r<!>.length
-    <!DEBUG_INFO_SMARTCAST!>q<!>.length
-    return <!DEBUG_INFO_SMARTCAST!>p<!>.length
+    r.length
+    q.length
+    return p.length
 }
+
+/* GENERATED_FIR_TAGS: break, checkNotNullCall, doWhileLoop, equalityExpression, functionDeclaration, ifExpression,
+nullableType, smartcast, whileLoop */

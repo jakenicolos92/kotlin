@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 import kotlin.reflect.*
 
 fun <T> checkSubtype(t: T) = t
@@ -10,3 +11,6 @@ class A(var g: A) {
         checkSubtype<KMutableProperty1<A, A>>(A::g)
     }
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, functionDeclaration, integerLiteral, nullableType,
+primaryConstructor, propertyDeclaration, typeParameter */

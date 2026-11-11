@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 494
 class A
 
 class B {

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package bar
 
 
@@ -6,12 +7,12 @@ package bar
 fun <R> List<R>.a() {}
 
 fun test1(i: Int?) {
-    1.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>a<!>()
-    i.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>a<!>()
+    1.<!CANNOT_INFER_PARAMETER_TYPE, UNRESOLVED_REFERENCE_WRONG_RECEIVER!>a<!>()
+    i.<!CANNOT_INFER_PARAMETER_TYPE, UNRESOLVED_REFERENCE_WRONG_RECEIVER!>a<!>()
 }
 
 fun <R> test2(c: Collection<R>) {
-    c.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>a<!>()
+    c.<!CANNOT_INFER_PARAMETER_TYPE, UNRESOLVED_REFERENCE_WRONG_RECEIVER!>a<!>()
 }
 
 fun Int.foo() {}
@@ -34,22 +35,25 @@ fun test4() {
 // should be an error on receiver, shouldn't be thrown away
 
 fun test5() {
-    <!TYPE_MISMATCH!>1<!>.(fun String.()=1)()
+    1.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>(fun String.()=1)<!>()
 }
 
 fun <R: Any> R?.sure() : R = this!!
 
 fun <T> test6(l: List<T>?) {
-    <!TYPE_MISMATCH!>l<!>.sure<<!UPPER_BOUND_VIOLATED!>T<!>>()
+    l.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>sure<!><T>()
 }
 
 
 fun List<String>.b() {}
 
 fun test7(l: List<String?>) {
-    <!TYPE_MISMATCH!>l<!>.b()
+    l.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>b<!>()
 }
 
 fun test8(l: List<Any>?) {
-    <!TYPE_MISMATCH!>l<!>.b()
+    l.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>b<!>()
 }
+
+/* GENERATED_FIR_TAGS: anonymousFunction, checkNotNullCall, funWithExtensionReceiver, functionDeclaration,
+integerLiteral, interfaceDeclaration, nullableType, stringLiteral, thisExpression, typeConstraint, typeParameter */

@@ -1,9 +1,9 @@
-// !DIAGNOSTICS: -DEPRECATION
-@nativeInvoke
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -DEPRECATION
+<!NATIVE_ANNOTATIONS_ALLOWED_ONLY_ON_MEMBER_FUN!>@nativeInvoke<!>
 fun String.foo(): Int
-@nativeInvoke
+<!NATIVE_ANNOTATIONS_ALLOWED_ONLY_ON_MEMBER_FUN!>@nativeInvoke<!>
 fun String.bar(): Int = definedExternally
-
 
 external object O {
     @nativeInvoke

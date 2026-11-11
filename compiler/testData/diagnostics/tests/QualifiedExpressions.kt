@@ -1,13 +1,17 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package qualified_expressions
 
 fun test(s: IntRange?) {
-   val <!UNUSED_VARIABLE!>a<!>: Int = <!TYPE_MISMATCH!>s?.start<!>
+   val a: Int = s?.<!INITIALIZER_TYPE_MISMATCH!>start<!>
    val b: Int? = s?.start
-   val <!UNUSED_VARIABLE!>c<!>: Int = s?.start ?: -11
-   val <!UNUSED_VARIABLE!>d<!>: Int = s?.start ?: <!TYPE_MISMATCH!>"empty"<!>
-   val e: String = <!TYPE_MISMATCH!>s?.start<!> ?: "empty"
-   val <!UNUSED_VARIABLE!>f<!>: Int = s?.endInclusive ?: b ?: 1
-   val <!UNUSED_VARIABLE!>g<!>: Boolean? = e.startsWith("s")//?.length
+   val c: Int = s?.start ?: -11
+   val d: Int <!INITIALIZER_TYPE_MISMATCH!>=<!> s?.start ?: "empty"
+   val e: String <!INITIALIZER_TYPE_MISMATCH!>=<!> s?.start ?: "empty"
+   val f: Int = s?.endInclusive ?: b ?: 1
+   val g: Boolean? = e.startsWith("s")//?.length
 }
 
-fun String.startsWith(<!UNUSED_PARAMETER!>s<!>: String): Boolean = true
+fun String.startsWith(s: String): Boolean = true
+
+/* GENERATED_FIR_TAGS: elvisExpression, funWithExtensionReceiver, functionDeclaration, integerLiteral, intersectionType,
+localProperty, nullableType, propertyDeclaration, safeCall, stringLiteral */

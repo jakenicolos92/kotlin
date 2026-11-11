@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 493
 /*
  * Copy of JVM-backend test
  * Found at: compiler/testData/codegen/boxInline/complex/closureChain.1.kt

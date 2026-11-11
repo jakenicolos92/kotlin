@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // VAL
 class A(
         val<!SYNTAX!><!>
@@ -41,3 +42,6 @@ class D {
         fun foo() {}
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, localFunction, localProperty, primaryConstructor,
+propertyDeclaration */

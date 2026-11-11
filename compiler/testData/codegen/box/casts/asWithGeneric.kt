@@ -1,7 +1,9 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS
+// IGNORE_BACKEND: WASM_JS, WASM_WASI
+// WASM_MUTE_REASON: -
+// IGNORE_KLIB_RUNTIME_ERRORS_WITH_CUSTOM_SECOND_STAGE: JS:2.4.20
+// KT-49422: Fixed in 2.5.0-Beta2
 
-// WITH_RUNTIME
+// WITH_STDLIB
 
 fun <T> test1() = null as T
 fun <T> test2(): T {
@@ -18,7 +20,7 @@ fun box(): String {
     try {
         test3<Int>()
     }
-    catch(e: TypeCastException) {
+    catch(e: NullPointerException) {
         result3 = "OK"
     }
     if (result3 != "OK") return "fail: test3"

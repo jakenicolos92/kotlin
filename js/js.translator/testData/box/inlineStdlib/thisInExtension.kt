@@ -1,8 +1,7 @@
-// EXPECTED_REACHABLE_NODES: 495
 package foo
 
-// CHECK_CONTAINS_NO_CALLS: testImplicitThis
-// CHECK_CONTAINS_NO_CALLS: testExplicitThis
+// CHECK_CONTAINS_NO_CALLS: testImplicitThis except=Unit$getInstance
+// CHECK_CONTAINS_NO_CALLS: testExplicitThis except=Unit$getInstance
 
 internal class A(var value: Int)
 

@@ -1,12 +1,11 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
-import kotlin.test.assertEquals
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 class A(val w: String) {
-    suspend fun String.ext(): String = suspendCoroutineOrReturn {
+    suspend fun String.ext(): String = suspendCoroutineUninterceptedOrReturn {
         x ->
         x.resume(this + w)
         COROUTINE_SUSPENDED

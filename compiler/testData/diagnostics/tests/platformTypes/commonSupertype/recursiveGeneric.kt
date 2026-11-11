@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE
 
 // FILE: p/Rec.java
 
@@ -33,3 +34,6 @@ fun test(a: A, b: B, c: Boolean) {
     ab = a
     ab = b
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, ifExpression, javaType, localProperty, propertyDeclaration,
+starProjection */

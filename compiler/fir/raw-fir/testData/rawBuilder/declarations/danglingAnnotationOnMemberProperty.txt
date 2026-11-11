@@ -1,0 +1,19 @@
+FILE: danglingAnnotationOnMemberProperty.kt
+    public final? annotation class Ann : R|kotlin/Annotation| {
+        public? [ContainingClassKey=Ann] constructor(): R|Ann| {
+            super<R|kotlin/Any|>()
+        }
+
+    }
+    public final? class C : R|kotlin/Any| {
+        public? [ContainingClassKey=C] constructor(): R|C| {
+            super<R|kotlin/Any|>()
+        }
+
+        @Ann() private final [DestructuringDeclarationContainerVariableMarkerKey=true] val <destruct>: <implicit> = ERROR_EXPR(Initializer required for destructuring declaration)
+            private get(): <implicit>
+
+        public final [DestructuringDeclarationContainerVariableKey=/C.<destruct>] val x: Int = R|/C.<destruct>|.#
+            public get(): Int
+
+    }

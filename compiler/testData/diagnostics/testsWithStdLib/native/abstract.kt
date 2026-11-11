@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 import kotlin.jvm.*
 
 abstract class C {
@@ -9,3 +10,5 @@ fun test() {
         <!EXTERNAL_DECLARATION_CANNOT_BE_ABSTRACT!>abstract<!> external fun foo()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, external, functionDeclaration, localClass */

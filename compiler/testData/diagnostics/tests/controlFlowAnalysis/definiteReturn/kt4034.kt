@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 // KT-4034 An expression of type Nothing may not affect 'definite return' analysis
 
@@ -9,3 +10,5 @@ interface JetType
 private fun transformClassifierType(classifierType: JavaClassifierType, howThisTypeIsUsed: TypeUsage): JetType? {
     null!!
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, functionDeclaration, interfaceDeclaration, nullableType */

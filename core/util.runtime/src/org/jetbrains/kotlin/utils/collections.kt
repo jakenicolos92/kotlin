@@ -16,14 +16,16 @@
 
 package org.jetbrains.kotlin.utils
 
-import java.util.*
-import kotlin.coroutines.experimental.SequenceBuilder
+import org.jetbrains.kotlin.utils.addToStdlib.trimToSize
 
 fun <K, V> Iterable<K>.keysToMap(value: (K) -> V): Map<K, V> {
     return associateBy({ it }, value)
 }
 
-fun <K, V: Any> Iterable<K>.keysToMapExceptNulls(value: (K) -> V?): Map<K, V> {
+infix fun <A, B> Collection<A>.zipIfSizesAreEqual(other: Collection<B>): List<Pair<A, B>>? =
+    if (size == other.size) zip(other) else null
+
+fun <K, V : Any> Iterable<K>.keysToMapExceptNulls(value: (K) -> V?): Map<K, V> {
     val map = LinkedHashMap<K, V>()
     for (k in this) {
         val v = value(k)
@@ -36,7 +38,7 @@ fun <K, V: Any> Iterable<K>.keysToMapExceptNulls(value: (K) -> V?): Map<K, V> {
 
 fun <K> Iterable<K>.mapToIndex(): Map<K, Int> {
     val map = LinkedHashMap<K, Int>()
-    for ((index, k) in this.withIndex()) {
+    for ([index, k] in this.withIndex()) {
         map[k] = index
     }
     return map
@@ -47,43 +49,60 @@ inline fun <K, V> MutableMap<K, V>.getOrPutNullable(key: K, defaultValue: () -> 
         val answer = defaultValue()
         put(key, answer)
         answer
-    }
-    else {
+    } else {
+        @Suppress("UNCHECKED_CAST")
         get(key) as V
     }
 }
 
-inline fun <T, C: Collection<T>> C.ifEmpty(body: () -> C): C = if (isEmpty()) body() else this
+inline fun <T, C : Collection<T>> C.ifEmpty(body: () -> C): C = if (isEmpty()) body() else this
+
+inline fun <K, V, M : Map<K, V>> M.ifEmpty(body: () -> M): M = if (isEmpty()) body() else this
 
 inline fun <T> Array<out T>.ifEmpty(body: () -> Array<out T>): Array<out T> = if (isEmpty()) body() else this
 
-fun <T: Any> MutableCollection<T>.addIfNotNull(t: T?) {
+fun <T : Any> MutableCollection<T>.addIfNotNull(t: T?) {
     if (t != null) add(t)
 }
 
-suspend fun <T: Any> SequenceBuilder<T>.yieldIfNotNull(t: T?) = if (t != null) yield(t) else Unit
+suspend fun <T : Any> SequenceScope<T>.yieldIfNotNull(t: T?) = if (t != null) yield(t) else Unit
 
 fun <K, V> newHashMapWithExpectedSize(expectedSize: Int): HashMap<K, V> =
-        HashMap(capacity(expectedSize))
+    HashMap(capacity(expectedSize))
 
 fun <E> newHashSetWithExpectedSize(expectedSize: Int): HashSet<E> =
-        HashSet(capacity(expectedSize))
+    HashSet(capacity(expectedSize))
 
 fun <K, V> newLinkedHashMapWithExpectedSize(expectedSize: Int): LinkedHashMap<K, V> =
-        LinkedHashMap(capacity(expectedSize))
+    LinkedHashMap(capacity(expectedSize))
 
 fun <E> newLinkedHashSetWithExpectedSize(expectedSize: Int): LinkedHashSet<E> =
-        LinkedHashSet(capacity(expectedSize))
+    LinkedHashSet(capacity(expectedSize))
 
 private fun capacity(expectedSize: Int): Int =
-        if (expectedSize < 3) 3 else expectedSize + expectedSize / 3 + 1
+    if (expectedSize < 3) 3 else expectedSize + expectedSize / 3 + 1
 
-fun <T> ArrayList<T>.compactIfPossible(): List<T> =
-        when (size) {
-            0 -> emptyList()
-            1 -> listOf(first())
-            else -> apply { trimToSize() }
+fun <T> ArrayList<T>.compact(): List<T> =
+    when (size) {
+        0 -> emptyList()
+        1 -> listOf(first())
+        else -> apply { trimToSize() }
+    }
+
+
+/**
+ * The same as [org.jetbrains.kotlin.utils.compact] extension function, but it could be used with the
+ * immutable list type (without [java.util.ArrayList.trimToSize] for the collections with more than 1 element)
+ * @see org.jetbrains.kotlin.utils.compact
+ */
+fun <T> List<T>.compactIfPossible(): List<T> =
+    when (size) {
+        0 -> emptyList()
+        1 -> listOf(first())
+        else -> apply {
+            if (this is ArrayList<*>) trimToSize()
         }
+    }
 
 fun <T> List<T>.indexOfFirst(startFrom: Int, predicate: (T) -> Boolean): Int {
     for (index in startFrom..lastIndex) {
@@ -91,3 +110,21 @@ fun <T> List<T>.indexOfFirst(startFrom: Int, predicate: (T) -> Boolean): Int {
     }
     return -1
 }
+
+/**
+ * If [newSize] is less than the current size, trims the list, otherwise pads it with nulls.
+ */
+fun <E : Any> MutableList<E?>.setSize(newSize: Int) {
+    if (newSize < size) {
+        trimToSize(newSize)
+    } else {
+        if (this is ArrayList<*>) {
+            ensureCapacity(newSize)
+        }
+        repeat(newSize - size) {
+            add(null)
+        }
+    }
+}
+
+inline fun <E> buildSmartList(build: MutableList<E>.() -> Unit): List<E> = SmartList<E>().apply(build)

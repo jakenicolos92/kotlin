@@ -1,15 +1,17 @@
+// RUN_PIPELINE_TILL: FRONTEND
+
 package a
 
 
 enum class C {
     E1, E2, E3 {
-        object O_O
+        <!LOCAL_OBJECT_NOT_ALLOWED!>object O_O<!>
 
         fun b() {
             O_O
         }
 
-        class G
+        <!NESTED_CLASS_NOT_ALLOWED!>class G<!>
     },
 
     E4 {
@@ -36,13 +38,16 @@ fun f() {
     C.E2.B()
 
     C.E2.<!UNRESOLVED_REFERENCE!>O<!>
-    C.E3.<!UNRESOLVED_REFERENCE!>O<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>InO<!>
+    C.E3.<!UNRESOLVED_REFERENCE!>O<!>.InO
 
     C.O
     C.O.InO
     C.A()
-    C.<!RESOLUTION_TO_CLASSIFIER!>B<!>()
+    C.<!INNER_CLASS_CONSTRUCTOR_NO_RECEIVER!>B<!>()
 
     C.E3.<!UNRESOLVED_REFERENCE!>O_O<!>
     C.E3.<!UNRESOLVED_REFERENCE!>G<!>()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, enumDeclaration, enumEntry, functionDeclaration, inner, nestedClass,
+objectDeclaration */

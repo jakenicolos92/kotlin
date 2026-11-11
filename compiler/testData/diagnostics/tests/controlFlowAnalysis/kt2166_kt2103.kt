@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package a
 
 //KT-2166 Control flow analysis doesn't detect that a 'while(true)' loop never terminates
@@ -15,3 +16,5 @@ fun foo1() : Boolean{
 }
 
 fun bar() : Boolean = true
+
+/* GENERATED_FIR_TAGS: continue, functionDeclaration, ifExpression, whileLoop */

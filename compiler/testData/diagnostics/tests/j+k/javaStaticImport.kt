@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: backend/asmutil/AsmUtil.java
 package backend.asmutil;
 
@@ -34,3 +36,5 @@ open public class ECallable  {
 
 /* KT-5848 */
 
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, javaFunction, objectDeclaration,
+propertyDeclaration, stringLiteral */

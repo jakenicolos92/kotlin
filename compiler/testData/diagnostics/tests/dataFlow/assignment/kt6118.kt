@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-6118 Redundant type cast can be not redundant?
 
 fun foo(o: Any) {
@@ -9,8 +10,11 @@ fun foo(o: Any) {
 
 fun foo1(o: Any) {
     if (o is String) {
-        <!DEBUG_INFO_SMARTCAST!>o<!>.length
+        o.length
         val s = o
-        <!DEBUG_INFO_SMARTCAST!>s<!>.length
+        s.length
     }
 }
+
+/* GENERATED_FIR_TAGS: asExpression, functionDeclaration, ifExpression, isExpression, localProperty, propertyDeclaration,
+smartcast */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface IBase {
     fun copy(): IBase
 }
@@ -19,7 +20,7 @@ interface IDerived : ILeft, IRight {
 }
 
 // Error: ILeft::copy and IRight::copy have unrelated return types
-<!RETURN_TYPE_MISMATCH_ON_INHERITANCE, ABSTRACT_MEMBER_NOT_IMPLEMENTED!>class CDerivedInvalid1<!> : ILeft, IRight
+<!ABSTRACT_MEMBER_NOT_IMPLEMENTED, RETURN_TYPE_MISMATCH_ON_INHERITANCE!>class CDerivedInvalid1<!> : ILeft, IRight
 
 // Error: CLeft::copy and IRight::copy have unrelated return types
 <!RETURN_TYPE_MISMATCH_ON_INHERITANCE!>class CDerivedInvalid2<!> : CLeft(), IRight
@@ -35,3 +36,5 @@ abstract class CDerived2 : ILeft, IRight, IDerived
 class CDerived2a : ILeft, IRight, IDerived {
     override fun copy(): IDerived = CDerived2a()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, override */

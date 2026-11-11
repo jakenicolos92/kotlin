@@ -1,4 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// LANGUAGE: -ImprovedResolutionInSecondaryConstructors
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 open class Base<T>(p: Any?) {
     fun foo1(t: T) {}
@@ -11,3 +13,6 @@ class D: Base<Int>(1) {
         constructor(x: Int, y: Int) : super(this@D.foo1(1))
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, inner, integerLiteral, nullableType, primaryConstructor,
+secondaryConstructor, thisExpression, typeParameter */

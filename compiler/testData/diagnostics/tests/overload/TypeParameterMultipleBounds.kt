@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 import java.io.Serializable
 
 interface Test1 {
@@ -13,3 +14,5 @@ interface Test2 {
     <!CONFLICTING_OVERLOADS!>fun <T> foo(t: T)<!> where T : I1, T : I2
     <!CONFLICTING_OVERLOADS!>fun <T> foo(t: T)<!> where T : I2, T : I1
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, typeConstraint, typeParameter */

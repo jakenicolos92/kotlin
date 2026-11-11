@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 abstract class Base {
     override fun equals(other: Any?) = other is Base
 }
@@ -15,11 +16,11 @@ fun check(x1: Derived1, x: Base) {
     }
     if (x1 === x) {
         // OK
-        <!DEBUG_INFO_SMARTCAST!>x<!>.foo()
+        x.foo()
     }
     if (x1 !== x) {} else {
         // OK
-        <!DEBUG_INFO_SMARTCAST!>x<!>.foo()
+        x.foo()
     }
 }
 
@@ -32,13 +33,13 @@ class FinalClass { // <-- 'equals' on instances of this class is useful for smar
 fun foo(x: FinalClass?, y: Any) {
     if (x == y) {
         // OK
-        <!DEBUG_INFO_SMARTCAST!>x<!>.hashCode()
+        x.hashCode()
         // OK
-        <!DEBUG_INFO_SMARTCAST!>y<!>.use()
+        y.use()
     }
     when (x) {
         // OK (equals from FinalClass)
-        y -> <!DEBUG_INFO_SMARTCAST!>y<!>.use()
+        y -> y.use()
     }
     when (y) {
         // ERROR (equals from Any)
@@ -59,7 +60,7 @@ class FinalClass2 : Dummy, OpenClass() { // but here not
 fun bar(x: FinalClass2?, y: Any) {
     if (x == y) {
         // OK
-        <!DEBUG_INFO_SMARTCAST!>x<!>.hashCode()
+        x.hashCode()
         // ERROR
         y.<!UNRESOLVED_REFERENCE!>use<!>()
     }
@@ -70,7 +71,7 @@ open class OpenClass2 // and here too
 fun bar(x: OpenClass2?, y: Any) {
     if (x == y) {
         // OK
-        <!DEBUG_INFO_SMARTCAST!>x<!>.hashCode()
+        x.hashCode()
         // ERROR
         y.<!UNRESOLVED_REFERENCE!>use<!>()
     }
@@ -93,3 +94,7 @@ sealed class Sealed {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, comparisonExpression, equalityExpression, functionDeclaration, ifExpression,
+integerLiteral, interfaceDeclaration, isExpression, nestedClass, nullableType, objectDeclaration, operator, override,
+sealed, smartcast, thisExpression, whenExpression, whenWithSubject */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface A {
     fun foo() {}
 }
@@ -27,3 +28,5 @@ class Test2 : C(), A, Unrelated {
         super<Unrelated>.foo()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, override, superExpression */

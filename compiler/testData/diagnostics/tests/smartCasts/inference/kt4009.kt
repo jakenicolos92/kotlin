@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface PsiElement {
     fun getText(): String
     fun getParent(): PsiElement
@@ -11,12 +12,15 @@ fun foo1(e: PsiElement) {
     while (current != null) {
         if (current is JetExpression && first) {
             // Smartcast is possible here
-            println(<!DEBUG_INFO_SMARTCAST!>current<!>.getText())
+            println(current.getText())
         }
 
-        current = <!DEBUG_INFO_SMARTCAST!>current<!>.getParent()
+        current = current.getParent()
     }
 }
 
 //from library
 fun println(any: Any?): Nothing = throw Exception("$any")
+
+/* GENERATED_FIR_TAGS: andExpression, assignment, equalityExpression, functionDeclaration, ifExpression,
+interfaceDeclaration, isExpression, localProperty, nullableType, propertyDeclaration, smartcast, whileLoop */

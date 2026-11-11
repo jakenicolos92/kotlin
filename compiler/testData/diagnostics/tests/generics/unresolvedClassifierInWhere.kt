@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface I0<T : <!UNRESOLVED_REFERENCE!>Unresolved0<!><String>>
 interface I1<T> where T : <!UNRESOLVED_REFERENCE!>Unresolved1<!><String>
 interface I2<<!MISPLACED_TYPE_PARAMETER_CONSTRAINTS!>T : <!UNRESOLVED_REFERENCE!>Unresolved2<!><String><!>> where T : <!UNRESOLVED_REFERENCE!>Unresolved3<!><String>
@@ -12,3 +13,6 @@ val <E> E.p2: Int where E : <!UNRESOLVED_REFERENCE!>Unresolved8<!>
         get() = 1
 val <<!MISPLACED_TYPE_PARAMETER_CONSTRAINTS!>E : <!UNRESOLVED_REFERENCE!>Unresolved9<!><!>> E.p3: Int where E : <!UNRESOLVED_REFERENCE!>Unresolved10<!>
         get() = 1
+
+/* GENERATED_FIR_TAGS: functionDeclaration, getter, integerLiteral, interfaceDeclaration, propertyDeclaration,
+propertyWithExtensionReceiver, typeConstraint, typeParameter */

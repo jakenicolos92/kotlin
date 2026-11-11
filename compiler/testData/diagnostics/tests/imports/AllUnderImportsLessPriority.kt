@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: a.kt
 package a
 
@@ -15,3 +16,5 @@ import a.X
 import b.*
 
 class Y : X()
+
+/* GENERATED_FIR_TAGS: classDeclaration */

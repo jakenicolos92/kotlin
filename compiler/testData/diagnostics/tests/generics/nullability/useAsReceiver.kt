@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION,-UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION,-UNUSED_VARIABLE
 
 fun <T : CharSequence?> T.bar1() {}
 fun CharSequence?.bar2() {}
@@ -20,7 +21,10 @@ fun <T : String?> foo(x: T) {
     x?.bar1()
     x?.bar2()
 
-    x.<!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>bar3<!>()
+    x<!UNSAFE_CALL!>.<!>bar3()
 
-    x?.let { it<!UNSAFE_CALL!>.<!>length }
+    x?.let { it.length }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, dnnType, equalityExpression, funWithExtensionReceiver, functionDeclaration,
+ifExpression, integerLiteral, lambdaLiteral, nullableType, safeCall, typeConstraint, typeParameter */

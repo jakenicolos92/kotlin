@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 object Right
 object Wrong
@@ -10,3 +11,6 @@ fun IB.foo(vararg x: Int) = Right
 class CC : IB
 
 val test7 = CC().foo(1, 2, 3)
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, integerLiteral,
+interfaceDeclaration, objectDeclaration, propertyDeclaration, vararg */

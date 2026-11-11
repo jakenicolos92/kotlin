@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 import kotlin.reflect.KProperty
 
 annotation class Ann
@@ -7,11 +8,11 @@ class CustomDelegate {
     operator fun getValue(thisRef: Any?, prop: KProperty<*>): String = prop.name
 }
 
-<!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
+<!INAPPLICABLE_TARGET_ON_PROPERTY, WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
 class SomeClass {
 
-    <!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
-    constructor(<!UNUSED_PARAMETER!>s<!>: String)
+    <!INAPPLICABLE_TARGET_ON_PROPERTY, WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
+    constructor(s: String)
 
     @property:Ann
     protected val p1: String = ""
@@ -30,10 +31,14 @@ class SomeClass {
         get() = 5
         set(v) {}
 
-    <!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
+    <!INAPPLICABLE_TARGET_ON_PROPERTY, WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
     fun anotherFun() {
-        <!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
-        val <!UNUSED_VARIABLE!>localVariable<!> = 5
+        <!INAPPLICABLE_TARGET_ON_PROPERTY, WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
+        val localVariable = 5
     }
 
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, annotationUseSiteTargetProperty, classDeclaration, functionDeclaration,
+getter, integerLiteral, localProperty, nullableType, operator, propertyDeclaration, propertyDelegate,
+secondaryConstructor, setter, starProjection, stringLiteral */

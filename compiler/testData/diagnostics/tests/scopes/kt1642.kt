@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //FILE:a.kt
 //KT-1642 kotlin subpackages hide Java's toplevel packages
 package a.java
@@ -7,3 +8,5 @@ package a.java
 package a
 
 import java.util.ArrayList
+
+/* GENERATED_FIR_TAGS:  */

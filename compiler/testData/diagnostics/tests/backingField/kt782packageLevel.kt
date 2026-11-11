@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-782 Allow backing field usage for accessors of variables on namespace level
 
 package kt782
@@ -14,3 +15,5 @@ get() = z
 
 val w : Int = 56
 get() = field
+
+/* GENERATED_FIR_TAGS: getter, integerLiteral, propertyDeclaration */

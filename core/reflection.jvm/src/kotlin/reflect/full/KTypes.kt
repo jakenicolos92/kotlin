@@ -15,28 +15,26 @@
  */
 
 @file:JvmName("KTypes")
+
 package kotlin.reflect.full
 
-import org.jetbrains.kotlin.types.TypeUtils
-import org.jetbrains.kotlin.types.isFlexible
+import org.jetbrains.kotlin.types.AbstractTypeChecker
+import org.jetbrains.kotlin.types.AbstractTypePreparator
+import org.jetbrains.kotlin.types.AbstractTypeRefiner
+import org.jetbrains.kotlin.types.TypeCheckerState
 import org.jetbrains.kotlin.types.typeUtil.isSubtypeOf
-import kotlin.reflect.*
-import kotlin.reflect.jvm.internal.KTypeImpl
+import kotlin.reflect.KType
+import kotlin.reflect.jvm.internal.types.AbstractKType
+import kotlin.reflect.jvm.internal.types.DescriptorKType
+import kotlin.reflect.jvm.internal.types.ReflectTypeSystemContext
+import kotlin.reflect.jvm.internal.useK1Implementation
 
 /**
  * Returns a new type with the same classifier, arguments and annotations as the given type, and with the given nullability.
  */
 @SinceKotlin("1.1")
 fun KType.withNullability(nullable: Boolean): KType {
-    if (isMarkedNullable) {
-        return if (nullable) this else KTypeImpl(TypeUtils.makeNotNullable((this as KTypeImpl).type)) { javaType }
-    }
-
-    // If the type is not marked nullable, it's either a non-null type or a platform type.
-    val kotlinType = (this as KTypeImpl).type
-    if (kotlinType.isFlexible()) return KTypeImpl(TypeUtils.makeNullableAsSpecified(kotlinType, nullable)) { javaType }
-
-    return if (!nullable) this else KTypeImpl(TypeUtils.makeNullable(kotlinType)) { javaType }
+    return (this as AbstractKType).makeNullableAsSpecified(nullable)
 }
 
 
@@ -45,7 +43,19 @@ fun KType.withNullability(nullable: Boolean): KType {
  */
 @SinceKotlin("1.1")
 fun KType.isSubtypeOf(other: KType): Boolean {
-    return (this as KTypeImpl).type.isSubtypeOf((other as KTypeImpl).type)
+    if (useK1Implementation) {
+        return (this as DescriptorKType).type.isSubtypeOf((other as DescriptorKType).type)
+    }
+    val state = TypeCheckerState(
+        isErrorTypeEqualsToAnything = false,
+        isStubTypeEqualsToAnything = false,
+        isDnnTypesEqualToFlexible = false,
+        allowedTypeVariable = false,
+        typeSystemContext = ReflectTypeSystemContext,
+        kotlinTypePreparator = AbstractTypePreparator.Default,
+        kotlinTypeRefiner = AbstractTypeRefiner.Default,
+    )
+    return AbstractTypeChecker.isSubtypeOf(state, this as AbstractKType, other as AbstractKType)
 }
 
 /**

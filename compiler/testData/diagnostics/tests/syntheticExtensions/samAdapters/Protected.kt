@@ -1,18 +1,19 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 package k
 
 import JavaClass
 
 fun foo(javaClass: JavaClass) {
-    javaClass.<!INVISIBLE_MEMBER!>doSomething<!> <!TYPE_MISMATCH!>{
+    javaClass.<!INVISIBLE_REFERENCE!>doSomething<!> {
         bar()
-    }<!>
+    }
 }
 
 class X : JavaClass() {
     fun foo(other: JavaClass) {
         doSomething { bar() }
-        other.<!INVISIBLE_MEMBER!>doSomething<!> <!TYPE_MISMATCH!>{ bar() }<!>
+        other.<!INVISIBLE_REFERENCE!>doSomething<!> { bar() }
     }
 }
 
@@ -22,3 +23,5 @@ fun bar(){}
 public class JavaClass {
     protected void doSomething(Runnable runnable) { runnable.run(); }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaFunction, javaType, lambdaLiteral, samConversion */

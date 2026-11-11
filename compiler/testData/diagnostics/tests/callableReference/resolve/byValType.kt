@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun foo() {}
 fun foo(s: String) {}
@@ -7,3 +8,5 @@ val x1 = ::<!OVERLOAD_RESOLUTION_AMBIGUITY!>foo<!>
 val x2: () -> Unit = ::foo
 val x3: (String) -> Unit = ::foo
 val x4: (Int) -> Unit = ::<!NONE_APPLICABLE!>foo<!>
+
+/* GENERATED_FIR_TAGS: callableReference, functionDeclaration, functionalType, propertyDeclaration */

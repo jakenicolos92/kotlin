@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //FILE:a/C.java
 //KT-1942 Package local members from Java are visible in subclasses
 package a;
@@ -14,6 +15,8 @@ import a.C
 
 class A : C() {
     fun test() {
-        val <!UNUSED_VARIABLE!>v<!> = <!INVISIBLE_MEMBER!>myValue<!>
+        val v = <!INVISIBLE_REFERENCE!>myValue<!>
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaProperty, javaType, localProperty, propertyDeclaration */

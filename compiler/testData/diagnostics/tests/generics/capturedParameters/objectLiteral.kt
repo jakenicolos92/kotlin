@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 fun <T> magic(): T = null!!
 
@@ -8,11 +9,11 @@ class Q {
             val prop: E = magic()
         }
 
-    private var x = <!DEBUG_INFO_LEAKING_THIS!>foo<!><CharSequence>()
-    private var y = <!DEBUG_INFO_LEAKING_THIS!>foo<!><String>()
+    private var x = foo<CharSequence>()
+    private var y = foo<String>()
 
     fun bar() {
-        x = <!TYPE_MISMATCH!>y<!>
+        x = <!ASSIGNMENT_TYPE_MISMATCH!>y<!>
         x = foo<CharSequence>()
         y = foo<String>()
 
@@ -20,3 +21,7 @@ class Q {
         y.prop.checkType { _<String>() }
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, assignment, checkNotNullCall, classDeclaration,
+funWithExtensionReceiver, functionDeclaration, functionalType, infix, lambdaLiteral, nullableType, propertyDeclaration,
+typeParameter, typeWithExtension */

@@ -1,6 +1,0 @@
-package
-
-package b {
-    public fun doSmth(/*0*/ b: a.M.Inner): a.M.Inner
-    public fun foo(): kotlin.Unit
-}

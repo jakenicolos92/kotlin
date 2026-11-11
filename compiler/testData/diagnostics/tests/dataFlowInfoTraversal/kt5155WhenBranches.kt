@@ -1,11 +1,15 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-5155 Auto-casts do not work with when
 
 fun foo(s: String?) {
     when {
-        s == null -> <!UNUSED_EXPRESSION!>1<!>
-        <!DEBUG_INFO_SMARTCAST!>s<!>.foo() -> <!UNUSED_EXPRESSION!>2<!>
-        else -> <!UNUSED_EXPRESSION!>3<!>
+        s == null -> 1
+        s.foo() -> 2
+        else -> 3
     }
 }
 
 fun String.foo() = true
+
+/* GENERATED_FIR_TAGS: equalityExpression, funWithExtensionReceiver, functionDeclaration, integerLiteral, nullableType,
+smartcast, whenExpression */

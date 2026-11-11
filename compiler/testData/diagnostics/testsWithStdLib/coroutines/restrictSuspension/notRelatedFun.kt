@@ -1,8 +1,8 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -SUSPENSION_CALL_MUST_BE_USED_AS_RETURN_VALUE
-
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER -SUSPENSION_CALL_MUST_BE_USED_AS_RETURN_VALUE
 interface SuperInterface
 
-@kotlin.coroutines.experimental.RestrictsSuspension
+@kotlin.coroutines.RestrictsSuspension
 open class RestrictedController : SuperInterface
 
 class SubClass : RestrictedController()
@@ -43,7 +43,7 @@ fun A.test() {
         }
     }
 
-    <!WRONG_MODIFIER_TARGET!>suspend<!> fun SuperInterface.fun1() {
+    suspend fun SuperInterface.fun1() {
         topLevel()
         member()
         with(A()) {
@@ -51,7 +51,7 @@ fun A.test() {
             member()
         }
     }
-    <!WRONG_MODIFIER_TARGET!>suspend<!> fun RestrictedController.fun2() {
+    suspend fun RestrictedController.fun2() {
         <!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>topLevel<!>()
         <!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>member<!>()
         with(A()) {
@@ -59,7 +59,7 @@ fun A.test() {
             <!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>member<!>()
         }
     }
-    <!WRONG_MODIFIER_TARGET!>suspend<!> fun SubClass.fun3() {
+    suspend fun SubClass.fun3() {
         <!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>topLevel<!>()
         <!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>member<!>()
         with(A()) {
@@ -70,3 +70,5 @@ fun A.test() {
 
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+interfaceDeclaration, lambdaLiteral, localFunction, suspend, typeWithExtension */

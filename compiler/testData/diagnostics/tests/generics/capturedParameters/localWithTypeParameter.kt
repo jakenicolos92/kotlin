@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 fun <T> magic(): T = null!!
 
@@ -12,7 +13,7 @@ class Q {
         C<F>()
     }
 
-    private var x = <!DEBUG_INFO_LEAKING_THIS!>foo<!><CharSequence, Number>()()
+    private var x = foo<CharSequence, Number>()()
 
     fun bar() {
         x.e.checkType { _<CharSequence>() }
@@ -20,3 +21,6 @@ class Q {
         x.g.checkType { _<Number>() }
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, lambdaLiteral, localClass, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

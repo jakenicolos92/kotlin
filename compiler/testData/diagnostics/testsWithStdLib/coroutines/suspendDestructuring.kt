@@ -1,13 +1,17 @@
-// SKIP_TXT
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: CODEGEN
 class A {
     suspend operator fun component1(): String = "K"
 }
 
-fun foo(<!UNUSED_PARAMETER!>c<!>: suspend (A) -> Unit) {}
+fun foo(c: suspend (A) -> Unit) {}
 
 fun bar() {
     foo {
-        (x) ->
+        [x] ->
         x.length
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, functionalType, lambdaLiteral, localProperty, operator,
+propertyDeclaration, stringLiteral, suspend */

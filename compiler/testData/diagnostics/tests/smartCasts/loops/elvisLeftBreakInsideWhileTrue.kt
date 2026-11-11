@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 public fun foo(x: String?, y: String?): Int {
     while (true) {
         (if (x != null) break else y) ?: y!!
@@ -7,3 +8,6 @@ public fun foo(x: String?, y: String?): Int {
     // y can be null because of the break
     return y<!UNSAFE_CALL!>.<!>length
 }
+
+/* GENERATED_FIR_TAGS: break, checkNotNullCall, elvisExpression, equalityExpression, functionDeclaration, ifExpression,
+nullableType, whileLoop */

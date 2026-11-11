@@ -24,11 +24,11 @@ public interface MemberDescriptor extends DeclarationDescriptorNonRoot, Declarat
 
     @Override
     @NotNull
-    Visibility getVisibility();
+    DescriptorVisibility getVisibility();
 
-    boolean isHeader();
+    boolean isExpect();
 
-    boolean isImpl();
+    boolean isActual();
 
     boolean isExternal();
 }

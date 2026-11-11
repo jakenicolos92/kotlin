@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package m
 
 import java.util.HashSet
@@ -14,3 +15,7 @@ class Property<T: Comparable<T>>(val name: String, val default: () -> T) {}
 
 fun testProperty() = Property("", { -1.toLong() })
 fun testProperty1() = Property("", { "" })
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, integerLiteral,
+javaFunction, lambdaLiteral, nullableType, primaryConstructor, propertyDeclaration, stringLiteral, typeConstraint,
+typeParameter, unaryExpression */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: a.kt
 package a
 
@@ -31,3 +32,7 @@ val x1 = A("").with { b.length }
 // val x2 = A("").with { c.length } // TODO fix KT-9953
 
 val x3 = A.with { c.length }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, funWithExtensionReceiver, functionDeclaration, functionalType,
+lambdaLiteral, nullableType, objectDeclaration, primaryConstructor, propertyDeclaration, stringLiteral, typeParameter,
+typeWithExtension */

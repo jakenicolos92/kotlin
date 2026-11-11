@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 559
+// LANGUAGE: +JsExportInterfacesInImplementableWay
 package foo
 
 import kotlin.reflect.KClass
@@ -13,7 +13,7 @@ fun check(k: KClass<*>, j: JsClass<*>) {
     assertSame(k, k.js.kotlin)
 }
 
-fun jsClassbyName(name: String) = js("JS_TESTS").foo[name]
+fun jsClassbyName(name: String) = js("main").foo[name]
 
 fun box(): String {
     check(A::class, jsClassbyName("A"))
@@ -24,8 +24,7 @@ fun box(): String {
     check(E::class, jsClassbyName("E"))
     check(E.X::class, jsClassbyName("E").X.constructor)
     check(E.Y::class, jsClassbyName("E").Y.constructor)
-// TODO uncomment after KT-13338 is fixed
-//    check(E.Z::class, jsClassbyName("E").Z.constructor)
+    check(E.Z::class, jsClassbyName("E").Z.constructor)
 
     return "OK"
 }

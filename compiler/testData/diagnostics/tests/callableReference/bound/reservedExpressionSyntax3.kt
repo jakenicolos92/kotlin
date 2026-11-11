@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
 package test
 
 object Wrong
@@ -21,8 +22,13 @@ class Test {
 
     val Int.c: Int get() = 42
 
-    val test1: () -> Right = <!RESERVED_SYNTAX_IN_CALLABLE_REFERENCE_LHS!><!DEBUG_INFO_MISSING_UNRESOLVED!>a<!>.<!DEBUG_INFO_MISSING_UNRESOLVED!>b<!><<!DEBUG_INFO_MISSING_UNRESOLVED!>Int<!>>.<!DEBUG_INFO_MISSING_UNRESOLVED!>c<!><!>::<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>foo<!>
-    val test1a: () -> Right = a.b.c::foo
+    val test1: () -> Right = a.b.c::foo
+    val test1a: () -> Right = a.b<!EXPLICIT_TYPE_ARGUMENTS_IN_PROPERTY_ACCESS!><Int><!>.c::foo
 
-    val test2: () -> Right = <!RESERVED_SYNTAX_IN_CALLABLE_REFERENCE_LHS!><!DEBUG_INFO_MISSING_UNRESOLVED!>a<!>.<!DEBUG_INFO_MISSING_UNRESOLVED!>b<!><<!DEBUG_INFO_MISSING_UNRESOLVED!>Int<!>>.<!DEBUG_INFO_MISSING_UNRESOLVED!>c<!><!>?::<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>foo<!>
+    val test2: () -> Right = <!SAFE_CALLABLE_REFERENCE_CALL!>a.b.c?::foo<!>
+    val test2a: () -> Right = <!SAFE_CALLABLE_REFERENCE_CALL!>a.b<!EXPLICIT_TYPE_ARGUMENTS_IN_PROPERTY_ACCESS!><Int><!>.c?::foo<!>
 }
+
+/* GENERATED_FIR_TAGS: callableReference, checkNotNullCall, classDeclaration, funWithExtensionReceiver,
+functionDeclaration, functionalType, getter, integerLiteral, nestedClass, nullableType, objectDeclaration,
+propertyDeclaration, propertyWithExtensionReceiver, typeParameter */

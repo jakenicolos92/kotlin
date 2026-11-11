@@ -1,0 +1,549 @@
+/*
+ * Copyright 2010-2022 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.gradle.unitTests
+
+import org.jetbrains.kotlin.gradle.plugin.mpp.*
+import org.jetbrains.kotlin.gradle.testing.WithTemporaryFolder
+import org.jetbrains.kotlin.gradle.testing.newTempDirectory
+import org.jetbrains.kotlin.gradle.testing.newTempFile
+import org.jetbrains.kotlin.gradle.util.unzipTo
+import org.jetbrains.kotlin.gradle.util.zipTo
+
+import org.junit.jupiter.api.io.TempDir
+import java.io.File
+import java.nio.file.Path
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+import kotlin.test.*
+
+class CompositeMetadataArtifactTest: WithTemporaryFolder {
+
+    @field:TempDir
+    override lateinit var temporaryFolder: Path
+
+    private val KLIB_MANIFEST_PATH = "default/manifest"
+
+    @Test
+    fun `empty jar - contains no metadataBinary and no cinteropMetadataBinaries`() {
+        val primaryArtifactContent = newTempDirectory().toFile()
+        val primaryArtifactFile = newTempFile("metadata.jar").toFile()
+
+        zipTo(primaryArtifactFile, primaryArtifactContent)
+        assertTrue(primaryArtifactFile.isFile, "Expected primaryArtifactFile.isFile")
+
+        val metadataArtifact = CompositeMetadataArtifactImpl(
+            moduleDependencyIdentifier = ModuleDependencyIdentifier("test-group", "test-module"),
+            moduleDependencyVersion = "1.0.0",
+            kotlinProjectStructureMetadata = createProjectStructureMetadata(
+                sourceSetNames = mutableSetOf("testSourceSetName"),
+                sourceSetBinaryLayout = mapOf("testSourceSetName" to SourceSetMetadataLayout.KLIB),
+                sourceSetCInteropMetadataDirectory = mapOf("testSourceSetName" to "cinterop/testSourceSetName")
+            ),
+            primaryArtifactFile = primaryArtifactFile,
+            hostSpecificArtifactFilesBySourceSetName = emptyMap()
+        )
+
+
+        metadataArtifact.read { artifactContent ->
+            if (artifactContent.sourceSets.size != 1) fail("Expected one SourceSet in metadataArtifact")
+            val sourceSetContent = artifactContent.sourceSets.first()
+            assertEquals("testSourceSetName", sourceSetContent.sourceSetName)
+            assertNull(sourceSetContent.metadataBinary, "Expected no 'metadataBinary' listed for SourceSet")
+
+            if (sourceSetContent.cinteropMetadataBinaries.isNotEmpty()) {
+                fail(
+                    "Expected no 'cinteropMetadataBinaries' in 'testSourceSet'. " +
+                            "Found ${sourceSetContent.cinteropMetadataBinaries.map { it.cinteropLibraryName }}"
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `stub metadata library - can be unzipped`() {
+        val testSourceSetName = "testSourceSetName"
+        val primaryArtifactContent = newTempDirectory().toFile()
+        val stubFile = primaryArtifactContent.resolve(testSourceSetName).resolve(KLIB_MANIFEST_PATH)
+        stubFile.parentFile.mkdirs()
+        stubFile.writeText("stub!")
+
+        val primaryArtifactFile = newTempFile("metadata.jar").toFile()
+        zipTo(primaryArtifactFile, primaryArtifactContent)
+        assertTrue(primaryArtifactFile.isFile, "Expected primaryArtifactFile.isFile")
+
+        val metadataArtifact = CompositeMetadataArtifactImpl(
+            moduleDependencyIdentifier = ModuleDependencyIdentifier("test-group", "test-module"),
+            moduleDependencyVersion = "1.0.0",
+            kotlinProjectStructureMetadata = createProjectStructureMetadata(
+                sourceSetBinaryLayout = mapOf(testSourceSetName to SourceSetMetadataLayout.KLIB),
+                sourceSetCInteropMetadataDirectory = emptyMap(),
+            ),
+            primaryArtifactFile = primaryArtifactFile,
+            hostSpecificArtifactFilesBySourceSetName = emptyMap()
+        )
+
+        metadataArtifact.read { artifactContent ->
+            if (artifactContent.sourceSets.size != 1)
+                fail("Expected exactly one SourceSet in ${artifactContent.sourceSets.map { it.sourceSetName }}")
+
+            val sourceSet = artifactContent.getSourceSet(testSourceSetName)
+            val metadataOutputDirectory = newTempDirectory().toFile()
+            val metadataFile = metadataOutputDirectory.resolve("testSourceSet.klib")
+
+            val metadataBinary = sourceSet.metadataBinary ?: fail("Missing metadataBinary for ${sourceSet.sourceSetName}")
+            assertTrue(metadataBinary.copyTo(metadataFile), "Expected 'copyTo' to perform copy action")
+            assertTrue(metadataFile.isFile)
+
+            val unzippedMetadataFile = metadataOutputDirectory.resolve("unzipped")
+            unzipTo(unzippedMetadataFile, metadataFile)
+
+            val actualUnzippedFiles = unzippedMetadataFile.walkTopDown().filter { it.isFile }.toSet()
+            assertEquals(setOf(unzippedMetadataFile.resolve(KLIB_MANIFEST_PATH)), actualUnzippedFiles)
+            assertEquals("stub!", unzippedMetadataFile.resolve(KLIB_MANIFEST_PATH).readText())
+        }
+    }
+
+    @Test
+    fun `empty jar - returns no cinteropMetadataBinaries`() {
+        val primaryArtifactContent = newTempDirectory().toFile()
+        val primaryArtifactFile = newTempFile("metadata.jar").toFile()
+        zipTo(primaryArtifactFile, primaryArtifactContent)
+        assertTrue(primaryArtifactFile.isFile, "Expected primaryArtifactFile.isFile")
+
+        val metadataArtifact = CompositeMetadataArtifactImpl(
+            moduleDependencyIdentifier = ModuleDependencyIdentifier("test-group", "test-module"),
+            moduleDependencyVersion = "1.0.0",
+            kotlinProjectStructureMetadata = createProjectStructureMetadata(
+                sourceSetNames = setOf("testSourceSetName")
+            ),
+            primaryArtifactFile = primaryArtifactFile,
+            hostSpecificArtifactFilesBySourceSetName = emptyMap()
+        )
+
+        metadataArtifact.read { artifactContent ->
+            val sourceSet = artifactContent.getSourceSet("testSourceSetName")
+            assertEquals(listOf(sourceSet), artifactContent.sourceSets)
+
+            assertEquals(emptyList(), sourceSet.cinteropMetadataBinaries, "Expected empty cinteropMetadataBinaries")
+        }
+    }
+
+    @Test
+    fun `copy metadataBinary`() {
+        copyMetadataBinaryImpl(null)
+    }
+    @Test
+    fun `copy metadataBinary with relative path`() {
+        copyMetadataBinaryImpl("metadata")
+    }
+
+    private fun copyMetadataBinaryImpl(relativePath: String?) {
+        /* Setup Artifact content */
+        val artifactRoot = newTempDirectory().toFile()
+        val primaryArtifactContent = if (relativePath == null) artifactRoot else artifactRoot.resolve(relativePath)
+
+        primaryArtifactContent.resolve("sourceSetA/$KLIB_MANIFEST_PATH")
+            .withParentDirectoriesCreated()
+            .writeText("Content of sourceSetA Metadata KLIB")
+
+        primaryArtifactContent.resolve("sourceSetA/sourceSetAStub.txt")
+            .withParentDirectoriesCreated()
+            .writeText("Resource file mixed with sourceSetA Metadata KLIB")
+
+        primaryArtifactContent.resolve("sourceSetB/$KLIB_MANIFEST_PATH")
+            .withParentDirectoriesCreated()
+            .writeText("Content of sourceSetB stub1")
+
+        primaryArtifactContent.resolve("sourceSetWithResourcesOnly/stub.txt")
+            .withParentDirectoriesCreated()
+            .writeText("Resource file with klib content")
+
+        /* Create metadata jar */
+        val primaryArtifactFile = newTempFile("metadata.jar").toFile()
+        zipTo(primaryArtifactFile, artifactRoot)
+
+        val metadataArtifact = CompositeMetadataArtifactImpl(
+            moduleDependencyIdentifier = ModuleDependencyIdentifier("test-group", "test-module"),
+            moduleDependencyVersion = "1.0.0",
+            kotlinProjectStructureMetadata = createProjectStructureMetadata(
+                sourceSetBinaryLayout = mapOf(
+                    "sourceSetA" to SourceSetMetadataLayout.KLIB,
+                    "sourceSetB" to SourceSetMetadataLayout.METADATA,
+                    "sourceSetWithResourcesOnly" to SourceSetMetadataLayout.KLIB,
+                )
+            ),
+            primaryArtifactFile = primaryArtifactFile,
+            hostSpecificArtifactFilesBySourceSetName = emptyMap(),
+            archiveRelativePath = relativePath
+        )
+
+        metadataArtifact.read { artifactContent ->
+            val metadataOutputDirectory = newTempDirectory().toFile()
+
+            /* Extract and assert sourceSetA */
+            artifactContent.getSourceSet("sourceSetA").also { sourceSetA ->
+                val sourceSetAMetadataFile = metadataOutputDirectory.resolve("sourceSetA.klib")
+                assertNotNull(sourceSetA.metadataBinary).copyTo(sourceSetAMetadataFile)
+                assertTrue(sourceSetAMetadataFile.isFile, "Expected sourceSetAMetadataFile.isFile")
+                assertEquals(
+                    SourceSetMetadataLayout.KLIB.archiveExtension, sourceSetAMetadataFile.extension,
+                    "Expected correct archiveExtension for extracted sourceSetA"
+                )
+                assertZipContentEquals(
+                    primaryArtifactContent.resolve("sourceSetA"), sourceSetAMetadataFile,
+                    "Expected correct content of extracted 'sourceSetA'"
+                )
+            }
+
+            /* Extract and assert sourceSetB */
+            artifactContent.getSourceSet("sourceSetB").also { sourceSetB ->
+                val sourceSetBMetadataFile = metadataOutputDirectory.resolve("sourceSetB.jar")
+                assertNotNull(sourceSetB.metadataBinary).copyTo(sourceSetBMetadataFile)
+                assertTrue(sourceSetBMetadataFile.isFile, "Expected sourceSetBMetadataFile.isFile")
+                assertEquals(
+                    SourceSetMetadataLayout.METADATA.archiveExtension, sourceSetBMetadataFile.extension,
+                    "Expected correct archiveExtension for extracted sourceSetB"
+                )
+                assertZipContentEquals(
+                    primaryArtifactContent.resolve("sourceSetB"), sourceSetBMetadataFile,
+                    "Expected correct content of extracted 'sourceSetA'"
+                )
+            }
+
+            /* even though there is sourceSetWithResourcesOnly directory, there is no metadata KLIB in it */
+            assertNull(artifactContent.getSourceSet("sourceSetWithResourcesOnly").metadataBinary)
+        }
+    }
+
+    @Test
+    fun `copy cinteropMetadataBinaries`() {
+        copyCinteropMetadataBinariesImpl(null)
+    }
+
+    @Test
+    fun `copy cinteropMetadataBinaries with relative path`() {
+        copyCinteropMetadataBinariesImpl("metadata")
+    }
+
+    private fun copyCinteropMetadataBinariesImpl(relativePath: String?) {
+        /* Setup Artifact content */
+        val artifactRoot = newTempDirectory().toFile()
+        val primaryArtifactContent = if (relativePath == null) artifactRoot else artifactRoot.resolve(relativePath)
+
+        primaryArtifactContent.resolve("sourceSetA-cinterop/interopA0/$KLIB_MANIFEST_PATH")
+            .withParentDirectoriesCreated()
+            .writeText("stub0 content")
+
+        primaryArtifactContent.resolve("sourceSetA-cinterop/interopA0/nested/stub1")
+            .withParentDirectoriesCreated()
+            .writeText("stub1 content")
+
+        primaryArtifactContent.resolve("sourceSetA-cinterop/interopA1/$KLIB_MANIFEST_PATH")
+            .withParentDirectoriesCreated()
+            .writeText("stub2 content")
+
+        primaryArtifactContent.resolve("nested/sourceSetB/interops/interopB0/$KLIB_MANIFEST_PATH")
+            .withParentDirectoriesCreated()
+            .writeText("stub3 content")
+
+        /* Create metadata jar */
+        val primaryArtifactFile = newTempFile("metadata.jar").toFile()
+        zipTo(primaryArtifactFile, artifactRoot)
+
+        val metadataArtifact = CompositeMetadataArtifactImpl(
+            moduleDependencyIdentifier = ModuleDependencyIdentifier("test-group", "test-module"),
+            moduleDependencyVersion = "1.0.0",
+            kotlinProjectStructureMetadata = createProjectStructureMetadata(
+                sourceSetCInteropMetadataDirectory = mapOf(
+                    "sourceSetA" to "sourceSetA-cinterop",
+                    "sourceSetB" to "nested/sourceSetB/interops/"
+                )
+            ),
+            primaryArtifactFile = primaryArtifactFile,
+            hostSpecificArtifactFilesBySourceSetName = emptyMap(),
+            archiveRelativePath = relativePath
+        )
+
+        metadataArtifact.read { artifactContent ->
+            /* Assertions on sourceSetA */
+            artifactContent.getSourceSet("sourceSetA").also { sourceSetA ->
+                val sourceSetAOutputDirectory = newTempDirectory().toFile()
+                val sourceSetAInteropMetadataFiles = sourceSetA.cinteropMetadataBinaries.map { cinteropLibrary ->
+                    sourceSetAOutputDirectory.resolve("${cinteropLibrary.cinteropLibraryName}.klib").also { file ->
+                        cinteropLibrary.copyTo(file)
+                    }
+                }
+                assertEquals(2, sourceSetAInteropMetadataFiles.size, "Expected 2 cinterops in sourceSetA")
+
+                /* Assertions on interopA0 */
+                run {
+                    val interopA0MetadataFile = sourceSetAInteropMetadataFiles.firstOrNull { it.name == "interopA0.klib" }
+                        ?: fail("Failed to find 'interopA0.klib'")
+                    assertZipContentEquals(
+                        primaryArtifactContent.resolve("sourceSetA-cinterop/interopA0"), interopA0MetadataFile,
+                        "Expected correct content for extracted 'interopA0'"
+                    )
+                }
+
+                /* Assertions on interopA1 */
+                run {
+                    val interopA1MetadataFile = sourceSetAInteropMetadataFiles.firstOrNull { it.name == "interopA1.klib" }
+                        ?: fail("Failed to find 'interopA1.klib")
+                    assertZipContentEquals(
+                        primaryArtifactContent.resolve("sourceSetA-cinterop/interopA1"), interopA1MetadataFile,
+                        "Expected correct content for extracted 'interopA1'"
+                    )
+                }
+            }
+
+            /* Assertions on sourceSetB */
+            artifactContent.getSourceSet("sourceSetB").also { sourceSetB ->
+                val sourceSetBOutputDirectory = newTempDirectory().toFile()
+                val sourceSetBInteropMetadataFiles = sourceSetB.cinteropMetadataBinaries.map { cinteropLibrary ->
+                    sourceSetBOutputDirectory.resolve("${cinteropLibrary.cinteropLibraryName}.klib").also { file ->
+                        cinteropLibrary.copyTo(file)
+                    }
+                }
+                assertEquals(1, sourceSetBInteropMetadataFiles.size, "Expected only one cinterop in sourceSetB")
+                val interopB0MetadataFile = sourceSetBInteropMetadataFiles.firstOrNull { it.name == "interopB0.klib" }
+                    ?: fail("Failed to find 'interopB0.klib'")
+                assertZipContentEquals(
+                    primaryArtifactContent.resolve("nested/sourceSetB/interops/interopB0"), interopB0MetadataFile,
+                    "Expected correct content for extracted 'interopB0'"
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `path traversal - malicious sourceSetName is rejected`() {
+        listOf("../../pwned", "..", ".", "", "/pwned", "..\\..\\pwned", "a/../../pwned", ".hidden").forEach { maliciousSourceSetName ->
+            val primaryArtifactFile = createZip(
+                "$maliciousSourceSetName/$KLIB_MANIFEST_PATH" to "malicious",
+            )
+
+            val metadataArtifact = createCompositeMetadataArtifact(
+                primaryArtifactFile = primaryArtifactFile,
+                kotlinProjectStructureMetadata = createProjectStructureMetadata(
+                    sourceSetBinaryLayout = mapOf(maliciousSourceSetName to SourceSetMetadataLayout.KLIB),
+                    sourceSetCInteropMetadataDirectory = mapOf(maliciousSourceSetName to "cinterop"),
+                ),
+            )
+
+            assertFailsWith<IllegalArgumentException>("Expected sourceSetName '$maliciousSourceSetName' to be rejected") {
+                metadataArtifact.read { }
+            }
+        }
+    }
+
+    @Test
+    fun `KT-91297 - version containing plus requires a version checksum`() {
+        val primaryArtifactFile = createZip(
+            "sourceSetA/$KLIB_MANIFEST_PATH" to "sourceSetA",
+            "sourceSetA-cinterop/interopA/$KLIB_MANIFEST_PATH" to "interopA",
+        )
+
+        fun test(computeVersionChecksum: Boolean, assertions: (CompositeMetadataArtifactContent.SourceSetContent) -> Unit) {
+            val metadataArtifact = createCompositeMetadataArtifact(
+                primaryArtifactFile = primaryArtifactFile,
+                moduleDependencyVersion = "1.13.0-beta02+dev5078",
+                computeVersionChecksum = computeVersionChecksum,
+                kotlinProjectStructureMetadata = createProjectStructureMetadata(
+                    sourceSetBinaryLayout = mapOf("sourceSetA" to SourceSetMetadataLayout.KLIB),
+                    sourceSetCInteropMetadataDirectory = mapOf("sourceSetA" to "sourceSetA-cinterop"),
+                ),
+            )
+
+            metadataArtifact.read { artifactContent ->
+                assertions(artifactContent.getSourceSet("sourceSetA"))
+            }
+        }
+
+        test(computeVersionChecksum = false) { sourceSet ->
+            val expectedMessage = "String '1.13.0-beta02+dev5078' is not safe for path component. " +
+                    "Only Latin characters, numbers, '-', '_' and '.' (not as the first character) are allowed. " +
+                    "Check origin of this string."
+            assertEquals(
+                expectedMessage,
+                assertFailsWith<IllegalArgumentException> { sourceSet.metadataBinary }.message,
+            )
+            assertEquals(
+                expectedMessage,
+                assertFailsWith<IllegalArgumentException> { sourceSet.cinteropMetadataBinaries }.message,
+            )
+        }
+        test(computeVersionChecksum = true) { sourceSet ->
+            assertEquals(
+                File("test-group-test-module-LmOBc7-sourceSetA-uOFzhg.klib"),
+                assertNotNull(sourceSet.metadataBinary).relativeFile,
+            )
+            assertEquals(
+                File("test-group-test-module-LmOBc7-sourceSetA-cinterop/interopA-uOFzhg.klib"),
+                sourceSet.cinteropMetadataBinaries.single().relativeFile,
+            )
+        }
+    }
+
+    @Test
+    fun `version checksums can be enabled and disabled in metadata paths`() {
+        val primaryArtifactFile = createZip(
+            "sourceSetA/$KLIB_MANIFEST_PATH" to "sourceSetA",
+            "sourceSetA-cinterop/interopA/$KLIB_MANIFEST_PATH" to "interopA",
+        )
+
+        fun test(computeVersionChecksum: Boolean, assertions: (CompositeMetadataArtifactContent.SourceSetContent) -> Unit) {
+            val metadataArtifact = createCompositeMetadataArtifact(
+                primaryArtifactFile = primaryArtifactFile,
+                computeVersionChecksum = computeVersionChecksum,
+                kotlinProjectStructureMetadata = createProjectStructureMetadata(
+                    sourceSetBinaryLayout = mapOf("sourceSetA" to SourceSetMetadataLayout.KLIB),
+                    sourceSetCInteropMetadataDirectory = mapOf("sourceSetA" to "sourceSetA-cinterop"),
+                ),
+            )
+            metadataArtifact.read { artifactContent ->
+                assertions(artifactContent.getSourceSet("sourceSetA"))
+            }
+        }
+
+        test(computeVersionChecksum = false) { sourceSet ->
+            assertEquals(
+                File("test-group-test-module-1.0.0-sourceSetA-uOFzhg.klib"),
+                assertNotNull(sourceSet.metadataBinary).relativeFile,
+            )
+            assertEquals(
+                File("test-group-test-module-1.0.0-sourceSetA-cinterop/interopA-uOFzhg.klib"),
+                sourceSet.cinteropMetadataBinaries.single().relativeFile,
+            )
+        }
+        test(computeVersionChecksum = true) { sourceSet ->
+            assertEquals(
+                File("test-group-test-module-klIfw8-sourceSetA-uOFzhg.klib"),
+                assertNotNull(sourceSet.metadataBinary).relativeFile,
+            )
+            assertEquals(
+                File("test-group-test-module-klIfw8-sourceSetA-cinterop/interopA-uOFzhg.klib"),
+                sourceSet.cinteropMetadataBinaries.single().relativeFile,
+            )
+        }
+    }
+
+    @Test
+    fun `path traversal - malicious module coordinates are rejected`() {
+        val primaryArtifactFile = createZip(
+            "sourceSetA/$KLIB_MANIFEST_PATH" to "sourceSetA",
+            "sourceSetA-cinterop/interopA/$KLIB_MANIFEST_PATH" to "interopA",
+        )
+
+        listOf(
+            ModuleDependencyIdentifier("test-group", "../../pwned") to "1.0.0",
+            ModuleDependencyIdentifier("../../pwned", "test-module") to "1.0.0",
+            ModuleDependencyIdentifier("..\\..\\pwned", "test-module") to "1.0.0",
+        ).forEach { (moduleDependencyIdentifier, moduleDependencyVersion) ->
+            val metadataArtifact = createCompositeMetadataArtifact(
+                primaryArtifactFile = primaryArtifactFile,
+                moduleDependencyIdentifier = moduleDependencyIdentifier,
+                moduleDependencyVersion = moduleDependencyVersion,
+                kotlinProjectStructureMetadata = createProjectStructureMetadata(
+                    sourceSetBinaryLayout = mapOf("sourceSetA" to SourceSetMetadataLayout.KLIB),
+                    sourceSetCInteropMetadataDirectory = mapOf("sourceSetA" to "sourceSetA-cinterop"),
+                ),
+            )
+
+            metadataArtifact.read { artifactContent ->
+                val sourceSetA = artifactContent.getSourceSet("sourceSetA")
+                assertFailsWith<IllegalArgumentException>("Expected '$moduleDependencyIdentifier:$moduleDependencyVersion' to be rejected") {
+                    sourceSetA.metadataBinary
+                }
+                assertFailsWith<IllegalArgumentException>("Expected '$moduleDependencyIdentifier:$moduleDependencyVersion' to be rejected") {
+                    sourceSetA.cinteropMetadataBinaries
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `path traversal - malicious cinterop library name in zip entries is rejected`() {
+        listOf("..", ".", "", "..\\..\\pwned", ".hidden", "pwned lib").forEach { maliciousCinteropLibraryName ->
+            val primaryArtifactFile = createZip(
+                "sourceSetA-cinterop/$maliciousCinteropLibraryName/$KLIB_MANIFEST_PATH" to "malicious",
+            )
+
+            val metadataArtifact = createCompositeMetadataArtifact(
+                primaryArtifactFile = primaryArtifactFile,
+                kotlinProjectStructureMetadata = createProjectStructureMetadata(
+                    sourceSetCInteropMetadataDirectory = mapOf("sourceSetA" to "sourceSetA-cinterop"),
+                ),
+            )
+
+            metadataArtifact.read { artifactContent ->
+                val sourceSetA = artifactContent.getSourceSet("sourceSetA")
+                assertFailsWith<IllegalArgumentException>("Expected cinterop library name '$maliciousCinteropLibraryName' to be rejected") {
+                    sourceSetA.cinteropMetadataBinaries
+                }
+            }
+        }
+    }
+
+    private fun createCompositeMetadataArtifact(
+        primaryArtifactFile: File,
+        kotlinProjectStructureMetadata: KotlinProjectStructureMetadata,
+        moduleDependencyIdentifier: ModuleDependencyIdentifier = ModuleDependencyIdentifier("test-group", "test-module"),
+        moduleDependencyVersion: String = "1.0.0",
+        computeVersionChecksum: Boolean = true,
+    ) = CompositeMetadataArtifactImpl(
+        moduleDependencyIdentifier = moduleDependencyIdentifier,
+        moduleDependencyVersion = moduleDependencyVersion,
+        kotlinProjectStructureMetadata = kotlinProjectStructureMetadata,
+        primaryArtifactFile = primaryArtifactFile,
+        hostSpecificArtifactFilesBySourceSetName = emptyMap(),
+        computeVersionChecksum = computeVersionChecksum,
+    )
+
+    /**
+     * Creates a zip with raw [entries] (name to content), which allows entry names
+     * that can't be produced from a real directory, e.g. containing `..` or starting with `/`
+     */
+    private fun createZip(vararg entries: Pair<String, String>): File {
+        val zipFile = newTempDirectory().resolve("metadata.jar").toFile()
+        ZipOutputStream(zipFile.outputStream().buffered()).use { out ->
+            entries.forEach { (name, content) ->
+                out.putNextEntry(ZipEntry(name))
+                out.write(content.toByteArray())
+                out.closeEntry()
+            }
+        }
+        return zipFile
+    }
+}
+
+private fun createProjectStructureMetadata(
+    sourceSetNamesByVariantName: Map<String, Set<String>> = emptyMap(),
+    sourceSetsDependsOnRelation: Map<String, Set<String>> = emptyMap(),
+    sourceSetCInteropMetadataDirectory: Map<String, String> = emptyMap(),
+    sourceSetBinaryLayout: Map<String, SourceSetMetadataLayout> = emptyMap(),
+    sourceSetModuleDependencies: Map<String, Set<ModuleDependencyIdentifier>> = emptyMap(),
+    hostSpecificSourceSets: Set<String> = emptySet(),
+    sourceSetNames: Set<String> = hostSpecificSourceSets +
+            sourceSetNamesByVariantName.values.flatten() +
+            sourceSetsDependsOnRelation.keys +
+            sourceSetCInteropMetadataDirectory.keys +
+            sourceSetBinaryLayout.keys +
+            sourceSetModuleDependencies.keys,
+    isPublishedAsRoot: Boolean = true,
+): KotlinProjectStructureMetadata {
+    return KotlinProjectStructureMetadata(
+        sourceSetNamesByVariantName = sourceSetNamesByVariantName,
+        sourceSetsDependsOnRelation = sourceSetsDependsOnRelation,
+        sourceSetBinaryLayout = sourceSetBinaryLayout,
+        sourceSetCInteropMetadataDirectory = sourceSetCInteropMetadataDirectory,
+        sourceSetModuleDependencies = sourceSetModuleDependencies,
+        hostSpecificSourceSets = hostSpecificSourceSets,
+        sourceSetNames = sourceSetNames,
+        isPublishedAsRoot = isPublishedAsRoot
+    )
+}
+
+private fun File.withParentDirectoriesCreated(): File = apply { parentFile.mkdirs() }

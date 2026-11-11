@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Statics.java
 
 public class Statics {
@@ -11,3 +12,5 @@ class A : Statics() {
         foo {}
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaFunction, javaType, lambdaLiteral, samConversion */

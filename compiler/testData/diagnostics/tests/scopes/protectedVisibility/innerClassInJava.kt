@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p1/BaseClass.java
 
 package p1;
@@ -22,3 +23,6 @@ class Foo : BaseClass() {
 
     private val v1: BaseClass.ProtSubClass = ProtSubClass()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaFunction, javaType, propertyDeclaration,
+superExpression */

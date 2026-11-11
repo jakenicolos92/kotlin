@@ -17,12 +17,16 @@
 package org.jetbrains.kotlin.container
 
 import com.intellij.util.containers.ContainerUtil
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.utils.genericParameterTypesWithEnclosingThis
 import java.lang.reflect.*
-import java.util.ArrayList
-import java.util.LinkedHashSet
+import java.util.*
+import java.util.concurrent.ConcurrentHashMap
 
 private object ClassTraversalCache {
-    private val cache = ContainerUtil.createConcurrentWeakKeySoftValueMap<Class<*>, ClassInfo>()
+    private val cache =
+        if (System.getProperty("idea.system.path") != null) ConcurrentHashMap<Class<*>, ClassInfo>()
+        else ContainerUtil.createConcurrentWeakKeySoftValueMap<Class<*>, ClassInfo>()
 
     fun getClassInfo(c: Class<*>): ClassInfo {
         val classInfo = cache.get(c)
@@ -35,10 +39,12 @@ private object ClassTraversalCache {
     }
 }
 
+@K1Deprecation
 fun Class<*>.getInfo(): ClassInfo {
     return ClassTraversalCache.getClassInfo(this)
 }
 
+@K1Deprecation
 data class ClassInfo(
         val constructorInfo: ConstructorInfo?,
         val setterInfos: List<SetterInfo>,
@@ -46,11 +52,13 @@ data class ClassInfo(
         val defaultImplementation: Class<*>?
 )
 
+@K1Deprecation
 data class ConstructorInfo(
         val constructor: Constructor<*>,
         val parameters: List<Type>
 )
 
+@K1Deprecation
 data class SetterInfo(
         val method: Method,
         val parameters: List<Type>
@@ -76,13 +84,11 @@ private fun getConstructorInfo(c: Class<*>): ConstructorInfo? {
     if (Modifier.isAbstract(c.modifiers) || c.isPrimitive)
         return null
 
-    val constructors = c.constructors
-    val hasSinglePublicConstructor = constructors.singleOrNull()?.let { Modifier.isPublic(it.modifiers) } ?: false
-    if (!hasSinglePublicConstructor)
-        return null
+    val publicConstructors = c.constructors.filter { Modifier.isPublic(it.modifiers) && !it.isSynthetic }
+    if (publicConstructors.size != 1) return null
 
-    val constructor = constructors.single()
-    return ConstructorInfo(constructor, constructor.genericParameterTypes.toList())
+    val constructor = publicConstructors.single()
+    return ConstructorInfo(constructor, constructor.genericParameterTypesWithEnclosingThis.toList())
 }
 
 

@@ -14,19 +14,19 @@
  * limitations under the License.
  */
 
-// these functions are used in the kotlin gradle plugin
-@file:Suppress("unused")
-
 package org.jetbrains.kotlin.incremental
 
-import com.intellij.openapi.util.io.FileUtil
-import com.intellij.openapi.util.text.StringUtil
+import com.intellij.openapi.vfs.impl.ZipHandler
+import com.intellij.openapi.vfs.impl.jar.CoreJarFileSystem
+import org.jetbrains.kotlin.CoreEnvironmentDeprecation
 import org.jetbrains.kotlin.build.GeneratedFile
 import org.jetbrains.kotlin.build.GeneratedJvmClass
 import org.jetbrains.kotlin.build.JvmSourceRoot
 import org.jetbrains.kotlin.build.isModuleMappingFile
-import org.jetbrains.kotlin.compilerRunner.OutputItemsCollectorImpl
-import org.jetbrains.kotlin.config.IncrementalCompilation
+import org.jetbrains.kotlin.build.report.ICReporter
+import org.jetbrains.kotlin.build.report.debug
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
+import org.jetbrains.kotlin.cli.jvm.modules.CoreJrtFileSystem
 import org.jetbrains.kotlin.config.Services
 import org.jetbrains.kotlin.incremental.components.LookupTracker
 import org.jetbrains.kotlin.load.kotlin.incremental.components.IncrementalCache
@@ -35,164 +35,160 @@ import org.jetbrains.kotlin.modules.KotlinModuleXmlBuilder
 import org.jetbrains.kotlin.modules.TargetId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.progress.CompilationCanceledStatus
-import org.jetbrains.kotlin.utils.keysToMap
+import org.jetbrains.kotlin.resolve.sam.SAM_LOOKUP_NAME
+import org.jetbrains.kotlin.utils.addToStdlib.flattenTo
 import java.io.File
-import java.util.*
+import java.nio.file.Files
 
+const val DELETE_MODULE_FILE_PROPERTY = "kotlin.delete.module.file.after.build"
 
-fun Iterable<File>.javaSourceRoots(roots: Iterable<File>): Iterable<File> =
-        filter(File::isJavaFile)
-                .map { findSrcDirRoot(it, roots) }
-                .filterNotNull()
-
-fun makeModuleFile(name: String, isTest: Boolean, outputDir: File, sourcesToCompile: Iterable<File>, javaSourceRoots: Iterable<File>, classpath: Iterable<File>, friendDirs: Iterable<File>): File {
+fun makeModuleFile(
+    name: String,
+    isTest: Boolean,
+    outputDir: File,
+    sourcesToCompile: Iterable<File>,
+    commonSources: Iterable<File>,
+    javaSourceRoots: Iterable<JvmSourceRoot>,
+    classpath: Iterable<File>,
+    friendDirs: Iterable<File>,
+    isIncrementalMode: Boolean = true,
+): File {
     val builder = KotlinModuleXmlBuilder()
     builder.addModule(
-            name,
-            outputDir.absolutePath,
-            sourcesToCompile,
-            javaSourceRoots.map { JvmSourceRoot(it) },
-            classpath,
-            null,
-            "java-production",
-            isTest,
-            // this excludes the output directories from the class path, to be removed for true incremental compilation
-            setOf(outputDir),
-            friendDirs
+        name,
+        outputDir.absolutePath,
+        // important to transform file to absolute paths,
+        // otherwise compiler will use module file's parent as base path (a temporary file; see below)
+        // (see org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.getAbsolutePaths)
+        sourcesToCompile.map { it.absoluteFile },
+        javaSourceRoots,
+        classpath,
+        commonSources.map { it.absoluteFile },
+        null,
+        "java-production",
+        isTest,
+        // this excludes the output directories from the class path, to be removed for true incremental compilation
+        setOf(outputDir),
+        friendDirs,
+        isIncrementalMode
     )
 
-    val scriptFile = File.createTempFile("kjps", StringUtil.sanitizeJavaIdentifier(name) + ".script.xml")
-    FileUtil.writeToFile(scriptFile, builder.asText().toString())
+    val scriptFile = Files.createTempFile("kjps", sanitizeJavaIdentifier(name) + ".script.xml").toFile()
+    scriptFile.writeText(builder.asText().toString())
     return scriptFile
 }
 
+private fun sanitizeJavaIdentifier(string: String) =
+    buildString {
+        for (char in string) {
+            if (char.isJavaIdentifierPart()) {
+                if (length == 0 && !char.isJavaIdentifierStart()) {
+                    append('_')
+                }
+                append(char)
+            }
+        }
+    }
+
 fun makeCompileServices(
-        incrementalCaches: Map<TargetId, IncrementalCache>,
-        lookupTracker: LookupTracker,
-        compilationCanceledStatus: CompilationCanceledStatus?
+    incrementalCaches: Map<TargetId, IncrementalCache>,
+    lookupTracker: LookupTracker,
+    compilationCanceledStatus: CompilationCanceledStatus?,
 ): Services =
     with(Services.Builder()) {
-        register(IncrementalCompilationComponents::class.java, 
-                 IncrementalCompilationComponentsImpl(incrementalCaches, lookupTracker))
+        register(LookupTracker::class.java, lookupTracker)
+        register(IncrementalCompilationComponents::class.java, IncrementalCompilationComponentsImpl(incrementalCaches))
         compilationCanceledStatus?.let {
             register(CompilationCanceledStatus::class.java, it)
         }
         build()
     }
 
-fun makeLookupTracker(parentLookupTracker: LookupTracker = LookupTracker.DO_NOTHING): LookupTracker =
-        if (IncrementalCompilation.isExperimental()) LookupTrackerImpl(parentLookupTracker)
-        else parentLookupTracker
-
-fun<Target> makeIncrementalCachesMap(
-        targets: Iterable<Target>,
-        getDependencies: (Target) -> Iterable<Target>,
-        getCache: (Target) -> IncrementalCacheImpl<Target>,
-        getTargetId: Target.() -> TargetId
-): Map<TargetId, IncrementalCacheImpl<Target>>
-{
-    val dependents = targets.keysToMap { hashSetOf<Target>() }
-    val targetsWithDependents = targets.toHashSet()
-
-    for (target in targets) {
-        for (dependency in getDependencies(target)) {
-            if (dependency !in targets) continue
-
-            dependents[dependency]!!.add(target)
-            targetsWithDependents.add(target)
-        }
+fun updateIncrementalCache(
+    generatedFiles: Iterable<GeneratedFile>,
+    cache: IncrementalJvmCache,
+    changesCollector: ChangesCollector,
+    jvmMetadataTracker: ICJvmMetadataTrackerImpl?,
+) {
+    // Store common-fragment metadata before class files: an `expect` declaration and its `actual` share an FqName,
+    // so the platform proto is recorded last.
+    jvmMetadataTracker?.metadataByModule?.forEach { [moduleName, metadata] ->
+        cache.saveMetadataToCache(moduleName, metadata, changesCollector)
     }
 
-    val caches = targetsWithDependents.keysToMap { getCache(it) }
-
-    for ((target, cache) in caches) {
-        dependents[target]?.forEach {
-            cache.addDependentCache(caches[it]!!)
-        }
-    }
-
-    return caches.mapKeys { it.key.getTargetId() }
-}
-
-fun<Target> updateIncrementalCaches(
-        targets: Iterable<Target>,
-        generatedFiles: List<GeneratedFile<Target>>,
-        compiledWithErrors: Boolean,
-        getIncrementalCache: (Target) -> IncrementalCacheImpl<Target>
-): CompilationResult {
-
-    var changesInfo = CompilationResult.NO_CHANGES
     for (generatedFile in generatedFiles) {
-        val ic = getIncrementalCache(generatedFile.target)
         when {
-            generatedFile is GeneratedJvmClass<Target> -> changesInfo += ic.saveFileToCache(generatedFile)
-            generatedFile.outputFile.isModuleMappingFile() -> changesInfo += ic.saveModuleMappingToCache(generatedFile.sourceFiles, generatedFile.outputFile)
+            generatedFile is GeneratedJvmClass -> cache.saveFileToCache(generatedFile, changesCollector)
+            generatedFile.outputFile.isModuleMappingFile() -> cache.saveModuleMappingToCache(
+                generatedFile.sourceFiles,
+                generatedFile.outputFile
+            )
         }
     }
 
-    if (!compiledWithErrors) {
-        targets.forEach {
-            val newChangesInfo = getIncrementalCache(it).clearCacheForRemovedClasses()
-            changesInfo += newChangesInfo
-        }
-    }
-
-    return changesInfo
+    cache.clearCacheForRemovedClasses(changesCollector)
 }
 
 fun LookupStorage.update(
-        lookupTracker: LookupTracker,
-        filesToCompile: Iterable<File>,
-        removedFiles: Iterable<File>
+    lookupTracker: LookupTracker,
+    filesToCompile: Iterable<File>,
+    removedFiles: Iterable<File>,
 ) {
     if (lookupTracker !is LookupTrackerImpl) throw AssertionError("Lookup tracker is expected to be LookupTrackerImpl, got ${lookupTracker::class.java}")
 
     removeLookupsFrom(filesToCompile.asSequence() + removedFiles.asSequence())
 
-    addAll(lookupTracker.lookups.entrySet(), lookupTracker.pathInterner.values)
-}
-
-fun<Target> OutputItemsCollectorImpl.generatedFiles(
-        targets: Collection<Target>,
-        representativeTarget: Target,
-        getSources: (Target) -> Iterable<File>,
-        getOutputDir: (Target) -> File?
-): List<GeneratedFile<Target>> {
-    // If there's only one target, this map is empty: get() always returns null, and the representativeTarget will be used below
-    val sourceToTarget =
-            if (targets.size >1) targets.flatMap { target -> getSources(target).map { Pair(it, target) } }.toMap()
-            else mapOf<File, Target>()
-
-    return outputs.map { outputItem ->
-        val target =
-                outputItem.sourceFiles.firstOrNull()?.let { sourceToTarget[it] } ?:
-                targets.filter { getOutputDir(it)?.let { outputItem.outputFile.startsWith(it) } ?: false }.singleOrNull() ?:
-                representativeTarget
-
-        when (outputItem.outputFile.extension) {
-            "class" -> GeneratedJvmClass(target, outputItem.sourceFiles, outputItem.outputFile)
-            else -> GeneratedFile(target, outputItem.sourceFiles, outputItem.outputFile)
-        }
-    }
+    addAll(lookupTracker.lookups, lookupTracker.pathInterner.values)
 }
 
 data class DirtyData(
-        val dirtyLookupSymbols: Collection<LookupSymbol> = emptyList(),
-        val dirtyClassesFqNames: Collection<FqName> = emptyList()
+    val dirtyLookupSymbols: Collection<LookupSymbol> = emptyList(),
+    val dirtyClassesFqNames: Collection<FqName> = emptyList(),
+    val dirtyClassesFqNamesForceRecompile: Collection<FqName> = emptyList(),
 )
 
-fun <Target> CompilationResult.getDirtyData(
-        caches: Iterable<IncrementalCacheImpl<Target>>,
-        reporter: ICReporter
+/**
+ * Returns changed symbols from the changes collected by this [ChangesCollector].
+ *
+ * If impacted symbols are also needed, use [getChangedAndImpactedSymbols].
+ */
+fun ChangesCollector.getChangedSymbols(reporter: ICReporter): DirtyData {
+    // Caches are used to compute impacted symbols. Set `caches = emptyList()` so that we get changed symbols only, not impacted ones.
+    return changes().getChangedAndImpactedSymbols(caches = emptyList(), reporter)
+}
+
+/**
+ * Returns changed and impacted symbols from the changes collected by this [ChangesCollector].
+ *
+ * For example, if `Subclass` extends `Superclass` and `Superclass` has changed, `Subclass` will be impacted.
+ */
+fun ChangesCollector.getChangedAndImpactedSymbols(
+    caches: Iterable<IncrementalCacheCommon>,
+    reporter: ICReporter,
+): DirtyData {
+    return changes().getChangedAndImpactedSymbols(caches, reporter)
+}
+
+/**
+ * Returns changed and impacted symbols from this list of changes.
+ *
+ * For example, if `Subclass` extends `Superclass` and `Superclass` has changed, `Subclass` will be impacted.
+ */
+fun List<ChangeInfo>.getChangedAndImpactedSymbols(
+    caches: Iterable<IncrementalCacheCommon>,
+    reporter: ICReporter,
 ): DirtyData {
     val dirtyLookupSymbols = HashSet<LookupSymbol>()
     val dirtyClassesFqNames = HashSet<FqName>()
 
-    for (change in changes) {
-        reporter.report { "Process $change" }
+    val sealedParents = HashSet<FqName>()
+
+    for (change in this) {
+        reporter.debug { "Process $change" }
 
         if (change is ChangeInfo.SignatureChanged) {
             val fqNames = if (!change.areSubclassesAffected) listOf(change.fqName) else withSubtypes(change.fqName, caches)
+            dirtyClassesFqNames.addAll(fqNames)
 
             for (classFqName in fqNames) {
                 assert(!classFqName.isRoot) { "$classFqName is root when processing $change" }
@@ -201,82 +197,121 @@ fun <Target> CompilationResult.getDirtyData(
                 val name = classFqName.shortName().identifier
                 dirtyLookupSymbols.add(LookupSymbol(name, scope))
             }
-        }
-        else if (change is ChangeInfo.MembersChanged) {
+        } else if (change is ChangeInfo.MembersChanged) {
             val fqNames = withSubtypes(change.fqName, caches)
             // need to recompile subtypes because changed member might break override
             dirtyClassesFqNames.addAll(fqNames)
 
             for (name in change.names) {
-                for (fqName in fqNames) {
-                    dirtyLookupSymbols.add(LookupSymbol(name, fqName.asString()))
-                }
+                fqNames.mapTo(dirtyLookupSymbols) { LookupSymbol(name, it.asString()) }
+            }
+
+            fqNames.mapTo(dirtyLookupSymbols) { LookupSymbol(SAM_LOOKUP_NAME.asString(), it.asString()) }
+        } else if (change is ChangeInfo.ParentsChanged) {
+            change.parentsChanged.forEach { parent ->
+                sealedParents.addAll(findSealedSupertypes(parent, caches))
             }
         }
     }
-
-    return DirtyData(dirtyLookupSymbols, dirtyClassesFqNames)
+    reporter.reportProcessedChanges(
+        dirtyLookupSymbols.map { Pair(it.scope, it.name) },
+        dirtyClassesFqNames.map { it.asString() },
+        sealedParents.map { it.asString() }
+    )
+    return DirtyData(dirtyLookupSymbols, dirtyClassesFqNames, sealedParents)
 }
 
 fun mapLookupSymbolsToFiles(
-        lookupStorage: LookupStorage,
-        lookupSymbols: Iterable<LookupSymbol>,
-        reporter: ICReporter,
-        excludes: Set<File> = emptySet()
+    lookupStorage: LookupStorage,
+    lookupSymbols: Iterable<LookupSymbol>,
+    reporter: ICReporter,
+    excludes: Set<File> = emptySet(),
 ): Set<File> {
     val dirtyFiles = HashSet<File>()
 
     for (lookup in lookupSymbols) {
         val affectedFiles = lookupStorage.get(lookup).map(::File).filter { it !in excludes }
-        reporter.report { "${lookup.scope}#${lookup.name} caused recompilation of: ${reporter.pathsAsString(affectedFiles)}" }
+        reporter.reportMarkDirtyMember(affectedFiles, scope = lookup.scope, name = lookup.name)
         dirtyFiles.addAll(affectedFiles)
     }
 
     return dirtyFiles
 }
 
-fun <Target> mapClassesFqNamesToFiles(
-        caches: Iterable<IncrementalCacheImpl<Target>>,
-        classesFqNames: Iterable<FqName>,
-        reporter: ICReporter,
-        excludes: Set<File> = emptySet()
+fun mapClassesFqNamesToFiles(
+    caches: Iterable<IncrementalCacheCommon>,
+    classesFqNames: Iterable<FqName>,
+    reporter: ICReporter,
+    excludes: Set<File> = emptySet(),
 ): Set<File> {
-    val dirtyFiles = HashSet<File>()
+    val fqNameToAffectedFiles = HashMap<FqName, MutableSet<File>>()
 
     for (cache in caches) {
-        for (dirtyClassFqName in classesFqNames) {
-            val srcFile = cache.getSourceFileIfClass(dirtyClassFqName)
-            if (srcFile == null || srcFile in excludes) continue
+        for (classFqName in classesFqNames) {
+            val srcFile = cache.getSourceFileIfClass(classFqName)
+            if (srcFile == null || srcFile in excludes || srcFile.isJavaFile()) continue
 
-            reporter.report { ("Class $dirtyClassFqName caused recompilation of: ${reporter.pathsAsString(srcFile)}") }
-            dirtyFiles.add(srcFile)
+            fqNameToAffectedFiles.getOrPut(classFqName) { HashSet() }.add(srcFile)
         }
     }
 
-    return dirtyFiles
-}
-
-private fun findSrcDirRoot(file: File, roots: Iterable<File>): File? =
-        roots.firstOrNull { FileUtil.isAncestor(it, file, false) }
-
-fun <Target> withSubtypes(
-        typeFqName: FqName,
-        caches: Iterable<IncrementalCacheImpl<Target>>
-): Set<FqName> {
-    val types = LinkedList(listOf(typeFqName))
-    val subtypes = hashSetOf<FqName>()
-
-    while (types.isNotEmpty()) {
-        val unprocessedType = types.pollFirst()
-
-        caches.asSequence()
-              .flatMap { it.getSubtypesOf(unprocessedType) }
-              .filter { it !in subtypes }
-              .forEach { types.addLast(it) }
-
-        subtypes.add(unprocessedType)
+    for ([classFqName, affectedFiles] in fqNameToAffectedFiles) {
+        reporter.reportMarkDirtyClass(affectedFiles, classFqName.asString())
     }
 
-    return subtypes
+    return fqNameToAffectedFiles.values.flattenTo(HashSet())
 }
 
+fun isSealed(
+    fqName: FqName,
+    caches: Iterable<IncrementalCacheCommon>,
+): Boolean = caches.any { cache -> cache.isSealed(fqName) ?: false }
+
+/**
+ * Finds sealed supertypes of class in same module.
+ * This method should be used for processing freedomOsSealedClasses feature, because
+ * mutually declared list of sealed subclasses could be declared only in the same module.
+ */
+fun findSealedSupertypes(
+    fqName: FqName,
+    caches: Iterable<IncrementalCacheCommon>,
+): Collection<FqName> {
+    if (isSealed(fqName, caches)) {
+        return listOf(fqName)
+    }
+    return caches.flatMap { cache -> cache.getSupertypesOf(fqName).filter { cache.isSealed(it) ?: false } }
+}
+
+fun withSubtypes(
+    typeFqName: FqName,
+    caches: Iterable<IncrementalCacheCommon>,
+): Set<FqName> {
+    val typesToProccess = LinkedHashSet(listOf(typeFqName))
+    val proccessedTypes = hashSetOf<FqName>()
+
+
+    while (typesToProccess.isNotEmpty()) {
+        val iterator = typesToProccess.iterator()
+        val unprocessedType = iterator.next()
+        iterator.remove()
+
+        caches.asSequence()
+            .flatMap { it.getSubtypesOf(unprocessedType) }
+            .filter { it !in proccessedTypes }
+            .forEach { typesToProccess.add(it) }
+
+        proccessedTypes.add(unprocessedType)
+    }
+
+    return proccessedTypes
+}
+
+fun clearJarCaches() {
+    ZipHandler.clearFileAccessorCache()
+    @OptIn(CoreEnvironmentDeprecation::class)
+    KotlinCoreEnvironment.applicationEnvironment?.apply {
+        (jarFileSystem as? CoreJarFileSystem)?.clearHandlersCache()
+        (jrtFileSystem as? CoreJrtFileSystem)?.clearRoots()
+        idleCleanup()
+    }
+}

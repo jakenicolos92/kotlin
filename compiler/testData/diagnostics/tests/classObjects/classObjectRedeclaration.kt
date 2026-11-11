@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -DUPLICATE_CLASS_NAMES
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -DUPLICATE_CLASS_NAMES
 package test
 
 class A {
@@ -18,3 +19,5 @@ class C {
 
     companion object <!REDECLARATION!>Named<!>
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, nestedClass, objectDeclaration */

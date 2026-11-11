@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun test(name: String?) {
     try {
         name?.let {
@@ -8,3 +9,5 @@ fun test(name: String?) {
         name?.hashCode()
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, lambdaLiteral, nullableType, safeCall, tryExpression */

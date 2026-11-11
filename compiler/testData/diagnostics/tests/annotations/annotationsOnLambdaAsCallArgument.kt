@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 @Target(AnnotationTarget.EXPRESSION)
 @Retention(AnnotationRetention.SOURCE)
 @Repeatable
@@ -13,7 +14,10 @@ fun foo() {
         return@l1 103
     }
 
-    bar @Ann(<!TYPE_MISMATCH!>""<!>) {
+    bar @Ann(<!ARGUMENT_TYPE_MISMATCH!>""<!>) {
         104
     }
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, functionDeclaration, functionalType, inline, integerLiteral, lambdaLiteral,
+primaryConstructor, propertyDeclaration, stringLiteral */

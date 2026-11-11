@@ -1,0 +1,18 @@
+fun interface KRunnable {
+  abstract fun run()
+
+}
+
+fun test(fn: Function0<String>) {
+  useKRunnable(r = Function0<Unit>(
+    /* bound = */ [fn],
+    /* invoke = */    local fun($callee: Function0<String>) {
+      $callee.invoke()
+    }
+  )
+ /*-> KRunnable */)
+}
+
+fun useKRunnable(r: KRunnable) {
+}
+

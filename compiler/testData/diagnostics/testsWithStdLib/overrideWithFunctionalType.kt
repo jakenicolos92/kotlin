@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Derived.java
 import kotlin.jvm.functions.Function0;
 import org.jetbrains.annotations.NotNull;
@@ -12,6 +13,9 @@ interface Base {
     fun <V: Any> foo(compute: () -> V?)
 }
 
-fun main(args: Array<String>) {
+fun main() {
     Derived().foo<String> { "" }
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, functionalType, interfaceDeclaration, javaFunction, javaType,
+lambdaLiteral, nullableType, stringLiteral, typeConstraint, typeParameter */

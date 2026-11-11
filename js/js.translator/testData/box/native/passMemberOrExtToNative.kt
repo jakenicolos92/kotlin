@@ -1,5 +1,6 @@
+// IGNORE_BACKEND: JS_IR, JS_IR_ES6
 // TODO: Unmute when extension functions are supported in external declarations.
-// IGNORE_BACKEND: JS
+// IGNORE_BACKEND: WASM_JS
 
 package foo
 

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class Test {
     private fun <T : Any> T.self() = object {
         fun bar(): T {
@@ -20,6 +21,9 @@ class Foo<R> {
 
     fun test() {
         Foo<Int>().bar<String>().baz().getR(1)
-        Foo<Int>().bar<String>().baz().getR(<!TYPE_MISMATCH!>""<!>)
+        Foo<Int>().bar<String>().baz().getR(<!ARGUMENT_TYPE_MISMATCH!>""<!>)
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, anonymousObjectExpression, classDeclaration, funWithExtensionReceiver,
+functionDeclaration, integerLiteral, nullableType, stringLiteral, thisExpression, typeConstraint, typeParameter */

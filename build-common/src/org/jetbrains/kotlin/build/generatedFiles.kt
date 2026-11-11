@@ -17,22 +17,29 @@
 package org.jetbrains.kotlin.build
 
 import org.jetbrains.kotlin.incremental.LocalFileKotlinClass
-import org.jetbrains.kotlin.load.kotlin.ModuleMapping
+import org.jetbrains.kotlin.metadata.deserialization.MetadataVersion
+import org.jetbrains.kotlin.metadata.jvm.deserialization.ModuleMapping
 import org.jetbrains.kotlin.utils.sure
 import java.io.File
 
-open class GeneratedFile<Target>(
-        val target: Target,
-        val sourceFiles: Collection<File>,
-        val outputFile: File
-)
+open class GeneratedFile @JvmOverloads constructor(
+    sourceFiles: Collection<File>,
+    val outputFile: File,
+    compilerGeneratedSyntheticSources: Set<File> = emptySet(),
+) {
+    // Plugin-generated sources don't exist on disk, but IC still needs them as owners to notice when generated declarations change.
+    val sourceFiles = sourceFiles.filter { it.exists() || it in compilerGeneratedSyntheticSources }.sortedBy { it.path }
 
-class GeneratedJvmClass<Target> (
-        target: Target,
-        sourceFiles: Collection<File>,
-        outputFile: File
-) : GeneratedFile<Target>(target, sourceFiles, outputFile) {
-    val outputClass = LocalFileKotlinClass.create(outputFile).sure {
+    override fun toString(): String = "${this::class.java.simpleName}: $outputFile"
+}
+
+class GeneratedJvmClass(
+    sourceFiles: Collection<File>,
+    outputFile: File,
+    metadataVersionFromLanguageVersion: MetadataVersion,
+    compilerGeneratedSyntheticSources: Set<File> = emptySet(),
+) : GeneratedFile(sourceFiles, outputFile, compilerGeneratedSyntheticSources) {
+    val outputClass = LocalFileKotlinClass.create(outputFile, metadataVersionFromLanguageVersion).sure {
         "Couldn't load KotlinClass from $outputFile; it may happen because class doesn't have valid Kotlin annotations"
     }
 }

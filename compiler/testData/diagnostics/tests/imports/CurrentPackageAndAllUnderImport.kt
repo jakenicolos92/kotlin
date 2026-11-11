@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: a.kt
 package a
 
@@ -14,3 +15,5 @@ package b
 import a.*
 
 class Y : X() // class from the current package should take priority
+
+/* GENERATED_FIR_TAGS: classDeclaration */

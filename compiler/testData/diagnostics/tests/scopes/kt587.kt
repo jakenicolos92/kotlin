@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-587 Unresolved reference
 
 class Main {
@@ -9,3 +10,6 @@ class Main {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, nestedClass, objectDeclaration, primaryConstructor,
+propertyDeclaration */

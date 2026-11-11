@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: JavaInterface.java
 
 public interface JavaInterface {
@@ -16,3 +17,5 @@ interface SubtraitWithFakeOverride : JavaInterface
 class Subclass : SubtraitWithFakeOverride {
     override fun foo(otherKotlinName: Int) {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, javaType, override */

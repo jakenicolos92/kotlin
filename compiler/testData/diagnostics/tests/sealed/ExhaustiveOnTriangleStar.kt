@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 sealed class A
 sealed class B : A()
 
@@ -22,3 +23,6 @@ fun test3(a: A): Any {
         is D -> ""
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, isExpression, sealed, smartcast, stringLiteral,
+whenExpression, whenWithSubject */

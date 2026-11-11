@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Foo {}
 
 operator fun Foo.invoke() {}
@@ -59,3 +60,6 @@ fun test(d: D, c: C) {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, getter, interfaceDeclaration,
+lambdaLiteral, operator, propertyDeclaration, propertyWithExtensionReceiver */

@@ -1,4 +1,6 @@
-// WITH_RUNTIME
+// WITH_STDLIB
+// DUMP_IR_DIFFERENCE: JVM
+//  JVM invokes `print (message: kotlin.Int)` instead of `print (message: kotlin.Any?)`
 
 fun test0() {
     run {
@@ -15,6 +17,16 @@ fun test1() {
 fun test2() {
     run lambda@{
         return@lambda
+    }
+}
+
+// TODO we don't see 'return@lambda' inside internal lambda when we analyze an external lambda,
+// so type information from NI is actually incorrect, see KT-18392
+fun test3() {
+    run lambda@{
+        run {
+            return@lambda
+        }
     }
 }
 

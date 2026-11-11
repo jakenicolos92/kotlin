@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package test
 
 import java.lang.annotation.RetentionPolicy
@@ -33,6 +34,10 @@ annotation class Ann8(val p1: Array<String>,
                       val p3: Array<MyEnum>,
                       val p4: Array<Ann1>)
 
+annotation class Ann9(
+        val error: <!UNRESOLVED_REFERENCE!>Unresolved<!> = <!UNRESOLVED_REFERENCE!>Unresolved<!>.VALUE
+)
+
 
 // INCORRECT
 annotation class InAnn1(val p1: <!NULLABLE_TYPE_OF_ANNOTATION_MEMBER!>Int?<!>,
@@ -65,8 +70,16 @@ annotation class InAnn13(<!MULTIPLE_VARARG_PARAMETERS!>vararg<!> val p1: String,
                         <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> val p4: Ann1,
                         <!MULTIPLE_VARARG_PARAMETERS!>vararg<!> val p5: Int)
 
+annotation class InAnn14(<!INVALID_TYPE_OF_ANNOTATION_MEMBER, VALUE_PARAMETER_WITHOUT_EXPLICIT_TYPE!>vararg val value<!SYNTAX!><!> = [1.0, 2.2]<!>)
+annotation class InAnn15(<!INVALID_TYPE_OF_ANNOTATION_MEMBER, VALUE_PARAMETER_WITHOUT_EXPLICIT_TYPE!>vararg val value<!SYNTAX!><!> = [1, 2]<!>)
+annotation class InAnn16(<!INVALID_TYPE_OF_ANNOTATION_MEMBER, VALUE_PARAMETER_WITHOUT_EXPLICIT_TYPE!>vararg val value<!SYNTAX!><!> = ["alpha", "beta"]<!>)
+
 enum class MyEnum {
     A
 }
 
 class MyClass
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration, collectionLiteral, enumDeclaration, enumEntry,
+integerLiteral, nullableType, outProjection, primaryConstructor, propertyDeclaration, starProjection, stringLiteral,
+vararg */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 import java.lang.annotation.RetentionPolicy
 
 enum class E {
@@ -12,3 +13,5 @@ val b: Enum<RetentionPolicy> = RetentionPolicy.RUNTIME
 
 // Test deserialized resolve
 val c: Enum<AnnotationTarget> = AnnotationTarget.CLASS
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, javaProperty, propertyDeclaration */

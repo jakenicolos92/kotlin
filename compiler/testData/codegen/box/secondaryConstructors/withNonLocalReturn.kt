@@ -1,14 +1,13 @@
-// TODO enable for JS backend too when KT-14549 will be fixed
-// IGNORE_BACKEND: JS
+// FILE: lib.kt
+inline fun run2(block: () -> Unit) = block()
 
-inline fun run(block: () -> Unit) = block()
-
+// FILE: main.kt
 class A {
     val prop: Int
     constructor(arg: Boolean) {
         if (arg) {
             prop = 1
-            run { return }
+            run2 { return }
             throw RuntimeException("fail 0")
         }
         prop = 2

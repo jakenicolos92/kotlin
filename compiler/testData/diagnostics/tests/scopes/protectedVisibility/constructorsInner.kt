@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 open class Outer {
     inner open class A protected constructor(x: Int) {
         protected constructor() : this(1)
@@ -17,3 +18,4 @@ open class Outer {
     }
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, inner, integerLiteral, primaryConstructor, secondaryConstructor, stringLiteral */

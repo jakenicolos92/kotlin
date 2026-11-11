@@ -1,10 +1,13 @@
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
 
-// WITH_RUNTIME
+// WITH_STDLIB
 // This is a big, ugly, semi-auto generated test.
 // Use corresponding 'Small' test for debug.
 
+// NO_CHECK_LAMBDA_INLINING
+// FILE: lib.kt
 import kotlin.test.*
 
 fun fn0() {}
@@ -45,6 +48,7 @@ inline fun asSucceeds(operation: String, block: () -> Unit) {
     block()
 }
 
+// FILE: main.kt
 interface TestFnBase {
     fun testGood(x: Any)
     fun testBad(x: Any)

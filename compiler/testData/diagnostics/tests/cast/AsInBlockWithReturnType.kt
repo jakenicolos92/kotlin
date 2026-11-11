@@ -1,16 +1,17 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun runWithoutReturn(r: () -> Unit) = r()
 
 fun testRun() {
     run {
-        1 <!USELESS_CAST!>as Any<!>
+        1 as Any
         1 as Any
     }
 
     run<Any> {
-        1 <!USELESS_CAST!>as Any<!>
-        1 <!USELESS_CAST!>as Any<!>
+        1 as Any
+        1 as Any
     }
 
     fun foo(): Int = 1
@@ -24,24 +25,24 @@ fun testRun() {
     }
 
     run<Int?> {
-        1 <!USELESS_CAST!>as Int<!>
-        1 <!USELESS_CAST!>as Int<!>
+        1 <!INTEGER_LITERAL_CAST_INSTEAD_OF_TO_CALL!>as Int<!>
+        1 <!INTEGER_LITERAL_CAST_INSTEAD_OF_TO_CALL!>as Int<!>
     }
 
     runWithoutReturn {
-        1 <!USELESS_CAST!>as Any<!>
-        1 <!USELESS_CAST!>as Any<!>
+        1 as Any
+        1 as Any
     }
 }
 
 fun testReturn(): Number {
     run { 1 as Number }
-    return run { 1 <!USELESS_CAST!>as Number<!> }
+    return run { 1 as Number }
 }
 
 fun <T> testDependent() {
     listOf(1).map {
-        it <!USELESS_CAST!>as Any<!>
+        it as Any
         it as Any
     }
 
@@ -50,3 +51,6 @@ fun <T> testDependent() {
 
 fun <T> listOf(vararg elements: T): List<T> = TODO()
 fun <T, R> Iterable<T>.map(transform: (T) -> R): List<R> = TODO()
+
+/* GENERATED_FIR_TAGS: asExpression, funWithExtensionReceiver, functionDeclaration, functionalType, ifExpression,
+integerLiteral, lambdaLiteral, localFunction, nullableType, typeParameter, vararg */

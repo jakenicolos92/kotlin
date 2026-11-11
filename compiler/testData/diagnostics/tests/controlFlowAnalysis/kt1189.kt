@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-1189 StackOverflow in ide
 package kt1189
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -36,3 +37,7 @@ fun foo() {
         for (i in 1..10) {}
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, comparisonExpression, equalityExpression, flexibleType, forLoop,
+funWithExtensionReceiver, functionDeclaration, functionalType, ifExpression, inline, integerLiteral, javaFunction,
+localProperty, nullableType, propertyDeclaration, rangeExpression, tryExpression, typeParameter */

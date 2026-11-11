@@ -1,11 +1,13 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 // FILE: A.java
 
 import java.util.*;
 
 class A<T> {
 
-    void foo(T x)
+    void foo(T x) {}
 
     public class Inner<E> {
         Inner(E x0, T x, List<T> y) {}
@@ -32,3 +34,5 @@ fun main() {
     rawInner.bar().foo("")
 }
 
+/* GENERATED_FIR_TAGS: checkNotNullCall, flexibleType, functionDeclaration, javaProperty, javaType, localProperty,
+propertyDeclaration, stringLiteral */

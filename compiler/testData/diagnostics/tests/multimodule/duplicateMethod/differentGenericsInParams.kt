@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNNECESSARY_SAFE_CALL
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNNECESSARY_SAFE_CALL -SAFE_CALL_WILL_CHANGE_NULLABILITY
 
 // MODULE: m0
 // FILE: a.kt
@@ -41,3 +42,6 @@ fun test(b: B?) {
         b?.<!OVERLOAD_RESOLUTION_AMBIGUITY!>foo<!>(null, null)
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, ifExpression, interfaceDeclaration, isExpression, nullableType,
+outProjection, override, safeCall, smartcast, typeParameter */

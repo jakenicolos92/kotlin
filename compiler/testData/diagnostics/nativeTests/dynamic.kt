@@ -1,0 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// IGNORE_FIR_DIAGNOSTICS
+
+fun test(a: <!UNSUPPORTED!>dynamic<!>) = a

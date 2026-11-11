@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNNECESSARY_SAFE_CALL
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNNECESSARY_SAFE_CALL
 
 // MODULE: m1
 // FILE: a.kt
@@ -31,6 +32,9 @@ import p.*
 
 fun test(b: B?) {
     if (b is C) {
-        <!DEBUG_INFO_SMARTCAST!>b<!>?.getParent()
+        b?.getParent()
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, ifExpression, interfaceDeclaration, isExpression, nullableType, override,
+safeCall, smartcast */

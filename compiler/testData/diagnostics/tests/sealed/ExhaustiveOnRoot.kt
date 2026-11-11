@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 sealed class Stmt
 
 class ForStmt : Stmt()
@@ -9,7 +10,7 @@ sealed class Expr : Stmt() {
 fun test(x: Stmt): String =
         when (x) {
             is Expr -> "expr"
-            <!USELESS_IS_CHECK!>is Stmt<!> -> "stmt"
+            is Stmt -> "stmt"
         }
 
 fun test2(x: Stmt): String =
@@ -21,3 +22,6 @@ fun test3(x: Expr): String =
         when (x) {
             <!USELESS_IS_CHECK!>is Stmt<!> -> "stmt"
         }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, isExpression, nestedClass, objectDeclaration, sealed,
+smartcast, stringLiteral, whenExpression, whenWithSubject */

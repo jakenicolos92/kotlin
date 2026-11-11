@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 import org.jetbrains.annotations.*;
@@ -41,3 +42,5 @@ interface C3 : B1 {
     // inconsistent override
     <!NOTHING_TO_OVERRIDE!>override<!> fun foo(x: String?, y: String?);
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, javaType, nullableType, override */

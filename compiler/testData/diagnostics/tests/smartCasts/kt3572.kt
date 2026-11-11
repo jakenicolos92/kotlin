@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface Printer {
     fun print()
 }
@@ -15,3 +16,6 @@ fun main(m: MyClass) {
         m.printer.print()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, interfaceDeclaration, isExpression, override,
+primaryConstructor, propertyDeclaration, smartcast */

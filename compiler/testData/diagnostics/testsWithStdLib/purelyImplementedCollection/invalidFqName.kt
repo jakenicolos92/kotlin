@@ -1,7 +1,9 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 // FILE: A.java
-import java.util.*
+import java.util.*;
 
 @kotlin.jvm.PurelyImplements("")
 public class A<T> extends AbstractList<T> {
@@ -17,7 +19,7 @@ public class A<T> extends AbstractList<T> {
 }
 
 // FILE: B.java
-import java.util.*
+import java.util.*;
 
 @kotlin.jvm.PurelyImplements("[INVALID]")
 public class B<T> extends AbstractList<T> {}
@@ -25,3 +27,5 @@ public class B<T> extends AbstractList<T> {}
 // FILE: main.kt
 val x = A<String>()
 val y = B<String>()
+
+/* GENERATED_FIR_TAGS: flexibleType, javaFunction, javaType, propertyDeclaration */

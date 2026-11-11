@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface A {
     fun foo(a1: Int, a2: Double)
 }
@@ -12,3 +13,5 @@ fun test(d: C) {
     d.foo(a1 = 1, a2 = 1.0)
     d.foo(b1 = 1, b2 = "")
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, interfaceDeclaration, stringLiteral */

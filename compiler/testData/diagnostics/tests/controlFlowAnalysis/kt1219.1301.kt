@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-1219 Incorrect 'unused value' error in closures
 
 package kt1219
@@ -23,3 +24,7 @@ fun <T> Iterable<T>.foreach(operation: (element: T) -> Unit) {
   for (elem in this)
     operation(elem)
 }
+
+/* GENERATED_FIR_TAGS: assignment, flexibleType, forLoop, funWithExtensionReceiver, functionDeclaration, functionalType,
+integerLiteral, javaFunction, javaProperty, lambdaLiteral, localFunction, localProperty, nullableType,
+propertyDeclaration, thisExpression, typeParameter */

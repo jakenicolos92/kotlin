@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/A.java
 
 package p;
@@ -28,3 +30,5 @@ import p.*
 abstract class K: C() {
 
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, javaType */

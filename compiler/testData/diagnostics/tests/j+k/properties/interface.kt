@@ -1,3 +1,6 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -CAN_BE_REPLACED_WITH_OPERATOR_ASSIGNMENT
 // FILE: A.java
 
 public interface A extends B {
@@ -29,4 +32,5 @@ fun foo() {
     D().foo = D().foo + 2
 }
 
-
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, classDeclaration, functionDeclaration, integerLiteral,
+interfaceDeclaration, javaFunction, javaProperty, javaType, override, propertyDeclaration */

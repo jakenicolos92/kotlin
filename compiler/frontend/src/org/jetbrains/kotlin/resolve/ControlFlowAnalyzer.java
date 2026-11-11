@@ -24,7 +24,9 @@ import org.jetbrains.kotlin.config.LanguageVersionSettings;
 import org.jetbrains.kotlin.descriptors.PropertyAccessorDescriptor;
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor;
 import org.jetbrains.kotlin.descriptors.SimpleFunctionDescriptor;
+import org.jetbrains.kotlin.incremental.components.EnumWhenTracker;
 import org.jetbrains.kotlin.psi.*;
+import org.jetbrains.kotlin.resolve.checkers.PlatformDiagnosticSuppressor;
 import org.jetbrains.kotlin.types.KotlinType;
 
 import java.util.Map;
@@ -32,16 +34,27 @@ import java.util.Map;
 import static org.jetbrains.kotlin.types.TypeUtils.NO_EXPECTED_TYPE;
 
 public class ControlFlowAnalyzer {
-    @NotNull private final BindingTrace trace;
-    @NotNull private final KotlinBuiltIns builtIns;
-    @NotNull private final LanguageVersionSettings languageVersionSettings;
+    private final BindingTrace trace;
+    private final KotlinBuiltIns builtIns;
+    private final LanguageVersionSettings languageVersionSettings;
+    private final PlatformDiagnosticSuppressor diagnosticSuppressor;
+    private final ControlFlowInformationProvider.Factory controlFlowInformationProviderFactory;
+    private final EnumWhenTracker enumWhenTracker;
 
     public ControlFlowAnalyzer(
-            @NotNull BindingTrace trace, @NotNull KotlinBuiltIns builtIns, @NotNull LanguageVersionSettings languageVersionSettings
+            @NotNull BindingTrace trace,
+            @NotNull KotlinBuiltIns builtIns,
+            @NotNull LanguageVersionSettings languageVersionSettings,
+            @NotNull PlatformDiagnosticSuppressor diagnosticSuppressor,
+            @NotNull ControlFlowInformationProvider.Factory controlFlowInformationProviderFactory,
+            @NotNull EnumWhenTracker enumWhenTracker
     ) {
         this.trace = trace;
         this.builtIns = builtIns;
         this.languageVersionSettings = languageVersionSettings;
+        this.diagnosticSuppressor = diagnosticSuppressor;
+        this.controlFlowInformationProviderFactory = controlFlowInformationProviderFactory;
+        this.enumWhenTracker = enumWhenTracker;
     }
 
     public void process(@NotNull BodiesResolveContext c) {
@@ -74,7 +87,9 @@ public class ControlFlowAnalyzer {
 
     private void checkSecondaryConstructor(@NotNull KtSecondaryConstructor constructor) {
         ControlFlowInformationProvider controlFlowInformationProvider =
-                new ControlFlowInformationProvider(constructor, trace, languageVersionSettings);
+                controlFlowInformationProviderFactory.createControlFlowInformationProvider(
+                        constructor, trace, languageVersionSettings, diagnosticSuppressor, enumWhenTracker
+                );
         controlFlowInformationProvider.checkDeclaration();
         controlFlowInformationProvider.checkFunction(builtIns.getUnitType());
     }
@@ -83,7 +98,9 @@ public class ControlFlowAnalyzer {
         // A pseudocode of class/object initialization corresponds to a class/object
         // or initialization of properties corresponds to a package declared in a file
         ControlFlowInformationProvider controlFlowInformationProvider =
-                new ControlFlowInformationProvider((KtElement) declarationContainer, trace, languageVersionSettings);
+                controlFlowInformationProviderFactory.createControlFlowInformationProvider(
+                        (KtElement) declarationContainer, trace, languageVersionSettings, diagnosticSuppressor, enumWhenTracker
+                );
         if (c.getTopDownAnalysisMode().isLocalDeclarations()) {
             controlFlowInformationProvider.checkForLocalClassOrObjectMode();
             return;
@@ -102,9 +119,13 @@ public class ControlFlowAnalyzer {
         }
     }
 
-    private void checkFunction(@NotNull BodiesResolveContext c, @NotNull KtDeclarationWithBody function, @Nullable KotlinType expectedReturnType) {
+    private void checkFunction(
+            @NotNull BodiesResolveContext c, @NotNull KtDeclarationWithBody function, @Nullable KotlinType expectedReturnType
+    ) {
         ControlFlowInformationProvider controlFlowInformationProvider =
-                new ControlFlowInformationProvider(function, trace, languageVersionSettings);
+                controlFlowInformationProviderFactory.createControlFlowInformationProvider(
+                        function, trace, languageVersionSettings, diagnosticSuppressor, enumWhenTracker
+                );
         if (c.getTopDownAnalysisMode().isLocalDeclarations()) {
             controlFlowInformationProvider.checkForLocalClassOrObjectMode();
             return;

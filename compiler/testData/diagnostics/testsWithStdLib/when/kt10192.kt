@@ -1,6 +1,7 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun test1() {
     if (true) {
-        when (true) {
+        <!NO_ELSE_IN_WHEN!>when<!> (true) {
             true -> println()
         }
     } else {
@@ -11,10 +12,13 @@ fun test1() {
 fun test2() {
     val mlist = arrayListOf("")
     if (true) {
-        when (true) {
+        <!NO_ELSE_IN_WHEN!>when<!> (true) {
             true -> println()
         }
     } else {
         mlist.add("") // kotlin.Boolean
     }
 }
+
+/* GENERATED_FIR_TAGS: equalityExpression, flexibleType, functionDeclaration, ifExpression, javaFunction, javaProperty,
+localProperty, nullableType, propertyDeclaration, safeCall, stringLiteral, whenExpression, whenWithSubject */

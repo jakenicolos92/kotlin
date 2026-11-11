@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun foo(numbers: Collection<Int>) {
     for (i in numbers) {
         val b: Boolean
@@ -13,3 +14,6 @@ fun foo(numbers: Collection<Int>) {
 }
 
 fun use(vararg a: Any?) = a
+
+/* GENERATED_FIR_TAGS: assignment, comparisonExpression, continue, forLoop, functionDeclaration, ifExpression,
+integerLiteral, localProperty, nullableType, outProjection, propertyDeclaration, vararg */

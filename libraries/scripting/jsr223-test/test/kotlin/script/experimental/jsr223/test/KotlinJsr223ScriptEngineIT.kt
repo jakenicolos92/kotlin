@@ -1,0 +1,898 @@
+/*
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package kotlin.script.experimental.jsr223.test
+
+import com.intellij.openapi.util.io.toCanonicalPath
+import org.jetbrains.kotlin.cli.common.arguments.K2JVMCompilerArguments
+import org.jetbrains.kotlin.cli.common.arguments.cliArgument
+import org.jetbrains.kotlin.cli.common.environment.setIdeaIoUseFallback
+import org.jetbrains.kotlin.cli.jvm.K2JVMCompiler
+import org.jetbrains.kotlin.config.KotlinCompilerVersion
+import org.jetbrains.kotlin.scripting.test.runAndCheckResults
+import org.jetbrains.kotlin.test.util.KtTestUtil
+import org.jetbrains.kotlin.utils.PathUtil
+import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+import org.junit.jupiter.api.fail
+import java.io.File
+import java.lang.management.ManagementFactory
+import java.nio.file.Files.createTempDirectory
+import java.nio.file.Files.createTempFile
+import javax.script.*
+import kotlin.io.path.writeLines
+import kotlin.script.experimental.api.hostConfiguration
+import kotlin.script.experimental.api.with
+import kotlin.script.experimental.host.ScriptingHostConfiguration
+import kotlin.script.experimental.host.with
+import kotlin.script.experimental.jsr223.KotlinJsr223DefaultScript
+import kotlin.script.experimental.jvm.jsr223.base.ScriptArgsWithTypes
+import kotlin.script.experimental.jvm.jsr223.hasPublicKotlinVisibility
+import kotlin.script.experimental.jvm.jsr223.jsr223
+import kotlin.script.experimental.jvm.jvm
+import kotlin.script.experimental.jvm.updateClasspath
+import kotlin.script.experimental.jvm.util.scriptCompilationClasspathFromContext
+import kotlin.script.experimental.jvmhost.createJvmScriptDefinitionFromTemplate
+import kotlin.script.experimental.jvmhost.jsr223.KotlinJsr223ScriptEngineImpl
+import kotlin.script.experimental.templates.ScriptWithBindings
+
+// duplicating it here to avoid dependency on the implementation - it may interfere with tests
+private const val KOTLIN_JSR223_RESOLVE_FROM_CLASSLOADER_PROPERTY = "kotlin.jsr223.experimental.resolve.dependencies.from.context.classloader"
+
+@Suppress("unused") // accessed from the tests below
+val shouldBeVisibleFromRepl = 7
+
+@Suppress("unused") // accessed from the tests below
+fun callLambda(x: Int, aFunction: (Int) -> Int): Int = aFunction.invoke(x)
+
+@Suppress("unused") // accessed from the tests below
+inline fun inlineCallLambda(x: Int, aFunction: (Int) -> Int): Int = aFunction.invoke(x)
+
+@Suppress("unused", "UNCHECKED_CAST") // accessed from the tests below
+fun ScriptWithBindings.myFunFromBindings(n: Int): Int =
+    (bindings["myFunFromBindings"] as (Int) -> Int).invoke(n)
+
+// Bound as values in the tests below, exposed to the snippets as typed properties
+interface Jsr223TestService {
+    fun answer(): Int
+}
+
+interface Jsr223OtherTestService {
+    fun other(): Int
+}
+
+open class Jsr223TestBase {
+    val base: Int get() = 10
+}
+
+class Jsr223PublicTestValue(val x: Int)
+
+class Jsr223PublicTestService : Jsr223TestService {
+    override fun answer(): Int = 5
+    val extra: Int get() = 6
+}
+
+internal class Jsr223InternalTestService : Jsr223TestService {
+    override fun answer(): Int = 42
+}
+
+internal class Jsr223InternalTestDerived : Jsr223TestBase()
+
+internal class Jsr223InternalTestMultiService : Jsr223TestService, Jsr223OtherTestService {
+    override fun answer(): Int = 1
+    override fun other(): Int = 2
+}
+
+internal interface Jsr223InternalTestInterface : Jsr223TestService
+
+internal class Jsr223InternalTestInterfaceImpl : Jsr223InternalTestInterface {
+    override fun answer(): Int = 3
+}
+
+open class Jsr223TestNestedHolder {
+    private class PrivateService : Jsr223TestService {
+        override fun answer(): Int = 4
+    }
+
+    protected class ProtectedDerived : Jsr223TestBase()
+
+    companion object {
+        fun privateService(): Any = PrivateService()
+        fun protectedDerived(): Any = ProtectedDerived()
+    }
+}
+
+@RequiresOptIn(level = RequiresOptIn.Level.ERROR)
+annotation class Jsr223TestExperimental
+
+@Jsr223TestExperimental
+class Jsr223TestExperimentalValue(val x: Int)
+
+@Deprecated("Test", level = DeprecationLevel.ERROR)
+class Jsr223TestDeprecatedValue(val x: Int)
+
+@Suppress("DEPRECATION_ERROR")
+fun createJsr223TestDeprecatedValue(x: Int): Any = Jsr223TestDeprecatedValue(x)
+
+class `Jsr223Test$DollarValue`(val x: Int)
+
+
+class KotlinJsr223ScriptEngineIT {
+
+    init {
+        setIdeaIoUseFallback()
+    }
+
+    @Test
+    fun testEngineFactory() {
+        val factory = ScriptEngineManager().getEngineByExtension("kts").factory
+        assertNotNull(factory)
+        factory.apply {
+            assertEquals("kotlin", languageName)
+            assertEquals(KotlinCompilerVersion.VERSION, languageVersion)
+            assertEquals("kotlin", engineName)
+            assertEquals(KotlinCompilerVersion.VERSION, engineVersion)
+            assertEquals(listOf("kts"), extensions)
+            assertEquals(listOf("text/x-kotlin"), mimeTypes)
+            assertEquals(listOf("kotlin"), names)
+            assertEquals("obj.method(arg1, arg2, arg3)", getMethodCallSyntax("obj", "method", "arg1", "arg2", "arg3"))
+            assertEquals("print(\"Hello, world!\")", getOutputStatement("Hello, world!"))
+            assertEquals(KotlinCompilerVersion.VERSION, getParameter(ScriptEngine.LANGUAGE_VERSION))
+            val sep = System.getProperty("line.separator")
+            val prog = arrayOf("val x: Int = 3", "var y = x + 2")
+            assertEquals(prog.joinToString(sep) + sep, getProgram(*prog))
+        }
+    }
+
+    @Test
+    fun testEngine() {
+        val factory = ScriptEngineManager().getEngineByExtension("kts").factory
+        assertNotNull(factory)
+        val engine = factory.scriptEngine
+        assertNotNull(engine as? KotlinJsr223ScriptEngineImpl)
+        assertSame(factory, engine.factory)
+        val bindings = engine.createBindings()
+        assertTrue(bindings is SimpleBindings)
+    }
+
+    @Test
+    fun testSimpleEval() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        val res1 = engine.eval("val x = 3")
+        assertNull(res1)
+        val res2 = engine.eval("x + 2")
+        assertEquals(5, res2)
+    }
+
+    private fun usedHeapAfterGc(attempts: Int, isLowEnough: (Long) -> Boolean = { false }): Long {
+        val memoryMXBean = ManagementFactory.getMemoryMXBean()!!
+        var used = Long.MAX_VALUE
+        // Environments of the collected engine states are disposed asynchronously, so GC is repeated until they are released
+        for (attempt in 1..attempts) {
+            System.gc()
+            Thread.sleep(100)
+            used = memoryMXBean.heapMemoryUsage.used
+            if (isLowEnough(used)) break
+        }
+        return used
+    }
+
+    @Test
+    fun testDroppedEnginesDoNotRetainCompilerEnvironments() {
+        fun evalInNewEngine(i: Int) {
+            val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+            assertEquals(i * 2, engine.eval("$i * 2"))
+        }
+
+        val limit = 100L * 1024 * 1024
+        evalInNewEngine(0)
+        val baseline = usedHeapAfterGc(attempts = 5)
+        // Each leaked environment retains about 24 MB (KT-90244), so 15 engines exceed the limit severalfold
+        for (i in 1..15) {
+            evalInNewEngine(i)
+        }
+        val retained = usedHeapAfterGc(attempts = 20) { it - baseline < limit } - baseline
+        assertTrue(retained < limit, "Dropped engines retain ${retained / 1024 / 1024} MB")
+    }
+
+    @Test
+    fun testEvalsDoNotRetainMoreThanSnippetHistory() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts") as KotlinJsr223ScriptEngineImpl
+        assertNull(engine.eval("var total = 0"))
+        assertEquals(1, engine.eval("total += 1; total"))
+        val baseline = usedHeapAfterGc(attempts = 3)
+        val evals = 40
+        for (i in 2..evals + 1) {
+            assertEquals(i * (i + 1) / 2, engine.eval("total += $i; total"))
+        }
+        // The bindings don't change, so only the first eval is preceded by a synthetic bindings snippet (KT-90299)
+        assertEquals(evals + 3, engine.backwardInstancesHistory.count())
+        // The REPL history keeps the FIR of every snippet, which takes about 0.6 MB per eval here. Retaining the backend
+        // state of each snippet as well (KT-90299) makes it about three times more
+        val limit = evals * 3L * 512 * 1024
+        val retained = usedHeapAfterGc(attempts = 10) { it - baseline < limit } - baseline
+        assertTrue(retained < limit, "$evals evals retain ${retained / 1024 / 1024} MB")
+    }
+
+
+    @Test
+    fun testIncomplete() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        val res0 = try {
+            engine.eval("val x =")
+        } catch (e: ScriptException) {
+            e
+        }
+        assertTrue((res0 as? ScriptException)?.message?.contains("Expecting an expression") ?: false, "Unexpected check results: $res0")
+    }
+
+    @Test
+    fun testEvalWithError() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+
+        try {
+            engine.eval("java.lang.fish")
+            fail("Script error expected")
+        } catch (_: ScriptException) {}
+
+        val res1 = engine.eval("val x = 3")
+        assertNull(res1)
+
+        try {
+            engine.eval("y")
+            fail("Script error expected")
+        } catch (e: ScriptException) {
+            assertTrue(
+                e.message?.contains("Unresolved reference 'y'") ?: false,
+                "Expected message to contain \"Unresolved reference 'y'\", actual: \"${e.message}\""
+            )
+        }
+
+        val res3 = engine.eval("x + 2")
+        assertEquals(5, res3)
+    }
+
+    @Test
+    fun testEvalWithException() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        try {
+            engine.eval("throw Exception(\"!!\")")
+            fail("Expecting exception to propagate")
+        } catch (e: ScriptException) {
+            assertEquals("!!", e.cause?.message)
+        }
+        // engine should remain operational
+        val res1 = engine.eval("val x = 3")
+        assertNull(res1)
+        val res2 = engine.eval("x + 4")
+        assertEquals(7, res2)
+    }
+
+
+    @Test
+    fun testInvocable() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        val res0 = engine.eval("""
+fun fn(x: Int) = x + 2
+val obj = object {
+    fun fn1(x: Int) = x + 3
+}
+obj
+""")
+        assertNotNull(res0)
+        val invocator = engine as? Invocable
+        requireNotNull(invocator)
+        val res1 = invocator.invokeFunction("fn", 6)
+        assertEquals(8, res1)
+        assertThrows(NoSuchMethodException::class.java) {
+            invocator.invokeFunction("fn1", 3)
+        }
+        val res2 = invocator.invokeFunction("fn", 3)
+        assertEquals(5, res2)
+        assertThrows(NoSuchMethodException::class.java) {
+            invocator.invokeMethod(res0, "fn", 3)
+        }
+        val res3 = invocator.invokeMethod(res0, "fn1", 3)
+        assertEquals(6, res3)
+    }
+
+    @Test
+    fun testSimpleCompilable() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts") as KotlinJsr223ScriptEngineImpl
+        val comp1 = engine.compile("val x = 3")
+        val comp2 = engine.compile("x + 2")
+        val res1 = comp1.eval()
+        assertNull(res1)
+        val res2 = comp2.eval()
+        assertEquals(5, res2)
+    }
+
+    @Test
+    fun testSimpleCompilableWithBindings() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")
+        engine.put("z", 33)
+        val comp1 = (engine as Compilable).compile("val x = 10 + bindings[\"z\"] as Int\nx + 20")
+        val comp2 = (engine as Compilable).compile("val x = 10 + z\nx + 20")
+        val res1 = comp1.eval()
+        assertEquals(63, res1)
+        val res12 = comp2.eval()
+        assertEquals(63, res12)
+        engine.put("z", 44)
+        val res2 = comp1.eval()
+        assertEquals(74, res2)
+        val res22 = comp2.eval()
+        assertEquals(74, res22)
+    }
+
+    @Test
+    fun testRebindWithChangedType() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        engine.put("z", 33)
+        assertEquals(66, engine.eval("z * 2"))
+        // Rebind `z` to a value of a different type. The typed accessor must be re-emitted so that
+        // subsequent snippets see `z: String` (Q10d); otherwise the stale `var z: Int` accessor makes
+        // `z.length` unresolved (or its getter `bindings["z"] as Int` throws a ClassCastException).
+        engine.put("z", "abc")
+        assertEquals(6, engine.eval("z.length * 2"))
+    }
+
+    @Test
+    fun testBindGenericJavaClass() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        engine.put("boundList", arrayListOf(1, 2))
+        engine.put("boundMap", hashMapOf("a" to 1))
+        // A generic runtime class has to be exposed with star-projected type arguments: a raw type
+        // reference makes the synthetic bindings snippet fail to compile, which breaks every eval on
+        // the engine, including snippets that don't touch the binding (KT-89220).
+        assertEquals(2, engine.eval("1 + 1"))
+        assertEquals(2, engine.eval("boundList.size"))
+        assertEquals(1, engine.eval("boundMap.size"))
+    }
+
+    @Test
+    fun testBindValuesOfInaccessibleJavaClasses() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        // The runtime classes of these values are private, package-private, or in packages not exported by the JDK modules.
+        // Referencing them makes the synthetic bindings snippet fail to compile, which breaks every eval on the engine,
+        // including snippets that don't touch the bindings (KT-90641). An accessible supertype is used instead.
+        engine.put("asList", listOf(1, 2)) // java.util.Arrays$ArrayList -> java.util.AbstractList
+        engine.put("unmodifiableList", java.util.Collections.unmodifiableList(arrayListOf(1, 2, 3))) // -> List
+        engine.put("singletonMap", mapOf("a" to 1)) // java.util.Collections$SingletonMap -> java.util.AbstractMap
+        engine.put("keySet", hashMapOf("a" to 1, "b" to 2).keys) // java.util.HashMap$KeySet -> java.util.AbstractSet
+        engine.put("path", java.nio.file.Paths.get("dir", "file.txt")) // sun.nio.fs.UnixPath/WindowsPath -> java.nio.file.Path
+        engine.put("proxy", java.lang.reflect.Proxy.newProxyInstance(javaClass.classLoader, arrayOf(Runnable::class.java)) { _, _, _ -> null })
+        engine.put("array", arrayOf("a", "b"))
+        assertEquals(2, engine.eval("1 + 1"))
+        assertEquals(2, engine.eval("asList[1]"))
+        assertEquals(3, engine.eval("unmodifiableList[2]"))
+        assertEquals(1, engine.eval("singletonMap[\"a\"]"))
+        assertEquals(true, engine.eval("keySet.contains(\"b\")"))
+        assertEquals("file.txt", engine.eval("path.fileName.toString()"))
+        assertEquals(1, engine.eval("proxy.run(); 1"))
+        assertEquals("b", engine.eval("array[1]"))
+    }
+
+    @Test
+    fun testBindValuesOfInaccessibleKotlinClasses() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        // Kotlin internal classes are public in the bytecode, but can't be referenced from a snippet either (KT-90641)
+        engine.put("emptyList", emptyList<Int>()) // internal kotlin.collections.EmptyList -> List
+        engine.put("emptyMap", emptyMap<String, Int>()) // internal kotlin.collections.EmptyMap -> Map
+        engine.put("service", Jsr223InternalTestService()) // -> Jsr223TestService
+        engine.put("derived", Jsr223InternalTestDerived()) // -> Jsr223TestBase
+        engine.put("multiService", Jsr223InternalTestMultiService()) // no unique interface -> Any?
+        engine.put("publicValue", Jsr223PublicTestValue(7)) // public, exposed as is
+        assertEquals(2, engine.eval("1 + 1"))
+        assertEquals(true, engine.eval("emptyList.isEmpty()"))
+        assertEquals(0, engine.eval("emptyMap.size"))
+        assertEquals(42, engine.eval("service.answer()"))
+        assertEquals(10, engine.eval("derived.base"))
+        assertEquals(2, engine.eval("(multiService as kotlin.script.experimental.jsr223.test.Jsr223OtherTestService).other()"))
+        assertEquals(7, engine.eval("publicValue.x"))
+        // A binding exposed as `Any?` accepts a value of any type
+        engine.eval("multiService = 5")
+        assertEquals(5, engine.get("multiService"))
+    }
+
+    @Test
+    fun testBindValuesOfNonPublicKotlinNestedClassesAndInterfaces() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        engine.put("internalIfaceImpl", Jsr223InternalTestInterfaceImpl()) // internal interface skipped -> Jsr223TestService
+        engine.put("privateService", Jsr223TestNestedHolder.privateService()) // -> Jsr223TestService
+        engine.put("protectedDerived", Jsr223TestNestedHolder.protectedDerived()) // -> Jsr223TestBase
+        assertEquals(2, engine.eval("1 + 1"))
+        assertEquals(3, engine.eval("internalIfaceImpl.answer()"))
+        assertEquals(4, engine.eval("privateService.answer()"))
+        assertEquals(10, engine.eval("protectedDerived.base"))
+    }
+
+    @Test
+    fun testCustomKotlinVisibilityCheck() {
+        val defaultCheck = ScriptingHostConfiguration()[ScriptingHostConfiguration.jsr223.hasPublicKotlinVisibility]!!
+        // The default check sees the public class with kotlin-reflect, which the test runtime has
+        assertTrue(defaultCheck(Jsr223PublicTestService::class.java))
+        assertFalse(defaultCheck(Jsr223InternalTestService::class.java))
+
+        val defaultEngine = ScriptEngineManager().getEngineByExtension("kts")!!
+        defaultEngine.put("publicService", Jsr223PublicTestService())
+        assertEquals(6, defaultEngine.eval("publicService.extra"))
+
+        val checkedClasses = HashSet<Class<*>>()
+        val engine = createEngineWithKotlinVisibilityCheck { jClass ->
+            checkedClasses.add(jClass)
+            jClass != Jsr223PublicTestService::class.java && defaultCheck(jClass)
+        }
+        engine.put("publicService", Jsr223PublicTestService())
+        // The class is treated as not public, so the binding is exposed with its interface type
+        assertEquals(5, engine.eval("publicService.answer()"))
+        assertThrows<ScriptException> { engine.eval("publicService.extra") }
+        assertTrue(Jsr223PublicTestService::class.java in checkedClasses)
+    }
+
+    private fun createEngineWithKotlinVisibilityCheck(check: (Class<*>) -> Boolean): ScriptEngine {
+        val factory = ScriptEngineManager().getEngineByExtension("kts").factory
+        val scriptDefinition = createJvmScriptDefinitionFromTemplate<KotlinJsr223DefaultScript>()
+        val classPath = scriptCompilationClasspathFromContext(
+            classLoader = Thread.currentThread().contextClassLoader, wholeClasspath = true, unpackJarCollections = true
+        )
+        return KotlinJsr223ScriptEngineImpl(
+            factory,
+            scriptDefinition.compilationConfiguration.with {
+                jvm { updateClasspath(classPath) }
+                hostConfiguration.update { it.with { jsr223 { hasPublicKotlinVisibility(check) } } }
+            },
+            scriptDefinition.evaluationConfiguration
+        ) { ScriptArgsWithTypes(arrayOf(it.getBindings(ScriptContext.ENGINE_SCOPE).orEmpty()), arrayOf(Bindings::class)) }
+    }
+
+    @Test
+    fun testBindValueOfClassInKeywordPackage() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        engine.put("keywordPackageValue", kotlin.script.experimental.jsr223.test.`in`.Jsr223KeywordPackageValue(5))
+        assertEquals(2, engine.eval("1 + 1"))
+        assertEquals(5, engine.eval("keywordPackageValue.x"))
+    }
+
+    @Test
+    fun testBindValueOfClassWithDollarInName() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        engine.put("dollarValue", `Jsr223Test$DollarValue`(6))
+        assertEquals(2, engine.eval("1 + 1"))
+        assertEquals(6, engine.eval("dollarValue.x"))
+    }
+
+    @OptIn(Jsr223TestExperimental::class)
+    @Test
+    fun testBindValueOfOptInRequiredClass() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        engine.put("experimentalValue", Jsr223TestExperimentalValue(8))
+        assertEquals(2, engine.eval("1 + 1"))
+        // The binding is exposed as `Any?` after the typed bindings snippet fails to compile
+        assertEquals(true, engine.eval("experimentalValue is Any"))
+        // Bindings added later are still typed, while the rejected type is not retried
+        engine.put("str", "abc")
+        assertEquals(3, engine.eval("str.length"))
+        assertEquals(true, engine.eval("experimentalValue is Any"))
+    }
+
+    @Test
+    fun testBindValueOfDeprecatedErrorClass() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        engine.put("deprecatedValue", createJsr223TestDeprecatedValue(9))
+        assertEquals(2, engine.eval("1 + 1"))
+        assertEquals(true, engine.eval("deprecatedValue is Any"))
+    }
+
+    @Test
+    fun testBindValuesOfAnonymousAndLambdaClasses() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        var runCount = 0
+        engine.put("runnable", object : Runnable {
+            override fun run() {
+                runCount++
+            }
+        })
+        engine.put("inc", { x: Int -> x + 1 })
+        engine.eval("runnable.run()")
+        assertEquals(1, runCount)
+        // Exposed as `Function1<*, *>`: type arguments are erased at runtime
+        assertEquals(true, engine.eval("inc is Function1<*, *>"))
+        assertEquals(3, engine.eval("@Suppress(\"UNCHECKED_CAST\") (inc as (Int) -> Int)(2)"))
+    }
+
+    @Test
+    fun testBindValueOfSnippetDeclaredClass() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        engine.eval("class Foo(val x: Int)\nbindings.put(\"foo\", Foo(7))")
+        assertEquals(2, engine.eval("1 + 1"))
+        assertEquals(7, engine.eval("foo.x"))
+    }
+
+    @Test
+    fun testRebindRemoval() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        engine.put("z", 33)
+        assertEquals(66, engine.eval("z * 2"))
+        // Remove the binding. Accessing the (former) typed accessor must fail with a clear diagnostic
+        // rather than the cryptic `null cannot be cast to non-null type kotlin.Int` NPE (Q10c).
+        engine.getBindings(ScriptContext.ENGINE_SCOPE).remove("z")
+        val e = assertThrows<ScriptException> { engine.eval("z * 2") }
+        assertTrue(
+            (e.message ?: "").contains("no longer available"),
+            "Expected a clear 'no longer available' diagnostic, got: ${e.message}"
+        )
+        // Re-adding the binding restores typed access.
+        engine.put("z", 5)
+        assertEquals(10, engine.eval("z * 2"))
+    }
+
+    @Test
+    fun testGlobalScopeBindings() {
+        val manager = ScriptEngineManager()
+        manager.put("globalBase", 1000)
+        manager.put("shadowed", 1)
+        val engine = manager.getEngineByExtension("kts")!!
+        engine.put("shadowed", 2)
+        // GLOBAL_SCOPE bindings are exposed as typed properties as well, and are read from GLOBAL_SCOPE (KT-90298)
+        assertEquals(1001, engine.eval("globalBase + 1"))
+        // ENGINE_SCOPE takes precedence, as in ScriptContext.getAttribute
+        assertEquals(2, engine.eval("shadowed"))
+        // Assignment updates the scope that holds the binding
+        engine.eval("globalBase = 2000")
+        assertEquals(2000, manager.get("globalBase"))
+        assertNull(engine.getBindings(ScriptContext.ENGINE_SCOPE)["globalBase"])
+        assertEquals(2001, engine.eval("globalBase + 1"))
+        // Same for the backtick-quoted names, which are exposed through a delegate
+        manager.put("global name", 5)
+        assertEquals(6, engine.eval("`global name` + 1"))
+    }
+
+    @Test
+    fun testBindingsAfterContextReplacement() {
+        val manager = ScriptEngineManager()
+        manager.put("globalBase", 1000)
+        val engine = manager.getEngineByExtension("kts")!!
+        val globalBindings = engine.getBindings(ScriptContext.GLOBAL_SCOPE)
+        // Each new context gets a new state with an empty REPL history, so the bindings have to be exposed in it again,
+        // regardless of what was exposed in the history of the previous contexts (KT-90298)
+        for (k in 1..3) {
+            val context = SimpleScriptContext().apply {
+                setBindings(engine.createBindings(), ScriptContext.ENGINE_SCOPE)
+                setBindings(globalBindings, ScriptContext.GLOBAL_SCOPE)
+            }
+            engine.context = context
+            context.getBindings(ScriptContext.ENGINE_SCOPE)["engineValue"] = k
+            assertEquals(1000 + k, engine.eval("engineValue + globalBase", context))
+        }
+    }
+
+    @Test
+    fun testBindingsAfterEvalOfCompiledSnippetWithOtherBindings() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        engine.put("z", 1)
+        assertEquals(1, engine.eval("bindings[\"z\"]"))
+        assertEquals(1, engine.eval("z"))
+        // The bindings of a snippet are captured when it is evaluated, which is not known when it is compiled
+        val compiled = (engine as Compilable).compile("bindings[\"z\"]")
+        assertEquals(2, compiled.eval(engine.createBindings().apply { put("z", 2) }))
+        // So the next eval must not reuse the bindings captured for the compiled snippet
+        assertEquals(1, engine.eval("bindings[\"z\"]"))
+        assertEquals(1, engine.eval("z"))
+    }
+
+    @Test
+    fun testMultipleCompilable() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts") as KotlinJsr223ScriptEngineImpl
+        val compiled1 = engine.compile("""listOf(1,2,3).joinToString(",")""")
+        val compiled2 = engine.compile("""val x = bindings["boundValue"] as Int + bindings["z"] as Int""")
+        val compiled3 = engine.compile("""x""")
+
+        assertEquals("1,2,3", compiled1.eval())
+        assertEquals("1,2,3", compiled1.eval())
+        assertEquals("1,2,3", compiled1.eval())
+        assertEquals("1,2,3", compiled1.eval())
+
+        engine.getBindings(ScriptContext.ENGINE_SCOPE).apply {
+            put("boundValue", 100)
+            put("z", 33)
+        }
+
+        compiled2.eval()
+
+        assertEquals(133, compiled3.eval())
+        assertEquals(133, compiled3.eval())
+        assertEquals(133, compiled3.eval())
+    }
+
+    @Test
+    fun testEvalWithContext() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+
+        engine.put("z", 33)
+
+        engine.eval("""val x = 10 + bindings["z"] as Int""")
+
+        val result = engine.eval("""x + 20""")
+        assertEquals(63, result)
+
+        // in the current implementation the history is shared between contexts, so "x" could also be used in this line,
+        // but this behaviour probably will not be preserved in the future, since contexts may become completely isolated
+        val result2 = engine.eval("""11 + bindings["boundValue"] as Int""", engine.createBindings().apply {
+            put("boundValue", 100)
+        })
+        assertEquals(111, result2)
+
+        engine.put("nullable", null)
+        val result3 = engine.eval("bindings[\"nullable\"]?.let { it as Int } ?: -1")
+        assertEquals(-1, result3)
+    }
+
+    @Test
+    fun testEvalWithContextDirect() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+
+        engine.put("z", 33)
+
+        engine.eval("val x = 10 + z")
+
+        val result = engine.eval("x + 20")
+        assertEquals(63, result)
+
+        // in the current implementation the history is shared between contexts, so "x" could also be used in this line,
+        // but this behaviour probably will not be preserved in the future, since contexts may become completely isolated
+        val result2 = engine.eval("11 + boundValue", engine.createBindings().apply {
+            put("boundValue", 100)
+        })
+        assertEquals(111, result2)
+
+        engine.put("nullable", null)
+        val result3 = engine.eval("nullable?.let { it as Int } ?: -1")
+        assertEquals(-1, result3)
+    }
+
+    @Test
+    fun testEvalWithContextNamesWithSymbols() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+
+        engine.put("\u263a", 2)
+        engine.put("a.b", 3)
+        engine.put("c:d", 5)
+        engine.put("e;f", 7)
+        engine.put("g\$h", 11)
+        engine.put("i<j", 13)
+        engine.put("k>l", 17)
+        engine.put("m[n", 19)
+        engine.put("o]p", 23)
+        engine.put("q/r", 29)
+        engine.put("s\\t", 31)
+        engine.put("u v", 37)
+        engine.put(" ", 41)
+        engine.put("    ", 43)
+
+        // Binding names that aren't plain Kotlin identifiers are exposed as typed properties. Names
+        // containing a JVM-hard-invalid character (`. ; [ ] / < > : \`, none of which can survive even
+        // backtick-quoting) are reversibly encoded into `__u<hex>__` code-point markers and referenced
+        // without backticks (e.g. `.` -> `u002e`; the same rule already used for non-ASCII code points
+        // like `\u263a` -> `u263a`, so every problematic character uses one uniform scheme). Every other
+        // name (non-ASCII, `$`, spaces, ...) is backtick-quoted verbatim and referenced with backticks;
+        // such properties are declared with a delegate rather than a hardcoded getter/setter (see
+        // `encodeBindingNameToKotlinIdentifier`).
+        assertEquals(4, engine.eval("`\u263a` * 2"))
+        assertEquals(5, engine.eval("2 + a__u002e__b"))
+        assertEquals(2, engine.eval("a__u002e__b - 1"))
+        assertEquals(6, engine.eval("1 + c__u003a__d"))
+        assertEquals(7, engine.eval("e__u003b__f"))
+        assertEquals(11, engine.eval("`g\$h`"))
+        assertEquals(13, engine.eval("i__u003c__j"))
+        assertEquals(17, engine.eval("k__u003e__l"))
+        assertEquals(19, engine.eval("m__u005b__n"))
+        assertEquals(23, engine.eval("o__u005d__p"))
+        assertEquals(29, engine.eval("q__u002f__r"))
+        assertEquals(31, engine.eval("s__u005c__t"))
+        assertEquals(37, engine.eval("`u v`"))
+        assertEquals(41, engine.eval("` `"))
+        assertEquals(43, engine.eval("`    `"))
+    }
+
+    @Test
+    fun testSimpleEvalInEval() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+        val res1 = engine.eval("val x = 3")
+        assertNull(res1)
+        val res2 = engine.eval("val y = eval(\"\$x + 2\") as Int\ny")
+        assertEquals(5, res2)
+        val res3 = engine.eval("y + 2")
+        assertEquals(7, res3)
+    }
+
+    @Test
+    fun testEvalInEvalWithBindingsWithLambda() {
+        // the problem (KT-67747) is only reproducible with INDY lambdas
+        withProperty(
+            "kotlin.script.base.compiler.arguments",
+            getPropertyValue = { listOfNotNull(it?.takeIf(String::isNotBlank), "-Xlambdas=indy").joinToString(" ") }
+        ) {
+            val engine = ScriptEngineManager().getEngineByExtension("kts")!!
+            // code here is somewhat similar to one used in Spring's KotlinScriptTemplateTests
+            val res1 = engine.eval(
+                """
+            fun f(script: String): Int {
+                val bindings = javax.script.SimpleBindings()
+                bindings.put("myFunFromBindings", { i: Int -> i * 7 })
+                return eval(script, bindings) as Int
+            }
+            """.trimIndent()
+            )
+            assertNull(res1)
+            // Note that direct call to the lambda stored in bindings is not possible, so the additional helper
+            // [kotlin.script.experimental.jsr223.test.myFunFromBindings] is used (as in Spring)
+            val script = """
+            import kotlin.script.experimental.jsr223.test.*
+            myFunFromBindings(6)
+            """.trimIndent()
+            val res2 = (engine as Invocable).invokeFunction("f", script)
+            assertEquals(42, res2)
+        }
+    }
+
+    @Test
+    fun `kotlin script evaluation should support functional return types`() {
+        val scriptEngine = ScriptEngineManager().getEngineByExtension("kts")!!
+
+        val script = "{1 + 2}"
+        val result = scriptEngine.eval(script)
+
+        assertTrue(result is Function0<*>)
+        assertEquals(3, (result as Function0<*>).invoke())
+    }
+
+    @Test
+    fun testResolveFromContextStandard() {
+        val scriptEngine = ScriptEngineManager().getEngineByExtension("kts")!!
+        val result = scriptEngine.eval("kotlin.script.experimental.jsr223.test.shouldBeVisibleFromRepl * 6")
+        assertEquals(42, result)
+    }
+
+    @Test
+    fun testResolveFromContextLambda() {
+        val scriptEngine = ScriptEngineManager().getEngineByExtension("kts")!!
+
+        val script1 = """
+            kotlin.script.experimental.jsr223.test.callLambda(4) { x -> 
+                x % aValue
+            }
+        """
+
+        val script2 = """
+            kotlin.script.experimental.jsr223.test.inlineCallLambda(5) { x ->
+                x % aValue
+            }
+        """
+
+        scriptEngine.put("aValue", 3)
+
+        val res1 = scriptEngine.eval(script1)
+        assertEquals(1, res1)
+        val res2 = scriptEngine.eval(script2)
+        assertEquals(2, res2)
+    }
+
+    @Test
+    fun testResolveFromContextDirectExperimental() {
+        val prevProp = System.setProperty(KOTLIN_JSR223_RESOLVE_FROM_CLASSLOADER_PROPERTY, "true")
+        try {
+            val scriptEngine = ScriptEngineManager().getEngineByExtension("kts")!!
+            val result = scriptEngine.eval("kotlin.script.experimental.jsr223.test.shouldBeVisibleFromRepl * 6")
+            assertEquals(42, result)
+        } finally {
+            if (prevProp == null) System.clearProperty(KOTLIN_JSR223_RESOLVE_FROM_CLASSLOADER_PROPERTY)
+            else System.setProperty(KOTLIN_JSR223_RESOLVE_FROM_CLASSLOADER_PROPERTY, prevProp)
+        }
+    }
+
+    @Test
+    fun testInliningInJdk171() {
+        val jdk17 = try {
+            KtTestUtil.getJdk17Home()
+        } catch (_: NoClassDefFoundError) {
+            println("IGNORED: Test infrastructure doesn't work yet with embeddable compiler")
+            return
+        }
+        val javaExe = if (System.getProperty("os.name").contains("windows", ignoreCase = true)) "java.exe" else "java"
+        val runtime = File(jdk17, "bin" + File.separator + javaExe)
+
+        val tempDir = createTempDirectory(KotlinJsr223ScriptEngineIT::class.simpleName!!)
+
+        fun prepareArgFile(vararg args: String): String {
+            val file = tempDir.resolve("arguments.args")
+            file.writeLines(args.map { it.replace("\\", "\\\\") })
+            return "@${file.toCanonicalPath()}"
+        }
+
+        try {
+            val outJar = createTempFile(tempDir, "inlining17", ".jar").toFile()
+            val compileCp = File(System.getProperty("testCompilationClasspath")!!).readText().split(File.pathSeparator).map(::File)
+            assertTrue(
+                compileCp.any { it.name.startsWith("kotlin-stdlib") },
+                "Expecting \"testCompilationClasspath\" property to contain stdlib jar:\n$compileCp"
+            )
+            val paths = PathUtil.kotlinPathsForDistDirectory
+            runAndCheckResults(
+                listOf(
+                    runtime.absolutePath,
+                    prepareArgFile(
+                        "-cp", paths.compilerClasspath.joinToString(File.pathSeparator),
+                        K2JVMCompiler::class.java.name,
+                        K2JVMCompilerArguments::noStdlib.cliArgument,
+                        K2JVMCompilerArguments::classpath.cliArgument, compileCp.joinToString(File.pathSeparator) { it.path },
+                        K2JVMCompilerArguments::destination.cliArgument, outJar.absolutePath,
+                        K2JVMCompilerArguments::jvmTarget.cliArgument, "17",
+                    ),
+                    "libraries/scripting/jsr223-test/testData/testJsr223Inlining.kt"
+                ),
+                additionalEnvVars = listOf("JAVA_HOME" to jdk17.absolutePath)
+            )
+
+            val runtimeCp = File(System.getProperty("testJsr223RuntimeClasspath")!!).readText().split(File.pathSeparator).map(::File) + outJar
+            assertTrue(
+                runtimeCp.any { it.name.startsWith("kotlin-scripting-jsr223") },
+                "Expecting \"testJsr223RuntimeClasspath\" property to contain JSR223 jar:\n$runtimeCp"
+            )
+
+            runAndCheckResults(
+                listOf(
+                    runtime.absolutePath,
+                    "-cp",
+                    prepareArgFile(runtimeCp.joinToString(File.pathSeparator) { it.path }),
+                    "TestJsr223InliningKt"
+                ),
+                listOf("OK")
+            )
+        } finally {
+            tempDir.toFile().deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testEvalWithCompilationError() {
+        val engine = ScriptEngineManager().getEngineByExtension("kts")
+        val compilable: Compilable = engine as Compilable
+        assertThrows(ScriptException::class.java) {
+            compilable.compile("foo")
+        }
+        compilable.compile("true")
+        engine.eval("val x = 3")
+        compilable.compile("x")
+    }
+}
+
+fun assertThrows(exceptionClass: Class<*>, body: () -> Unit) {
+    try {
+        body()
+        fail("Expecting an exception of type ${exceptionClass.name}")
+    } catch (e: Throwable) {
+        if (!exceptionClass.isAssignableFrom(e.javaClass)) {
+            fail("Expecting an exception of type ${exceptionClass.name} but got ${e.javaClass.name}")
+        }
+    }
+}
+
+internal fun <T> withProperty(name: String, getPropertyValue: (String?) -> String?, body: () -> T): T {
+    val prevPropertyVal = System.getProperty(name)
+    val value = getPropertyValue(prevPropertyVal)
+    when (value) {
+        null -> System.clearProperty(name)
+        else -> System.setProperty(name, value)
+    }
+    try {
+        return body()
+    } finally {
+        when (prevPropertyVal) {
+            null -> System.clearProperty(name)
+            else -> System.setProperty(name, prevPropertyVal)
+        }
+    }
+}

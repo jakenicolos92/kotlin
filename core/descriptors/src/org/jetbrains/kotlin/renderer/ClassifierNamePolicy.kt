@@ -18,13 +18,14 @@ package org.jetbrains.kotlin.renderer
 
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.name.render
 import org.jetbrains.kotlin.resolve.DescriptorUtils
 import java.util.*
 
 interface ClassifierNamePolicy {
     object SHORT : ClassifierNamePolicy {
         override fun renderClassifier(classifier: ClassifierDescriptor, renderer: DescriptorRenderer): String {
-            if (classifier is TypeParameterDescriptor) return renderer.renderName(classifier.name)
+            if (classifier is TypeParameterDescriptor) return renderer.renderName(classifier.name, false)
 
             val qualifiedNameElements = ArrayList<Name>()
 
@@ -42,7 +43,7 @@ interface ClassifierNamePolicy {
 
     object FULLY_QUALIFIED : ClassifierNamePolicy {
         override fun renderClassifier(classifier: ClassifierDescriptor, renderer: DescriptorRenderer): String {
-            if (classifier is TypeParameterDescriptor) return renderer.renderName(classifier.name)
+            if (classifier is TypeParameterDescriptor) return renderer.renderName(classifier.name, false)
 
             return renderer.renderFqName(DescriptorUtils.getFqName(classifier))
         }
@@ -50,11 +51,10 @@ interface ClassifierNamePolicy {
 
     // for local declarations qualified up to function scope
     object SOURCE_CODE_QUALIFIED : ClassifierNamePolicy {
-        override fun renderClassifier(classifier: ClassifierDescriptor, renderer: DescriptorRenderer): String {
-            return qualifiedNameForSourceCode(classifier)
-        }
+        override fun renderClassifier(classifier: ClassifierDescriptor, renderer: DescriptorRenderer): String =
+                qualifiedNameForSourceCode(classifier)
 
-        fun qualifiedNameForSourceCode(descriptor: ClassifierDescriptor): String {
+        private fun qualifiedNameForSourceCode(descriptor: ClassifierDescriptor): String {
             val nameString = descriptor.name.render()
             if (descriptor is TypeParameterDescriptor) {
                 return nameString

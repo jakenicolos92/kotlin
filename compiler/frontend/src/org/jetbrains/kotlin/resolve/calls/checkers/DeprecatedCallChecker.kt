@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.resolve.calls.checkers
 import com.intellij.psi.PsiElement
 import com.intellij.psi.tree.TokenSet
 import com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.descriptors.CallableDescriptor
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
@@ -31,34 +32,52 @@ import org.jetbrains.kotlin.psi.KtUnaryExpression
 import org.jetbrains.kotlin.resolve.BindingTrace
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.calls.util.FakeCallableDescriptorForObject
-import org.jetbrains.kotlin.resolve.createDeprecationDiagnostic
-import org.jetbrains.kotlin.resolve.getDeprecations
+import org.jetbrains.kotlin.resolve.deprecation.DeprecationResolver
+import org.jetbrains.kotlin.resolve.deprecation.createDeprecationDiagnostic
+import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameOrNull
+import org.jetbrains.kotlin.resolve.scopes.receivers.SuperCallReceiverValue
 
+@K1Deprecation
 object DeprecatedCallChecker : CallChecker {
     override fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext) {
-        check(resolvedCall.resultingDescriptor, context.trace, reportOn, context.languageVersionSettings)
+        check(
+            resolvedCall.resultingDescriptor, context.trace, reportOn,
+            context.languageVersionSettings, context.deprecationResolver,
+            isSuperCall = resolvedCall.dispatchReceiver is SuperCallReceiverValue,
+        )
     }
 
     private fun check(
-            targetDescriptor: CallableDescriptor, trace: BindingTrace, element: PsiElement, languageVersionSettings: LanguageVersionSettings
+        targetDescriptor: CallableDescriptor,
+        trace: BindingTrace,
+        element: PsiElement,
+        languageVersionSettings: LanguageVersionSettings,
+        deprecationResolver: DeprecationResolver,
+        isSuperCall: Boolean,
     ) {
         // Objects will be checked by DeprecatedClassifierUsageChecker
         if (targetDescriptor is FakeCallableDescriptorForObject) return
 
-        val deprecations = targetDescriptor.getDeprecations(languageVersionSettings).toMutableList()
+        val deprecations = deprecationResolver.getDeprecations(targetDescriptor).toMutableList()
 
         // avoid duplicating diagnostic when deprecation for property effectively deprecates setter
         if (targetDescriptor is PropertySetterDescriptor) {
-            deprecations -= targetDescriptor.correspondingProperty.getDeprecations(languageVersionSettings)
+            deprecations -= deprecationResolver.getDeprecations(targetDescriptor.correspondingProperty)
         }
 
         if (deprecations.isNotEmpty()) {
             for (deprecation in deprecations) {
-                trace.report(createDeprecationDiagnostic(element, deprecation, languageVersionSettings))
+                val targetFqNameIfAny = targetDescriptor.fqNameOrNull()
+                trace.report(
+                    createDeprecationDiagnostic(
+                        element, deprecation, languageVersionSettings,
+                        // see the comment at another usage of DeprecationResolver.KOTLIN_LIST_FIRST_LAST
+                        forceWarningForSimpleDeprecation = isSuperCall && targetFqNameIfAny in DeprecationResolver.KOTLIN_LIST_FIRST_LAST
+                    )
+                )
             }
-        }
-        else if (targetDescriptor is PropertyDescriptor && shouldCheckPropertyGetter(element)) {
-            targetDescriptor.getter?.let { check(it, trace, element, languageVersionSettings) }
+        } else if (targetDescriptor is PropertyDescriptor && shouldCheckPropertyGetter(element)) {
+            targetDescriptor.getter?.let { check(it, trace, element, languageVersionSettings, deprecationResolver, isSuperCall = false) }
         }
     }
 

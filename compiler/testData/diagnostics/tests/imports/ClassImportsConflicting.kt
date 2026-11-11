@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //FILE:a.kt
 package a
 
@@ -13,3 +14,5 @@ object O {}
 package c
 
 object O {}
+
+/* GENERATED_FIR_TAGS: objectDeclaration */

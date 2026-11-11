@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package a
 
 import java.util.ArrayList
@@ -17,3 +18,7 @@ public class Pair<out A, out B>(
     public val first: A,
     public val second: B
 )
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, flexibleType, forLoop, funWithExtensionReceiver,
+functionDeclaration, incrementDecrementExpression, integerLiteral, javaFunction, localProperty, nullableType, out,
+primaryConstructor, propertyDeclaration, thisExpression, typeParameter */

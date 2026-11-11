@@ -1,4 +1,5 @@
-fun f(vararg <!UNUSED_PARAMETER!>t<!> : Int, <!UNUSED_PARAMETER!>f<!> : ()->Unit) {
+// RUN_PIPELINE_TILL: CODEGEN
+fun f(vararg t : Int, f : ()->Unit) {
 }
 
 fun test() {
@@ -11,3 +12,5 @@ fun test() {
 
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, integerLiteral, lambdaLiteral, vararg */

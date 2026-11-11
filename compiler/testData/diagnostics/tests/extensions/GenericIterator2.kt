@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 import java.util.Enumeration
 
@@ -13,3 +14,7 @@ fun a(e : java.util.Enumeration<Int>) {
         checkSubtype<Int>(i)
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, flexibleType, forLoop, funWithExtensionReceiver,
+functionDeclaration, functionalType, infix, localProperty, nullableType, operator, override, propertyDeclaration,
+typeParameter, typeWithExtension */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 open class BaseClass() {
     protected class Nested(val x: Int, protected val y: Int)
 
@@ -8,6 +9,9 @@ class Foo : BaseClass() {
     fun bar() {
         val f = foo()
         f.x
-        f.<!INVISIBLE_MEMBER!>y<!>
+        f.<!INVISIBLE_REFERENCE!>y<!>
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, localProperty, nestedClass,
+primaryConstructor, propertyDeclaration */

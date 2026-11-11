@@ -1,0 +1,43 @@
+import kotlin.native.ObjCEnum
+import kotlin.native.ObjCName
+import kotlin.experimental.ExperimentalObjCEnum
+import kotlin.experimental.ExperimentalObjCName
+
+@file:OptIn(ExperimentalObjCEnum::class)
+
+@ObjCEnum
+enum class Foo {
+    ALPHA_BETA,
+    ALPHA,
+    COPY,
+    @ObjCName("objCName1Renamed") OBJC_NAME_1_ORIGINAL,
+    @ObjCName(name = "objcName2Renamed", swiftName = "objcName2Swift") OBJC_NAME_2_ORIGINAL,
+    @ObjCEnum.EntryName(name="entryName1Renamed") ENTRY_NAME_1_ORIGINAL,
+    @ObjCEnum.EntryName(name="entryName2Renamed", swiftName="entryName2Swift") ENTRY_NAME_2_SWIFT,
+    @ObjCEnum.EntryName(name="combination1Renamed") @ObjCName(name="combination1Bad") COMBINATION_1,
+    @ObjCEnum.EntryName(name="combination2Renamed") @ObjCName(name="combination2BadObjC", swiftName="combination2BadSwift") COMBINATION_2,
+    @ObjCEnum.EntryName(name="combination3Renamed", swiftName = "combination3Swift") @ObjCName(name="combination3BadObjC", swiftName="combination3BadSwift") COMBINATION_3,
+
+    // Entry's name in NS_CLOSED_ENUM should be type + NULL and its corresponding Swift name should be DEBUG.
+    // In the corresponding @interface, the property's name should be NULL_ and its corresponding Swift name should be DEBUG.
+    @ObjCName(name = "NULL", swiftName = "DEBUG") OBJC_NAME_3_ORIGINAL,
+    // Entry's name in NS_CLOSED_ENUM should be type + YES and corresponding Swift name should be NO.
+    // In the corresponding @interface, the property's name and its corresponding Swift name should be entryName3Swift.
+    @ObjCEnum.EntryName(name = "YES", swiftName = "NO") ENTRY_NAME_3_SWIFT,
+}
+
+// Typename in NS_CLOSED_ENUM should be mangled.
+@ObjCEnum(name = "NULL") enum class A {
+    ENTRY_1,
+    ENTRY_2
+}
+
+// Entry name = DE + BUG in NS_CLOSED_ENUM; should be mangled.
+@ObjCEnum(name = "DE") enum class B {
+    @ObjCEnum.EntryName(name = "BUG") ENTRY_3,
+}
+
+// Entry name = N + O in NS_CLOSED_ENUM; should be mangled.
+@ObjCEnum(name = "N") enum class C {
+    @ObjCName("O") ENTRY_4,
+}

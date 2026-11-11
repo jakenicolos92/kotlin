@@ -1,4 +1,4 @@
-// !LANGUAGE: +SoundSmartCastsAfterTry
+// RUN_PIPELINE_TILL: CODEGEN
 
 fun foo() {
     var s: String?
@@ -7,5 +7,8 @@ fun foo() {
         s = "Other"
     } catch (ex: Exception) {}
     // Problem: here we do not see that 's' is always not-null
-    s<!UNSAFE_CALL!>.<!>hashCode()
+    s.hashCode()
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, localProperty, nullableType, propertyDeclaration, smartcast,
+stringLiteral, tryExpression */

@@ -1,6 +1,8 @@
+// RUN_PIPELINE_TILL: FRONTEND
+
 annotation class AnnE(val i: MyEnum)
 
-@AnnE(<!ANNOTATION_PARAMETER_MUST_BE_ENUM_CONST!>e<!>)
+@AnnE(<!ANNOTATION_ARGUMENT_MUST_BE_ENUM_CONST!>e<!>)
 class Test
 
 val e: MyEnum = MyEnum.A
@@ -9,5 +11,8 @@ enum class MyEnum {
     A
 }
 
-@AnnE(<!TYPE_MISMATCH!>Test()<!>)
+@AnnE(<!ANNOTATION_ARGUMENT_MUST_BE_CONST, ARGUMENT_TYPE_MISMATCH!>Test()<!>)
 class Test2
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration, enumDeclaration, enumEntry, primaryConstructor,
+propertyDeclaration */

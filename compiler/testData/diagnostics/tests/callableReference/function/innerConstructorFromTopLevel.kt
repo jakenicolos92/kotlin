@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 import kotlin.reflect.KFunction1
 
 class A {
@@ -12,3 +13,6 @@ fun main() {
 
     checkSubtype<KFunction1<A, A.Inner>>(y)
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, inner, localProperty, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.resolve.calls.util
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.resolve.descriptorUtil.classValueType
 import org.jetbrains.kotlin.resolve.descriptorUtil.getClassObjectReferenceTarget
@@ -24,8 +25,9 @@ import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.TypeSubstitutor
 import java.util.*
 
+@K1Deprecation
 open class FakeCallableDescriptorForObject(
-        val classDescriptor: ClassDescriptor
+    val classDescriptor: ClassDescriptor
 ) : DeclarationDescriptorWithVisibility by classDescriptor.getClassObjectReferenceTarget(), VariableDescriptor {
 
     init {
@@ -38,6 +40,8 @@ open class FakeCallableDescriptorForObject(
     open fun getReferencedDescriptor(): ClassifierDescriptorWithTypeParameters = classDescriptor.getClassObjectReferenceTarget()
 
     fun getReferencedObject(): ClassDescriptor = classDescriptor.getClassObjectReferenceTarget()
+
+    override fun getContextReceiverParameters(): List<ReceiverParameterDescriptor> = emptyList()
 
     override fun getExtensionReceiverParameter(): ReceiverParameterDescriptor? = null
 
@@ -63,14 +67,21 @@ open class FakeCallableDescriptorForObject(
 
     override fun getCompileTimeInitializer() = null
 
+    override fun cleanCompileTimeInitializerCache() {}
+
     override fun getSource(): SourceElement = classDescriptor.source
 
     override fun isConst(): Boolean = false
+
+    override fun isLateInit(): Boolean = false
 
     override fun equals(other: Any?) = other is FakeCallableDescriptorForObject && classDescriptor == other.classDescriptor
 
     override fun hashCode() = classDescriptor.hashCode()
 
     override fun getContainingDeclaration() = classDescriptor.getClassObjectReferenceTarget().containingDeclaration
-    override fun substitute(substitutor: TypeSubstitutor) = TODO("Substitution of FakeCallableDescriptorForObject is not supported")
+
+    override fun substitute(substitutor: TypeSubstitutor) = this
+
+    override fun <V> getUserData(key: CallableDescriptor.UserDataKey<V>?): V? = null
 }

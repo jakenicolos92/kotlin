@@ -1,0 +1,43 @@
+@Anno(String(init annotations))
+owner -> FirAnonymousInitializerSymbol <init>
+context -> FirAnonymousInitializerSymbol <init> from FirAnonymousObjectSymbol <anonymous> from FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+
+@Expression(String(expression annotation))
+owner -> FirAnonymousInitializerSymbol <init>
+context -> FirAnonymousInitializerSymbol <init> from FirAnonymousObjectSymbol <anonymous> from FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+
+@Anno(String(nested return type))
+owner -> FirNamedFunctionSymbol /<anonymous>.foo
+context -> FirNamedFunctionSymbol /<anonymous>.foo from FirAnonymousObjectSymbol <anonymous> from FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+
+@Anno(String(return type))
+owner -> FirNamedFunctionSymbol /<anonymous>.foo
+context -> FirNamedFunctionSymbol /<anonymous>.foo from FirAnonymousObjectSymbol <anonymous> from FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+
+@FunAnno(String(fun))
+owner -> FirNamedFunctionSymbol /<anonymous>.foo
+context -> FirNamedFunctionSymbol /<anonymous>.foo from FirAnonymousObjectSymbol <anonymous> from FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+
+@ErrorPlace(String(destructuring declaration))
+owner -> FirRegularPropertySymbol /<anonymous>.<destruct>
+context -> FirRegularPropertySymbol /<anonymous>.<destruct> from FirAnonymousObjectSymbol <anonymous> from FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+
+@A(String(a))
+owner -> FirRegularPropertySymbol /<anonymous>.a
+context -> FirRegularPropertySymbol /<anonymous>.a from FirAnonymousObjectSymbol <anonymous> from FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+
+@B(String(b))
+owner -> FirRegularPropertySymbol /<anonymous>.b
+context -> FirRegularPropertySymbol /<anonymous>.b from FirAnonymousObjectSymbol <anonymous> from FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+
+@Anno(String(implicit))
+owner -> FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+context -> FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+
+@PROPERTY:Anno(String(explicit))
+owner -> FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+context -> FirEnumEntrySymbol /MyEnumClass.ENUM_ENTRY
+
+@EnumAnnotation(String(enum))
+owner -> FirRegularClassSymbol MyEnumClass
+context -> FirRegularClassSymbol MyEnumClass

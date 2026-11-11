@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun f() {
     try {
     } catch (<!VAL_OR_VAR_ON_CATCH_PARAMETER!>val<!> e: Exception) {
@@ -11,3 +12,5 @@ fun f() {
     } catch (e: Exception) {
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, localProperty, propertyDeclaration, tryExpression */

@@ -1,0 +1,3 @@
+@Ann()
+owner -> FirRegularPropertySymbol /C.<destruct>
+context -> FirRegularPropertySymbol /C.<destruct>

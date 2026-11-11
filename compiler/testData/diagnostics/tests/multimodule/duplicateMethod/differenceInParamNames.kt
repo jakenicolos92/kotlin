@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNNECESSARY_SAFE_CALL
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNNECESSARY_SAFE_CALL -SAFE_CALL_WILL_CHANGE_NULLABILITY
 
 // MODULE: m1
 // FILE: a.kt
@@ -34,3 +35,6 @@ fun test(b: B?) {
         b?.foo(1, "")
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, ifExpression, integerLiteral, interfaceDeclaration, isExpression,
+nullableType, override, safeCall, smartcast, stringLiteral */

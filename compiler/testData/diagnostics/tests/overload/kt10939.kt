@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 object X1
 object X2
@@ -26,3 +27,6 @@ interface SpecializedDerived : GenericBase<String> {
 fun testSpecializedDerived(derived: SpecializedDerived) {
     val test1: X1 = derived.foo("", "")
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, localProperty, nullableType, objectDeclaration,
+propertyDeclaration, stringLiteral, typeParameter, vararg */

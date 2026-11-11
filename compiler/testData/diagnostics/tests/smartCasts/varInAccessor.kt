@@ -1,17 +1,21 @@
+// RUN_PIPELINE_TILL: CODEGEN
 var x: Int = 0
     get() {
         var y: Int? = null
         if (y != null) {
-            return <!DEBUG_INFO_SMARTCAST!>y<!>.hashCode()
+            return y.hashCode()
         }
         return field
     }
     set(param) {
         var y: Int? = null
         if (y != null) {
-            field = <!DEBUG_INFO_SMARTCAST!>y<!>.hashCode()
+            field = y.hashCode()
         }
         else {
             field = param
         }
     }
+
+/* GENERATED_FIR_TAGS: assignment, equalityExpression, getter, ifExpression, integerLiteral, localProperty, nullableType,
+propertyDeclaration, setter, smartcast */

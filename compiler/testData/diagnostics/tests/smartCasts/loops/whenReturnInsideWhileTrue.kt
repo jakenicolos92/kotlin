@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 public fun foo(x: String?): Int {
     loop@ while (true) {
         when (x) {
@@ -9,5 +10,8 @@ public fun foo(x: String?): Int {
     }
     // x is not null because of the break
     // but we are not able to detect it
-    return x<!UNSAFE_CALL!>.<!>length
+    return x.length
 }
+
+/* GENERATED_FIR_TAGS: break, equalityExpression, functionDeclaration, integerLiteral, nullableType, smartcast,
+stringLiteral, whenExpression, whenWithSubject, whileLoop */

@@ -16,7 +16,6 @@
 
 package org.jetbrains.kotlin.codegen.inline
 
-import org.jetbrains.kotlin.codegen.inline.InlineCodegenUtil.firstLabelInChain
 import org.jetbrains.org.objectweb.asm.tree.LabelNode
 import org.jetbrains.org.objectweb.asm.tree.TryCatchBlockNode
 
@@ -36,10 +35,17 @@ interface Interval {
 
     /*note that some intervals are mutable */
     fun isEmpty(): Boolean = startLabel == endLabel
+
+    fun verify(processor: CoveringTryCatchNodeProcessor) {
+        assert(processor.instructionIndex(startLabel) <= processor.instructionIndex(endLabel)) {
+            "Try block body starts after body end: ${processor.instructionIndex(startLabel)} > ${processor.instructionIndex(endLabel)}"
+        }
+    }
 }
 
 interface SplittableInterval<out T : Interval> : Interval {
     fun split(splitBy: Interval, keepStart: Boolean): SplitPair<T>
+    fun copyWithNewBounds(newBounds: Interval): T
 }
 
 interface IntervalWithHandler : Interval {
@@ -48,8 +54,8 @@ interface IntervalWithHandler : Interval {
 }
 
 class TryCatchBlockNodeInfo(
-        val node: TryCatchBlockNode,
-        val onlyCopyNotProcess: Boolean
+    val node: TryCatchBlockNode,
+    val onlyCopyNotProcess: Boolean
 ) : IntervalWithHandler, SplittableInterval<TryCatchBlockNodeInfo> {
     override val startLabel: LabelNode
         get() = node.start
@@ -64,23 +70,25 @@ class TryCatchBlockNodeInfo(
         val newPartInterval = if (keepStart) {
             val oldEnd = endLabel
             node.end = splitBy.startLabel
-            Pair(splitBy.endLabel, oldEnd)
-        }
-        else {
+            SimpleInterval(splitBy.endLabel, oldEnd)
+        } else {
             val oldStart = startLabel
             node.start = splitBy.endLabel
-            Pair(oldStart, splitBy.startLabel)
+            SimpleInterval(oldStart, splitBy.startLabel)
         }
         return SplitPair(
-                this,
-                TryCatchBlockNodeInfo(TryCatchBlockNode(newPartInterval.first, newPartInterval.second, handler, type), onlyCopyNotProcess)
+            this,
+            copyWithNewBounds(newPartInterval)
         )
     }
+
+    override fun copyWithNewBounds(newBounds: Interval): TryCatchBlockNodeInfo =
+        TryCatchBlockNodeInfo(TryCatchBlockNode(newBounds.startLabel, newBounds.endLabel, handler, type), onlyCopyNotProcess)
 }
 
 class TryCatchBlockNodePosition(
-        val nodeInfo: TryCatchBlockNodeInfo,
-        var position: TryCatchPosition
+    val nodeInfo: TryCatchBlockNodeInfo,
+    var position: TryCatchPosition
 ) : IntervalWithHandler by nodeInfo
 
 class TryBlockCluster<T : IntervalWithHandler>(val blocks: MutableList<T>) {

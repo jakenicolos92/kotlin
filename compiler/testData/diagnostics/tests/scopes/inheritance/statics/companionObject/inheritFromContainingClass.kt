@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 // FILE: J.java
 public class J {
@@ -10,14 +11,14 @@ open class A<T> : J() {
     init {
         foo()
         bar()
-        val a: Int = <!TYPE_MISMATCH!><!DEBUG_INFO_LEAKING_THIS!>baz<!>()<!>
-        val b: T = <!DEBUG_INFO_LEAKING_THIS!>baz<!>()
+        val a: Int = <!INITIALIZER_TYPE_MISMATCH!>baz<!>()
+        val b: T = baz()
     }
 
     fun test1() {
         foo()
         bar()
-        val a: Int = <!TYPE_MISMATCH!>baz()<!>
+        val a: Int = <!INITIALIZER_TYPE_MISMATCH!>baz<!>()
         val b: T = baz()
     }
 
@@ -50,3 +51,6 @@ open class A<T> : J() {
         fun bar() {}
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, companionObject, functionDeclaration, init, javaFunction,
+javaType, localProperty, nestedClass, nullableType, objectDeclaration, propertyDeclaration, typeParameter */

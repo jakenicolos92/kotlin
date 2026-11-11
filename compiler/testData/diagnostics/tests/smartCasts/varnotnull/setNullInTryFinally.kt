@@ -1,4 +1,4 @@
-// !LANGUAGE: +SoundSmartCastsAfterTry
+// RUN_PIPELINE_TILL: FRONTEND
 
 fun bar() {}
 
@@ -14,3 +14,6 @@ fun foo() {
     }
     s<!UNSAFE_CALL!>.<!>hashCode()
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, localProperty, nullableType, propertyDeclaration, stringLiteral,
+tryExpression */

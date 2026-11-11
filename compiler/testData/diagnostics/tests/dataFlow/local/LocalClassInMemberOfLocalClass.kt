@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun test(x: Any) {
   if (x !is String) return
 
@@ -6,10 +7,12 @@ fun test(x: Any) {
       if (y !is String) return
       class Local {
         init {
-          <!DEBUG_INFO_SMARTCAST!>x<!>.length
-          <!DEBUG_INFO_SMARTCAST!>y<!>.length
+          x.length
+          y.length
         }
       }
     }
   }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, init, isExpression, localClass, smartcast */

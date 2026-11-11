@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 507
 // FILE: a.kt
 package bar
 

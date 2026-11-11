@@ -1,8 +1,11 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun foo(d: Any?) {
     if (d is String?) {
-        <!DEBUG_INFO_SMARTCAST!>d<!>!!
-        doString(<!DEBUG_INFO_SMARTCAST!>d<!>)
+        d!!
+        doString(d)
     }
 }
 
 fun doString(s: String) = s
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, functionDeclaration, ifExpression, isExpression, nullableType, smartcast */

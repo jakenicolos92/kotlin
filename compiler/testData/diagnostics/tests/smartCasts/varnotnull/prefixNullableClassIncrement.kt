@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class MyClass
 
 // Correct at compile time but wrong at run-time
@@ -11,3 +12,6 @@ public fun box() {
     // j is null so call should be unsafe
     j<!UNSAFE_CALL!>.<!>hashCode()
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+incrementDecrementExpression, localProperty, nullableType, operator, propertyDeclaration, smartcast */

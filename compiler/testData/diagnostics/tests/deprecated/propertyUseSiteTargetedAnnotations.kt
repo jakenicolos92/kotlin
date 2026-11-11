@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 
 class PropertyHolder {
     @Deprecated("")
@@ -29,3 +30,7 @@ fun literals() {
     PropertyHolder::withGetter
     PropertyHolder::withSetter
 }
+
+/* GENERATED_FIR_TAGS: annotationUseSiteTargetProperty, annotationUseSiteTargetPropertyGetter,
+annotationUseSiteTargetPropertySetter, assignment, callableReference, classDeclaration, functionDeclaration,
+integerLiteral, localProperty, propertyDeclaration, stringLiteral */

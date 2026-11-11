@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface Your
 
 class My {
@@ -10,3 +11,6 @@ class My {
         Local()
     }()
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, interfaceDeclaration,
+lambdaLiteral, localClass, propertyDeclaration */

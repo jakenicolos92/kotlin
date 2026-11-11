@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 495
+// KJS_WITH_FULL_RUNTIME
 var log = ""
 
 fun foo() {

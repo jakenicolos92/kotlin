@@ -1,3 +1,4 @@
+// LANGUAGE: +JvmIndyAllowLambdasWithAnnotations
 @Target(AnnotationTarget.CLASS)
 annotation class ClsAnn
 
@@ -5,6 +6,7 @@ annotation class ClsAnn
 annotation class FunAnn
 
 @Target(AnnotationTarget.EXPRESSION)
+@Retention(AnnotationRetention.SOURCE)
 annotation class ExprAnn
 
 fun bar(arg: () -> Int) = arg()

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun test1() {
     fun bar() {
         var i : Int
@@ -21,7 +22,7 @@ fun test2() {
 }
 
 fun test3() {
-    val <!UNUSED_VARIABLE!>f<!> = {
+    val f = {
         val a : Int
         doSmth(<!UNINITIALIZED_VARIABLE!>a<!>)
     }
@@ -48,3 +49,6 @@ fun test5() {
 }
 
 fun doSmth(a: Any?) = a
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, lambdaLiteral, localFunction, localProperty, nullableType,
+propertyDeclaration, stringLiteral, tryExpression */

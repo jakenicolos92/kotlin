@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 import kotlin.reflect.KFunction0
 
@@ -11,3 +12,6 @@ fun main() {
 
     checkSubtype<KFunction0<A.Nested>>(x)
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, localProperty, nestedClass, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

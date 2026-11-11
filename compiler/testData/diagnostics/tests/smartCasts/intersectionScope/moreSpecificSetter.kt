@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class A {
     open var value: Int = 4
         protected set
@@ -10,6 +11,9 @@ class MutableA : A() {
 
 fun test(myA: A) {
     if (myA is MutableA) {
-        <!DEBUG_INFO_SMARTCAST!>myA<!>.value = 5
+        myA.value = 5
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, functionDeclaration, ifExpression, integerLiteral, isExpression,
+override, propertyDeclaration, smartcast */

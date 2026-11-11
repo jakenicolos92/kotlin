@@ -1,25 +1,27 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE, -UNUSED_PARAMETER
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE, -UNUSED_PARAMETER
 
 fun test(list: A) {
     if (true) {
-        val (c) = list
+        val [c] = list
     }
     else {}
 
     if (true) {
         Unit
-        val (c) = list
+        val [c] = list
     }
     else {}
 
     when (1) {
         1 -> {
-            val (c) = list
+            val [c] = list
         }
     }
 
     fn { it ->
-        val (a) = it
+        val [a] = it
     }
 }
 
@@ -28,3 +30,7 @@ class A {
 }
 
 fun fn(x: (A) -> Unit) {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, destructuringDeclaration, equalityExpression, functionDeclaration,
+functionalType, ifExpression, integerLiteral, lambdaLiteral, localProperty, operator, propertyDeclaration,
+whenExpression, whenWithSubject */

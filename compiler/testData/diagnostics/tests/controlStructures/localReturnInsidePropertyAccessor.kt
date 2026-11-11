@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface ClassData
 
 fun f() = object : ClassData {
@@ -10,7 +11,7 @@ fun f() = object : ClassData {
 fun g() = object : ClassData {
     init {
         if (true) {
-            <!RETURN_NOT_ALLOWED, RETURN_IN_FUNCTION_WITH_EXPRESSION_BODY!>return<!> 0
+            <!RETURN_NOT_ALLOWED!>return<!> <!RETURN_TYPE_MISMATCH!>0<!>
         }
     }
 
@@ -18,3 +19,6 @@ fun g() = object : ClassData {
         return 6
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, functionDeclaration, getter, ifExpression, init, integerLiteral,
+interfaceDeclaration, propertyDeclaration */

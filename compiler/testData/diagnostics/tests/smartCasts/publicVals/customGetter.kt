@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 public class X {
     private val x : String? = null
     public val y: CharSequence?
@@ -11,3 +12,5 @@ public class X {
     }
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, functionDeclaration, getter, ifExpression, integerLiteral,
+nullableType, propertyDeclaration, safeCall, smartcast */

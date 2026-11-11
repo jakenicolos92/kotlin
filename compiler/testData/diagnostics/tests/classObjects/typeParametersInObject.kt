@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 object A<!TYPE_PARAMETERS_IN_OBJECT!><T><!>
 object B<!TYPE_PARAMETERS_IN_OBJECT!><in T, out R><!>
 object C<!TYPE_PARAMETERS_IN_OBJECT!><T : Comparable<T>><!>
@@ -19,3 +20,6 @@ class G {
 }
 
 object H<!TYPE_PARAMETERS_IN_OBJECT!><T, R><!><!CONSTRUCTOR_IN_OBJECT!>()<!>
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, in, nullableType, objectDeclaration, out, primaryConstructor,
+typeConstraint, typeParameter */

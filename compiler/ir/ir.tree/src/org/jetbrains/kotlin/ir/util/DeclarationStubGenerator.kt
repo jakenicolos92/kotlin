@@ -17,110 +17,46 @@
 package org.jetbrains.kotlin.ir.util
 
 import org.jetbrains.kotlin.descriptors.*
-import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
+import org.jetbrains.kotlin.ir.IrBuiltIns
+import org.jetbrains.kotlin.ir.IrLock
+import org.jetbrains.kotlin.ir.IrProvider
 import org.jetbrains.kotlin.ir.declarations.*
-import org.jetbrains.kotlin.ir.declarations.impl.IrModuleFragmentImpl
-import org.jetbrains.kotlin.ir.declarations.impl.IrPropertyImpl
-import org.jetbrains.kotlin.ir.declarations.impl.IrTypeParameterImpl
-import org.jetbrains.kotlin.ir.declarations.impl.IrValueParameterImpl
-import org.jetbrains.kotlin.ir.descriptors.IrBuiltIns
-import org.jetbrains.kotlin.ir.expressions.IrExpressionBody
-import org.jetbrains.kotlin.ir.expressions.impl.IrErrorExpressionImpl
-import org.jetbrains.kotlin.ir.expressions.impl.IrExpressionBodyImpl
-import org.jetbrains.kotlin.resolve.DescriptorUtils
-import org.jetbrains.kotlin.resolve.descriptorUtil.hasDefaultValue
-import org.jetbrains.kotlin.resolve.scopes.MemberScope
 
-class DeclarationStubGenerator(
-        val symbolTable: SymbolTable,
-        val origin: IrDeclarationOrigin
-) {
-    fun generateEmptyModuleFragmentStub(descriptor: ModuleDescriptor, irBuiltIns: IrBuiltIns): IrModuleFragment =
-            IrModuleFragmentImpl(descriptor, irBuiltIns)
+abstract class DeclarationStubGenerator(
+    val moduleDescriptor: ModuleDescriptor,
+    val symbolTable: SymbolTable,
+    val irBuiltIns: IrBuiltIns,
+    val extensions: StubGeneratorExtensions = StubGeneratorExtensions.EMPTY,
+) : IrProvider {
+    val lock: IrLock
+        get() = symbolTable.lock
 
-    fun generateEmptyExternalPackageFragmentStub(descriptor: PackageFragmentDescriptor): IrExternalPackageFragment =
-            symbolTable.declareExternalPackageFragment(descriptor)
+    abstract var unboundSymbolGeneration: Boolean
+    abstract val descriptorFinder: DescriptorByIdSignatureFinder
 
-    fun generateMemberStub(descriptor: DeclarationDescriptor): IrDeclaration =
-            when (descriptor) {
-                is ClassDescriptor ->
-                    if (DescriptorUtils.isEnumEntry(descriptor))
-                        generateEnumEntryStub(descriptor)
-                    else
-                        generateClassStub(descriptor)
-                is ClassConstructorDescriptor ->
-                    generateConstructorStub(descriptor)
-                is FunctionDescriptor ->
-                    generateFunctionStub(descriptor)
-                is PropertyDescriptor ->
-                    generatePropertyStub(descriptor)
-                else ->
-                    throw AssertionError("Unexpected member descriptor: $descriptor")
-            }
+    abstract fun generateOrGetEmptyExternalPackageFragmentStub(descriptor: PackageFragmentDescriptor): IrExternalPackageFragment
 
-    fun generatePropertyStub(descriptor: PropertyDescriptor): IrProperty =
-            IrPropertyImpl(UNDEFINED_OFFSET, UNDEFINED_OFFSET, origin, descriptor).also { irProperty ->
-                val getterDescriptor = descriptor.getter
-                if (getterDescriptor == null) {
-                    irProperty.backingField =
-                            symbolTable.declareField(UNDEFINED_OFFSET, UNDEFINED_OFFSET, origin, descriptor)
-                }
-                else {
-                    irProperty.getter = generateFunctionStub(getterDescriptor)
-                }
+    abstract fun generateOrGetFacadeClass(descriptor: DeclarationDescriptor): IrClass?
 
-                irProperty.setter = descriptor.setter?.let { generateFunctionStub(it) }
-            }
+    abstract fun generateMemberStub(descriptor: DeclarationDescriptor): IrDeclaration
 
-    fun generateFunctionStub(descriptor: FunctionDescriptor): IrSimpleFunction =
-            symbolTable.declareSimpleFunction(UNDEFINED_OFFSET, UNDEFINED_OFFSET, origin, descriptor).also { irFunction ->
-                generateTypeParameterStubs(descriptor.typeParameters, irFunction)
-                generateValueParametersStubs(descriptor.valueParameters, irFunction)
-            }
+    abstract fun generatePropertyStub(descriptor: PropertyDescriptor): IrProperty
 
-    fun generateConstructorStub(descriptor: ClassConstructorDescriptor): IrConstructor =
-            symbolTable.declareConstructor(UNDEFINED_OFFSET, UNDEFINED_OFFSET, origin, descriptor).also { irConstructor ->
-                generateValueParametersStubs(descriptor.valueParameters, irConstructor)
-            }
+    abstract fun generateFieldStub(descriptor: PropertyDescriptor): IrField
 
-    fun generateValueParametersStubs(valueParameters: Collection<ValueParameterDescriptor>, function: IrFunction) {
-        valueParameters.mapTo(function.valueParameters) { generateValueParameterStub(it) }
-    }
+    abstract fun generateFunctionStub(descriptor: FunctionDescriptor, createPropertyIfNeeded: Boolean = true): IrSimpleFunction
 
-    fun generateValueParameterStub(descriptor: ValueParameterDescriptor): IrValueParameter =
-            IrValueParameterImpl(UNDEFINED_OFFSET, UNDEFINED_OFFSET, origin, descriptor).also { irValueParameter ->
-                if (descriptor.declaresDefaultValue()) {
-                    irValueParameter.defaultValue =
-                            IrExpressionBodyImpl(IrErrorExpressionImpl(
-                                    UNDEFINED_OFFSET, UNDEFINED_OFFSET, descriptor.type,
-                                    "Stub expression for default value of ${descriptor.name}"
-                            ))
-                }
-            }
+    abstract fun generateConstructorStub(descriptor: ClassConstructorDescriptor): IrConstructor
 
-    fun generateClassStub(descriptor: ClassDescriptor): IrClass =
-            symbolTable.declareClass(UNDEFINED_OFFSET, UNDEFINED_OFFSET, origin, descriptor).also { irClass ->
-                generateTypeParameterStubs(descriptor.declaredTypeParameters, irClass)
-                generateChildStubs(descriptor.constructors, irClass)
-                generateMemberStubs(descriptor.defaultType.memberScope, irClass)
-                generateMemberStubs(descriptor.staticScope, irClass)
-            }
+    abstract fun generateValueParameterStub(descriptor: ValueParameterDescriptor): IrValueParameter
 
-    fun generateEnumEntryStub(descriptor: ClassDescriptor): IrEnumEntry =
-            symbolTable.declareEnumEntry(UNDEFINED_OFFSET, UNDEFINED_OFFSET, origin, descriptor)
+    abstract fun generateClassStub(descriptor: ClassDescriptor): IrClass
 
-    fun generateTypeParameterStubs(typeParameters: List<TypeParameterDescriptor>, container: IrTypeParametersContainer) {
-        typeParameters.mapTo(container.typeParameters) { generateTypeParameterStub(it) }
-    }
+    abstract fun generateEnumEntryStub(descriptor: ClassDescriptor): IrEnumEntry
 
-    fun generateTypeParameterStub(descriptor: TypeParameterDescriptor): IrTypeParameter =
-            IrTypeParameterImpl(UNDEFINED_OFFSET, UNDEFINED_OFFSET, origin, descriptor)
+    abstract fun generateOrGetTypeParameterStub(descriptor: TypeParameterDescriptor): IrTypeParameter
 
-    fun generateMemberStubs(memberScope: MemberScope, container: IrDeclarationContainer) {
-        generateChildStubs(memberScope.getContributedDescriptors(), container)
-    }
+    abstract fun generateOrGetScopedTypeParameterStub(descriptor: TypeParameterDescriptor): IrTypeParameter
 
-    fun generateChildStubs(descriptors: Collection<DeclarationDescriptor>, container: IrDeclarationContainer) {
-        descriptors.sortedWith(StableDescriptorsComparator).mapTo(container.declarations) { generateMemberStub(it) }
-    }
+    abstract fun generateTypeAliasStub(descriptor: TypeAliasDescriptor): IrTypeAlias
 }

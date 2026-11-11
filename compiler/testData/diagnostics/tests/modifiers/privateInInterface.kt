@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface My {
     <!PRIVATE_PROPERTY_IN_INTERFACE!>private<!> val x: Int
     <!INCOMPATIBLE_MODIFIERS!>private<!> <!INCOMPATIBLE_MODIFIERS!>abstract<!> val xx: Int
@@ -10,3 +11,5 @@ interface My {
     // ok
     private fun bar() = 42
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, getter, integerLiteral, interfaceDeclaration, propertyDeclaration */

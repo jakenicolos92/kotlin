@@ -1,6 +1,7 @@
-// EXPECTED_REACHABLE_NODES: 499
+// LANGUAGE: -ProhibitVarInJsModuleFile
+// ^^^ Keeps testing the pre-KT-88343 behavior of writing to a top-level `var` in a `@file:JsModule` file
+// JS_MODULE_KIND: AMD
 // FILE: a.kt
-// MODULE_KIND: AMD
 @file:JsModule("lib")
 package foo
 

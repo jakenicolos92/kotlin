@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 542
 package foo
 
 val x: Int?

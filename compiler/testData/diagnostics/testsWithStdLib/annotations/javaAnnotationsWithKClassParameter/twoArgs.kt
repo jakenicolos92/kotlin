@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 public @interface A {
     Class<?> arg1();
@@ -6,3 +7,5 @@ public @interface A {
 
 // FILE: b.kt
 @A(arg1 = String::class, arg2 = Int::class) class MyClass
+
+/* GENERATED_FIR_TAGS: classDeclaration, classReference, javaType */

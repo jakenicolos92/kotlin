@@ -1,16 +1,19 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package aa
 
 fun <T, R> foo(block: (T)-> R) = block
 
 fun test1() {
-    <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!> {
-        <!CANNOT_INFER_PARAMETER_TYPE, UNUSED_ANONYMOUS_PARAMETER!>x<!> ->  // here we have 'cannot infer parameter type' error
+    <!CANNOT_INFER_PARAMETER_TYPE, CANNOT_INFER_PARAMETER_TYPE!>foo<!> {
+        <!CANNOT_INFER_PARAMETER_TYPE!>x<!> ->  // here we have 'cannot infer parameter type' error
         43
     }
 }
 
-fun bar(<!UNUSED_PARAMETER!>f<!>: (<!UNRESOLVED_REFERENCE!>A<!>)->Unit) {}
+fun bar(f: (<!UNRESOLVED_REFERENCE!>A<!>)->Unit) {}
 
 fun test2() {
-    bar { <!UNUSED_ANONYMOUS_PARAMETER!>a<!> -> } // here we don't have 'cannot infer parameter type' error
+    bar { <!UNRESOLVED_REFERENCE!>a<!> -> } // here we don't have 'cannot infer parameter type' error
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, integerLiteral, lambdaLiteral, nullableType, typeParameter */

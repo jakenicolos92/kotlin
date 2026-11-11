@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 // FILE: A.java
 public enum A {
     ENTRY;
@@ -8,3 +9,6 @@ public enum A {
 fun main() {
     checkSubtype<A>(A.valueOf("ENTRY"))
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, infix,
+javaFunction, javaType, nullableType, stringLiteral, typeParameter, typeWithExtension */

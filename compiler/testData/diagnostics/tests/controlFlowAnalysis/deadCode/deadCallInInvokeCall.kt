@@ -1,11 +1,15 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun testInvoke() {
     operator fun Nothing.invoke(): Nothing = this
     todo()<!UNREACHABLE_CODE!>()<!>
 }
 
 fun testInvokeWithLambda() {
-    operator fun Nothing.invoke(<!UNUSED_PARAMETER!>i<!>: Int, f: () -> Int) = f
+    operator fun Nothing.invoke(i: Int, f: () -> Int) = f
     todo()<!UNREACHABLE_CODE!>(1){ 42 }<!>
 }
 
 fun todo(): Nothing = throw Exception()
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, integerLiteral, lambdaLiteral,
+localFunction, operator, thisExpression */

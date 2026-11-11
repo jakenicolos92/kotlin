@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 import kotlin.reflect.KProperty
 
 annotation class Ann
@@ -32,7 +33,11 @@ class SomeClass {
 
     fun anotherFun() {
         <!INAPPLICABLE_TARGET_ON_PROPERTY!>@set:Ann<!>
-        val <!UNUSED_VARIABLE!>localVariable<!> = 5
+        val localVariable = 5
     }
 
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, annotationDeclaration, annotationUseSiteTargetPropertySetter,
+classDeclaration, functionDeclaration, getter, integerLiteral, localProperty, nullableType, operator,
+propertyDeclaration, propertyDelegate, setter, starProjection, stringLiteral */

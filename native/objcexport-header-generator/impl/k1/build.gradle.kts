@@ -1,0 +1,77 @@
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("jvm")
+    id("java-test-fixtures")
+    id("test-inputs-check")
+}
+
+sourceSets {
+    "main" { projectDefault() }
+    "test" { projectDefault() }
+    "testFixtures" { projectDefault() }
+}
+
+dependencies {
+    api(project(":native:objcexport-header-generator"))
+    testFixturesImplementation(project(":compiler:cli-base"))
+    implementation(project(":compiler:ir.backend.common"))
+    implementation(project(":compiler:ir.objcinterop"))
+    implementation(project(":compiler:ir.serialization.native"))
+    implementation(project(":core:descriptors"))
+    implementation(project(":core:deserialization"))
+    implementation(project(":native:frontend.native"))
+    testFixturesImplementation(testFixtures(project(":native:objcexport-header-generator")))
+    testFixturesApi(testFixtures(project(":compiler:tests-common")))
+    testFixturesApi(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+
+    implementation(project(":compiler:frontend"))
+    api(project(":compiler:frontend.common"))
+    api(project(":compiler:psi:psi-api"))
+    api(project(":core:compiler.common"))
+    api(project(":kotlin-stdlib"))
+    api(project(":kotlin-util-io"))
+    api(project(":native:base"))
+    api(project(":native:binary-options"))
+    implementation(intellijCore())
+    implementation(project(":compiler:frontend.common.jvm"))
+    implementation(project(":compiler:ir.serialization.common"))
+    implementation(project(":compiler:psi:psi-frontend-utils"))
+    implementation(project(":compiler:psi:psi-impl"))
+    implementation(project(":compiler:resolution"))
+    implementation(project(":core:util.runtime"))
+    implementation(project(":kotlin-tooling-core"))
+    implementation(project(":kotlin-util-klib"))
+    implementation(project(":kotlin-util-klib-metadata"))
+
+    testFixturesImplementation(project(":compiler:cli"))
+    testFixturesImplementation(project(":compiler:container"))
+    testFixturesImplementation(project(":compiler:ir.psi2ir"))
+    testFixturesImplementation(project(":kotlin-util-klib-metadata"))
+    testFixturesImplementation(project(":native:native.config"))
+    testFixturesImplementation(project(":compiler:resolution"))
+    testFixturesImplementation(project(":compiler:frontend"))
+    testFixturesImplementation(project(":core:deserialization"))
+
+    testImplementation(project(":compiler:compiler.version"))
+    testImplementation(project(":compiler:config"))
+    testImplementation(project(":compiler:config.jvm"))
+    testImplementation(project(":compiler:frontend.java"))
+    testImplementation(project(":compiler:ir.psi2ir"))
+    testImplementation(project(":compiler:util"))
+    testImplementation(project(":core:deserialization"))
+    testImplementation(project(":kotlin-test"))
+    testImplementation(testFixtures(project(":compiler:test-infrastructure-utils")))
+    testImplementation(testFixtures(project(":compiler:tests-compiler-utils")))
+    testFixturesImplementation(project(":core:compiler.common.native"))
+    testFixturesImplementation(project(":compiler:container"))
+    testFixturesImplementation(project(":compiler:resolution"))
+}
+
+optInTo("org.jetbrains.kotlin.backend.konan.InternalKotlinNativeApi")
+
+projectTests {
+    objCExportHeaderGeneratorTestTask("test")
+}

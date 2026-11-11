@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // http://youtrack.jetbrains.net/issue/KT-20
 
 class A() {
@@ -7,3 +8,6 @@ class A() {
         val y = <!UNRESOLVED_REFERENCE!>x<!>
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, integerLiteral, objectDeclaration, primaryConstructor,
+propertyDeclaration */

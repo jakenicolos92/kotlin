@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Annotation(val x: Int) {
     fun baz() {}
     fun bar() = x
@@ -12,3 +13,6 @@ fun foo(annotation: Annotation): Int {
         return -1
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, functionDeclaration, ifExpression, integerLiteral,
+primaryConstructor, propertyDeclaration */

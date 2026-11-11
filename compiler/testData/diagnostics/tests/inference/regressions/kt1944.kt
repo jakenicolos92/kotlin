@@ -1,7 +1,10 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 //KT-1944 Inference fails on run()
 package j
+
+import checkSubtype
 
 class P {
     var x : Int = 0
@@ -12,3 +15,6 @@ class P {
         checkSubtype<Unit>(r)
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, integerLiteral, lambdaLiteral, localProperty, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 511
+// KJS_WITH_FULL_RUNTIME
 /*
  * Copy of JVM-backend test
  * Found at: compiler/testData/codegen/boxInline/tryCatchFinally/tryCatchFinally.1.kt

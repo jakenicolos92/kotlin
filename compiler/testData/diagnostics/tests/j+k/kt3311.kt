@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Super.java
 public class Super {
     public boolean foo;
@@ -12,8 +13,11 @@ public class Super {
 public class Sub: Super() {
 }
 
-fun main(args: Array<String>) {
+fun main() {
     val x = Sub()
     x.foo = true
     x.bar = true
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, functionDeclaration, javaProperty, javaType, localProperty,
+propertyDeclaration */

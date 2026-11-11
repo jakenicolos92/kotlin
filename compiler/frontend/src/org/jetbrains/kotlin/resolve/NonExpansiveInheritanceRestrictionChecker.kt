@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.resolve
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.SourceElement
 import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
@@ -28,12 +29,13 @@ import org.jetbrains.kotlin.types.typeUtil.boundClosure
 import org.jetbrains.kotlin.types.typeUtil.constituentTypes
 import org.jetbrains.kotlin.utils.DFS
 
+@K1Deprecation
 object NonExpansiveInheritanceRestrictionChecker {
     @JvmStatic
     fun check(
-            declaration: KtClass,
-            classDescriptor: ClassDescriptor,
-            diagnosticHolder: DiagnosticSink
+        declaration: KtClass,
+        classDescriptor: ClassDescriptor,
+        diagnosticHolder: DiagnosticSink
     ) {
         val typeConstructor = classDescriptor.typeConstructor
         if (typeConstructor.parameters.isEmpty()) return
@@ -104,11 +106,14 @@ object NonExpansiveInheritanceRestrictionChecker {
 
                         for (typeParameter in typeParameters) {
                             if (typeParameter.defaultType in constituents || typeParameter.defaultType.makeNullableAsSpecified(true) in constituents) {
-                                addEdge(typeParameter, constituentTypeConstructor.parameters[i], !TypeUtils.isTypeParameter(typeProjection.type))
+                                addEdge(
+                                    typeParameter,
+                                    constituentTypeConstructor.parameters[i],
+                                    !TypeUtils.isTypeParameter(typeProjection.type)
+                                )
                             }
                         }
-                    }
-                    else {
+                    } else {
                         // Furthermore, if T appears as a constituent type of an element of the B-closure of the set of lower and
                         // upper bounds of a skolem type variable Q in a skolemization of a projected generic type in ST, add an
                         // expanding edge from T to V, where V is the type parameter corresponding to Q.
@@ -116,7 +121,8 @@ object NonExpansiveInheritanceRestrictionChecker {
                         val bounds = hashSetOf<KotlinType>()
 
                         val substitutor = TypeConstructorSubstitution.create(constituentType).buildSubstitutor()
-                        val adaptedUpperBounds = originalTypeParameter.upperBounds.mapNotNull { substitutor.substitute(it, Variance.INVARIANT) }
+                        val adaptedUpperBounds =
+                            originalTypeParameter.upperBounds.mapNotNull { substitutor.substitute(it, Variance.INVARIANT) }
                         bounds.addAll(adaptedUpperBounds)
 
                         if (!typeProjection.isStarProjection) {
@@ -138,7 +144,7 @@ object NonExpansiveInheritanceRestrictionChecker {
 
     private data class ExpansiveEdge<out T>(val from: T, val to: T)
 
-    private interface  Graph<T> {
+    private interface Graph<T> {
         fun getNeighbors(node: T): Collection<T>
         val expansiveEdges: Set<ExpansiveEdge<T>>
     }

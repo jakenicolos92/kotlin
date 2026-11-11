@@ -1,0 +1,8 @@
+depends = AVFAudio AVFoundation AVRouting AudioToolbox CFCGTypes CFNetwork CoreAudio CoreAudioTypes CoreFoundation CoreFoundationBase CoreGraphics CoreImage CoreLocation CoreMIDI CoreMedia CoreText CoreVideo EAGL Foundation IOSurface ImageIO MediaToolbox Metal Network OpenGLESCommon QuartzCore Security Symbols UIKit UIUtilities UniformTypeIdentifiers UserNotifications VideoToolbox _LocationEssentials darwin posix
+language = Objective-C
+package = platform.AVKit
+modules = AVKit
+apiNotesSwiftName = true
+
+compilerOpts = -framework AVKit
+linkerOpts = -framework AVKit

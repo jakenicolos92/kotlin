@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 
 import java.util.*;
@@ -13,3 +14,5 @@ public interface B extends A {}
 // FILE: k.kt
 
 class C(x: A) : A by x, B {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, inheritanceDelegation, javaType, primaryConstructor */

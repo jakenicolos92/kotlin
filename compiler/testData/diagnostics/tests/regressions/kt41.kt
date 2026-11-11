@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // KT-41 Make functions with errors in returning statement return ERROR type and not Nothing
 
 package kt41
@@ -7,5 +8,7 @@ fun aaa() =
 
 fun bbb() {
   aaa()
-  <!UNUSED_EXPRESSION!>1<!> // Stupid error: unreachable code
+  1 // Stupid error: unreachable code
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral */

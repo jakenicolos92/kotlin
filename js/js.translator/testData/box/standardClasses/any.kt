@@ -1,5 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 493
-// CHECK_CALLED_IN_SCOPE: function=isType scope=box
 package foo
 
 class A : Any()
@@ -15,7 +13,7 @@ fun box(): String {
 
     if (arrayOf(1, 2, 3).asAny() !is Any) return "fail3"
 
-    if (createNakedObject() is Any) return "fail4"
+    if (createNakedObject() !is Any) return "fail4"
 
     if (({ }).asAny() !is Any) return "fail5"
 
@@ -26,6 +24,8 @@ fun box(): String {
     if (false.asAny() !is Any) return "fail8"
 
     if ("bar".asAny() !is Any) return "fail9"
+
+    if (null is Any) return "fail10"
 
     return "OK"
 }

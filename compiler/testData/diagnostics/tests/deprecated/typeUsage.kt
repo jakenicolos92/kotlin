@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 @Deprecated("Class")
 open class Obsolete {
     fun use() {}
@@ -23,8 +24,8 @@ class Properties {
     var y : <!DEPRECATION!>Obsolete<!> = <!DEPRECATION!>Obsolete<!>()
 
     var n : <!DEPRECATION!>Obsolete<!>
-        get() = <!DEPRECATION!>Obsolete<!>()
-        set(value) {}
+    get() = <!DEPRECATION!>Obsolete<!>()
+    set(value) {}
 }
 
 fun param(param: <!DEPRECATION!>Obsolete<!>) { param.use() }
@@ -40,3 +41,7 @@ fun <!DEPRECATION!>Obsolete<!>.receiver() {}
 fun retVal(): <!DEPRECATION!>Obsolete<!> = <!DEPRECATION!>Obsolete<!>()
 
 fun nullableRetVal(): <!DEPRECATION!>Obsolete<!>? = null
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, getter,
+interfaceDeclaration, nullableType, objectDeclaration, primaryConstructor, propertyDeclaration, setter, stringLiteral,
+typeConstraint, typeParameter, typeWithExtension */

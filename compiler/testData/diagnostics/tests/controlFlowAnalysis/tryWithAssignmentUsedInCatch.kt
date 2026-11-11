@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun f() {
     var foo = 1
     try {
@@ -34,3 +35,6 @@ fun h() {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, integerLiteral, localProperty, propertyDeclaration,
+tryExpression */

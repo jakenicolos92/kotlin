@@ -1,6 +1,3 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS
-
 private object NotEmptyMap : MutableMap<Any, Any> {
     override fun containsKey(key: Any): Boolean = true
     override fun containsValue(value: Any): Boolean = true

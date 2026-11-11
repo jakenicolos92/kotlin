@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class RedefinePropertyInFor() {
 
     var i = 1
@@ -9,3 +10,5 @@ class RedefinePropertyInFor() {
 
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, forLoop, functionDeclaration, integerLiteral, localProperty, primaryConstructor,
+propertyDeclaration, rangeExpression */

@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.descriptors.impl;
@@ -22,8 +11,9 @@ import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.descriptors.annotations.Annotations;
 import org.jetbrains.kotlin.name.Name;
 import org.jetbrains.kotlin.resolve.scopes.MemberScope;
-import org.jetbrains.kotlin.storage.LockBasedStorageManager;
+import org.jetbrains.kotlin.storage.StorageManager;
 import org.jetbrains.kotlin.types.*;
+import org.jetbrains.kotlin.types.checker.KotlinTypeRefiner;
 
 import java.util.*;
 
@@ -32,10 +22,11 @@ public class MutableClassDescriptor extends ClassDescriptorBase {
     private final boolean isInner;
 
     private Modality modality;
-    private Visibility visibility;
+    private DescriptorVisibility visibility;
     private TypeConstructor typeConstructor;
     private List<TypeParameterDescriptor> typeParameters;
     private final Collection<KotlinType> supertypes = new ArrayList<KotlinType>();
+    private final StorageManager storageManager;
 
     public MutableClassDescriptor(
             @NotNull DeclarationDescriptor containingDeclaration,
@@ -43,9 +34,11 @@ public class MutableClassDescriptor extends ClassDescriptorBase {
             boolean isInner,
             boolean isExternal,
             @NotNull Name name,
-            @NotNull SourceElement source
+            @NotNull SourceElement source,
+            @NotNull StorageManager storageManager
     ) {
-        super(LockBasedStorageManager.NO_LOCKS, containingDeclaration, name, source, isExternal);
+        super(storageManager, containingDeclaration, name, source, isExternal);
+        this.storageManager = storageManager;
         assert kind != ClassKind.OBJECT : "Fix isCompanionObject()";
 
         this.kind = kind;
@@ -81,13 +74,13 @@ public class MutableClassDescriptor extends ClassDescriptorBase {
         return kind;
     }
 
-    public void setVisibility(@NotNull Visibility visibility) {
+    public void setVisibility(@NotNull DescriptorVisibility visibility) {
         this.visibility = visibility;
     }
 
     @NotNull
     @Override
-    public Visibility getVisibility() {
+    public DescriptorVisibility getVisibility() {
         return visibility;
     }
 
@@ -102,17 +95,32 @@ public class MutableClassDescriptor extends ClassDescriptorBase {
     }
 
     @Override
+    public boolean isInline() {
+        return false;
+    }
+
+    @Override
+    public boolean isFun() {
+        return false;
+    }
+
+    @Override
+    public boolean isValue() {
+        return false;
+    }
+
+    @Override
     public boolean isCompanionObject() {
         return false;
     }
 
     @Override
-    public boolean isHeader() {
+    public boolean isExpect() {
         return false;
     }
 
     @Override
-    public boolean isImpl() {
+    public boolean isActual() {
         return false;
     }
 
@@ -157,7 +165,7 @@ public class MutableClassDescriptor extends ClassDescriptorBase {
 
     public void createTypeConstructor() {
         assert typeConstructor == null : typeConstructor;
-        this.typeConstructor = new ClassTypeConstructorImpl(this, ModalityKt.isFinalClass(this), typeParameters, supertypes);
+        this.typeConstructor = new ClassTypeConstructorImpl(this, typeParameters, supertypes, storageManager);
         for (FunctionDescriptor functionDescriptor : getConstructors()) {
             ((ClassConstructorDescriptorImpl) functionDescriptor).setReturnType(getDefaultType());
         }
@@ -165,7 +173,7 @@ public class MutableClassDescriptor extends ClassDescriptorBase {
 
     @Override
     @NotNull
-    public MemberScope getUnsubstitutedMemberScope() {
+    public MemberScope getUnsubstitutedMemberScope(@NotNull KotlinTypeRefiner kotlinTypeRefiner) {
         return MemberScope.Empty.INSTANCE; // used for getDefaultType
     }
 
@@ -179,6 +187,12 @@ public class MutableClassDescriptor extends ClassDescriptorBase {
     @Override
     public Collection<ClassDescriptor> getSealedSubclasses() {
         return Collections.emptyList();
+    }
+
+    @Nullable
+    @Override
+    public ValueClassRepresentation<SimpleType> getValueClassRepresentation() {
+        return null;
     }
 
     @Override

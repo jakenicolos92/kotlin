@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 interface A
 interface B
@@ -8,7 +9,7 @@ interface D: A, B
 interface E: A, B
 
 fun foo(c: C?, d: D?, e: E?) {
-    val test1: A? = <!TYPE_MISMATCH!>c ?: d<!> ?: e
+    val test1: A? = c ?: d ?: e
 
     val test2: B? = if (false) if (true) c else d else e
 
@@ -26,3 +27,6 @@ fun foo(c: C?, d: D?, e: E?) {
         else -> e
     }
 }
+
+/* GENERATED_FIR_TAGS: elvisExpression, equalityExpression, functionDeclaration, ifExpression, integerLiteral,
+interfaceDeclaration, localProperty, nullableType, propertyDeclaration, whenExpression, whenWithSubject */

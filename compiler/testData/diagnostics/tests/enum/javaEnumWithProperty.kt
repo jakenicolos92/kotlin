@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 public enum A {
     ENTRY("1"),
@@ -17,3 +18,5 @@ fun main() {
     c.s
     A.ANOTHER.s
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaProperty, javaType, localProperty, propertyDeclaration */

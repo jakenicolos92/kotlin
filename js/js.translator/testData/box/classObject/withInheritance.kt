@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 505
 package foo
 
 open class A {

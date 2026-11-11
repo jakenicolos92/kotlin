@@ -1,6 +1,8 @@
-// IGNORE_BACKEND: NATIVE
-// FILE: 1.kt
 // WITH_REFLECT
+// NO_CHECK_LAMBDA_INLINING
+// TARGET_BACKEND: JVM
+
+// FILE: 1.kt
 package test
 
 interface MComparator<T> {
@@ -28,7 +30,6 @@ open class CustomerService {
 
 // FILE: 2.kt
 
-//NO_CHECK_LAMBDA_INLINING
 import test.*
 
 fun box(): String {

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 class C
 
@@ -11,3 +12,6 @@ fun test() {
     var c1 = C()
     c1 <!ASSIGN_OPERATOR_AMBIGUITY!>+=<!> ""
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, localProperty, operator,
+propertyDeclaration, stringLiteral, thisExpression */

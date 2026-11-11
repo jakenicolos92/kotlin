@@ -18,7 +18,9 @@ package org.jetbrains.kotlin.codegen.optimization.transformer
 
 import org.jetbrains.org.objectweb.asm.tree.MethodNode
 
-open class CompositeMethodTransformer(vararg val transformers: MethodTransformer) : MethodTransformer() {
+open class CompositeMethodTransformer(private val transformers: List<MethodTransformer>) : MethodTransformer() {
+    constructor(vararg transformers: MethodTransformer?) : this(transformers.filterNotNull())
+
     override fun transform(internalClassName: String, methodNode: MethodNode) {
         transformers.forEach { it.transform(internalClassName, methodNode) }
     }

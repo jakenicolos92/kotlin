@@ -1,6 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 487
-package foo
-
 fun box(): String {
 
     var twoToFive = 2..5

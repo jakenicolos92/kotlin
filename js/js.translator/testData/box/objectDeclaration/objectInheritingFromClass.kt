@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 498
 package foo
 
 abstract class A(val s: String) {

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -SENSELESS_COMPARISON -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_EXPRESSION -SENSELESS_COMPARISON -UNUSED_PARAMETER
 
 // FILE: J.java
 
@@ -38,3 +39,6 @@ fun test() {
     platformN!!
     platformJ!!
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, equalityExpression, flexibleType, functionDeclaration, ifExpression,
+javaProperty, javaType, localProperty, nullableType, propertyDeclaration, smartcast */

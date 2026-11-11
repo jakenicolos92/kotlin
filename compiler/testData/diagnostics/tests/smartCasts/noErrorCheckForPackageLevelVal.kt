@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //FILE: bar.kt
 package bar
 
@@ -11,15 +12,18 @@ val i: Int? = 1
 class A(val i: Int?) {
     fun testUseFromClass() {
         if (foo.i != null) {
-            useInt(<!TYPE_MISMATCH!>i<!>)
+            useInt(<!ARGUMENT_TYPE_MISMATCH!>i<!>)
         }
     }
 }
 
 fun testUseFromOtherPackage() {
     if (bar.i != null) {
-        useInt(<!TYPE_MISMATCH!>i<!>)
+        useInt(<!ARGUMENT_TYPE_MISMATCH!>i<!>)
     }
 }
 
 fun useInt(i: Int) = i
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, functionDeclaration, ifExpression, integerLiteral,
+nullableType, primaryConstructor, propertyDeclaration */

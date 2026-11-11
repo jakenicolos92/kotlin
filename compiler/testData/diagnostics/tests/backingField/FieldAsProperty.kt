@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class My(val field: Int) {
     // Backing field, initializer
     val second: Int = 0
@@ -7,3 +8,5 @@ class My(val field: Int) {
     val third: Int
         get() = this.field
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, getter, integerLiteral, primaryConstructor, propertyDeclaration, thisExpression */

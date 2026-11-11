@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //kt-411 Wrong type expected when returning from a function literal
 
 package kt411
@@ -9,17 +10,17 @@ fun f() {
     }
     )
 }
-fun invoker(<!UNUSED_PARAMETER!>gen<!> : () -> Int) : Int  = 0
+fun invoker(gen : () -> Int) : Int  = 0
 
 //more tests
 fun t1() {
-    val <!UNUSED_VARIABLE!>v<!> = l@{
+    val v = l@{
         return@l 111
     }
 }
 
 fun t2() : String {
-    val <!UNUSED_VARIABLE!>g<!> : ()-> Int = l@{
+    val g : ()-> Int = l@{
         if (true) {
             return@l 1
         }
@@ -35,9 +36,9 @@ fun t3() : String {
             <!RETURN_NOT_ALLOWED!>return@t3<!> "1"
         }
         else {
-            <!RETURN_NOT_ALLOWED!>return<!> <!CONSTANT_EXPECTED_TYPE_MISMATCH!>2<!>
+            <!RETURN_NOT_ALLOWED!>return<!> <!RETURN_TYPE_MISMATCH!>2<!>
         }
-        <!UNREACHABLE_CODE!>return@l 0<!>
+        return@l 0
     }
     )
     invoker(
@@ -54,10 +55,10 @@ fun t3() : String {
 }
 
 fun t4() : Int {
-    val <!UNUSED_VARIABLE!>h<!> :  ()-> String = l@{
+    val h :  ()-> String = l@{
         return@l "a"
     }
-    val <!UNUSED_VARIABLE!>g<!> :  ()-> String = l@{
+    val g :  ()-> String = l@{
         return@l "a"
     }
 
@@ -67,3 +68,6 @@ fun t4() : Int {
 
     return 12
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, ifExpression, integerLiteral, lambdaLiteral, localFunction,
+localProperty, propertyDeclaration, stringLiteral */

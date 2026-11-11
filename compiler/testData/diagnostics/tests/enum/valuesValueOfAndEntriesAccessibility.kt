@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 enum class E {
     ENTRY;
 
@@ -16,3 +17,6 @@ enum class E {
 fun foo() = E.ENTRY
 fun bar() = E.values()
 fun baz() = E.valueOf("ENTRY")
+
+/* GENERATED_FIR_TAGS: companionObject, enumDeclaration, enumEntry, functionDeclaration, objectDeclaration,
+propertyDeclaration, stringLiteral */

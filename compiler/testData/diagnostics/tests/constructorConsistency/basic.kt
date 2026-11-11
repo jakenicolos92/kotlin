@@ -1,9 +1,10 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class My {
     val x: String
 
     constructor() {
-        val y = bar(<!DEBUG_INFO_LEAKING_THIS!>this<!>)
-        val z = <!DEBUG_INFO_LEAKING_THIS!>foo<!>()
+        val y = bar(this)
+        val z = foo()
         x = "$y$z"
     }
 
@@ -11,3 +12,6 @@ class My {
 }
 
 fun bar(arg: My) = arg.x
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, functionDeclaration, localProperty, propertyDeclaration,
+secondaryConstructor, thisExpression */

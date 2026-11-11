@@ -1,7 +1,9 @@
-// EXPECTED_REACHABLE_NODES: 489
+// DONT_TARGET_EXACT_BACKEND: WASM_JS
+// WASM_MUTE_REASON: MODULE_KIND
+
 // MODULE: lib
+// JS_MODULE_KIND: AMD
 // FILE: lib.kt
-// MODULE_KIND: AMD
 @file:JsQualifier("a.b")
 @file:JsModule("libjs")
 package ab
@@ -9,8 +11,8 @@ package ab
 external fun c(): String
 
 // MODULE: main(lib)
+// JS_MODULE_KIND: AMD
 // FILE: main.kt
-// MODULE_KIND: AMD
 package main
 
 fun box() = ab.c()

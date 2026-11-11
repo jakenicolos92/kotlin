@@ -1,0 +1,322 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.code.review
+
+import org.eclipse.jgit.ignore.FastIgnoreRule
+
+data class CodeRule(
+    val name: String,
+    val text: String,
+    val patterns: CodeRulePatterns,
+    val source: ProjectFilePath,
+) {
+    /**
+     * Checks whether the patterns match [path] relative to [dir],
+     * which is the directory of the `code-rules.md` that applies this rule.
+     */
+    fun patternsMatch(path: ProjectFilePath, dir: ProjectDirPath): Boolean {
+        val relativePath = checkNotNull(dir.relativePathToFileInside(path)) { "$path is not inside $dir" }
+        return patterns.match(relativePath)
+    }
+}
+
+data class CodeRulePatterns(val patterns: List<String>) {
+    init {
+        require(patterns.isNotEmpty()) { "A rule must have at least one pattern" }
+    }
+
+    // Use JGit as the implementation detail:
+    private val fastIgnoreRules = patterns.map { FastIgnoreRule(it) }
+
+    /**
+     * Patterns whose meaning depends on the directory they are relative to.
+     *
+     * Other patterns are unanchored: they have no `/` except a trailing one, or start with `**` followed by `/`.
+     * Such patterns match paths at any depth.
+     */
+    val anchoredPatterns: List<String> = patterns.filterNot { pattern ->
+        val positivePattern = pattern.removePrefix(EXCLUSION_PATTERN_PREFIX)
+        positivePattern.startsWith("**/") || '/' !in positivePattern.removeSuffix("/")
+    }
+
+    fun match(path: String): Boolean {
+        check(fastIgnoreRules.isNotEmpty())
+
+        // Reverse to match the `.gitignore` behavior.
+        fastIgnoreRules.reversed().forEach {
+            // `it.result` is `true` for regular patterns and `false` for negative patterns (`!`).
+            if (it.isMatch(path, /* directory = */ false)) return it.result
+        }
+        return false
+    }
+}
+
+const val CODE_RULES_MD = "code-rules.md"
+private const val INCLUDE_PREFIX = "@"
+private const val RULE_NAME_PREFIX = "# "
+private const val EXCLUSION_PATTERN_PREFIX = "!"
+
+class CodeRuleRepository(val project: Project) {
+    suspend fun getRules(path: ProjectFilePath): Set<CodeRule> = buildSet {
+        // The file is covered by `code-rules.md` files in its directory and all enclosing directories:
+        for (dir in generateSequence(path.dir) { it.parent }) {
+            getRulesFromRulesFile(dir.file(CODE_RULES_MD))
+                .filterTo(this) { it.patternsMatch(path, dir) }
+        }
+    }
+
+    private val ruleFileToRules = mutableMapOf<ProjectFilePath, Set<CodeRule>>()
+
+    /**
+     * Returns the rules defined in [rulesFile] and in the files it includes (transitively).
+     *
+     * All these rules apply to the directory of [rulesFile], and their patterns are relative to it.
+     */
+    internal suspend fun getRulesFromRulesFile(rulesFile: ProjectFilePath): Set<CodeRule> =
+        ruleFileToRules.getOrPut(rulesFile) {
+            buildSet {
+                // Note: this is suboptimal (we could have shared the DFS state across all requests).
+                // But it is not a hot path, and this approach keeps things simple and handles cycles naturally.
+                dfs(
+                    node = parseRulesFile(rulesFile),
+                    getNeighbors = { includes.map { parseRulesFile(it) } },
+                    onVisit = { addAll(it.rules) }
+                )
+            }.onEach { checkPatternsOfIncludedRule(it, rulesFile) }
+        }
+
+    private fun checkPatternsOfIncludedRule(rule: CodeRule, rulesFile: ProjectFilePath) {
+        if (rule.source.dir == rulesFile.dir) return
+
+        // The patterns are relative to the directory of `rulesFile`, not to the directory of `rule.source`,
+        // which might be surprising when reading `rule.source`.
+        // So, allow only patterns that mean the same regardless of the directory:
+        check(rule.patterns.anchoredPatterns.isEmpty()) {
+            """
+                |Rule "${rule.name}" in ${rule.source} applies to files in ${rulesFile.dir}
+                |because $rulesFile includes it (directly or transitively).
+                |Rules included from another directory can have only unanchored patterns:
+                |without `/` except a trailing one, or starting with `**/`. But the rule has:
+                |${rule.patterns.anchoredPatterns.joinToString("\n")}
+            """.trimMargin()
+        }
+    }
+
+    private class ParsedRulesFile(val includes: List<ProjectFilePath>, val rules: List<CodeRule>)
+
+    private val parsedRulesFiles = mutableMapOf<ProjectFilePath, ParsedRulesFile>()
+    private suspend fun parseRulesFile(file: ProjectFilePath): ParsedRulesFile =
+        parsedRulesFiles.getOrPut(file) { parseRulesFileImpl(file) }
+
+    private suspend fun parseRulesFileImpl(file: ProjectFilePath): ParsedRulesFile {
+        val dir = file.dir
+
+        val lines = ArrayDeque(project.readLines(file).orEmpty())
+
+        val includes = buildList {
+            lines.dropFirstBlankLines()
+
+            while (lines.firstOrNull()?.startsWith(INCLUDE_PREFIX) == true) {
+                val include = lines.removeFirst().removePrefix(INCLUDE_PREFIX)
+                val includedFile = if (include.startsWith("/"))
+                    ProjectFilePath(include.removePrefix("/"))
+                else {
+                    dir.file(include)
+                }
+                check(project.fileExists(includedFile)) {
+                    "$file includes ($INCLUDE_PREFIX) non-existing $includedFile"
+                }
+                add(includedFile)
+
+                lines.dropFirstBlankLines()
+            }
+        }
+
+        lines.forEach {
+            check(!it.startsWith(INCLUDE_PREFIX)) {
+                """
+                    $file contains includes ($INCLUDE_PREFIX) not at the beginning of the file:
+                    $it
+                """.trimIndent()
+            }
+        }
+
+        val rules = mutableListOf<CodeRule>()
+
+        while (lines.isNotEmpty()) {
+            val firstLine = lines.first()
+            check(firstLine.startsWith(RULE_NAME_PREFIX)) {
+                """
+                    |In $file,
+                    |expected a rule name starting with `$RULE_NAME_PREFIX`, but got:
+                    |$firstLine
+                """.trimMargin()
+            }
+
+            val ruleLines = listOf(lines.removeFirst()) +
+                    lines.removeFirstUntil { it.startsWith(RULE_NAME_PREFIX) }
+
+            rules.add(CodeRuleParser.parseRule(ruleLines, file))
+        }
+
+        return ParsedRulesFile(includes, rules)
+    }
+}
+
+internal object CodeRuleParser {
+    private const val APPLIES_TO_LABEL = "Applies to:"
+    private const val CODE_SPAN_DELIMITER = "`"
+    private const val CODE_FENCE = "```"
+
+    fun parseRule(lines: List<String>, source: ProjectFilePath): CodeRule {
+        val lines = ArrayDeque(lines)
+
+        val name = lines.removeFirst().removePrefix(RULE_NAME_PREFIX)
+        val ruleLocation = """$source, rule "$name""""
+
+        lines.dropFirstBlankLines()
+
+        check(lines.firstOrNull()?.startsWith(APPLIES_TO_LABEL) == true) {
+            """
+                |In $ruleLocation,
+                |expected `$APPLIES_TO_LABEL` right after the rule name, but got:
+                |${lines.firstOrNull().orEmpty()}
+            """.trimMargin()
+        }
+        val patterns = parseAppliesTo(lines, ruleLocation)
+        lines.dropFirstBlankLines()
+
+        lines.forEach {
+            check(!it.startsWith(APPLIES_TO_LABEL)) {
+                """
+                    |In $ruleLocation,
+                    |`$APPLIES_TO_LABEL` is allowed only right after the rule name, but got:
+                    |$it
+                """.trimMargin()
+            }
+        }
+
+        // With exclusion patterns going last, the `.gitignore`-like matching
+        // doesn't depend on the order: a file is matched if it matches any regular pattern and no exclusion pattern.
+        // This is an artificial restriction to make the model more understandable.
+        // `.gitignore` supports arbitrary order, and the implementation in `CodeRulePatterns.match` supports it too.
+        patterns.zipWithNext().forEach { [previous, next] ->
+            check(!previous.startsWith(EXCLUSION_PATTERN_PREFIX) || next.startsWith(EXCLUSION_PATTERN_PREFIX)) {
+                """
+                    |In $ruleLocation,
+                    |exclusion patterns ($EXCLUSION_PATTERN_PREFIX) must go after all other patterns, but got
+                    |$next
+                    |after
+                    |$previous
+                """.trimMargin()
+            }
+        }
+
+        lines.dropLastBlankLines()
+
+        val text = lines.joinToString("\n")
+
+        return CodeRule(
+            name = name,
+            text = text,
+            patterns = CodeRulePatterns(patterns),
+            source = source
+        )
+    }
+
+    /**
+     * Parses the patterns defined either as
+     * ```
+     * Applies to: `pattern`
+     * ```
+     * or as
+     * ````
+     * Applies to:
+     * ```
+     * pattern1
+     * pattern2
+     * ```
+     * ````
+     */
+    private fun parseAppliesTo(lines: ArrayDeque<String>, ruleLocation: String): List<String> {
+        val labelLine = lines.removeFirst()
+        val value = labelLine.removePrefix(APPLIES_TO_LABEL).trim()
+
+        if (value.isNotEmpty()) {
+            val pattern = value.removePrefix(CODE_SPAN_DELIMITER).removeSuffix(CODE_SPAN_DELIMITER)
+            check(
+                value.startsWith(CODE_SPAN_DELIMITER) && value.endsWith(CODE_SPAN_DELIMITER) &&
+                        pattern.isNotBlank() && CODE_SPAN_DELIMITER !in pattern
+            ) {
+                """
+                    |In $ruleLocation,
+                    |expected `$APPLIES_TO_LABEL` to be followed by a single pattern in backticks
+                    |or by a code block with patterns on the next lines, but got:
+                    |$labelLine
+                """.trimMargin()
+            }
+            return listOf(pattern)
+        }
+
+        lines.dropFirstBlankLines()
+        val openingFence = lines.removeFirstOrNull()
+        check(openingFence?.startsWith(CODE_FENCE) == true) {
+            """
+                |In $ruleLocation,
+                |expected a code block with patterns ($CODE_FENCE) right after `$APPLIES_TO_LABEL`, but got:
+                |${openingFence.orEmpty()}
+            """.trimMargin()
+        }
+
+        val patterns = buildList {
+            while (true) {
+                val line = checkNotNull(lines.removeFirstOrNull()) {
+                    "In $ruleLocation, the code block with patterns is not closed ($CODE_FENCE)"
+                }
+                if (line.trim() == CODE_FENCE) break
+                if (line.isNotBlank()) add(line)
+            }
+        }
+
+        check(patterns.isNotEmpty()) {
+            "In $ruleLocation, the code block with patterns is empty"
+        }
+
+        return patterns
+    }
+
+}
+
+private fun ArrayDeque<String>.dropFirstBlankLines() {
+    while (this.firstOrNull()?.isBlank() == true) {
+        this.removeFirst()
+    }
+}
+
+private fun ArrayDeque<String>.dropLastBlankLines() {
+    while (this.lastOrNull()?.isBlank() == true) {
+        this.removeLast()
+    }
+}
+
+private suspend fun <N> dfs(
+    node: N,
+    getNeighbors: suspend N.() -> List<N>,
+    onVisit: suspend (N) -> Unit,
+) {
+    val visited = mutableSetOf<N>()
+
+    suspend fun doDfs(current: N) {
+        if (!visited.add(current)) return
+        onVisit(current)
+
+        for (neighbor in current.getNeighbors()) {
+            doDfs(neighbor)
+        }
+    }
+
+    doDfs(node)
+}

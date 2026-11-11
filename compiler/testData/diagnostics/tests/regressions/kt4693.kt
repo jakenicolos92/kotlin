@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 enum class MyEnum {
     K;
     
@@ -6,3 +7,5 @@ enum class MyEnum {
         return f(K)
     }
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, functionDeclaration, functionalType, inline */

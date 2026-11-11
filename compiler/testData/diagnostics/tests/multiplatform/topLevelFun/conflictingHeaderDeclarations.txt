@@ -1,5 +1,0 @@
-package
-
-public header fun foo(): kotlin.Unit
-public header fun foo(): kotlin.Unit
-public header fun foo(/*0*/ x: kotlin.Int): kotlin.Unit

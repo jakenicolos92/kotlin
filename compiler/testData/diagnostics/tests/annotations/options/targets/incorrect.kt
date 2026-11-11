@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 @Target(AnnotationTarget.<!UNRESOLVED_REFERENCE!>INIT<!>) annotation class incorrect
 
 <!WRONG_ANNOTATION_TARGET!>@incorrect<!> annotation class derived
@@ -19,3 +20,7 @@
 }
 
 <!WRONG_ANNOTATION_TARGET!>@incorrect<!> val z = <!WRONG_ANNOTATION_TARGET!>@incorrect<!> 0
+
+/* GENERATED_FIR_TAGS: additiveExpression, annotationDeclaration, classDeclaration, enumDeclaration, enumEntry,
+functionDeclaration, integerLiteral, localFunction, localProperty, primaryConstructor, propertyDeclaration,
+secondaryConstructor */

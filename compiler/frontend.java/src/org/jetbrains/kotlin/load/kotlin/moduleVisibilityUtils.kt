@@ -16,10 +16,10 @@
 
 package org.jetbrains.kotlin.load.kotlin
 
-import com.intellij.openapi.components.ServiceManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.StandardFileSystems
 import com.intellij.openapi.vfs.VfsUtilCore
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.load.java.lazy.descriptors.LazyJavaPackageFragment
 import org.jetbrains.kotlin.modules.Module
@@ -27,8 +27,8 @@ import org.jetbrains.kotlin.resolve.DescriptorUtils
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedMemberDescriptor
 import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedTypeAliasDescriptor
 import java.io.File
-import java.nio.file.Paths
 
+@K1Deprecation
 interface ModuleVisibilityManager {
     val chunk: Collection<Module>
     val friendPaths: Collection<String>
@@ -39,12 +39,13 @@ interface ModuleVisibilityManager {
 
     object SERVICE {
         @JvmStatic fun getInstance(project: Project): ModuleVisibilityManager =
-                ServiceManager.getService(project, ModuleVisibilityManager::class.java)
+            project.getService(ModuleVisibilityManager::class.java)
     }
 }
 
-fun isContainedByCompiledPartOfOurModule(descriptor: DeclarationDescriptor, outDirectory: File?): Boolean {
-    if (outDirectory == null) return false
+@K1Deprecation
+fun isContainedByCompiledPartOfOurModule(descriptor: DeclarationDescriptor, friendPath: File?): Boolean {
+    if (friendPath == null) return false
 
     val packageFragment = DescriptorUtils.getParentOfType(descriptor, PackageFragmentDescriptor::class.java, false)
     if (packageFragment !is LazyJavaPackageFragment) return false
@@ -67,17 +68,22 @@ fun isContainedByCompiledPartOfOurModule(descriptor: DeclarationDescriptor, outD
 
     if (binaryClass is VirtualFileKotlinClass) {
         val file = binaryClass.file
-        val ioFile = when (file.fileSystem.protocol) {
-            StandardFileSystems.FILE_PROTOCOL -> VfsUtilCore.virtualToIoFile(file)
-            StandardFileSystems.JAR_PROTOCOL -> VfsUtilCore.getVirtualFileForJar(file)?.let(VfsUtilCore::virtualToIoFile)
-            else -> null
+        when (file.fileSystem.protocol) {
+            StandardFileSystems.FILE_PROTOCOL -> {
+                val ioFile = VfsUtilCore.virtualToIoFile(file)
+                return ioFile.toPath().startsWith(friendPath.toPath())
+            }
+            StandardFileSystems.JAR_PROTOCOL -> {
+                val ioFile = VfsUtilCore.getVirtualFileForJar(file)?.let(VfsUtilCore::virtualToIoFile)
+                return ioFile != null && ioFile.toPath() == friendPath.toPath()
+            }
         }
-        return ioFile != null && Paths.get(ioFile.toURI()).startsWith(Paths.get(outDirectory.toURI()))
     }
 
     return false
 }
 
+@K1Deprecation
 fun getSourceElement(descriptor: DeclarationDescriptor): SourceElement =
         when {
             descriptor is CallableMemberDescriptor && descriptor.source === SourceElement.NO_SOURCE ->
@@ -88,5 +94,6 @@ fun getSourceElement(descriptor: DeclarationDescriptor): SourceElement =
                 descriptor.toSourceElement
         }
 
-private val DeclarationDescriptor.toSourceElement: SourceElement
+@K1Deprecation
+val DeclarationDescriptor.toSourceElement: SourceElement
     get() = if (this is DeclarationDescriptorWithSource) source else SourceElement.NO_SOURCE

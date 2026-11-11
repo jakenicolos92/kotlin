@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 491
 class SimpleClass() {
     fun foo() = 610
 }

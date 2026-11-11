@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 inline fun <R> onlyLocal(p: () -> R) {
     inlineAll(<!USAGE_IS_NOT_INLINABLE!>p<!>)
 }
@@ -5,3 +6,5 @@ inline fun <R> onlyLocal(p: () -> R) {
 <!NOTHING_TO_INLINE!>inline<!> fun <R> inlineAll(noinline p: () -> R) {
     p()
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, inline, noinline, nullableType, typeParameter */

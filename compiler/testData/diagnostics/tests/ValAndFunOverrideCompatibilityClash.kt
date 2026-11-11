@@ -1,4 +1,4 @@
-
+// RUN_PIPELINE_TILL: CODEGEN
 class Foo1() : java.util.ArrayList<Int>()
 
 open class Bar() {
@@ -7,3 +7,5 @@ open class Bar() {
 }
 
 class Barr() : Bar() {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, primaryConstructor, propertyDeclaration */

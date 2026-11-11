@@ -1,0 +1,28 @@
+Tower Data Context:
+    Element 0
+        Scope: FirDefaultStarImportingScope
+    Element 1
+        Scope: FirExplicitStarImportingScope
+    Element 2
+        Scope: FirDefaultSimpleImportingScope
+    Element 3
+        Scope: FirDefaultSimpleImportingScope
+    Element 4
+        Scope: FirPackageMemberScope
+    Element 5
+        Scope: FirExplicitSimpleImportingScope
+            Import name:List
+                Qualified name: java.util.List
+                Is all under: false
+
+FILE: [ResolvedTo(IMPORTS)] file.kt
+    public? final? [ResolvedTo(RAW_FIR)] fun test(): <implicit> { LAZY_BLOCK }
+    public? final? [ResolvedTo(RAW_FIR)] fun other(): Int { LAZY_BLOCK }
+    public final? [ResolvedTo(RAW_FIR)] class Foo : R|kotlin/Any| {
+        public? [ResolvedTo(RAW_FIR)] constructor(): R|test/Foo| {
+            LAZY_super<R|kotlin/Any|>
+        }
+
+        public? final? [ResolvedTo(RAW_FIR)] fun foo(): R|kotlin/Unit| { LAZY_BLOCK }
+
+    }

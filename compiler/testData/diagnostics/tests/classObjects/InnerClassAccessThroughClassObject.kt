@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package a
 
 class A {
@@ -28,7 +29,7 @@ object O {
 fun f() {
     A.c
     A.hashCode()
-    A().<!NO_COMPANION_OBJECT, NESTED_CLASS_ACCESSED_VIA_INSTANCE_REFERENCE!>Nested<!>
+    A().<!UNRESOLVED_REFERENCE!>Nested<!>
     A.Nested()
     A().Inner()
     A.Companion.<!UNRESOLVED_REFERENCE!>Nested<!>
@@ -43,9 +44,12 @@ fun f() {
     A.Obj
     A.Companion.Obj2
     A.<!UNRESOLVED_REFERENCE!>Obj2<!>
-    A.<!UNRESOLVED_REFERENCE!>Obj2<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>c<!>
+    A.<!UNRESOLVED_REFERENCE!>Obj2<!>.c
     A.<!UNRESOLVED_REFERENCE!>Nested2<!>
 
     O.O
     O.A()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, inner, integerLiteral, nestedClass,
+objectDeclaration, propertyDeclaration */

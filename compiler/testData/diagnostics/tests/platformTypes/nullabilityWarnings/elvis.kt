@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -SENSELESS_COMPARISON, -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE -SENSELESS_COMPARISON, -UNUSED_PARAMETER
 
 // FILE: J.java
 
@@ -61,7 +62,10 @@ fun test() {
     takeNotNull(J.getNAny() ?: J())
 
     val x = <!UNRESOLVED_REFERENCE!>unresolved<!> ?: null
-    <!UNREACHABLE_CODE!>val y =<!> <!UNRESOLVED_REFERENCE!>unresolved<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>foo<!> ?: return
+    val y = <!UNRESOLVED_REFERENCE!>unresolved<!>.foo ?: return
 }
 
 fun takeNotNull(s: J) {}
+
+/* GENERATED_FIR_TAGS: elvisExpression, equalityExpression, flexibleType, functionDeclaration, ifExpression,
+javaFunction, javaProperty, javaType, localProperty, nullableType, propertyDeclaration, smartcast */

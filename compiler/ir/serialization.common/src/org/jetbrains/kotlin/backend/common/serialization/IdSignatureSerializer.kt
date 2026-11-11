@@ -1,0 +1,130 @@
+/*
+ * Copyright 2010-2023 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.backend.common.serialization
+
+import org.jetbrains.kotlin.backend.common.serialization.proto.AccessorIdSignature as ProtoAccessorIdSignature
+import org.jetbrains.kotlin.backend.common.serialization.proto.CommonIdSignature as ProtoCommonIdSignature
+import org.jetbrains.kotlin.backend.common.serialization.proto.CompositeSignature as ProtoCompositeSignature
+import org.jetbrains.kotlin.backend.common.serialization.proto.FileLocalIdSignature as ProtoFileLocalIdSignature
+import org.jetbrains.kotlin.backend.common.serialization.proto.FileSignature as ProtoFileSignature
+import org.jetbrains.kotlin.backend.common.serialization.proto.IdSignature as ProtoIdSignature
+import org.jetbrains.kotlin.backend.common.serialization.proto.LocalSignature as ProtoLocalSignature
+import org.jetbrains.kotlin.ir.util.IdSignature
+import org.jetbrains.kotlin.library.impl.IrArrayWriter
+import java.util.ArrayList
+
+class IdSignatureSerializer(
+    private val stringSerializer: IrStringSerializer,
+    private val debugInfoSerializer: IrStringSerializer,
+) {
+    // The same signature could be used multiple times in a file
+    // so use this index to store signature only once.
+    private val protoIdSignatureMap: MutableMap<IdSignature, Int> = mutableMapOf()
+    private val protoIdSignatureArray: ArrayList<ProtoIdSignature> = arrayListOf()
+
+    private val commonSignatureSerializer = CommonSignatureSerializer(stringSerializer, debugInfoSerializer)
+
+    private fun serializeAccessorSignature(signature: IdSignature.AccessorSignature): ProtoAccessorIdSignature {
+        val proto = ProtoAccessorIdSignature.newBuilder()
+
+        proto.propertySignature = protoIdSignature(signature.propertySignature)
+        with(signature.accessorSignature) {
+            proto.name = stringSerializer.serializeString(shortName)
+            proto.accessorHashId = id ?: error("Expected hash Id")
+            if (mask != 0L) {
+                proto.flags = mask
+            }
+            description?.let { proto.debugInfo = debugInfoSerializer.serializeString(it) }
+        }
+
+        return proto.build()
+    }
+
+    private fun serializePrivateSignature(signature: IdSignature.FileLocalSignature): ProtoFileLocalIdSignature {
+        val proto = ProtoFileLocalIdSignature.newBuilder()
+
+        proto.container = protoIdSignature(signature.container)
+        proto.localId = signature.id
+
+        return proto.build()
+    }
+
+    private fun serializeScopeLocalSignature(signature: IdSignature.ScopeLocalDeclaration): Int = signature.id
+
+    private fun serializeCompositeSignature(signature: IdSignature.CompositeSignature): ProtoCompositeSignature {
+        val proto = ProtoCompositeSignature.newBuilder()
+
+        proto.containerSig = protoIdSignature(signature.container)
+        proto.innerSig = protoIdSignature(signature.inner)
+
+        return proto.build()
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    private fun serializeFileSignature(signature: IdSignature.FileSignature): ProtoFileSignature = ProtoFileSignature.getDefaultInstance()
+
+    private fun serializeLocalSignature(signature: IdSignature.LocalSignature): ProtoLocalSignature {
+        val proto = ProtoLocalSignature.newBuilder()
+
+        proto.addAllLocalFqName(stringSerializer.serializeFqName(signature.localFqn))
+        signature.hashSig?.let { proto.localHash = it }
+
+        return proto.build()
+    }
+
+    private fun serializeIdSignature(idSignature: IdSignature): ProtoIdSignature {
+        val proto = ProtoIdSignature.newBuilder()
+        when (idSignature) {
+            is IdSignature.CommonSignature -> proto.publicSig = commonSignatureSerializer.serializeSignature(idSignature)
+            is IdSignature.AccessorSignature -> proto.accessorSig = serializeAccessorSignature(idSignature)
+            is IdSignature.FileLocalSignature -> proto.privateSig = serializePrivateSignature(idSignature)
+            is IdSignature.ScopeLocalDeclaration -> proto.scopedLocalSig = serializeScopeLocalSignature(idSignature)
+            is IdSignature.CompositeSignature -> proto.compositeSig = serializeCompositeSignature(idSignature)
+            is IdSignature.LocalSignature -> proto.localSig = serializeLocalSignature(idSignature)
+            is IdSignature.FileSignature -> proto.fileSig = serializeFileSignature(idSignature)
+            is IdSignature.SpecialFakeOverrideSignature,
+            is IdSignature.LoweredDeclarationSignature,
+                -> error("${idSignature::class.java} is not expected here")
+        }
+        return proto.build()
+    }
+
+    fun protoIdSignature(idSig: IdSignature): Int {
+        return protoIdSignatureMap.getOrPut(idSig) {
+            protoIdSignatureArray.add(serializeIdSignature(idSig))
+            protoIdSignatureArray.size - 1
+        }
+    }
+
+    operator fun get(idSig: IdSignature): Int? = protoIdSignatureMap[idSig]
+
+    val allSerializedSignatures: Set<IdSignature>
+        get() = protoIdSignatureMap.keys
+
+    fun toIrArrayWriter(useVarIntInDataArrays: Boolean): IrArrayWriter =
+        IrArrayWriter(protoIdSignatureArray.map { it.toByteArray() }, useVarIntInDataArrays)
+}
+
+class CommonSignatureSerializer(
+    private val stringSerializer: IrStringSerializer,
+    private val debugInfoSerializer: IrStringSerializer?,
+) {
+    fun serializeSignature(signature: IdSignature.CommonSignature): ProtoCommonIdSignature {
+        val proto = ProtoCommonIdSignature.newBuilder()
+
+        proto.addAllPackageFqName(stringSerializer.serializeFqName(signature.packageFqName))
+        proto.addAllDeclarationFqName(stringSerializer.serializeFqName(signature.declarationFqName))
+
+        signature.id?.let { proto.memberUniqId = it }
+        if (signature.mask != 0L) proto.flags = signature.mask
+
+        signature.description?.let { description ->
+            debugInfoSerializer?.serializeString(description)?.let { proto.debugInfo = it }
+        }
+
+        return proto.build()
+    }
+}

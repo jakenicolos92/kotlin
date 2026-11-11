@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: java/util/Collection.java
 package java.util;
 
@@ -22,3 +23,5 @@ package test
 fun foo(u: Usage) {
   u.foo(null)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaType, nullableType */

@@ -16,99 +16,14 @@
 
 package org.jetbrains.kotlin.serialization
 
-import org.jetbrains.kotlin.descriptors.ClassifierDescriptorWithTypeParameters
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.name.ClassId
-import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.resolve.descriptorUtil.classId
-import org.jetbrains.kotlin.serialization.ProtoBuf.QualifiedNameTable.QualifiedName
-import org.jetbrains.kotlin.types.ErrorUtils
-import org.jetbrains.kotlin.utils.Interner
-import java.io.OutputStream
 
-open class StringTableImpl : StringTable {
-    private class FqNameProto(val fqName: QualifiedName.Builder) {
-        override fun hashCode(): Int {
-            var result = 13
-            result = 31 * result + fqName.parentQualifiedName
-            result = 31 * result + fqName.shortName
-            result = 31 * result + fqName.kind.hashCode()
-            return result
-        }
+@K1Deprecation
+open class StringTableImpl : DescriptorAwareStringTable, SerializableStringTable() {
 
-        override fun equals(other: Any?): Boolean {
-            if (other == null || other !is FqNameProto) return false
+    override fun getQualifiedClassNameIndex(classId: ClassId): Int = getClassIdIndex(classId)
 
-            val otherFqName = other.fqName
-            return fqName.parentQualifiedName == otherFqName.parentQualifiedName
-                   && fqName.shortName == otherFqName.shortName
-                   && fqName.kind == otherFqName.kind
-        }
-    }
-
-    private val strings = Interner<String>()
-    private val qualifiedNames = Interner<FqNameProto>()
-
-    fun getSimpleNameIndex(name: Name): Int = getStringIndex(name.asString())
-
-    override fun getStringIndex(string: String): Int = strings.intern(string)
-
-    override fun getFqNameIndex(descriptor: ClassifierDescriptorWithTypeParameters): Int {
-        if (ErrorUtils.isError(descriptor)) {
-            throw IllegalStateException("Cannot get FQ name of error class: $descriptor")
-        }
-
-        val classId = descriptor.classId ?: return getFqNameIndexOfLocalAnonymousClass(descriptor)
-        return getClassIdIndex(classId)
-    }
-
-    fun getClassIdIndex(classId: ClassId): Int {
-        val builder = QualifiedName.newBuilder()
-        builder.kind = QualifiedName.Kind.CLASS
-
-        builder.parentQualifiedName =
-                classId.outerClassId?.let(this::getClassIdIndex)
-                ?: getPackageFqNameIndex(classId.packageFqName)
-
-        builder.shortName = getStringIndex(classId.shortClassName.asString())
-
-        return qualifiedNames.intern(FqNameProto(builder))
-    }
-
-    open fun getFqNameIndexOfLocalAnonymousClass(descriptor: ClassifierDescriptorWithTypeParameters): Int {
-        throw IllegalStateException("Cannot get FQ name of local class: " + descriptor)
-    }
-
-    fun getPackageFqNameIndex(fqName: FqName): Int {
-        var result = -1
-        for (segment in fqName.pathSegments()) {
-            val builder = QualifiedName.newBuilder()
-            builder.shortName = getSimpleNameIndex(segment)
-            if (result != -1) {
-                builder.parentQualifiedName = result
-            }
-            result = qualifiedNames.intern(FqNameProto(builder))
-        }
-        return result
-    }
-
-    fun buildProto(): Pair<ProtoBuf.StringTable, ProtoBuf.QualifiedNameTable> {
-        val strings = ProtoBuf.StringTable.newBuilder()
-        for (simpleName in this.strings.allInternedObjects) {
-            strings.addString(simpleName)
-        }
-
-        val qualifiedNames = ProtoBuf.QualifiedNameTable.newBuilder()
-        for (fqName in this.qualifiedNames.allInternedObjects) {
-            qualifiedNames.addQualifiedName(fqName.fqName)
-        }
-
-        return Pair(strings.build(), qualifiedNames.build())
-    }
-
-    override fun serializeTo(output: OutputStream) {
-        val (strings, qualifiedNames) = buildProto()
-        strings.writeDelimitedTo(output)
-        qualifiedNames.writeDelimitedTo(output)
-    }
+    override val isLocalClassIdReplacementKeptGeneric: Boolean
+        get() = false
 }

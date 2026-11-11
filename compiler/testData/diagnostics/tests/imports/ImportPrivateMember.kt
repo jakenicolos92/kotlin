@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package test
 
 import test.TopLevelClass.NestedClass
@@ -29,9 +30,12 @@ private object TopLevelObject {
 }
 
 fun testAccess() {
-    <!INVISIBLE_MEMBER!>NestedClass<!>()
+    <!INVISIBLE_REFERENCE!>NestedClass<!>()
     E1
-    <!INVISIBLE_MEMBER!>InNested<!>()
-    <!INVISIBLE_MEMBER!>NestedEntry<!>
+    <!INVISIBLE_REFERENCE!>InNested<!>()
+    <!INVISIBLE_REFERENCE!>NestedEntry<!>
     inObject()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, enumDeclaration, enumEntry, functionDeclaration, nestedClass, objectDeclaration,
+primaryConstructor, propertyDeclaration */

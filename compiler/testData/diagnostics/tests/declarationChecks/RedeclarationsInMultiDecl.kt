@@ -1,15 +1,20 @@
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: FRONTEND
 class A {
     operator fun component1() : Int = 1
     operator fun component2() : Int = 2
 }
 
 fun a() {
-    val (<!REDECLARATION, UNUSED_VARIABLE!>a<!>, <!NAME_SHADOWING, REDECLARATION, UNUSED_VARIABLE!>a<!>) = A()
-    val (<!UNUSED_VARIABLE!>x<!>, <!REDECLARATION, UNUSED_VARIABLE!>y<!>) = A();
+    val [<!REDECLARATION!>a<!>, <!REDECLARATION!>a<!>] = A()
+    val [x, <!REDECLARATION!>y<!>] = A();
     val <!REDECLARATION!>b<!> = 1
     use(b)
-    val (<!NAME_SHADOWING, REDECLARATION, UNUSED_VARIABLE!>b<!>, <!NAME_SHADOWING, REDECLARATION, UNUSED_VARIABLE!>y<!>) = A();
+    val [<!REDECLARATION!>b<!>, <!REDECLARATION!>y<!>] = A();
 }
 
 
 fun use(a: Any): Any = a
+
+/* GENERATED_FIR_TAGS: classDeclaration, destructuringDeclaration, functionDeclaration, integerLiteral, localProperty,
+operator, propertyDeclaration */

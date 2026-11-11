@@ -1,8 +1,11 @@
-// !DIAGNOSTICS: -UNREACHABLE_CODE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNREACHABLE_CODE
 // unreachable code suppressed due to KT-9586
 
 external val baz: Int
+val useBaz = baz
 external val boo: Int = definedExternally
+val useBoo = boo
 
 external fun foo()
 external fun bar() { definedExternally }
@@ -37,5 +40,3 @@ external object O {
     fun foo(s: String): String
     fun bar(s: String): String = definedExternally
 }
-
-

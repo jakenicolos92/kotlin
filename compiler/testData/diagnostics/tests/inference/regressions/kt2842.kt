@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package c
 
 interface A<T>
@@ -25,3 +26,6 @@ fun foo() : Boolean {
 }
 
 fun getNullableList(): List<String>? = null
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, interfaceDeclaration, localProperty, nullableType,
+propertyDeclaration, stringLiteral, typeParameter */

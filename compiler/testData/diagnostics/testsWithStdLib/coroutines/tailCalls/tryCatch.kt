@@ -1,6 +1,7 @@
-// !DIAGNOSTICS: -UNUSED_ANONYMOUS_PARAMETER
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_ANONYMOUS_PARAMETER
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 fun nonSuspend() {}
 
@@ -8,7 +9,7 @@ suspend fun baz(): Int = 1
 
 suspend fun tryCatch(): Int {
     return try {
-        suspendCoroutineOrReturn { x: Continuation<Int> -> }
+        suspendCoroutineUninterceptedOrReturn { x: Continuation<Int> -> }
     } catch (e: Exception) {
         baz() // another suspend function
     }
@@ -16,7 +17,7 @@ suspend fun tryCatch(): Int {
 
 suspend fun tryFinally(): Int {
     return try {
-        suspendCoroutineOrReturn { x: Continuation<Int> -> }
+        suspendCoroutineUninterceptedOrReturn { x: Continuation<Int> -> }
     } finally {
         nonSuspend()
     }
@@ -32,10 +33,13 @@ suspend fun returnInFinally(): Int {
 
 suspend fun tryCatchFinally(): Int {
     return try {
-        suspendCoroutineOrReturn { x: Continuation<Int> -> }
+        suspendCoroutineUninterceptedOrReturn { x: Continuation<Int> -> }
     } catch (e: Exception) {
         baz() // another suspend function
     } finally {
         baz()
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, lambdaLiteral, localProperty, propertyDeclaration, suspend,
+tryExpression */

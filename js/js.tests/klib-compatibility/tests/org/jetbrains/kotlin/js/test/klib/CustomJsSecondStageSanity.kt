@@ -1,0 +1,112 @@
+package org.jetbrains.kotlin.js.test.klib
+
+import org.jetbrains.kotlin.config.LanguageVersion
+import org.jetbrains.kotlin.test.klib.runSanityTest
+import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Assumptions
+import org.junit.jupiter.api.Tag
+import org.junit.jupiter.api.Test
+import org.opentest4j.TestAbortedException
+import kotlin.test.assertContains
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+@Tag("sanity")
+@Tag("aggregate")
+class CustomJsCompilerSecondStageSanity : AbstractCustomJsCompilerSecondStageTest() {
+    private val testDataRoot = "compiler/testData/klib/klib-compatibility/sanity/"
+
+    @Test
+    fun checkPassed() {
+        runSanityTest(testDataRoot + "green.kt")
+    }
+
+    @Test
+    fun checkGreenNeedsUnmuting() {
+        val exception = assertThrowsIfNotMuted<AssertionError> {
+            runSanityTest(testDataRoot + "greenNeedsUnmuting.kt")
+        }
+        val expected = "Looks like this test can be unmuted. " +
+                "Remove ${customJsCompilerSettings.defaultLanguageVersion} from the IGNORE_KLIB_FRONTEND_ERRORS_WITH_CUSTOM_SECOND_STAGE directive"
+        assertEquals(expected, exception.message)
+    }
+
+    @Test
+    fun checkIncorrectBoxResult() {
+        val exception = assertThrowsIfNotMuted<AssertionError> {
+            runSanityTest(testDataRoot + "incorrectBoxResult.kt")
+        }
+        assertContains(exception.message!!, "Test failed with: FAIL. Expected <OK>, actual <FAIL>.")
+    }
+
+    @Test
+    fun checkNotMutedWithIgnoreRuntimeErrors1stStage() {
+        // The directive is a no-op for this runner, so the test is not isolated, and its `box()` is checked by the grouped pipeline.
+        val exception = assertThrowsIfNotMuted<AssertionError> {
+            runSanityTest(testDataRoot + "mutedWithIgnoreRuntimeErrors1stStage.kt")
+        }
+        assertContains(exception.message!!, "Test failed with: FAIL. Expected <OK>, actual <FAIL>.")
+    }
+
+    @Test
+    fun checkMutedWithIgnoreRuntimeErrors2ndStage() {
+        val exception = assertThrowsIfNotMuted<TestAbortedException> {
+            runSanityTest(testDataRoot + "mutedWithIgnoreRuntimeErrors2ndStage.kt")
+        }
+        assertEquals(null, exception.message)
+    }
+
+    @Test
+    fun checkFailedDueToFrontendErrorWithCustom2ndStageOfLatestLV() {
+        Assumptions.assumeTrue(LanguageVersion.LATEST_STABLE == customJsCompilerSettings.defaultLanguageVersion)
+        // current testdata is expected to be parsed by the current frontend. So errors must not be muted
+        val exception = assertThrowsIfNotMuted<Exception> {
+            runSanityTest(testDataRoot + "mutedDueToFrontendErrorWithCustom1stStage.kt")
+        }
+        assertTrue(exception.message!!.startsWith("UNRESOLVED_REFERENCE: Unresolved reference 'FAIL'. at mutedDueToFrontendErrorWithCustom1stStage.kt:"),
+            "Unexpected exception message: ${exception.message}")
+    }
+
+    @Test
+    fun checkFailedDueToFrontendErrorWithCustom2ndStageOfOldLV() {
+        Assumptions.assumeFalse(LanguageVersion.LATEST_STABLE == customJsCompilerSettings.defaultLanguageVersion)
+        // Some tests cannot be compiled with previous LV, so the frontend errors must be muted
+        val exception = assertThrowsIfNotMuted<TestAbortedException> {
+            runSanityTest(testDataRoot + "mutedDueToFrontendErrorWithCustom1stStage.kt")
+        }
+        assertEquals(null, exception.message)
+    }
+
+    @Test
+    fun checkRecompileIgnoredLatestLV() {
+        Assumptions.assumeTrue(LanguageVersion.LATEST_STABLE == customJsCompilerSettings.defaultLanguageVersion)
+        // RECOMPILE does not raise exception when testing against 2.4.0
+        runSanityTest(testDataRoot + "recompile.kt")
+    }
+
+    @Test
+    fun checkRecompileIgnoredOldLV() {
+        Assumptions.assumeFalse(LanguageVersion.LATEST_STABLE == customJsCompilerSettings.defaultLanguageVersion)
+        // RECOMPILE raises exception when testing against 2.3.0
+        val exception = assertThrowsIfNotMuted<TestAbortedException> {
+            runSanityTest(testDataRoot + "recompile.kt")
+        }
+        assertEquals(null, exception.message)
+    }
+
+    private inline fun <reified T : Throwable> assertThrowsIfNotMuted(executable: () -> Unit): T {
+        val throwable: Throwable? = try {
+            executable()
+        } catch (caught: Throwable) {
+            caught
+        } as? Throwable
+
+        if (throwable is TestAbortedException) throw throwable
+
+        return Assertions.assertThrows(T::class.java) {
+            if (throwable != null) {
+                throw throwable
+            }
+        }
+    }
+}

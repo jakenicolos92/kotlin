@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 open class SomeClass<T>
 class TestSome<P> {
     object Some : SomeClass<<!UNRESOLVED_REFERENCE!>P<!>>() {
@@ -5,17 +6,17 @@ class TestSome<P> {
 }
 
 class Test {
-    object Some : <!UNRESOLVED_REFERENCE, DEBUG_INFO_UNRESOLVED_WITH_TARGET!>InnerClass<!>() {
-        val a = object: <!UNRESOLVED_REFERENCE, DEBUG_INFO_UNRESOLVED_WITH_TARGET!>InnerClass<!>() {
+    object Some : <!INACCESSIBLE_OUTER_CLASS_RECEIVER!>InnerClass<!>() {
+        val a = object: <!INACCESSIBLE_OUTER_CLASS_RECEIVER!>InnerClass<!>() {
         }
 
         fun more(): InnerClass {
-            val b = <!RESOLUTION_TO_CLASSIFIER!>InnerClass<!>()
+            val b = <!INACCESSIBLE_OUTER_CLASS_RECEIVER!>InnerClass<!>()
 
-            val <!UNUSED_VARIABLE!>testVal<!> = <!UNRESOLVED_REFERENCE!>inClass<!>
-            <!UNRESOLVED_REFERENCE!>foo<!>()
+            val testVal = <!INACCESSIBLE_OUTER_CLASS_RECEIVER!>inClass<!>
+            <!INACCESSIBLE_OUTER_CLASS_RECEIVER!>foo<!>()
 
-            return <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>b<!>
+            return b
         }
     }
 
@@ -25,3 +26,6 @@ class Test {
 
     open inner class InnerClass
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, inner, integerLiteral,
+localProperty, nestedClass, nullableType, objectDeclaration, propertyDeclaration, typeParameter */

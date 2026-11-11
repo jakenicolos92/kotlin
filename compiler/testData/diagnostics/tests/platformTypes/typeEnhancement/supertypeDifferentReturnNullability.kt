@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 import org.jetbrains.annotations.*;
 
@@ -33,3 +34,6 @@ class C3 : I {
 class C4 : I {
     override fun foo(): String = ""
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, javaType, nullableType, override,
+stringLiteral */

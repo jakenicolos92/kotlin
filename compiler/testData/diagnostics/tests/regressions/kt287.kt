@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-287 Infer constructor type arguments
 
 import java.util.*
@@ -5,8 +6,10 @@ import java.util.*
 fun attributes() : Map<String, String> = HashMap() // Should be inferred;
 val attributes : Map<String, String> = HashMap() // Should be inferred;
 
-fun foo(<!UNUSED_PARAMETER!>m<!> : Map<String, String>) {}
+fun foo(m : Map<String, String>) {}
 
 fun test() {
     foo(HashMap())
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, propertyDeclaration */

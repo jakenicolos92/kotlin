@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-3184 Type inference seems partially broken
 package a
 
@@ -7,7 +8,7 @@ private fun <T> test(value: T, extf: String.(value: T)->Unit) {
     "".extf(value)
 }
 
-fun main(args: Array<String>) {
+fun main() {
     test(1, {value -> println(value)})
 }
 
@@ -24,3 +25,7 @@ fun tests() {
 operator fun <K, V> MutableMap<K, V>.set(key : K, value : V) : V? = this.put(key, value)
 
 fun println(message : Any?) = System.out.println(message)
+
+/* GENERATED_FIR_TAGS: assignment, flexibleType, funWithExtensionReceiver, functionDeclaration, functionalType,
+integerLiteral, javaFunction, javaProperty, lambdaLiteral, localProperty, nullableType, operator, propertyDeclaration,
+stringLiteral, thisExpression, typeParameter, typeWithExtension */

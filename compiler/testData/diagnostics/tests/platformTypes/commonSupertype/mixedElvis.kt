@@ -1,5 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
+// CHECK_TYPE
 
 import java.util.ArrayList
 
@@ -11,3 +12,7 @@ fun foo(handlers: Array<MutableList<String>?>) {
 //    v checkType { it : _<MutableList<String>>}
 //    v checkType { it : _<MutableList<String?>>}
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, elvisExpression, flexibleType, funWithExtensionReceiver,
+functionDeclaration, functionalType, infix, integerLiteral, javaFunction, localProperty, nullableType,
+propertyDeclaration, typeParameter, typeWithExtension */

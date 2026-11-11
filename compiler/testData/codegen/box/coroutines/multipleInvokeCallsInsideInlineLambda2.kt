@@ -1,13 +1,15 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
+// NO_CHECK_LAMBDA_INLINING
+// FILE: lib.kt
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 class Controller {
     var lastSuspension: Continuation<String>? = null
     var result = "fail"
-    suspend fun suspendHere(): String = suspendCoroutineOrReturn { x ->
+    suspend fun suspendHere(): String = suspendCoroutineUninterceptedOrReturn { x ->
         lastSuspension = x
         COROUTINE_SUSPENDED
     }
@@ -61,6 +63,7 @@ inline fun run(b: () -> Unit) {
     b()
 }
 
+// FILE: main.kt
 fun box(): String {
     // with capture and params
     var x = "O"
@@ -87,7 +90,7 @@ fun box(): String {
                 suspendHere()
                 result = "OK"
             }
-        }()
+        }.let { it() }
     }
 
     return "OK"

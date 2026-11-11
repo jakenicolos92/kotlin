@@ -56,7 +56,7 @@ class LazyClasspathWatcher(classpath: Iterable<String>,
     init {
         // locking before entering thread in order to avoid racing with isChanged
         fileIdsLock.acquire()
-        thread(isDaemon = true, start = true) {
+        val _ = thread(isDaemon = true, start = true) {
             try {
                 fileIds = classpath
                         .map(::File)
@@ -114,7 +114,7 @@ class LazyClasspathWatcher(classpath: Iterable<String>,
 }
 
 
-fun isClasspathFile(file: File): Boolean = file.isFile && listOf("class", "jar").contains(file.extension.toLowerCase())
+fun isClasspathFile(file: File): Boolean = file.isFile && listOf("class", "jar").contains(file.extension.lowercase())
 
 fun File.md5Digest(): ByteArray {
     val md = MessageDigest.getInstance(CLASSPATH_FILE_ID_DIGEST)

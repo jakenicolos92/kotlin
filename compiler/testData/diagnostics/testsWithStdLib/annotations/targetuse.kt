@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: TargetUse.java
 
 import java.lang.annotation.Target;
@@ -19,3 +20,5 @@ import java.lang.annotation.Target as JTarget
 fun fooUse(aTarget: Target): String = TargetUse.foo(aTarget)
 
 fun barUse(aTarget: JTarget): String = TargetUse.bar(aTarget)
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction */

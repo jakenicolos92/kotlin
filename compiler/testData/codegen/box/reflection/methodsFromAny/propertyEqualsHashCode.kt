@@ -1,6 +1,5 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
-
+// IGNORE_KLIB_RUNTIME_ERRORS_WITH_CUSTOM_SECOND_STAGE: JS:2.3.0
+// KT-85411: Supported in 2.4.0-Beta2
 // WITH_REFLECT
 
 import kotlin.test.*

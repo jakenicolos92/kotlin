@@ -1,6 +1,7 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // See also KT-7817
 
-fun <R> synchronized(<!UNUSED_PARAMETER!>lock<!>: Any, block: () -> R): R = block()
+fun <R> synchronized(lock: Any, block: () -> R): R = block()
 
 class My {
     val test: String
@@ -9,6 +10,10 @@ class My {
             if (x == null) {
                 x = "s"
             }
-            <!DEBUG_INFO_SMARTCAST!>x<!>
+            x
         }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, equalityExpression, functionDeclaration, functionalType, getter,
+ifExpression, lambdaLiteral, localProperty, nullableType, propertyDeclaration, smartcast, stringLiteral, thisExpression,
+typeParameter */

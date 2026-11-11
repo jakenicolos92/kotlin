@@ -1,7 +1,8 @@
-//FILE: foo.kt
-fun main(args: Array<String>) {
+// RUN_PIPELINE_TILL: FRONTEND
+// FILE: foo.kt
+fun main() {
     val c: Type
-    <!NON_EXHAUSTIVE_WHEN!>when<!> (<!UNINITIALIZED_VARIABLE, UNUSED_EXPRESSION!>c<!>)  {
+    <!NO_ELSE_IN_WHEN!>when<!> (<!UNINITIALIZED_VARIABLE!>c<!>)  {
 
     }
 }
@@ -13,3 +14,6 @@ public enum Type {
     TYPE,
     NO_TYPE;
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaType, localProperty, propertyDeclaration, whenExpression,
+whenWithSubject */

@@ -1,3 +1,5 @@
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: CODEGEN
 class A {
 }
 operator fun A.component1() = 1
@@ -8,7 +10,10 @@ class C {
 }
 
 fun test() {
-    for ((<!UNUSED_VARIABLE!>x<!>, <!UNUSED_VARIABLE!>y<!>) in C()) {
+    for ([x, y] in C()) {
 
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, forLoop, funWithExtensionReceiver, functionDeclaration,
+integerLiteral, localProperty, operator, propertyDeclaration */

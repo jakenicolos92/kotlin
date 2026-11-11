@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE -TYPE_MISMATCH
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE -TYPE_MISMATCH -CONDITION_TYPE_MISMATCH
 
 inline fun inlineFunWithInvoke(s: (p: Int) -> Unit, ext: Int.(p: Int) -> Unit) {
     <!USAGE_IS_NOT_INLINABLE!>s<!> && <!USAGE_IS_NOT_INLINABLE!>ext<!>
@@ -15,3 +16,6 @@ inline fun Function1<Int, Unit>.inlineExt() {
     this && this
     this || this
 }
+
+/* GENERATED_FIR_TAGS: andExpression, disjunctionExpression, funWithExtensionReceiver, functionDeclaration,
+functionalType, inline, integerLiteral, noinline, thisExpression, typeWithExtension */

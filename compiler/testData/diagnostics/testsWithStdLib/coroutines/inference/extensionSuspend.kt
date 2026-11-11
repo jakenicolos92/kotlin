@@ -1,10 +1,16 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// OPT_IN: kotlin.RequiresOptIn
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
+
+@file:OptIn(ExperimentalTypeInference::class)
+
+import kotlin.experimental.ExperimentalTypeInference
 
 class GenericController<T> {
     suspend fun yield(t: T) {}
 }
 
-suspend fun <S> GenericController<S>.yieldAll(s: Collection<S>) {}
+suspend fun <K> GenericController<K>.yieldAll(s: Collection<K>) {}
 
 fun <S> generate(g: suspend GenericController<S>.() -> Unit): S = TODO()
 
@@ -35,3 +41,7 @@ fun <X> setOf(vararg x: X): Set<X> = TODO()
 interface A
 object B : A
 object C : A
+
+/* GENERATED_FIR_TAGS: annotationUseSiteTargetFile, classDeclaration, classReference, funWithExtensionReceiver,
+functionDeclaration, functionalType, integerLiteral, interfaceDeclaration, lambdaLiteral, nullableType,
+objectDeclaration, propertyDeclaration, suspend, typeParameter, typeWithExtension, vararg */

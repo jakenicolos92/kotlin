@@ -1,8 +1,9 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun foo() {
     outer@while (true) {
         try {
             while (true) {
-                <!UNREACHABLE_CODE!>continue@outer<!>
+                continue@outer
             }
         } finally {
             break
@@ -15,10 +16,12 @@ fun bar(): String {
     outer@while (true) {
         try {
             while (true) {
-                <!UNREACHABLE_CODE!>continue@outer<!>
+                continue@outer
             }
         } finally {
             return "OK"
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: break, continue, functionDeclaration, stringLiteral, tryExpression, whileLoop */

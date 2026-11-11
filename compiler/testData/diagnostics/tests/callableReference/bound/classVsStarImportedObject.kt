@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: 1.kt
 
 package a
@@ -17,3 +18,5 @@ package b
 
 object A
 object B
+
+/* GENERATED_FIR_TAGS: classDeclaration, classReference, objectDeclaration, propertyDeclaration */

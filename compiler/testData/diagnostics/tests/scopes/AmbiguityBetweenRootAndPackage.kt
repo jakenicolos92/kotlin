@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: root.kt
 fun testFun() = "239"
 
@@ -10,3 +11,5 @@ fun testFun() = 12
 import test.*
 
 val t: String = testFun()
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, propertyDeclaration, stringLiteral */

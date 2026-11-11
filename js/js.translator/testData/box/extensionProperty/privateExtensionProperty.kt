@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 492
 class A {
     fun result() = "OK"
 }

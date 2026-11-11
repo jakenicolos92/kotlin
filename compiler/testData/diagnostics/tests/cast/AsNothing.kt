@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // Nothing can be cast to Nothing
 fun foo(x: String) {
     x <!CAST_NEVER_SUCCEEDS!>as<!> Nothing
@@ -12,3 +13,5 @@ fun bar(x: String, y: String?) {
     x <!CAST_NEVER_SUCCEEDS!>as<!> Nothing?
     y as Nothing?
 }
+
+/* GENERATED_FIR_TAGS: asExpression, functionDeclaration, nullableType */

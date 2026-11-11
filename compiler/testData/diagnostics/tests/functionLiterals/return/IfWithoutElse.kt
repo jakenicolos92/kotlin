@@ -1,8 +1,9 @@
+// RUN_PIPELINE_TILL: CODEGEN
 val flag = true
 
 // type of a was checked by txt
 val a/*: () -> Any*/ = l@ {
-    <!INVALID_IF_AS_EXPRESSION!>if (flag) return@l 4<!>
+    if (flag) return@l 4
 }
 
 val b/*: () -> Int */ = l@ {
@@ -11,5 +12,7 @@ val b/*: () -> Int */ = l@ {
 }
 
 val c/*: () -> Unit */ = l@ {
-    if (flag) <!UNUSED_EXPRESSION!>4<!>
+    if (flag) 4
 }
+
+/* GENERATED_FIR_TAGS: ifExpression, integerLiteral, lambdaLiteral, propertyDeclaration */

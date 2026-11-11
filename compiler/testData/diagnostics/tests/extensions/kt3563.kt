@@ -1,10 +1,11 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // KT-3563 Compiler requiring java.io.File, and it's unclear why
 
 package bar
 
 import java.io.File
 
-class Customer(<!UNUSED_PARAMETER!>name1<!>: String)
+class Customer(name1: String)
 
 fun foo(f: File, c: Customer) {
     f.name1
@@ -14,3 +15,6 @@ fun foo(f: File, c: Customer) {
 
 val File.name1: String
     get() = getName()
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, functionDeclaration, getter, javaFunction, primaryConstructor,
+propertyDeclaration, propertyWithExtensionReceiver */

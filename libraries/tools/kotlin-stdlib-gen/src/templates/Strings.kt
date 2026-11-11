@@ -1,23 +1,35 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 package templates
 
 import templates.Family.*
 import templates.SequenceClass.*
 
-fun strings(): List<GenericFunction> {
-    val templates = arrayListOf<GenericFunction>()
+object StringJoinOps : TemplateGroupBase() {
 
-    templates add f("joinTo(buffer: A, separator: CharSequence = \", \", prefix: CharSequence = \"\", postfix: CharSequence = \"\", limit: Int = -1, truncated: CharSequence = \"...\", transform: ((T) -> CharSequence)? = null)") {
+    val f_joinTo = fn("joinTo(buffer: A, separator: CharSequence = \", \", prefix: CharSequence = \"\", postfix: CharSequence = \"\", limit: Int = -1, truncated: CharSequence = \"...\", transform: ((T) -> CharSequence)? = null)") {
+        includeDefault()
+    } builder {
         doc {
             """
             Appends the string from all the elements separated using [separator] and using the given [prefix] and [postfix] if supplied.
 
-            If the collection could be huge, you can specify a non-negative value of [limit], in which case only the first [limit]
+            If the collection has no elements, the function appends only [prefix] followed by [postfix] to [buffer] (both are empty by default).
+
+            If the collection is huge, you can specify a non-negative value of [limit], in which case only the first [limit]
             elements will be appended, followed by the [truncated] string (which defaults to "...").
+            
+            @return the [buffer] argument with appended elements.
             """
         }
+        annotation("@IgnorableReturnValue")
+        sample("samples.collections.Collections.Transformations.joinTo")
         sequenceClassification(terminal)
         typeParam("A : Appendable")
-        returns { "A" }
+        returns("A")
         body {
             """
             buffer.append(prefix)
@@ -33,8 +45,7 @@ fun strings(): List<GenericFunction> {
             return buffer
             """
         }
-        exclude(Strings)
-        bodyForTypes(ArraysOfPrimitives, *defaultPrimitives.toTypedArray()) { primitive ->
+        body(ArraysOfPrimitives) {
             """
             buffer.append(prefix)
             var count = 0
@@ -54,18 +65,22 @@ fun strings(): List<GenericFunction> {
         }
     }
 
-    templates add f("joinToString(separator: CharSequence = \", \", prefix: CharSequence = \"\", postfix: CharSequence = \"\", limit: Int = -1, truncated: CharSequence = \"...\", transform: ((T) -> CharSequence)? = null)") {
+    val f_joinToString = fn("joinToString(separator: CharSequence = \", \", prefix: CharSequence = \"\", postfix: CharSequence = \"\", limit: Int = -1, truncated: CharSequence = \"...\", transform: ((T) -> CharSequence)? = null)") {
+        includeDefault()
+    } builder {
         doc {
             """
             Creates a string from all the elements separated using [separator] and using the given [prefix] and [postfix] if supplied.
 
-            If the collection could be huge, you can specify a non-negative value of [limit], in which case only the first [limit]
+            If the collection has no elements, the result consists of only [prefix] followed by [postfix] (both are empty by default).
+
+            If the collection is huge, you can specify a non-negative value of [limit], in which case only the first [limit]
             elements will be appended, followed by the [truncated] string (which defaults to "...").
             """
         }
+        sample("samples.collections.Collections.Transformations.joinToString")
         sequenceClassification(terminal)
 
-        exclude(Strings)
         returns("String")
         body {
             """
@@ -73,6 +88,4 @@ fun strings(): List<GenericFunction> {
             """
         }
     }
-
-    return templates
 }

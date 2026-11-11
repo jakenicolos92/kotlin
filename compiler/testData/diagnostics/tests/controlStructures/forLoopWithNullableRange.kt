@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class Coll {
   operator fun iterator(): It = It()
 }
@@ -11,6 +12,9 @@ fun test(c: Coll?) {
   for (x in <!ITERATOR_ON_NULLABLE!>c<!>) {}
 
   if (c != null) {
-    for(x in <!DEBUG_INFO_SMARTCAST!>c<!>) {}
+    for(x in c) {}
   }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, forLoop, functionDeclaration, ifExpression, integerLiteral,
+localProperty, nullableType, operator, propertyDeclaration, smartcast */

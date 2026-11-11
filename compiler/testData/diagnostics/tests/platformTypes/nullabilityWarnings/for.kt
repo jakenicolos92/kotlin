@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: J.java
 
 import org.jetbrains.annotations.*;
@@ -26,3 +27,5 @@ fun test() {
     for (x in platformJ) {}
 }
 
+/* GENERATED_FIR_TAGS: flexibleType, forLoop, functionDeclaration, javaProperty, localProperty, nullableType,
+propertyDeclaration */

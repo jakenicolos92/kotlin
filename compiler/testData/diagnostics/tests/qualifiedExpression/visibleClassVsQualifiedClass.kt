@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // MODULE: m1
 // FILE: a.kt
 package a
@@ -22,13 +23,13 @@ package other
 
 class a {}
 
-fun test(a_: a.<!UNRESOLVED_REFERENCE!>b<!>) {
-    <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a_<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a_b<!>()
+fun test(a_: a.b) {
+    a_.a_b()
 
     val a_2 = a.<!UNRESOLVED_REFERENCE!>b<!>()
-    <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a_2<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a_b<!>()
-    <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a_2<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>some_ab<!>()
-    <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a_2<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>a_<!>()
+    a_2.a_b()
+    a_2.some_ab()
+    a_2.a_()
 }
 
 // FILE: c2.kt
@@ -56,3 +57,5 @@ fun test(_ab: a.b) {
     val _ab2 = a.b()
     _ab2.some_ab()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, localProperty, nestedClass, propertyDeclaration */

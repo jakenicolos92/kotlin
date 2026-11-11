@@ -1,6 +1,7 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 // FILE: J.java
-import java.util.*
+import java.util.*;
 
 public class J {
     public static <E1 extends Enum<E1>> String foo(E1 e) { return ""; }
@@ -19,3 +20,5 @@ val test2: String = J.foo(a, a)
 val test3: String = J.foo(a, a, a)
 val test4: Int = J.foo(a, a, a, a)
 val test5: Int = J.foo(a, a, a, a, a)
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, flexibleType, javaFunction, propertyDeclaration */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 public enum A {
     ENTRY,
@@ -14,3 +15,6 @@ fun main() {
     val c = A.ENTRY
     c.s()
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaProperty, javaType, localProperty,
+propertyDeclaration */

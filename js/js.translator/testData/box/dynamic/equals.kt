@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 536
 package foo
 
 object f {
@@ -7,7 +6,7 @@ object f {
     override fun equals(other: Any?): Boolean {
         equalsCalled++
         if (equalsCalled > 1) return false
-        return super.equals(other)
+        return this === other
     }
 }
 

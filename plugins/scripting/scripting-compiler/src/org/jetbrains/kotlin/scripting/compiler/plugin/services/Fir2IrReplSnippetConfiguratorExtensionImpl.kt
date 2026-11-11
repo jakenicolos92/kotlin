@@ -1,0 +1,389 @@
+/*
+ * Copyright 2010-2025 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.scripting.compiler.plugin.services
+
+import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.fir.*
+import org.jetbrains.kotlin.fir.backend.DelicateDeclarationStorageApi
+import org.jetbrains.kotlin.fir.backend.Fir2IrComponents
+import org.jetbrains.kotlin.fir.backend.Fir2IrReplSnippetConfiguratorExtension
+import org.jetbrains.kotlin.fir.backend.Fir2IrVisitor
+import org.jetbrains.kotlin.fir.declarations.*
+import org.jetbrains.kotlin.fir.declarations.builder.buildPrimaryConstructor
+import org.jetbrains.kotlin.fir.declarations.builder.buildRegularClass
+import org.jetbrains.kotlin.fir.declarations.impl.FirPrimaryConstructor
+import org.jetbrains.kotlin.fir.declarations.impl.FirResolvedDeclarationStatusImpl
+import org.jetbrains.kotlin.fir.expressions.FirEmptyArgumentList
+import org.jetbrains.kotlin.fir.expressions.FirExpression
+import org.jetbrains.kotlin.fir.expressions.UnresolvedExpressionTypeAccess
+import org.jetbrains.kotlin.fir.expressions.builder.buildDelegatedConstructorCall
+import org.jetbrains.kotlin.fir.extensions.containingReplSnippet
+import org.jetbrains.kotlin.fir.references.FirResolvedNamedReference
+import org.jetbrains.kotlin.fir.references.builder.buildResolvedNamedReference
+import org.jetbrains.kotlin.fir.resolve.*
+import org.jetbrains.kotlin.fir.resolve.providers.dependenciesSymbolProvider
+import org.jetbrains.kotlin.fir.resolve.providers.firProvider
+import org.jetbrains.kotlin.fir.scopes.getDeclaredConstructors
+import org.jetbrains.kotlin.fir.scopes.impl.declaredMemberScope
+import org.jetbrains.kotlin.fir.scopes.kotlinScopeProvider
+import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
+import org.jetbrains.kotlin.fir.symbols.SymbolInternals
+import org.jetbrains.kotlin.fir.symbols.impl.*
+import org.jetbrains.kotlin.fir.types.FirResolvedTypeRef
+import org.jetbrains.kotlin.fir.types.constructType
+import org.jetbrains.kotlin.fir.types.impl.FirImplicitTypeRefImplWithoutSource
+import org.jetbrains.kotlin.fir.types.type
+import org.jetbrains.kotlin.fir.visitors.FirDefaultVisitorVoid
+import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
+import org.jetbrains.kotlin.ir.declarations.IrReplSnippet
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.symbols.IrReplSnippetSymbol
+import org.jetbrains.kotlin.ir.symbols.impl.IrClassSymbolImpl
+import org.jetbrains.kotlin.ir.util.getPackageFragment
+import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.scripting.compiler.plugin.ReplSnippetConfigurationCodec
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.SnippetArtifactMetadataCodec
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.buildSnippetArtifactMetadataFromFir
+import org.jetbrains.kotlin.scripting.compiler.plugin.irLowerings.importedSnippetsAttr
+import org.jetbrains.kotlin.scripting.compiler.plugin.irLowerings.replSnippetArtifactMetadataAttr
+import java.lang.ref.WeakReference
+import kotlin.script.experimental.api.ReplScriptingHostConfigurationKeys
+import kotlin.script.experimental.api.repl
+import kotlin.script.experimental.api.valueOrNull
+import kotlin.script.experimental.host.ScriptingHostConfiguration
+import kotlin.script.experimental.util.PropertiesCollection
+
+/**
+ * FQName of the state object (Map<String, Any?) if provided externally
+ *
+ * if is not provided - generated automatically along with the first snippet class
+ */
+val ReplScriptingHostConfigurationKeys.replStateObjectFqName by PropertiesCollection.key<String>()
+
+private val replStateDefaultName = Name.identifier("ReplState")
+
+class Fir2IrReplSnippetConfiguratorExtensionImpl(
+    session: FirSession,
+    private val hostConfiguration: ScriptingHostConfiguration,
+) : Fir2IrReplSnippetConfiguratorExtension(session) {
+
+    /**
+     * The state object IR class is shared by all snippets converted in the same Fir2Ir run (same batch), but it is only valid
+     * within that run. The extension itself lives as long as the FIR session, which is kept alive by the REPL history, so both
+     * the components and the IR class are referenced weakly. Otherwise, the cached IR would retain the whole backend state
+     * of the snippet (see KT-90299).
+     */
+    private var cachedStateObject: CachedStateObject? = null
+
+    private class CachedStateObject(components: Fir2IrComponents, irClass: IrClass) {
+        private val componentsRef = WeakReference(components)
+        private val irClassRef = WeakReference(irClass)
+
+        fun getFor(components: Fir2IrComponents): IrClass? =
+            if (componentsRef.get() === components) irClassRef.get() else null
+    }
+
+    @OptIn(SymbolInternals::class)
+    override fun Fir2IrComponents.prepareSnippet(fir2IrVisitor: Fir2IrVisitor, firReplSnippet: FirReplSnippet, irSnippet: IrReplSnippet) {
+        val propertiesFromState = hashMapOf<FirPropertySymbol, FirReplSnippetSymbol>()
+        val functionsFromState = hashMapOf<FirNamedFunctionSymbol, FirReplSnippetSymbol>()
+        val classesFromState = hashMapOf<FirRegularClassSymbol, FirReplSnippetSymbol>()
+        val usedOtherSnippets = HashSet<FirReplSnippetSymbol>()
+
+        // Same-batch snippets (including the current one) are regular same-module declarations and need no lazy copies.
+        @OptIn(SymbolInternals::class)
+        fun FirReplSnippetSymbol.isFromSameBatch(): Boolean = declarationStorage.getCachedIrReplSnippet(fir) != null
+
+        CollectAccessToOtherState(
+            session,
+            propertiesFromState,
+            functionsFromState,
+            classesFromState,
+            usedOtherSnippets,
+            shouldCollectFrom = { !it.isFromSameBatch() }
+        ).visitReplSnippet(firReplSnippet)
+
+        usedOtherSnippets.forEach {
+            val packageFragment = declarationStorage.getIrExternalPackageFragment(it.packageFqName(), it.moduleData)
+            classifierStorage.createAndCacheEarlierSnippetClass(it, packageFragment)
+        }
+
+        // Classes should be created first to populate the cache before possible references
+        classesFromState.forEach { [classSymbol, snippetSymbol] ->
+            classifierStorage.getCachedEarlierSnippetClass(snippetSymbol)?.let { originalSnippet ->
+                createClassFromOtherSnippet(classSymbol, originalSnippet, irSnippet)
+            }
+        }
+
+        propertiesFromState.forEach { [propertySymbol, snippetSymbol] ->
+            classifierStorage.getCachedEarlierSnippetClass(snippetSymbol)?.let { originalSnippet ->
+                val actualParent = getOrBuildActualParent(propertySymbol, originalSnippet, irSnippet)
+
+                fun IrSimpleFunction.updateAccessor() {
+                    origin = IrDeclarationOrigin.REPL_FROM_OTHER_SNIPPET
+                    parent = actualParent
+                    irSnippet.declarationsFromOtherSnippets.add(this)
+                }
+
+                irSnippet.declarationsFromOtherSnippets.add(
+                    declarationStorage.createAndCacheIrProperty(
+                        propertySymbol.fir,
+                        originalSnippet,
+                        IrDeclarationOrigin.REPL_FROM_OTHER_SNIPPET,
+                        allowLazyDeclarationsCreation = true
+                    ).apply {
+                        parent = actualParent
+                        getter?.updateAccessor()
+                        setter?.updateAccessor()
+                    }
+                )
+            }
+        }
+
+        functionsFromState.forEach { [functionSymbol, snippetSymbol] ->
+            classifierStorage.getCachedEarlierSnippetClass(snippetSymbol)?.let { originalSnippet ->
+                val actualParent = getOrBuildActualParent(functionSymbol, originalSnippet, irSnippet)
+                declarationStorage.createAndCacheIrFunction(
+                    functionSymbol.fir,
+                    actualParent,
+                    predefinedOrigin = IrDeclarationOrigin.REPL_FROM_OTHER_SNIPPET,
+                    fakeOverrideOwnerLookupTag = null,
+                    allowLazyDeclarationsCreation = true
+                ).run {
+                    parent = actualParent
+                    visibility = DescriptorVisibilities.PUBLIC
+                    irSnippet.declarationsFromOtherSnippets.add(this)
+                }
+            }
+        }
+
+        val stateObject = getStateObject(irSnippet, fir2IrVisitor)
+
+        irSnippet.stateObject = stateObject.symbol
+
+        irSnippet.importedSnippetsAttr = collectImportedSameBatchSnippets(firReplSnippet).takeIf { it.isNotEmpty() }
+
+        saveSnippetArtifactMetadataIfStateless(firReplSnippet, irSnippet)
+    }
+
+    /**
+     * The importing snippet evaluates the whole transitive closure of its imports, which are deduplicated and registered
+     * in the history in the dependency order by the REPL compiler, so a script imported several times is evaluated once.
+     * The imported snippets of the earlier batches have no IR in the current one.
+     */
+    @OptIn(SymbolInternals::class)
+    private fun Fir2IrComponents.collectImportedSameBatchSnippets(firReplSnippet: FirReplSnippet): List<IrReplSnippetSymbol> {
+        val historyProvider = hostConfiguration[ScriptingHostConfiguration.repl.firReplHistoryProvider] ?: return emptyList()
+        if (historyProvider.isImportedSnippet(firReplSnippet.symbol)) return emptyList()
+        return historyProvider.getSnippets().mapNotNull { snippetSymbol ->
+            if (!historyProvider.isImportedSnippet(snippetSymbol)) return@mapNotNull null
+            declarationStorage.getCachedIrReplSnippet(snippetSymbol.fir)?.symbol
+        }
+    }
+
+    private fun saveSnippetArtifactMetadataIfStateless(firReplSnippet: FirReplSnippet, irSnippet: IrReplSnippet) {
+        val historyProvider = hostConfiguration[ScriptingHostConfiguration.repl.firReplHistoryProvider]
+        if (historyProvider !is ClasspathBackedFirReplHistoryProvider) return
+
+        val metadata = buildSnippetArtifactMetadataFromFir(
+            firSnippet = firReplSnippet,
+            session = session,
+            priorSnippetClassId = historyProvider.predecessorClassIdOf(firReplSnippet.symbol),
+            serializedCompilationConfiguration = serializedCompilationConfigurationOf(firReplSnippet),
+        )
+        irSnippet.replSnippetArtifactMetadataAttr = SnippetArtifactMetadataCodec.encode(metadata)
+    }
+
+    private fun serializedCompilationConfigurationOf(firReplSnippet: FirReplSnippet): ByteArray? {
+        val sourceFile = session.firProvider.getFirReplSnippetContainerFile(firReplSnippet.symbol)?.sourceFile ?: return null
+        val configuration = getOrLoadConfiguration(session, sourceFile)?.valueOrNull() ?: return null
+        return ReplSnippetConfigurationCodec.encode(configuration)
+    }
+
+    private fun Fir2IrComponents.getOrBuildActualParent(
+        symbol: FirBasedSymbol<*>, parentClassOrSnippet: IrClass, irSnippet: IrReplSnippet
+    ): IrClass =
+        symbol.getContainingClassSymbol()?.let {
+            if (it is FirRegularClassSymbol &&
+                it.origin != FirDeclarationOrigin.Synthetic.ReplContainerClass &&
+                !it.isReconstructedSnippetContainerFor(symbol)
+            )
+                createClassFromOtherSnippet(it, parentClassOrSnippet, irSnippet)
+            else null
+        } ?: parentClassOrSnippet
+
+    private fun FirRegularClassSymbol.isReconstructedSnippetContainerFor(accessedSymbol: FirBasedSymbol<*>): Boolean =
+        session.containingReplSnippet(accessedSymbol)?.snippetClassSymbol == this
+
+    @OptIn(SymbolInternals::class, DelicateDeclarationStorageApi::class)
+    private fun Fir2IrComponents.createClassFromOtherSnippet(
+        classSymbol: FirRegularClassSymbol,
+        parentClassOrSnippet: IrClass,
+        irSnippet: IrReplSnippet
+    ): IrClass {
+        val actualParent = getOrBuildActualParent(classSymbol, parentClassOrSnippet, irSnippet)
+        return classifierStorage.getFir2IrLazyClass(classSymbol.fir).apply {
+            // this may be called on the directly found usages as well as on the used declarations parents, so deduplication is needed
+            // TODO: consider rearranging the code to avoid potentially ineffective check
+            if (!irSnippet.declarationsFromOtherSnippets.contains(this)) {
+                parent = actualParent
+                origin = IrDeclarationOrigin.REPL_FROM_OTHER_SNIPPET
+                irSnippet.declarationsFromOtherSnippets.add(this)
+            }
+        }
+    }
+
+    @OptIn(SymbolInternals::class, LookupTagInternals::class, DirectDeclarationsAccess::class)
+    private fun Fir2IrComponents.getStateObject(
+        irSnippet: IrReplSnippet,
+        fir2IrVisitor: Fir2IrVisitor,
+    ): IrClass {
+        cachedStateObject?.getFor(this)?.let { return it }
+
+        fun fqn2cid(s: String): ClassId {
+            val fqn = FqName(s)
+            return ClassId(fqn.parent(), fqn.shortName())
+        }
+
+        val explicitClassId = hostConfiguration[ScriptingHostConfiguration.repl.replStateObjectFqName]?.let(::fqn2cid)
+        val classId = explicitClassId ?: ClassId(irSnippet.getPackageFragment().packageFqName, replStateDefaultName)
+
+        val firReplStateFromDependencies =
+            (session.dependenciesSymbolProvider.getClassLikeSymbolByClassId(classId) as? FirRegularClassSymbol)?.fir
+
+        val firReplStateObject = firReplStateFromDependencies ?: run {
+            val hashMapClassSymbol =
+                session.dependenciesSymbolProvider.getClassLikeSymbolByClassId(
+                    fqn2cid("kotlin.collections.HashMap")
+                )?.fullyExpandedClass() ?: error("HashMap class not found")
+            val firReplStateSymbol = FirRegularClassSymbol(classId)
+            val constructor = buildPrimaryConstructor {
+                moduleData = session.moduleData
+                origin = FirDeclarationOrigin.FromOtherReplSnippet
+                status = FirResolvedDeclarationStatusImpl(
+                    Visibilities.Public,
+                    Modality.FINAL,
+                    EffectiveVisibility.Public
+                )
+                isLocal = false
+                resolvePhase = FirResolvePhase.BODY_RESOLVE
+                symbol = FirConstructorSymbol(classId)
+                returnTypeRef = FirImplicitTypeRefImplWithoutSource
+                dispatchReceiverType = firReplStateSymbol.constructType()
+            }
+            buildRegularClass {
+                moduleData = session.moduleData
+                origin = FirDeclarationOrigin.FromOtherReplSnippet
+                this.name = classId.shortClassName
+                status = FirResolvedDeclarationStatusImpl(
+                    Visibilities.Public,
+                    Modality.FINAL,
+                    EffectiveVisibility.Public
+                )
+                classKind = ClassKind.OBJECT
+                symbol = firReplStateSymbol
+                val nullableAnyType = StandardTypes.NullableAny
+                superTypeRefs += hashMapClassSymbol.constructType(
+                    Array(hashMapClassSymbol.typeParameterSymbols.size) { nullableAnyType },
+                ).toFirResolvedTypeRef(null)
+                resolvePhase = FirResolvePhase.BODY_RESOLVE
+                scopeProvider = session.kotlinScopeProvider
+                declarations += constructor
+            }.also {
+                (it.symbol.toLookupTag() as? ConeClassLikeLookupTagImpl)?.bindSymbolToLookupTag(session, it.symbol)
+                constructor.replaceReturnTypeRef(it.defaultType().toFirResolvedTypeRef())
+                val delegatingConstructorCall = buildDelegatedConstructorCall {
+                    constructedTypeRef = it.superTypeRefs.singleOrNull() ?: error("No single super type for repl state found")
+                    val superConstructorSymbol = hashMapClassSymbol.declaredMemberScope(session, memberRequiredPhase = null)
+                        .getDeclaredConstructors()
+                        .firstOrNull { it.valueParameterSymbols.isEmpty() }
+                        ?: error("No arguments constructor for HashMap not found")
+                    calleeReference = buildResolvedNamedReference {
+                        name = superConstructorSymbol.name
+                        resolvedSymbol = superConstructorSymbol
+                    }
+                    argumentList = FirEmptyArgumentList
+                    isThis = false
+                }
+                constructor.replaceDelegatedConstructor(delegatingConstructorCall)
+            }
+        }
+
+        return if (firReplStateFromDependencies == null && explicitClassId == null) {
+            classifierStorage.createAndCacheIrClass(firReplStateObject, irSnippet.parent).also { irReplStateObject ->
+                classifiersGenerator.processClassHeader(firReplStateObject, irReplStateObject)
+                declarationStorage.createAndCacheIrConstructor(
+                    firReplStateObject.declarations.filterIsInstance<FirPrimaryConstructor>().first(),
+                    { irReplStateObject }, isLocal = false
+                )
+                firReplStateObject.accept(fir2IrVisitor, null)
+            }
+        } else {
+            val irReplStateParent =
+                declarationStorage.getIrExternalPackageFragment(firReplStateObject.symbol.classId.packageFqName, session.moduleData)
+            lazyDeclarationsGenerator.createIrLazyClass(firReplStateObject, irReplStateParent, IrClassSymbolImpl())
+        }.also { cachedStateObject = CachedStateObject(this, it) }
+    }
+
+    companion object {
+        fun getFactory(hostConfiguration: ScriptingHostConfiguration): Factory {
+            return Factory { session -> Fir2IrReplSnippetConfiguratorExtensionImpl(session, hostConfiguration) }
+        }
+    }
+}
+
+private class CollectAccessToOtherState(
+    val session: FirSession,
+    val properties: MutableMap<FirPropertySymbol, FirReplSnippetSymbol>,
+    val functions: MutableMap<FirNamedFunctionSymbol, FirReplSnippetSymbol>,
+    val classes: MutableMap<FirRegularClassSymbol, FirReplSnippetSymbol>,
+    val snippets: MutableSet<FirReplSnippetSymbol>,
+    val shouldCollectFrom: (FirReplSnippetSymbol) -> Boolean,
+) : FirDefaultVisitorVoid() {
+
+    private fun storeAccessedSymbol(symbol: FirBasedSymbol<FirDeclaration>) {
+        val containingSnippet = session.containingReplSnippet(symbol)?.takeIf(shouldCollectFrom) ?: return
+        snippets.add(containingSnippet)
+        when (symbol) {
+            is FirPropertySymbol -> properties[symbol] = containingSnippet
+            is FirNamedFunctionSymbol -> functions[symbol] = containingSnippet
+            is FirRegularClassSymbol -> classes[symbol] = containingSnippet
+            else -> {}
+        }
+    }
+
+    @OptIn(UnresolvedExpressionTypeAccess::class)
+    override fun visitElement(element: FirElement) {
+        (element as? FirExpression)?.coneTypeOrNull?.toClassSymbol(session)?.let { storeAccessedSymbol(it) }
+
+        element.acceptChildren(this)
+    }
+
+    @OptIn(SymbolInternals::class)
+    override fun visitResolvedNamedReference(resolvedNamedReference: FirResolvedNamedReference) {
+        val resolvedSymbol = resolvedNamedReference.resolvedSymbol
+        val symbol = when (resolvedSymbol) {
+            is FirConstructorSymbol -> (resolvedSymbol.fir.returnTypeRef as? FirResolvedTypeRef)?.coneType?.toSymbol(session)
+            is FirCallableSymbol<*> -> {
+                resolvedSymbol.resolvedReturnTypeRef.accept(this)
+                resolvedSymbol
+            }
+            else -> null
+        } ?: resolvedSymbol
+
+        storeAccessedSymbol(symbol)
+    }
+
+    override fun visitResolvedTypeRef(resolvedTypeRef: FirResolvedTypeRef) {
+        resolvedTypeRef.coneType.toClassSymbol(session)?.let { storeAccessedSymbol(it) }
+        resolvedTypeRef.coneType.typeArguments.forEach {
+            it.type?.toClassSymbol(session)?.let { storeAccessedSymbol(it) }
+        }
+    }
+}

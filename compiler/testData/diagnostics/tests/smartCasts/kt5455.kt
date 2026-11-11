@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-5455 Need warning about redundant type cast
 fun foo(o: Any): Int {
     if (o is String) {
@@ -26,3 +27,6 @@ fun test2(b: B?) {
         (b as A).foo()
     }
 }
+
+/* GENERATED_FIR_TAGS: asExpression, classDeclaration, equalityExpression, functionDeclaration, ifExpression,
+integerLiteral, isExpression, nullableType, safeCall, smartcast */

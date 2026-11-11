@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // Based on KT-8643
 public class MyClass
 {
@@ -7,7 +8,7 @@ public class MyClass
         if (str != null)
             callback {
                 // Nodoby writes str, smart cast is possible
-                method1(<!DEBUG_INFO_SMARTCAST!>str<!>)
+                method1(str)
             }
     }
 
@@ -15,3 +16,6 @@ public class MyClass
 
     fun method1(str: String) = str
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, functionDeclaration, functionalType, ifExpression, inline,
+lambdaLiteral, localProperty, nullableType, propertyDeclaration, smartcast */

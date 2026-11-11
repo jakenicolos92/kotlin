@@ -16,66 +16,54 @@
 
 package org.jetbrains.kotlin.cli.jvm.compiler;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import com.intellij.openapi.diagnostic.Logger;
-import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.io.FileUtilRt;
-import com.intellij.openapi.vfs.StandardFileSystems;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.vfs.VirtualFileManager;
-import com.intellij.openapi.vfs.VirtualFileSystem;
-import com.intellij.psi.PsiFile;
-import com.intellij.psi.PsiManager;
-import kotlin.Unit;
 import kotlin.io.FilesKt;
-import kotlin.jvm.functions.Function1;
-import kotlin.sequences.SequencesKt;
+import kotlin.text.StringsKt;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.backend.common.output.OutputFile;
 import org.jetbrains.kotlin.backend.common.output.OutputFileCollection;
-import org.jetbrains.kotlin.cli.common.messages.MessageCollector;
-import org.jetbrains.kotlin.cli.common.modules.ModuleScriptData;
+import org.jetbrains.kotlin.cli.CliDiagnosticReportingKt;
+import org.jetbrains.kotlin.cli.CliDiagnostics;
+import org.jetbrains.kotlin.cli.common.modules.ModuleChunk;
 import org.jetbrains.kotlin.cli.common.modules.ModuleXmlParser;
 import org.jetbrains.kotlin.config.CompilerConfiguration;
-import org.jetbrains.kotlin.config.JVMConfigurationKeys;
-import org.jetbrains.kotlin.extensions.PreprocessedFileCreator;
-import org.jetbrains.kotlin.idea.KotlinFileType;
 import org.jetbrains.kotlin.name.FqName;
-import org.jetbrains.kotlin.psi.KtFile;
+import org.jetbrains.kotlin.serialization.deserialization.builtins.BuiltInSerializerProtocol;
 import org.jetbrains.kotlin.utils.ExceptionUtilsKt;
 import org.jetbrains.kotlin.utils.PathUtil;
 
 import java.io.*;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
+import java.util.function.Consumer;
 import java.util.jar.*;
 
-import static org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity.ERROR;
-
 public class CompileEnvironmentUtil {
-    private static final Logger LOG = Logger.getInstance(CompileEnvironmentUtil.class);
+
+    public static final long DOS_EPOCH = 315532800000L; // 1980-01-01T00:00:00Z
 
     @NotNull
-    public static ModuleScriptData loadModuleDescriptions(String moduleDefinitionFile, MessageCollector messageCollector) {
-        File file = new File(moduleDefinitionFile);
-        if (!file.exists()) {
-            messageCollector.report(ERROR, "Module definition file does not exist: " + moduleDefinitionFile, null);
-            return ModuleScriptData.EMPTY;
+    public static ModuleChunk loadModuleChunk(File buildFile, Consumer<String> errorConsumer, Consumer<Exception> exceptionConsumer) {
+        if (!buildFile.exists()) {
+            errorConsumer.accept("Module definition file does not exist: " + buildFile);
+            return ModuleChunk.EMPTY;
         }
-        String extension = FileUtilRt.getExtension(moduleDefinitionFile);
-        if ("xml".equalsIgnoreCase(extension)) {
-            return ModuleXmlParser.parseModuleScript(moduleDefinitionFile, messageCollector);
+        if ("xml".equalsIgnoreCase(FilesKt.getExtension(buildFile))) {
+            return ModuleXmlParser.parseModuleScript(buildFile.getPath(), errorConsumer, exceptionConsumer);
         }
-        messageCollector.report(ERROR, "Unknown module definition type: " + moduleDefinitionFile, null);
-        return ModuleScriptData.EMPTY;
+        errorConsumer.accept("Unknown module definition type: " + buildFile);
+        return ModuleChunk.EMPTY;
     }
 
     // TODO: includeRuntime should be not a flag but a path to runtime
-    private static void doWriteToJar(OutputFileCollection outputFiles, OutputStream fos, @Nullable FqName mainClass, boolean includeRuntime) {
+    private static void doWriteToJar(
+            OutputFileCollection outputFiles,
+            OutputStream fos,
+            @Nullable FqName mainClass,
+            boolean includeRuntime,
+            boolean noReflect,
+            boolean resetJarTimestamps
+    ) {
         try {
             Manifest manifest = new Manifest();
             Attributes mainAttributes = manifest.getMainAttributes();
@@ -84,13 +72,28 @@ public class CompileEnvironmentUtil {
             if (mainClass != null) {
                 mainAttributes.putValue("Main-Class", mainClass.asString());
             }
-            JarOutputStream stream = new JarOutputStream(fos, manifest);
+
+            JarOutputStream stream = new JarOutputStream(fos);
+            JarEntry manifestEntry = new JarEntry(JarFile.MANIFEST_NAME);
+            if (resetJarTimestamps) {
+                manifestEntry.setTime(DOS_EPOCH);
+            }
+            stream.putNextEntry(manifestEntry);
+            manifest.write(new BufferedOutputStream(stream));
+
             for (OutputFile outputFile : outputFiles.asList()) {
-                stream.putNextEntry(new JarEntry(outputFile.getRelativePath()));
+                JarEntry entry = new JarEntry(outputFile.getRelativePath());
+                if (resetJarTimestamps) {
+                    entry.setTime(DOS_EPOCH);
+                }
+                stream.putNextEntry(entry);
                 stream.write(outputFile.asByteArray());
             }
             if (includeRuntime) {
-                writeRuntimeToJar(stream);
+                writeRuntimeToJar(stream, resetJarTimestamps);
+                if (!noReflect) {
+                    writeReflectToJar(stream, resetJarTimestamps);
+                }
             }
             stream.finish();
         }
@@ -99,15 +102,27 @@ public class CompileEnvironmentUtil {
         }
     }
 
-    public static void writeToJar(File jarPath, boolean jarRuntime, FqName mainClass, OutputFileCollection outputFiles) {
-        FileOutputStream outputStream = null;
+    public static void writeToJar(
+            File jarPath,
+            boolean jarRuntime,
+            boolean noReflect,
+            boolean resetJarTimestamps,
+            FqName mainClass,
+            OutputFileCollection outputFiles,
+            CompilerConfiguration configuration
+    ) {
+        BufferedOutputStream outputStream = null;
         try {
-            outputStream = new FileOutputStream(jarPath);
-            doWriteToJar(outputFiles, outputStream, mainClass, jarRuntime);
+            // we should try to create the output dir first
+            if (jarPath.getParentFile() != null) {
+                jarPath.getParentFile().mkdirs();
+            }
+            outputStream = new BufferedOutputStream(new FileOutputStream(jarPath));
+            doWriteToJar(outputFiles, outputStream, mainClass, jarRuntime, noReflect, resetJarTimestamps);
             outputStream.close();
         }
         catch (FileNotFoundException e) {
-            throw new CompileEnvironmentException("Invalid jar path " + jarPath, e);
+            CliDiagnosticReportingKt.report(configuration, CliDiagnostics.INSTANCE.getCOMPILER_ARGUMENTS_ERROR(),"Invalid jar path: " + jarPath, null);
         }
         catch (IOException e) {
             throw ExceptionUtilsKt.rethrow(e);
@@ -117,89 +132,41 @@ public class CompileEnvironmentUtil {
         }
     }
 
-    private static void writeRuntimeToJar(JarOutputStream stream) throws IOException {
-        File runtimePath = PathUtil.getKotlinPathsForCompiler().getRuntimePath();
-        if (!runtimePath.exists()) {
-            throw new CompileEnvironmentException("Couldn't find runtime library");
+    private static void writeRuntimeToJar(JarOutputStream stream, boolean resetJarTimestamps) throws IOException {
+        File stdlibPath = PathUtil.getKotlinPathsForCompiler().getStdlibPath();
+        if (!stdlibPath.exists()) {
+            throw new CompileEnvironmentException("Couldn't find kotlin-stdlib at " + stdlibPath);
         }
-        File scriptRuntimePath = PathUtil.getKotlinPathsForCompiler().getScriptRuntimePath();
-        if (!scriptRuntimePath.exists()) {
-            throw new CompileEnvironmentException("Couldn't find script runtime library");
-        }
-
-        copyJarImpl(stream, runtimePath);
+        copyJarImpl(stream, stdlibPath, resetJarTimestamps);
     }
 
-    private static void copyJarImpl(JarOutputStream stream, File jarPath) throws IOException {
+    private static void writeReflectToJar(JarOutputStream stream, boolean resetJarTimestamps) throws IOException {
+        File reflectPath = PathUtil.getKotlinPathsForCompiler().getReflectPath();
+        if (!reflectPath.exists()) {
+            throw new CompileEnvironmentException("Couldn't find kotlin-reflect at " + reflectPath);
+        }
+        copyJarImpl(stream, reflectPath, resetJarTimestamps);
+    }
+
+    private static void copyJarImpl(JarOutputStream stream, File jarPath, boolean resetJarTimestamps) throws IOException {
         try (JarInputStream jis = new JarInputStream(new FileInputStream(jarPath))) {
             while (true) {
                 JarEntry e = jis.getNextJarEntry();
-                if (e == null) {
-                    break;
+                if (e == null) break;
+
+                String name = e.getName();
+                if (!FileUtilRt.extensionEquals(name, "class") &&
+                    !FileUtilRt.extensionEquals(name, BuiltInSerializerProtocol.BUILTINS_FILE_EXTENSION) &&
+                    !name.startsWith("META-INF/services/")) {
+                    continue;
                 }
-                if (FileUtilRt.extensionEquals(e.getName(), "class")) {
-                    stream.putNextEntry(e);
-                    FileUtil.copy(jis, stream);
+                if (StringsKt.substringAfterLast(name, "/", name).equals("module-info.class")) continue;
+                if (resetJarTimestamps) {
+                    e.setTime(DOS_EPOCH);
                 }
+                stream.putNextEntry(e);
+                FileUtil.copy(jis, stream);
             }
         }
-    }
-
-    @NotNull
-    public static List<KtFile> getKtFiles(
-            @NotNull Project project,
-            @NotNull Collection<String> sourceRoots,
-            @NotNull CompilerConfiguration configuration,
-            @NotNull Function1<String, Unit> reportError
-    ) throws IOException {
-        VirtualFileSystem localFileSystem = VirtualFileManager.getInstance().getFileSystem(StandardFileSystems.FILE_PROTOCOL);
-
-        Set<VirtualFile> processedFiles = Sets.newHashSet();
-        List<KtFile> result = Lists.newArrayList();
-
-        PreprocessedFileCreator virtualFileCreator = new PreprocessedFileCreator(project);
-
-        for (String sourceRootPath : sourceRoots) {
-            if (sourceRootPath == null) {
-                continue;
-            }
-
-            VirtualFile vFile = localFileSystem.findFileByPath(sourceRootPath);
-            if (vFile == null) {
-                String message = "Source file or directory not found: " + sourceRootPath;
-
-                File moduleFilePath = configuration.get(JVMConfigurationKeys.MODULE_XML_FILE);
-                if (moduleFilePath != null && Logger.isInitialized()) {
-                    String moduleFileContent = FileUtil.loadFile(moduleFilePath);
-                    LOG.warn(message +
-                              "\n\nmodule file path: " + moduleFilePath +
-                              "\ncontent:\n" + moduleFileContent);
-                }
-
-                reportError.invoke(message);
-                continue;
-            }
-            if (!vFile.isDirectory() && vFile.getFileType() != KotlinFileType.INSTANCE) {
-                reportError.invoke("Source entry is not a Kotlin file: " + sourceRootPath);
-                continue;
-            }
-
-            SequencesKt.forEach(FilesKt.walkTopDown(new File(sourceRootPath)), file -> {
-                if (file.isFile()) {
-                    VirtualFile originalVirtualFile = localFileSystem.findFileByPath(file.getAbsolutePath());
-                    VirtualFile virtualFile = originalVirtualFile != null ? virtualFileCreator.create(originalVirtualFile) : null;
-                    if (virtualFile != null && !processedFiles.contains(virtualFile)) {
-                        processedFiles.add(virtualFile);
-                        PsiFile psiFile = PsiManager.getInstance(project).findFile(virtualFile);
-                        if (psiFile instanceof KtFile) {
-                            result.add((KtFile) psiFile);
-                        }
-                    }
-                }
-                return Unit.INSTANCE;
-            });
-        }
-
-        return result;
     }
 }

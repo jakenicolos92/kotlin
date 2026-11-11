@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: 1.kt
 
 package anotherpackage
@@ -18,7 +19,7 @@ interface IInterfaceOutput<out T> {
 
 package mypackage.nestedpackage
 
-import mypackage.nestedpackage.Bar.<!UNRESOLVED_REFERENCE!>Baz<!>
+import mypackage.nestedpackage.Bar.<!UNRESOLVED_IMPORT!>Baz<!>
 import anotherpackage.IInterfaceInput
 import anotherpackage.IInterfaceOutput
 
@@ -44,3 +45,6 @@ class Bar() : IInterfaceInput<Baz>, IInterfaceOutput<Baz> {
 }
 
 data class Baz(val myField: Int)
+
+/* GENERATED_FIR_TAGS: classDeclaration, data, functionDeclaration, in, interfaceDeclaration, nestedClass, nullableType,
+out, override, primaryConstructor, propertyDeclaration, stringLiteral, typeParameter */

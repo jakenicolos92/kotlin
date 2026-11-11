@@ -1,0 +1,26 @@
+/* anchor (KtFile) --> */
+
+/* anchor (KtClass) --> */class Owner {
+    companion {
+        /* anchor (KtNamedFunction) --> */fun before() {}/* <-- */
+
+        for (i /* anchor (KtDeclarationModifierList) --> */in/* <-- */ 1..10) /* anchor (KtNamedFunction) --> */{
+        }/* <-- */
+    }
+
+    companion {
+        /* anchor (KtNamedFunction) --> */fun t2() {}/* <-- */
+
+        /* anchor (KtDeclarationModifierList) --> */@Anno/* <-- */
+    }
+
+    /* anchor (KtNamedFunction) --> */@Anno2
+    companion {
+        fun t3() {}
+
+        @Anno3
+    }/* <-- */
+
+    /* anchor (KtDeclarationModifierList) --> */@Anno4/* <-- */
+}/* <-- */
+/* <-- */

@@ -1,10 +1,11 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // MODULE: m1
 // FILE: test/Foo.java
 
 package test;
 
 class Foo {
-    static Foo create() { return Foo(); }
+    static Foo create() { return new Foo(); }
     void takeFoo(Foo f) {}
 }
 
@@ -18,3 +19,5 @@ fun test() {
     val a: Foo = Foo.create()
     Foo().takeFoo(a)
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, localProperty, propertyDeclaration */

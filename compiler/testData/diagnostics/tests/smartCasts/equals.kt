@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: CODEGEN
+
 fun foo(x: String?) = x
 
 class Test
@@ -7,19 +9,22 @@ class TestWithEquals {
 }
 
 fun bar(i: Test?) {
-    if (i == null) foo(<!DEBUG_INFO_CONSTANT!>i<!>)
+    if (i == null) foo(i)
 }
 
 fun bar(i: TestWithEquals?) {
-    if (i == null) foo(<!DEBUG_INFO_CONSTANT!>i<!>)
-    if (null == i) foo(<!DEBUG_INFO_CONSTANT!>i<!>)
+    if (i == null) foo(i)
+    if (null == i) foo(i)
     when (i) {
-        null -> foo(<!DEBUG_INFO_CONSTANT!>i<!>)
+        null -> foo(i)
     }
 }
 
 fun gav(i: TestWithEquals?, j: TestWithEquals?) {
     if (j == null) {
-        if (i == <!DEBUG_INFO_CONSTANT!>j<!>) foo(<!DEBUG_INFO_CONSTANT!>i<!>)
+        if (i == j) foo(i)
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, functionDeclaration, ifExpression, nullableType, operator,
+override, smartcast, superExpression, whenExpression, whenWithSubject */

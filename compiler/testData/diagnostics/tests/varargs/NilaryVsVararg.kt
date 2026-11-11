@@ -1,6 +1,7 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun foo0() : String = "noarg"
 
-fun foo0(vararg <!UNUSED_PARAMETER!>t<!> : Int) : String = "vararg"
+fun foo0(vararg t : Int) : String = "vararg"
 
 fun test0() {
     foo0()
@@ -8,3 +9,5 @@ fun test0() {
     val a = IntArray(0)
     foo0(*a)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, localProperty, propertyDeclaration, stringLiteral, vararg */

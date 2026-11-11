@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 public @interface A {
     String[] value() default {"abc", "cde"};
@@ -13,3 +14,5 @@ public @interface A {
 @A() fun test4() {}
 
 @A fun test5() {}
+
+/* GENERATED_FIR_TAGS: collectionLiteral, functionDeclaration, javaType, stringLiteral */

@@ -1,0 +1,864 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+
+package org.jetbrains.kotlin.analysis.api.standalone.fir.test.cases.session.builder
+
+import com.intellij.psi.JavaPsiFacade
+import com.intellij.psi.PsiClass
+import com.intellij.psi.PsiManager
+import com.intellij.psi.PsiPrimitiveType
+import com.intellij.psi.PsiTypes
+import com.intellij.psi.impl.source.PsiClassReferenceType
+import com.intellij.psi.search.GlobalSearchScope
+import org.jetbrains.kotlin.analysis.api.KaExperimentalApi
+import org.jetbrains.kotlin.analysis.api.KaNonPublicApi
+import org.jetbrains.kotlin.analysis.api.components.KaDiagnosticCheckerFilter
+import org.jetbrains.kotlin.analysis.api.components.collectDiagnostics
+import org.jetbrains.kotlin.analysis.api.components.resolveToCall
+import org.jetbrains.kotlin.analysis.api.components.resolveToSymbol
+import org.jetbrains.kotlin.analysis.api.javaInterop.asPsiClass
+import org.jetbrains.kotlin.analysis.api.platform.modification.publishGlobalSourceOutOfBlockModificationEvent
+import org.jetbrains.kotlin.analysis.api.platform.projectStructure.KotlinProjectStructureProvider
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaDanglingFileModule
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaNotUnderContentRootModule
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaSourceModule
+import org.jetbrains.kotlin.analysis.api.resolution.*
+import org.jetbrains.kotlin.analysis.api.session.analyze
+import org.jetbrains.kotlin.analysis.api.standalone.StandaloneAnalysisAPISession
+import org.jetbrains.kotlin.analysis.api.standalone.fir.projectStructure.StandaloneProjectFactory
+import org.jetbrains.kotlin.analysis.api.standalone.buildStandaloneAnalysisAPISession
+import org.jetbrains.kotlin.analysis.api.standalone.fir.test.AbstractStandaloneTest
+import org.jetbrains.kotlin.analysis.api.symbols.*
+import org.jetbrains.kotlin.analysis.api.types.KaClassType
+import org.jetbrains.kotlin.analysis.api.types.KaStandardTypeClassIds
+import org.jetbrains.kotlin.analysis.api.types.classId
+import org.jetbrains.kotlin.analysis.api.types.fullyExpandedType
+import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtLibraryModule
+import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSdkModule
+import org.jetbrains.kotlin.analysis.project.structure.builder.buildKtSourceModule
+import org.jetbrains.kotlin.codegen.forTestCompile.ForTestCompileRuntime
+import org.jetbrains.kotlin.idea.references.mainReference
+import org.jetbrains.kotlin.light.classes.symbol.withMultiplatformLightClassSupport
+import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.platform.CommonPlatforms
+import org.jetbrains.kotlin.platform.TargetPlatform
+import org.jetbrains.kotlin.platform.js.JsPlatforms
+import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
+import org.jetbrains.kotlin.psi.*
+import org.jetbrains.kotlin.psi.psiUtil.findDescendantOfType
+import org.jetbrains.kotlin.test.MockLibraryUtil
+import org.jetbrains.kotlin.test.testFramework.runWriteAction
+import org.jetbrains.kotlin.utils.addToStdlib.requireIsInstance
+import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.Test
+import java.nio.file.Path
+import java.nio.file.Paths
+import kotlin.io.path.nameWithoutExtension
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+@OptIn(KaExperimentalApi::class)
+class StandaloneSessionBuilderTest : AbstractStandaloneTest() {
+    override val suiteName: Path
+        get() = Paths.get("sessionBuilder")
+
+    @Test
+    fun testJdkSessionBuilder() {
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                val sdk = addModule(
+                    buildKtSdkModule {
+                        addBinaryRootsFromJdkHome(Paths.get(System.getProperty("java.home")), isJre = true)
+                        addBinaryRootsFromJdkHome(Paths.get(System.getProperty("java.home")), isJre = false)
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        libraryName = "JDK"
+                    }
+                )
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath("jdkClassUsage"))
+                        addRegularDependency(sdk)
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "source"
+                    }
+                )
+            }
+        }
+        val ktFile = session.modulesWithFiles.getValue(sourceModule).single() as KtFile
+        analyze(ktFile) {
+            val ktCallExpression = ktFile.findDescendantOfType<KtCallExpression>()!!
+            val attempt = ktCallExpression.tryResolveCall()
+            Assertions.assertInstanceOf(KaSimpleCallResolutionSuccess::class.java, attempt)
+            val symbol = attempt?.successful?.function?.symbol
+            Assertions.assertInstanceOf(KaConstructorSymbol::class.java, symbol); symbol as KaConstructorSymbol
+            Assertions.assertEquals(ClassId.topLevel(FqName("java.lang.Thread")), symbol.containingClassId)
+        }
+    }
+
+    @Test
+    fun testTwoSourceFilesOrder() {
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath("twoFiles"))
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "source"
+                    }
+                )
+            }
+        }
+        val ktFiles = session.modulesWithFiles.getValue(sourceModule)
+        Assertions.assertEquals(listOf("source0.kt", "source1.kt"), ktFiles.map { it.name })
+    }
+
+    @Test
+    fun testFollowingSymbolicLinks() {
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath("symLinks").resolve("src"))
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "source"
+                    }
+                )
+            }
+        }
+        val ktFiles = session.modulesWithFiles.getValue(sourceModule)
+        Assertions.assertEquals(listOf("source0.kt"), ktFiles.map { it.name })
+    }
+
+    @Test
+    fun testJvmInlineOnCommon() {
+        // Example from https://youtrack.jetbrains.com/issue/KT-55085
+        val root = "jvmInlineOnCommon"
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = CommonPlatforms.defaultCommonPlatform
+                val stdlib = addModule(
+                    buildKtLibraryModule {
+                        addBinaryRoot(ForTestCompileRuntime.stdlibCommonForTests().toPath())
+                        platform = CommonPlatforms.defaultCommonPlatform
+                        libraryName = "stdlib"
+                    }
+                )
+                val commonModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("commonMain"))
+                        addRegularDependency(stdlib)
+                        platform = CommonPlatforms.defaultCommonPlatform
+                        moduleName = "common"
+                    }
+                )
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("androidMain"))
+                        addDependsOnDependency(commonModule)
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "android"
+                    }
+                )
+            }
+        }
+        val ktFile = session.modulesWithFiles.getValue(sourceModule).single() as KtFile
+
+        // Test dependsOn dependency: expect in the common module, actual "typealias" in the platform-specific module
+        val testFunction = ktFile.findDescendantOfType<KtFunction>()!!
+        val localVariable = testFunction.findDescendantOfType<KtProperty>()!!
+        analyze(localVariable) {
+            val localVariableSymbol = localVariable.symbol
+            val type = localVariableSymbol.returnType as KaClassType
+            Assertions.assertEquals(
+                ClassId(FqName("test.pkg"), FqName("NativePointerKeyboardModifiers"), isLocal = false),
+                type.classId
+            )
+            // expanded to `actual` `typealias`
+            val expandedType = type.fullyExpandedType
+            Assertions.assertEquals(KaStandardTypeClassIds.INT, expandedType.classId)
+        }
+
+        // Test stdlib-common: @JvmInline in the common module
+        val actualClass = ktFile.findDescendantOfType<KtClassOrObject>()!!
+        val actualProperty = actualClass.findDescendantOfType<KtProperty>()!!
+        analyze(actualProperty) {
+            val symbol = actualProperty.symbol
+            val type = symbol.returnType as KaClassType
+            Assertions.assertEquals(
+                ClassId.fromString("kotlin/jvm/JvmInline"),
+                type.symbol.annotations.single().classId
+            )
+        }
+    }
+
+    @Test
+    fun testResolveAgainstCommonKlib() {
+        val root = "resolveAgainstCommonKLib"
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = CommonPlatforms.defaultCommonPlatform
+                val kLib = addModule(
+                    buildKtLibraryModule {
+                        val compiledKLibRoot = compileCommonKlib(testDataPath(root).resolve("klibSrc"))
+                        addBinaryRoot(compiledKLibRoot)
+                        platform = CommonPlatforms.defaultCommonPlatform
+                        libraryName = "klib"
+                    }
+                )
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("src"))
+                        addRegularDependency(kLib)
+                        platform = CommonPlatforms.defaultCommonPlatform
+                        moduleName = "source"
+                    }
+                )
+            }
+        }
+        val ktFile = session.modulesWithFiles.getValue(sourceModule).single() as KtFile
+
+        val ktCallExpression = ktFile.findDescendantOfType<KtCallExpression>()!!
+        ktCallExpression.assertIsSuccessfulCallOf(CallableId(FqName("commonKLib"), Name.identifier("commonKLibFunction")))
+    }
+
+    @Test
+    fun testResolveAgainstCommonKlibFromOtherModule() {
+        val root = "resolveAgainstCommonKLibFromOtherModule"
+        lateinit var commonModule: KaSourceModule
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = CommonPlatforms.defaultCommonPlatform
+                val kLib = addModule(
+                    buildKtLibraryModule {
+                        val compiledKLibRoot = compileCommonKlib(testDataPath(root).resolve("klibSrc"))
+                        addBinaryRoot(compiledKLibRoot)
+                        platform = CommonPlatforms.defaultCommonPlatform
+                        libraryName = "klib"
+                    }
+                )
+                commonModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("commonMain"))
+                        addRegularDependency(kLib)
+                        platform = CommonPlatforms.defaultCommonPlatform
+                        moduleName = "common"
+                    }
+                )
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("jvmMain"))
+                        addRegularDependency(kLib)
+                        addRegularDependency(commonModule)
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "app"
+                    }
+                )
+            }
+        }
+
+        val ktFileInCommon = session.modulesWithFiles.getValue(commonModule).single() as KtFile
+        val callInCommon = ktFileInCommon.findDescendantOfType<KtCallExpression>()!!
+        callInCommon.assertIsSuccessfulCallOf(CallableId(FqName("some.example"), FqName("Person"), Name.identifier("greet")))
+
+        val ktFileInJvm = session.modulesWithFiles.getValue(sourceModule).single() as KtFile
+        val callInJvm = ktFileInJvm.findDescendantOfType<KtCallExpression>()!!
+        callInJvm.assertIsSuccessfulCallOf(CallableId(FqName("common"), Name.identifier("greetEachOther")))
+    }
+
+    @Test
+    fun testKotlinSourceModuleSessionBuilder() {
+        val root = "otherModuleUsage"
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                val dep = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("dependent"))
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "dependent"
+                    }
+                )
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("main"))
+                        addRegularDependency(dep)
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "main"
+                    }
+                )
+            }
+        }
+        val ktFile = session.modulesWithFiles.getValue(sourceModule).single() as KtFile
+        val ktCallExpression = ktFile.findDescendantOfType<KtCallExpression>()!!
+        ktCallExpression.assertIsSuccessfulCallOf(CallableId(FqName.ROOT, Name.identifier("foo")))
+
+        assertEquals("main", sourceModule.name)
+        assertEquals(sourceModule.name, sourceModule.stableModuleName)
+    }
+
+    @Test
+    fun testKotlinSourceModuleSessionWithVirtualFile() {
+        val root = "otherModuleUsage"
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                val dep = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("dependent"))
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "dependent"
+                    }
+                )
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        // addSourceRoot(testDataPath(root).resolve("main"))
+                        // Instead, add [VirtualFile] on-the-fly
+                        val virtualFile = createDumbVirtualFile(
+                            project,
+                            "test.kt",
+                            """
+                                fun main() {
+                                    foo()
+                                }
+                            """.trimIndent()
+                        )
+                        addSourceVirtualFile(virtualFile)
+                        addRegularDependency(dep)
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "main"
+                    }
+                )
+            }
+        }
+        checkOtherModuleUsage(session, sourceModule)
+    }
+
+    @Test
+    fun testKotlinBinaryModuleSessionWithVirtualFile() {
+        val root = "otherModuleUsage"
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                val compiledJar = compileToJar(testDataPath(root).resolve("dependent"))
+                val dep = addModule(
+                    buildKtLibraryModule {
+                        // addBinaryRoot(compiledJar)
+                        // Instead, add [VirtualFile]
+                        val virtualFiles =
+                            StandaloneProjectFactory.getVirtualFilesForLibraryRoots(listOf(compiledJar), coreApplicationEnvironment)
+                        addBinaryVirtualFiles(virtualFiles)
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        libraryName = "dependent"
+                    }
+                )
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("main"))
+                        addRegularDependency(dep)
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "main"
+                    }
+                )
+            }
+        }
+        checkOtherModuleUsage(session, sourceModule)
+    }
+
+    @Test
+    fun testKotlinSourceAndBinaryModuleSessionWithVirtualFile() {
+        val root = "otherModuleUsage"
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                val compiledJar = compileToJar(testDataPath(root).resolve("dependent"))
+                val dep = addModule(
+                    buildKtLibraryModule {
+                        // addBinaryRoot(compiledJar)
+                        // Instead, add [VirtualFile]
+                        val virtualFiles =
+                            StandaloneProjectFactory.getVirtualFilesForLibraryRoots(listOf(compiledJar), coreApplicationEnvironment)
+                        addBinaryVirtualFiles(virtualFiles)
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        libraryName = "dependent"
+                    }
+                )
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        // addSourceRoot(testDataPath(root).resolve("main"))
+                        // Instead, add [VirtualFile] on-the-fly
+                        val virtualFile = createDumbVirtualFile(
+                            project,
+                            "test.kt",
+                            """
+                                fun main() {
+                                    foo()
+                                }
+                            """.trimIndent()
+                        )
+                        addSourceVirtualFile(virtualFile)
+                        addRegularDependency(dep)
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "main"
+                    }
+                )
+            }
+        }
+        checkOtherModuleUsage(session, sourceModule)
+    }
+
+    private fun checkOtherModuleUsage(
+        session: StandaloneAnalysisAPISession,
+        sourceModule: KaSourceModule,
+    ) {
+        val ktFile = session.modulesWithFiles.getValue(sourceModule).single() as KtFile
+        val ktCallExpression = ktFile.findDescendantOfType<KtCallExpression>()!!
+        ktCallExpression.assertIsSuccessfulCallOf(CallableId(FqName.ROOT, Name.identifier("foo")))
+    }
+
+    @Test
+    fun testCodeFragment() {
+        val root = "codeFragment"
+
+        lateinit var contextModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                contextModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root))
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "context"
+                    }
+                )
+            }
+        }
+
+        val contextFile = session.modulesWithFiles.getValue(contextModule).single() as KtFile
+        val contextElement = contextFile.findDescendantOfType<KtVariableDeclaration> { it.name == "y" }!!
+
+        val project = contextFile.project
+        val codeFragment = KtExpressionCodeFragment(project, "fragment.kt", "x - 1", imports = null, contextElement)
+
+        val codeFragmentModule = KotlinProjectStructureProvider.getModule(project, codeFragment, useSiteModule = contextModule)
+        requireIsInstance<KaDanglingFileModule>(codeFragmentModule)
+        assertEquals(codeFragmentModule.contextModule, contextModule)
+
+        analyze(codeFragment) {
+            val fileSymbol = codeFragment.symbol
+            assertEquals(fileSymbol.containingModule, codeFragmentModule)
+
+            val referenceExpression = codeFragment.findDescendantOfType<KtSimpleNameExpression> { it.text == "x" }!!
+            val variableSymbol = referenceExpression.mainReference.resolveToSymbol()
+            assert(variableSymbol is KaLocalVariableSymbol)
+        }
+    }
+
+    @Test
+    fun testNonPhysicalFile() {
+        val root = "nonPhysicalFile"
+
+        lateinit var contextModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                contextModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root))
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "context"
+                    }
+                )
+            }
+        }
+
+        val contextFile = session.modulesWithFiles.getValue(contextModule).single() as KtFile
+
+        val project = contextFile.project
+
+        val dummyFile = KtPsiFactory
+            .contextual(contextFile, markGenerated = false, eventSystemEnabled = false)
+            .createFile("dummy.kt", "fun usage() { test() }")
+
+        assert(dummyFile.virtualFile == null)
+
+        val dummyModule = KotlinProjectStructureProvider.getModule(project, dummyFile, useSiteModule = null)
+        requireIsInstance<KaDanglingFileModule>(dummyModule)
+        assertEquals(dummyModule.contextModule, contextModule)
+
+        analyze(dummyFile) {
+            val fileSymbol = dummyFile.symbol
+            assertEquals(fileSymbol.containingModule, dummyModule)
+
+            val callExpression = dummyFile.findDescendantOfType<KtCallExpression>()!!
+            val call = callExpression.resolveToCall()?.successfulFunctionCallOrNull() ?: error("Call inside a dummy file is unresolved")
+            assert(call.symbol is KaNamedFunctionSymbol)
+        }
+    }
+
+    /**
+     * [org.jetbrains.kotlin.analysis.project.structure.impl.KotlinStandaloneProjectStructureProvider.getModule] creates a fresh
+     * [KaNotUnderContentRootModule] on each call for a file outside all registered content roots. These instances must be equal, otherwise
+     * [org.jetbrains.kotlin.analysis.low.level.api.fir.state.LLSimpleResolutionStrategyProvider] returns the wrong resolution strategy.
+     */
+    @Test
+    fun testFileNotUnderContentRoot() {
+        val root = "notUnderContentRoot"
+
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("src"))
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "main"
+                    }
+                )
+            }
+        }
+
+        val project = session.project
+        val outsidePath = testDataPath(root).resolve("outside").resolve("outside.kt").toAbsolutePath()
+        val outsideVirtualFile = session.coreApplicationEnvironment.localFileSystem.findFileByPath(outsidePath.toString())
+            ?: error("Cannot find a virtual file for $outsidePath")
+        val outsideFile = PsiManager.getInstance(project).findFile(outsideVirtualFile) as KtFile
+
+        val module1 = KotlinProjectStructureProvider.getModule(project, outsideFile, useSiteModule = null)
+        val module2 = KotlinProjectStructureProvider.getModule(project, outsideFile, useSiteModule = null)
+        requireIsInstance<KaNotUnderContentRootModule>(module1)
+        requireIsInstance<KaNotUnderContentRootModule>(module2)
+        assertEquals(module1, module2)
+        assertEquals(module1.hashCode(), module2.hashCode())
+
+        analyze(outsideFile) {
+            val function = outsideFile.findDescendantOfType<KtNamedFunction> { it.name == "outsideFunction" }!!
+            val functionSymbol = function.symbol
+            Assertions.assertEquals(KaSymbolOrigin.SOURCE, functionSymbol.origin)
+
+            val callExpression = outsideFile.findDescendantOfType<KtCallExpression>()!!
+            val call = callExpression.resolveToCall()?.successfulFunctionCallOrNull()
+                ?: error("Call inside a file outside content roots is unresolved")
+            Assertions.assertEquals(functionSymbol, call.symbol)
+        }
+    }
+
+    @Test
+    fun testConflictYetSpecificSourceRoot_java() {
+        val root = "conflict"
+
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("dependent").resolve("Foo.java"))
+                        addSourceRoot(testDataPath(root).resolve("main"))
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "main"
+                    }
+                )
+            }
+        }
+        checkConflictUsage(session, sourceModule, KtCallExpression::assertIsCallOf) { symbol ->
+            Assertions.assertEquals(KaSymbolOrigin.JAVA_SOURCE, symbol.origin)
+        }
+    }
+
+    @Test
+    fun testConflictYetSpecificSourceRoot_kt() {
+        val root = "conflict"
+
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("dependent").resolve("Foo.kt"))
+                        addSourceRoot(testDataPath(root).resolve("main"))
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "main"
+                    }
+                )
+            }
+        }
+        checkConflictUsage(session, sourceModule, KtCallExpression::assertIsSuccessfulCallOf) { symbol ->
+            Assertions.assertEquals(KaSymbolOrigin.SOURCE, symbol.origin)
+        }
+    }
+
+    @Test
+    fun testConflict() {
+        val root = "conflict"
+
+        lateinit var sourceModule: KaSourceModule
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                platform = JvmPlatforms.defaultJvmPlatform
+                sourceModule = addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(testDataPath(root).resolve("dependent"))
+                        addSourceRoot(testDataPath(root).resolve("main"))
+                        platform = JvmPlatforms.defaultJvmPlatform
+                        moduleName = "main"
+                    }
+                )
+            }
+        }
+        checkConflictUsage(session, sourceModule, KtCallExpression::assertIsSuccessfulCallOf) { symbol ->
+            Assertions.assertEquals(KaSymbolOrigin.SOURCE, symbol.origin)
+        }
+    }
+
+    private fun checkConflictUsage(
+        session: StandaloneAnalysisAPISession,
+        sourceModule: KaSourceModule,
+        check: KtCallExpression.(CallableId, (KaFunctionSymbol) -> Unit) -> Unit,
+        additionalCheck: (KaFunctionSymbol) -> Unit,
+    ) {
+        val ktFile = session.modulesWithFiles.getValue(sourceModule).first { it.name == "main.kt" } as KtFile
+        val ktCallExpression = ktFile.findDescendantOfType<KtCallExpression>()!!
+        check.invoke(
+            ktCallExpression,
+            CallableId(
+                FqName.ROOT,
+                FqName.fromSegments(listOf("Foo", "Companion")),
+                Name.identifier("foo")
+            ),
+            additionalCheck
+        )
+    }
+
+    @Test
+    fun testJvmLightClasses() = testLightClasses(JvmPlatforms.defaultJvmPlatform) { mainModule ->
+        val kotlinPsiClass = mainModule.findKotlinClassAsPsi()
+        require(kotlinPsiClass != null)
+
+        val kotlinPsiClassFromFacade = findLightClass("org.test.KotlinClass")
+        require(kotlinPsiClassFromFacade == kotlinPsiClass)
+
+        checkKotlinPsiClass(kotlinPsiClass)
+    }
+
+    @Test
+    fun testCommonLightClasses() = testLightClasses(JvmPlatforms.defaultJvmPlatform) { mainModule ->
+        val kotlinPsiClass = mainModule.findKotlinClassAsPsi()
+        require(kotlinPsiClass != null)
+
+        val kotlinPsiClassFromFacade = findLightClass("org.test.KotlinClass")
+        require(kotlinPsiClassFromFacade == kotlinPsiClass)
+
+        checkKotlinPsiClass(kotlinPsiClass)
+    }
+
+    /**
+     * KT-89902: Kotlin classes from binary libraries must be found by [JavaPsiFacade], e.g., to resolve supertypes of light classes.
+     */
+    @Test
+    fun testJvmLightClassesWithKotlinLibrarySupertypes() {
+        val root = testDataPath("lightClassesWithKotlinLibrarySupertypes")
+        val libraryRoots = listOf(ForTestCompileRuntime.runtimeJarForTests().toPath(), compileToJar(root.resolve("library")))
+
+        testLightClasses(JvmPlatforms.defaultJvmPlatform, root.resolve("main"), libraryRoots, withJdk = true) {
+            val itemList = findLightClass("org.test.ItemList")!!
+            assertEquals("kotlin.collections.AbstractList", itemList.superClass?.qualifiedName)
+
+            val librarySubclass = findLightClass("org.test.LibrarySubclass")!!
+            assertEquals("lib.LibraryClass", librarySubclass.superClass?.qualifiedName)
+            assertEquals(listOf("lib.LibraryInterface"), librarySubclass.interfaces.map { it.qualifiedName })
+        }
+    }
+
+    /**
+     * KT-89902: Kotlin classes from binary libraries must be found by [JavaPsiFacade], e.g., to resolve references to them in Java sources.
+     */
+    @Test
+    fun testJvmJavaReferencesToKotlinLibraryClasses() {
+        val root = testDataPath("lightClassesWithKotlinLibrarySupertypes")
+        val libraryRoots = listOf(ForTestCompileRuntime.runtimeJarForTests().toPath(), compileToJar(root.resolve("library")))
+
+        testLightClasses(JvmPlatforms.defaultJvmPlatform, root.resolve("main"), libraryRoots, withJdk = true) {
+            val javaClass = JavaPsiFacade.getInstance(project).findClass("org.test.JavaClass", GlobalSearchScope.projectScope(project))!!
+            val fieldTypes = javaClass.fields.map { (it.type as PsiClassReferenceType).resolve()?.qualifiedName }
+            assertEquals(listOf("kotlin.jvm.functions.Function1", "kotlin.collections.AbstractMap", "lib.LibraryClass"), fieldTypes)
+        }
+    }
+
+    /**
+     * KT-91146: Kotlin supertypes of Java classes from binary libraries must be kept, so that subtyping and inherited members work. Before
+     * KT-89902, [JavaPsiFacade] didn't find Kotlin library classes, and a supertype from the package of the Java class was then resolved by
+     * the fallback for unresolved Java types in `FirSignatureEnhancement` as a flexible type, which was dropped from the supertypes.
+     */
+    @Test
+    fun testJvmKotlinSupertypesOfJavaLibraryClasses() {
+        val root = testDataPath("kotlinSupertypesOfJavaLibraryClasses")
+        val libraryJar = MockLibraryUtil.compileJvmLibraryToJar(root.resolve("library").toString(), "library").toPath()
+
+        testLightClasses(JvmPlatforms.defaultJvmPlatform, root.resolve("main"), listOf(libraryJar), withJdk = true) {
+            val ktFile = modulesWithFiles.values.single().single() as KtFile
+            val diagnostics = analyze(ktFile) {
+                ktFile.collectDiagnostics(KaDiagnosticCheckerFilter.ONLY_COMMON_CHECKERS).map { "${it.factoryName}: ${it.defaultMessage}" }
+            }
+            assertEquals(emptyList(), diagnostics)
+        }
+    }
+
+    /**
+     * Java classes for Kotlin class files from binary libraries should be built from the class files alone, without loading the stubs or
+     * ASTs of the decompiled files. The stdlib facade `CollectionsKt` inherits its parts, so looking up a method in it involves them all.
+     */
+    @Test
+    fun testJvmClassesForKotlinLibraryClassFiles() {
+        val libraryRoots = listOf(ForTestCompileRuntime.runtimeJarForTests().toPath())
+
+        testLightClasses(JvmPlatforms.defaultJvmPlatform, libraryRoots = libraryRoots) {
+            val abstractList = findLibraryClass("kotlin.collections.AbstractList")!!
+
+            val collectionsKt = findLibraryClass("kotlin.collections.CollectionsKt")!!
+            assertTrue(collectionsKt.findMethodsByName("listOf", true).isNotEmpty())
+
+            val parts = generateSequence(collectionsKt.superClass) { it.superClass }.toList()
+            assertTrue(parts.isNotEmpty())
+            assertTrue(parts.all { "CollectionsKt__" in it.name!! }, parts.map { it.name }.toString())
+
+            val decompiledFiles = (listOf(abstractList, collectionsKt) + parts).map { findDecompiledFile(it) }
+            assertEquals(emptyList(), decompiledFiles.filter { it.isStubLoaded }.map { it.name })
+            assertEquals(emptyList(), decompiledFiles.filter { it.isContentsLoaded }.map { it.name })
+
+            // The navigation element of the class file is computed on demand
+            assertEquals(findDecompiledFile(abstractList), abstractList.containingFile.navigationElement)
+        }
+    }
+
+    @Test
+    fun testJavaScriptLightClasses() = testLightClasses(JsPlatforms.defaultJsPlatform) { mainModule ->
+        // By default, light classes are not available for non-JVM platforms
+        require(mainModule.findKotlinClassAsPsi() == null)
+
+        val unavailableKotlinClassFromFacade = findLightClass("org.test.KotlinClass")
+        require(unavailableKotlinClassFromFacade == null)
+
+        runWriteAction {
+            /**
+             * This modification event is needed to invalidate caches in [org.jetbrains.kotlin.asJava.KotlinAsJavaSupport].
+             * Otherwise, the cached `null` result for the non-KMP call will be returned for [withMultiplatformLightClassSupport].
+             */
+            project.publishGlobalSourceOutOfBlockModificationEvent()
+        }
+
+        @OptIn(KaNonPublicApi::class)
+        withMultiplatformLightClassSupport(project) {
+            // The symbol must be resolved in a fresh analysis session created after the modification event above;
+            // reusing a symbol from an earlier session would fail lifetime validation ('PSI has changed since creation').
+            val kotlinPsiClass = mainModule.findKotlinClassAsPsi()
+            require(kotlinPsiClass != null)
+
+            val kotlinPsiClassFromFacade = findLightClass("org.test.KotlinClass")
+
+            // Inside withMultiplatformLightClassSupport, 'JavaPsiFacade' doesn't return Kotlin LC
+            require(kotlinPsiClassFromFacade == null)
+
+            checkKotlinPsiClass(kotlinPsiClass)
+        }
+    }
+
+    private fun KaModule.findKotlinClassAsPsi(): PsiClass? = analyze(this) {
+        findClass(ClassId.fromString("org/test/KotlinClass"))!!.asPsiClass()
+    }
+
+    private fun StandaloneAnalysisAPISession.findLightClass(fqName: String): PsiClass? =
+        JavaPsiFacade.getInstance(project).findClass(fqName, GlobalSearchScope.projectScope(project))
+
+    private fun StandaloneAnalysisAPISession.findLibraryClass(fqName: String): PsiClass? =
+        JavaPsiFacade.getInstance(project).findClass(fqName, GlobalSearchScope.allScope(project))
+
+    private fun StandaloneAnalysisAPISession.findDecompiledFile(psiClass: PsiClass): KtFile =
+        PsiManager.getInstance(project).findFile(psiClass.containingFile.virtualFile) as KtFile
+
+    /**
+     * Whether the stub of the file is loaded. Unlike [KtFile.getStub], it doesn't build the stub.
+     */
+    @Suppress("UnstableApiUsage")
+    private val KtFile.isStubLoaded: Boolean
+        get() = derefStub() != null
+
+    private fun testLightClasses(
+        platform: TargetPlatform,
+        sourceRoot: Path = testDataPath("lightClasses"),
+        libraryRoots: List<Path> = emptyList(),
+        withJdk: Boolean = false,
+        block: StandaloneAnalysisAPISession.(KaModule) -> Unit,
+    ) {
+        val session = buildStandaloneAnalysisAPISession(disposable) {
+            buildKtModuleProvider {
+                this.platform = platform
+                val jdkModule = if (withJdk) {
+                    addModule(
+                        buildKtSdkModule {
+                            addBinaryRootsFromJdkHome(Paths.get(System.getProperty("java.home")), isJre = false)
+                            this.platform = platform
+                            libraryName = "JDK"
+                        }
+                    )
+                } else {
+                    null
+                }
+                val libraryModules = libraryRoots.map { libraryRoot ->
+                    addModule(
+                        buildKtLibraryModule {
+                            addBinaryRoot(libraryRoot)
+                            this.platform = platform
+                            libraryName = libraryRoot.nameWithoutExtension
+                        }
+                    )
+                }
+                addModule(
+                    buildKtSourceModule {
+                        addSourceRoot(sourceRoot)
+                        for (dependency in listOfNotNull(jdkModule) + libraryModules) {
+                            addRegularDependency(dependency)
+                        }
+                        this.platform = platform
+                        moduleName = "main"
+                    }
+                )
+            }
+        }
+
+        val mainModule = session.modulesWithFiles.keys.single()
+        session.block(mainModule)
+    }
+
+    private fun checkKotlinPsiClass(kotlinPsiClass: PsiClass) {
+        val fooMethod = kotlinPsiClass.methods.single { it.name == "foo" }
+        val fooParameter = fooMethod.parameterList.getParameter(0)!!
+
+        val fooParameterType = fooParameter.type as PsiPrimitiveType
+        assert(fooParameterType == PsiTypes.intType())
+
+        val fooReturnType = fooMethod.returnType as PsiClassReferenceType
+        assert(fooReturnType.canonicalText == "java.lang.String")
+        assert(fooReturnType.resolve() == null)
+    }
+}

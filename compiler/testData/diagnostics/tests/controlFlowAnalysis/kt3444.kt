@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun box() {
     fun local():Int {
     <!NO_RETURN_IN_FUNCTION_WITH_BLOCK_BODY!>}<!>
@@ -11,3 +12,6 @@ val m = object : X {
     override fun f(): Boolean {
     <!NO_RETURN_IN_FUNCTION_WITH_BLOCK_BODY!>}<!>
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, functionDeclaration, interfaceDeclaration, localFunction, override,
+propertyDeclaration */

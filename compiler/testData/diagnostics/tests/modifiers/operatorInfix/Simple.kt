@@ -1,4 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER, -EXTENSION_SHADOWED_BY_MEMBER
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER, -EXTENSION_SHADOWED_BY_MEMBER
 
 open class Example {
     fun invoke() = 0
@@ -31,7 +33,7 @@ fun test() {
     consumeString(a())
     consumeString(a[1])
 
-    val (x, y) = Example()
+    val [x, y] = Example()
     consumeString(x)
     consumeString(y)
 
@@ -43,3 +45,7 @@ fun test() {
 fun consumeInt(i: Int) {}
 fun consumeString(s: String) {}
 fun consumeExample2(e: Example2) {}
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, destructuringDeclaration, funWithExtensionReceiver,
+functionDeclaration, incrementDecrementExpression, infix, integerLiteral, localProperty, operator, propertyDeclaration,
+smartcast, stringLiteral */

@@ -1,0 +1,83 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.resolve.jvm.modules
+
+import org.jetbrains.kotlin.load.java.structure.JavaAnnotation
+import org.jetbrains.kotlin.load.java.structure.impl.classFiles.BinaryClassSignatureParser
+import org.jetbrains.kotlin.load.java.structure.impl.classFiles.BinaryJavaAnnotation
+import org.jetbrains.kotlin.load.java.structure.impl.classFiles.ClassIdToJavaClass
+import org.jetbrains.kotlin.load.java.structure.impl.classFiles.ClassifierResolutionContext
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.utils.compact
+import org.jetbrains.kotlin.utils.exceptions.rethrowIntellijPlatformExceptionIfNeeded
+import org.jetbrains.org.objectweb.asm.*
+
+class JavaModuleInfo(
+    val moduleName: String,
+    val requires: List<Requires>,
+    val exports: List<Exports>,
+    val annotations: List<JavaAnnotation>
+) {
+    data class Requires(val moduleName: String, val isTransitive: Boolean)
+
+    data class Exports(val packageFqName: FqName, val toModules: List<String>)
+
+    override fun toString() = "Module $moduleName (${requires.size} requires, ${exports.size} exports)"
+
+    class FileReadingException(override val message: String, override val cause: Throwable) : IllegalStateException(message, cause)
+
+    companion object {
+        fun read(contents: ByteArray, fileDescription: String?, classesByClassId: ClassIdToJavaClass): JavaModuleInfo? {
+            var moduleName: String? = null
+            val requires = arrayListOf<Requires>()
+            val exports = arrayListOf<Exports>()
+            val annotations = arrayListOf<JavaAnnotation>()
+
+            try {
+                ClassReader(contents).accept(object : ClassVisitor(Opcodes.API_VERSION) {
+                    override fun visitModule(name: String, access: Int, version: String?): ModuleVisitor {
+                        moduleName = name
+
+                        return object : ModuleVisitor(Opcodes.API_VERSION) {
+                            override fun visitRequire(module: String, access: Int, version: String?) {
+                                requires.add(Requires(module, (access and Opcodes.ACC_TRANSITIVE) != 0))
+                            }
+
+                            override fun visitExport(packageFqName: String, access: Int, modules: Array<String>?) {
+                                // For some reason, '/' is the delimiter in packageFqName here
+                                exports.add(Exports(FqName(packageFqName.replace('/', '.')), modules?.toList().orEmpty()))
+                            }
+                        }
+                    }
+
+                    override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor? {
+                        if (descriptor == null) return null
+
+                        val [annotation, visitor] = BinaryJavaAnnotation.createAnnotationAndVisitor(
+                            descriptor,
+                            ClassifierResolutionContext(classesByClassId),
+                            BinaryClassSignatureParser(),
+                            isFreshlySupportedTypeUseAnnotation = true
+                        )
+
+                        annotations.add(annotation)
+
+                        return visitor
+                    }
+                }, ClassReader.SKIP_DEBUG or ClassReader.SKIP_CODE or ClassReader.SKIP_FRAMES)
+            } catch (e: Exception) {
+                rethrowIntellijPlatformExceptionIfNeeded(e)
+                throw FileReadingException(
+                    "Could not load module definition from: $fileDescription. The file might be broken " +
+                            "by incorrect post-processing via bytecode tools. Please remove this file from the classpath.",
+                    e
+                )
+            }
+
+            return moduleName?.let { JavaModuleInfo(it, requires.compact(), exports.compact(), annotations) }
+        }
+    }
+}

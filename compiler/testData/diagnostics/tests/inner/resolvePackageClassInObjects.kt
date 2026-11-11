@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class PackageTest
 
 class MoreTest() {
@@ -7,3 +8,5 @@ class MoreTest() {
 
     object Some: PackageTest()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, nestedClass, objectDeclaration, primaryConstructor */

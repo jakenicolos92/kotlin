@@ -16,38 +16,17 @@
 
 package org.jetbrains.kotlin.resolve.annotations
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
-import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor
 import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.resolve.DescriptorUtils
-import org.jetbrains.kotlin.resolve.constants.ConstantValue
-import org.jetbrains.kotlin.resolve.constants.ErrorValue
 
-private val JVM_STATIC_ANNOTATION_FQ_NAME = FqName("kotlin.jvm.JvmStatic")
+// This annotation is declared here in frontend (as opposed to frontend.java) because it's used in MainFunctionDetector.
+// If you wish to add another JVM-related annotation and has/find utility methods, please proceed to jvmAnnotationUtil.kt
+@K1Deprecation
+val JVM_STATIC_ANNOTATION_FQ_NAME = FqName("kotlin.jvm.JvmStatic")
 
+@K1Deprecation
 fun DeclarationDescriptor.hasJvmStaticAnnotation(): Boolean {
     return annotations.findAnnotation(JVM_STATIC_ANNOTATION_FQ_NAME) != null
 }
 
-private val JVM_SYNTHETIC_ANNOTATION_FQ_NAME = FqName("kotlin.jvm.JvmSynthetic")
-
-fun DeclarationDescriptor.hasJvmSyntheticAnnotation() = findJvmSyntheticAnnotation() != null
-
-fun DeclarationDescriptor.findJvmSyntheticAnnotation() =
-        DescriptorUtils.getAnnotationByFqName(annotations, JVM_SYNTHETIC_ANNOTATION_FQ_NAME)
-
-private val STRICTFP_ANNOTATION_FQ_NAME = FqName("kotlin.jvm.Strictfp")
-
-fun DeclarationDescriptor.findStrictfpAnnotation() =
-        DescriptorUtils.getAnnotationByFqName(annotations, STRICTFP_ANNOTATION_FQ_NAME)
-
-fun AnnotationDescriptor.argumentValue(parameterName: String): Any? {
-    val constant: ConstantValue<*>? = allValueArguments.entries
-            .singleOrNull { it.key.name.asString() == parameterName }
-            ?.value
-
-    if (constant == null || constant is ErrorValue)
-        return null
-
-    return constant.value
-}

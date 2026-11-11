@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: a/M.java
 package a;
 
@@ -24,3 +25,5 @@ fun foo() {
 }
 
 fun doSmth(b: Inner) = b
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, javaFunction, javaType */

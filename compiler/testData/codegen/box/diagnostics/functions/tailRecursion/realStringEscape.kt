@@ -1,4 +1,4 @@
-// IGNORE_BACKEND_WITHOUT_CHECK: JS
+// KJS_WITH_FULL_RUNTIME
 
 fun escapeChar(c : Char) : String? = when (c) {
     '\\' -> "\\\\"

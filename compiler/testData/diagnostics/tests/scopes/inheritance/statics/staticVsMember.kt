@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 // FILE: A.java
 public class A {
     public static int foo() { return 1; }
@@ -26,7 +27,7 @@ open class C: A() {
     fun foo() = ""
 
     init {
-        val a: String = <!DEBUG_INFO_LEAKING_THIS!>foo<!>()
+        val a: String = foo()
         val b: String = bar
     }
 }
@@ -67,3 +68,6 @@ class G: F() {
         val b: String = bar
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, init, javaFunction, javaProperty,
+javaType, localProperty, objectDeclaration, propertyDeclaration, stringLiteral */

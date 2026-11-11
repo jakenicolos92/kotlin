@@ -1,8 +1,9 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-2585 Code in try-finally is incorrectly marked as unreachable
 
 fun foo(x: String): String {
     try {
-        <!UNREACHABLE_CODE!>throw<!> RuntimeException()
+        throw RuntimeException()
     } finally {
         try {
         } catch (e: Exception) {
@@ -10,3 +11,5 @@ fun foo(x: String): String {
         return x     // <- Wrong UNREACHABLE_CODE
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, localProperty, propertyDeclaration, tryExpression */

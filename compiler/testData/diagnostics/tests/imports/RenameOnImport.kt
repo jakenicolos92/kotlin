@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: a.kt
 package a
 
@@ -20,3 +21,5 @@ import a.y as AY
 val v1: Int = AX
 val v2: String = x
 val v3 = <!UNRESOLVED_REFERENCE!>y<!>
+
+/* GENERATED_FIR_TAGS: integerLiteral, propertyDeclaration, stringLiteral */

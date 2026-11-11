@@ -1,38 +1,42 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-2164 !! does not propagate nullability information
 package kt2164
 
 fun foo(x: Int): Int = x + 1
 
-fun main(args : Array<String>) {
+fun main() {
     val x: Int? = null
 
-    foo(<!TYPE_MISMATCH!>x<!>)
+    foo(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
 
     if (x != null) {
-        foo(<!DEBUG_INFO_SMARTCAST!>x<!>)
+        foo(x)
         foo(x<!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>)
-        foo(<!DEBUG_INFO_SMARTCAST!>x<!>)
+        foo(x)
     }
 
-    foo(<!TYPE_MISMATCH!>x<!>)
+    foo(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
 
     if (x != null) {
-        foo(<!DEBUG_INFO_SMARTCAST!>x<!>)
+        foo(x)
         foo(x<!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>)
-        foo(<!DEBUG_INFO_SMARTCAST!>x<!>)
+        foo(x)
     } else {
-        foo(<!TYPE_MISMATCH, DEBUG_INFO_CONSTANT!>x<!>)
-        <!UNREACHABLE_CODE!>foo(<!><!ALWAYS_NULL!>x<!>!!<!UNREACHABLE_CODE!>)<!>
-        <!UNREACHABLE_CODE!>foo(<!DEBUG_INFO_SMARTCAST!>x<!>)<!>
+        foo(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
+        foo(x!!)
+        foo(x)
     }
 
-    foo(<!DEBUG_INFO_SMARTCAST!>x<!>)
+    foo(x)
     foo(x<!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>)
-    foo(<!DEBUG_INFO_SMARTCAST!>x<!>)
-    
+    foo(x)
+
     val y: Int? = null
     y!!
     y<!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>
-    foo(<!DEBUG_INFO_SMARTCAST!>y<!>)
+    foo(y)
     foo(y<!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>)
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, checkNotNullCall, equalityExpression, functionDeclaration, ifExpression,
+integerLiteral, localProperty, nullableType, propertyDeclaration, smartcast */

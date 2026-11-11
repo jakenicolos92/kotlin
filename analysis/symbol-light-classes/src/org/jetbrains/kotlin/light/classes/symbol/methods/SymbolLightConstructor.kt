@@ -1,0 +1,261 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.light.classes.symbol.methods
+
+import com.intellij.openapi.progress.ProgressManager
+import com.intellij.psi.*
+import org.jetbrains.kotlin.analysis.api.KaSession
+import org.jetbrains.kotlin.analysis.api.symbols.KaClassKind
+import org.jetbrains.kotlin.analysis.api.symbols.KaConstructorSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.KaSymbolVisibility
+import org.jetbrains.kotlin.analysis.api.symbols.sourcePsiSafe
+import org.jetbrains.kotlin.asJava.builder.LightMemberOriginForDeclaration
+import org.jetbrains.kotlin.asJava.classes.METHOD_INDEX_BASE
+import org.jetbrains.kotlin.asJava.classes.METHOD_INDEX_FOR_DEFAULT_CTOR
+import org.jetbrains.kotlin.asJava.classes.METHOD_INDEX_FOR_NO_ARG_OVERLOAD_CTOR
+import org.jetbrains.kotlin.asJava.elements.KtLightMethod
+import org.jetbrains.kotlin.lexer.KtTokens.INNER_KEYWORD
+import org.jetbrains.kotlin.lexer.KtTokens.SEALED_KEYWORD
+import org.jetbrains.kotlin.light.classes.symbol.annotations.*
+import org.jetbrains.kotlin.light.classes.symbol.classes.*
+import org.jetbrains.kotlin.light.classes.symbol.modifierLists.GranularModifiersBox
+import org.jetbrains.kotlin.light.classes.symbol.modifierLists.SymbolLightMemberModifierList
+import org.jetbrains.kotlin.light.classes.symbol.modifierLists.with
+import org.jetbrains.kotlin.light.classes.symbol.utils.cachedValue
+import org.jetbrains.kotlin.light.classes.symbol.utils.toPsiVisibilityForMember
+import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.resolve.jvm.diagnostics.JvmDeclarationOriginKind
+import java.util.*
+
+internal class SymbolLightConstructor private constructor(
+    constructorSymbol: KaConstructorSymbol,
+    containingClass: SymbolLightClassBase,
+    methodIndex: Int,
+    generationMode: MethodGenerationMode,
+    valueParameterPickMask: BitSet? = null,
+) : SymbolLightMethod<KaConstructorSymbol>(
+    functionSymbol = constructorSymbol,
+    lightMemberOrigin = null,
+    containingClass = containingClass,
+    methodIndex = methodIndex,
+    generationMode = generationMode,
+    valueParameterPickMask = valueParameterPickMask,
+) {
+    private val _name: String? = containingClass.name
+
+    override fun getName(): String = _name ?: ""
+
+    override fun isConstructor(): Boolean = true
+    override fun isOverride(): Boolean = false
+
+    override fun hasTypeParameters(): Boolean = false
+    override fun getTypeParameterList(): PsiTypeParameterList? = null
+    override fun getTypeParameters(): Array<PsiTypeParameter> = PsiTypeParameter.EMPTY_ARRAY
+
+    override fun getModifierList(): PsiModifierList = cachedValue {
+        val initialValue = if (this.containingClass is SymbolLightClassForEnumEntry) {
+            GranularModifiersBox.VISIBILITY_MODIFIERS_MAP.with(PsiModifier.PACKAGE_LOCAL)
+        } else {
+            emptyMap()
+        }
+
+        SymbolLightMemberModifierList(
+            containingDeclaration = this,
+            modifiersBox = GranularModifiersBox(
+                initialValue = initialValue,
+                computer = ::computeModifiers,
+            ),
+            annotationsBox = GranularAnnotationsBox(
+                annotationsProvider = SymbolAnnotationsProvider(
+                    useSiteModule = useSiteModule,
+                    annotatedSymbolPointer = symbolPointer,
+                ),
+                annotationFilter = jvmExposeBoxedAwareAnnotationFilter,
+                additionalAnnotationsProvider = JvmExposeBoxedAdditionalAnnotationsProvider,
+            ),
+        )
+    }
+
+    private fun computeModifiers(modifier: String): Map<String, Boolean>? = when {
+        modifier !in GranularModifiersBox.VISIBILITY_MODIFIERS -> null
+        (containingClass as? SymbolLightClassForNamedClassLike)?.isSealed == true ->
+            GranularModifiersBox.VISIBILITY_MODIFIERS_MAP.with(PsiModifier.PRIVATE)
+
+        else -> withFunctionSymbol { symbol ->
+            // A constructor cannot be renamed, so the JVM backend makes it private instead of mangling its name
+            val visibility = if (!isJvmExposeBoxed &&
+                hasManglingInlineClassInParameterPosition(symbol, valueParameterPickMask = valueParameterPickMask)
+            ) {
+                PsiModifier.PRIVATE
+            } else {
+                symbol.toPsiVisibilityForMember()
+            }
+
+            GranularModifiersBox.VISIBILITY_MODIFIERS_MAP.with(visibility)
+        }
+    }
+
+    override fun getReturnType(): PsiType? = null
+
+    companion object {
+        context(_: KaSession)
+        internal fun createConstructors(
+            lightClass: SymbolLightClassBase,
+            declarations: Sequence<KaConstructorSymbol>,
+            result: MutableList<PsiMethod>,
+        ) {
+            val constructors = declarations.toList()
+            if (constructors.isEmpty()) {
+                result.add(lightClass.defaultConstructor())
+                return
+            }
+
+            val destinationClassIsInlineClass = lightClass.isInlineClass
+            for (constructor in constructors) {
+                ProgressManager.checkCanceled()
+
+                if (isHiddenOrSynthetic(constructor)) continue
+
+                val exposeBoxedMode = constructor.jvmExposeBoxedMode()
+                createMethodsJvmOverloadsAware(
+                    declaration = constructor,
+                    methodIndexBase = METHOD_INDEX_BASE,
+                ) { methodIndex, valueParameterPickMask, hasInlineClassInParameterType ->
+                    val isBoxedConstructorRequired = exposeBoxedMode != JvmExposeBoxedMode.NONE &&
+                            (hasInlineClassInParameterType || destinationClassIsInlineClass) &&
+                            // Private declarations are inaccessible from Java, so they are never exposed as boxed
+                            !constructor.isEffectivelyPrivate()
+
+                    val generationMode = when {
+                        isBoxedConstructorRequired -> MethodGenerationMode.Boxed(isRegularMethodRequired = !destinationClassIsInlineClass)
+
+                        // Only the boxed constructor of an inline class can be generated
+                        destinationClassIsInlineClass -> null
+
+                        // Explicit mode without a boxed constructor -> the regular constructor retains @JvmExposeBoxed
+                        else -> MethodGenerationMode.Regular(isAffectedByJvmExposeBoxed = exposeBoxedMode == JvmExposeBoxedMode.EXPLICIT)
+                    } ?: return@createMethodsJvmOverloadsAware
+
+                    result += SymbolLightConstructor(
+                        constructorSymbol = constructor,
+                        containingClass = lightClass,
+                        methodIndex = methodIndex,
+                        valueParameterPickMask = valueParameterPickMask,
+                        generationMode = generationMode,
+                    )
+
+                    if (generationMode is MethodGenerationMode.Boxed && generationMode.isRegularMethodRequired) {
+                        result += SymbolLightConstructor(
+                            constructorSymbol = constructor,
+                            containingClass = lightClass,
+                            methodIndex = methodIndex,
+                            valueParameterPickMask = valueParameterPickMask,
+                            generationMode = MethodGenerationMode.Regular(),
+                        )
+                    }
+                }
+            }
+
+            val primaryConstructor = constructors.singleOrNull { it.isPrimary }
+            if (primaryConstructor != null && shouldGenerateNoArgOverload(lightClass, primaryConstructor, constructors)) {
+                when {
+                    !destinationClassIsInlineClass -> {
+                        result += lightClass.noArgConstructor(
+                            primaryConstructor = primaryConstructor,
+                            generationMode = MethodGenerationMode.Regular(),
+                        )
+                    }
+
+                    primaryConstructor.jvmExposeBoxedMode() != JvmExposeBoxedMode.NONE && !primaryConstructor.isEffectivelyPrivate() -> {
+                        result += lightClass.noArgConstructor(
+                            primaryConstructor = primaryConstructor,
+                            generationMode = MethodGenerationMode.Boxed(isRegularMethodRequired = false),
+                        )
+                    }
+                }
+            }
+        }
+
+        context(_: KaSession)
+        private fun shouldGenerateNoArgOverload(
+            lightClass: SymbolLightClassBase,
+            primaryConstructor: KaConstructorSymbol,
+            constructors: Iterable<KaConstructorSymbol>,
+        ): Boolean {
+            val classOrObject = lightClass.kotlinOrigin ?: return false
+            val valueParameters = primaryConstructor.valueParameters
+            val defaultValueMask = defaultParameterValueMask(primaryConstructor)
+            return !classOrObject.hasModifier(INNER_KEYWORD) &&
+                    !classOrObject.hasModifier(SEALED_KEYWORD) &&
+                    !lightClass.isEnum &&
+                    valueParameters.indices.all { defaultValueMask[it] && !valueParameters[it].hasIntroducedAtAnnotation() } &&
+                    constructors.none { it.isEffectivelyParameterless } &&
+                    primaryConstructor.visibility != KaSymbolVisibility.PRIVATE
+        }
+
+        /**
+         * Whether the constructor either has no arguments or has [JvmOverloads] which would result in a method with no arguments.
+         * */
+        context(_: KaSession)
+        private val KaConstructorSymbol.isEffectivelyParameterless: Boolean
+            get() {
+                val valueParameters = valueParameters
+                return valueParameters.isEmpty() ||
+                        hasJvmOverloadsAnnotation() &&
+                        defaultParameterValueMask(this).nextClearBit(0) >= valueParameters.size
+            }
+
+        private fun SymbolLightClassBase.defaultConstructor(): KtLightMethod {
+            val classOrObject = kotlinOrigin
+            val visibility = when {
+                this is SymbolLightClassForClassLike<*> && (classKind().let { it.isObject || it == KaClassKind.ENUM_CLASS }) -> PsiModifier.PRIVATE
+                classOrObject?.hasModifier(SEALED_KEYWORD) == true -> PsiModifier.PROTECTED
+                this is SymbolLightClassForEnumEntry -> PsiModifier.PACKAGE_LOCAL
+                else -> PsiModifier.PUBLIC
+            }
+
+            return SymbolLightDefaultNoArgConstructor(
+                lightMemberOrigin = classOrObject?.let {
+                    LightMemberOriginForDeclaration(
+                        originalElement = it,
+                        originKind = JvmDeclarationOriginKind.OTHER,
+                    )
+                },
+                containingClass = this,
+                visibility = visibility,
+                methodIndex = METHOD_INDEX_FOR_DEFAULT_CTOR,
+                generationMode = MethodGenerationMode.Regular(),
+            )
+        }
+
+        private fun SymbolLightClassBase.noArgConstructor(
+            primaryConstructor: KaConstructorSymbol,
+            generationMode: MethodGenerationMode,
+        ): KtLightMethod =
+            SymbolLightNoArgConstructor(
+                lightMemberOrigin = primaryConstructor.sourcePsiSafe<KtDeclaration>()?.let {
+                    LightMemberOriginForDeclaration(
+                        originalElement = it,
+                        originKind = JvmDeclarationOriginKind.OTHER,
+                    )
+                },
+                containingClass = this,
+                visibility = primaryConstructor.visibility.asJavaVisibilityModifier(),
+                methodIndex = METHOD_INDEX_FOR_NO_ARG_OVERLOAD_CTOR,
+                generationMode = generationMode,
+                symbolPointer = primaryConstructor.createPointer(),
+            )
+    }
+}
+
+private fun KaSymbolVisibility.asJavaVisibilityModifier(): String {
+    return when (this) {
+        KaSymbolVisibility.PUBLIC -> PsiModifier.PUBLIC
+        KaSymbolVisibility.PROTECTED -> PsiModifier.PROTECTED
+        KaSymbolVisibility.PRIVATE -> PsiModifier.PRIVATE
+        else -> PsiModifier.PACKAGE_LOCAL
+    }
+}

@@ -7,7 +7,6 @@ package org.jetbrains.kotlin.js.util;
 import java.util.Arrays;
 
 public class TextOutputImpl implements TextOutput {
-    private final boolean compact;
     private int identLevel = 0;
     private final static int indentGranularity = 2;
     private char[][] indents = new char[][] {new char[0]};
@@ -17,18 +16,7 @@ public class TextOutputImpl implements TextOutput {
     private int line = 0;
     private int column = 0;
 
-    private OutListener outListener;
-
     public TextOutputImpl() {
-        this(false);
-    }
-
-    public boolean isCompact() {
-        return compact;
-    }
-
-    public TextOutputImpl(boolean compact) {
-        this.compact = compact;
         out = new StringBuilder();
     }
 
@@ -78,9 +66,6 @@ public class TextOutputImpl implements TextOutput {
         line++;
         column = 0;
         justNewlined = true;
-        if (outListener != null) {
-            outListener.newLined();
-        }
     }
 
     @Override
@@ -124,36 +109,10 @@ public class TextOutputImpl implements TextOutput {
     }
 
     @Override
-    public void printOpt(char c) {
-        if (!compact) {
-            print(c);
-        }
-    }
-
-    @Override
-    public void printOpt(char[] s) {
-        if (!compact) {
-            maybeIndent();
-            printAndCount(s);
-        }
-    }
-
-    @Override
-    public void printOpt(String s) {
-        if (!compact) {
-            maybeIndent();
-            printAndCount(s);
-        }
-    }
-
-    @Override
     public void maybeIndent() {
-        if (justNewlined && !compact) {
+        if (justNewlined) {
             printAndCount(indents[identLevel]);
             justNewlined = false;
-            if (outListener != null) {
-                outListener.indentedAfterNewLine();
-            }
         }
     }
 
@@ -167,15 +126,5 @@ public class TextOutputImpl implements TextOutput {
         position += chars.length;
         column += chars.length;
         out.append(chars);
-    }
-
-    @Override
-    public boolean isJustNewlined() {
-        return justNewlined && !compact;
-    }
-
-    @Override
-    public void setOutListener(OutListener outListener) {
-        this.outListener = outListener;
     }
 }

@@ -1,11 +1,14 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 // FILE: a.kt
 
 package first
 
+import checkSubtype
+
 class A {
     fun foo() {}
-    fun bar(<!UNUSED_PARAMETER!>x<!>: Int) {}
+    fun bar(x: Int) {}
     fun baz() = "OK"
 }
 
@@ -14,7 +17,7 @@ class A {
 package other
 
 import kotlin.reflect.*
-
+import checkSubtype
 import first.A
 
 fun main() {
@@ -26,3 +29,6 @@ fun main() {
     checkSubtype<KFunction2<A, Int, Unit>>(y)
     checkSubtype<KFunction1<A, String>>(z)
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, localProperty, nullableType, propertyDeclaration, stringLiteral, typeParameter, typeWithExtension */

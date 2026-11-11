@@ -16,12 +16,10 @@
 
 package org.jetbrains.kotlin.daemon.common
 
+import org.jetbrains.kotlin.cli.common.CompilerSystemProperties
 import java.io.IOException
 import java.io.Serializable
-import java.net.Inet6Address
-import java.net.InetAddress
-import java.net.ServerSocket
-import java.net.Socket
+import java.net.*
 import java.rmi.RemoteException
 import java.rmi.registry.LocateRegistry
 import java.rmi.registry.Registry
@@ -29,17 +27,21 @@ import java.rmi.server.RMIClientSocketFactory
 import java.rmi.server.RMIServerSocketFactory
 import java.util.*
 
-
-val SOCKET_ANY_FREE_PORT  = 0
-val JAVA_RMI_SERVER_HOSTNAME = "java.rmi.server.hostname"
+const val SOCKET_ANY_FREE_PORT = 0
+const val DEFAULT_SERVER_SOCKET_BACKLOG_SIZE = 50
+const val DEFAULT_SOCKET_CONNECT_ATTEMPTS = 3
+const val DEFAULT_SOCKET_CONNECT_INTERVAL_MS = 10L
 
 object LoopbackNetworkInterface {
 
-    val IPV4_LOOPBACK_INET_ADDRESS = "127.0.0.1"
-    val IPV6_LOOPBACK_INET_ADDRESS = "::1"
+    const val IPV4_LOOPBACK_INET_ADDRESS = "127.0.0.1"
+    const val IPV6_LOOPBACK_INET_ADDRESS = "::1"
 
-    val SERVER_SOCKET_BACKLOG_SIZE = 10 // size of the requests queue for daemon services, so far seems that we don't need any big numbers here
-                                        // but if we'll start getting "connection refused" errors, that could be the first place to try to fix it
+    // size of the requests queue for daemon services, so far seems that we don't need any big numbers here
+    // but if we'll start getting "connection refused" errors, that could be the first place to try to fix it
+    val SERVER_SOCKET_BACKLOG_SIZE by lazy { CompilerSystemProperties.DAEMON_RMI_SOCKET_BACKLOG_SIZE_PROPERTY.value?.toIntOrNull() ?: DEFAULT_SERVER_SOCKET_BACKLOG_SIZE }
+    val SOCKET_CONNECT_ATTEMPTS by lazy { CompilerSystemProperties.DAEMON_RMI_SOCKET_CONNECT_ATTEMPTS_PROPERTY.value?.toIntOrNull() ?: DEFAULT_SOCKET_CONNECT_ATTEMPTS }
+    val SOCKET_CONNECT_INTERVAL_MS by lazy { CompilerSystemProperties.DAEMON_RMI_SOCKET_CONNECT_INTERVAL_PROPERTY.value?.toLongOrNull() ?: DEFAULT_SOCKET_CONNECT_INTERVAL_MS }
 
     val serverLoopbackSocketFactory by lazy { ServerLoopbackSocketFactory() }
     val clientLoopbackSocketFactory by lazy { ClientLoopbackSocketFactory() }
@@ -64,17 +66,35 @@ object LoopbackNetworkInterface {
         override fun hashCode(): Int = super.hashCode()
 
         @Throws(IOException::class)
-        override fun createServerSocket(port: Int): ServerSocket = ServerSocket(port, SERVER_SOCKET_BACKLOG_SIZE, InetAddress.getByName(null))
+        override fun createServerSocket(port: Int): ServerSocket =
+            AuthenticatingServerSocket(port, SERVER_SOCKET_BACKLOG_SIZE, InetAddress.getByName(null))
     }
 
-
-    class ClientLoopbackSocketFactory : RMIClientSocketFactory, Serializable {
+    abstract class AbstractClientLoopbackSocketFactory<SocketType> : Serializable {
         override fun equals(other: Any?): Boolean = other === this || super.equals(other)
         override fun hashCode(): Int = super.hashCode()
 
+        abstract protected fun socketCreate(host: String, port: Int): SocketType
+
         @Throws(IOException::class)
-        override fun createSocket(host: String, port: Int): Socket = Socket(InetAddress.getByName(null), port)
+        fun createSocket(host: String, port: Int): SocketType {
+            var attemptsLeft = SOCKET_CONNECT_ATTEMPTS
+            while (true) {
+                try {
+                    return socketCreate(host, port)
+                } catch (e: ConnectException) {
+                    if (--attemptsLeft <= 0) throw e
+                }
+                Thread.sleep(SOCKET_CONNECT_INTERVAL_MS)
+            }
+        }
     }
+
+
+    class ClientLoopbackSocketFactory : AbstractClientLoopbackSocketFactory<java.net.Socket>(), RMIClientSocketFactory {
+        override fun socketCreate(host: String, port: Int): Socket = AuthenticatingClientSocket(InetAddress.getByName(null), port)
+    }
+
 }
 
 
@@ -102,7 +122,7 @@ fun findPortAndCreateRegistry(attempts: Int, portRangeStart: Int, portRangeEnd: 
  * which may be slow and can cause a timeout when there is a network problem/misconfiguration.
  */
 fun ensureServerHostnameIsSetUp() {
-    if (System.getProperty(JAVA_RMI_SERVER_HOSTNAME) == null) {
-        System.setProperty(JAVA_RMI_SERVER_HOSTNAME, LoopbackNetworkInterface.loopbackInetAddressName)
+    if (CompilerSystemProperties.JAVA_RMI_SERVER_HOSTNAME.value == null) {
+        CompilerSystemProperties.JAVA_RMI_SERVER_HOSTNAME.value = LoopbackNetworkInterface.loopbackInetAddressName
     }
 }

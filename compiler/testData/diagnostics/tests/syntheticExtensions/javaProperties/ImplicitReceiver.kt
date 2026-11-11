@@ -1,12 +1,15 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: KotlinFile.kt
 fun JavaClass.foo() {
     useInt(getSomething())
     useInt(something)
 }
 
-fun useInt(<!UNUSED_PARAMETER!>i<!>: Int) {}
+fun useInt(i: Int) {}
 
 // FILE: JavaClass.java
 public class JavaClass {
     public int getSomething() { return 1; }
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, javaFunction, javaProperty, javaType */

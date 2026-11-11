@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 499
+// KJS_WITH_FULL_RUNTIME
 package foo
 
 abstract class BaseClass {

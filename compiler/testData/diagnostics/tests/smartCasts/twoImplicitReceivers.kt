@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface IA
 interface IB
 
@@ -11,8 +12,11 @@ fun test(a: IA, b: IB) {
     with(a) lambda1@{
         with(b) lambda2@{
             if (this@lambda1 is A && this@lambda2 is B) {
-                <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>foo<!>()
+                foo()
             }
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: andExpression, funWithExtensionReceiver, functionDeclaration, ifExpression, interfaceDeclaration,
+isExpression, lambdaLiteral, objectDeclaration, smartcast, thisExpression */

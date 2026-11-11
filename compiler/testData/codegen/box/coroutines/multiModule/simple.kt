@@ -1,26 +1,26 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
-// MODULE: controller(support)
+// MODULE: controller
 // FILE: controller.kt
 package lib
 import helpers.*
 
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 class Controller {
-    suspend fun suspendHere(): String = suspendCoroutineOrReturn { x ->
+    suspend fun suspendHere(): String = suspendCoroutineUninterceptedOrReturn { x ->
         x.resume("OK")
         COROUTINE_SUSPENDED
     }
 }
 
-// MODULE: main(controller, support)
+// MODULE: main(controller)
 // FILE: main.kt
 import lib.*
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 fun builder(c: suspend Controller.() -> Unit) {
     c.startCoroutine(Controller(), EmptyContinuation)

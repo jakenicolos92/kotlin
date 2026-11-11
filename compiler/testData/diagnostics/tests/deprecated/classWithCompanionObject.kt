@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class A {
     @Deprecated("deprecated") companion object
 
@@ -6,3 +7,5 @@ class A {
 
 val x1 = A.B()
 
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, nestedClass, objectDeclaration, propertyDeclaration,
+stringLiteral */

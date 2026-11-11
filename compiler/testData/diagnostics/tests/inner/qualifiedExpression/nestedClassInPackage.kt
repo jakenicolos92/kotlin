@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package A
 
 class B {
@@ -6,3 +7,5 @@ class B {
 }
 
 val a = A.B.C()
+
+/* GENERATED_FIR_TAGS: classDeclaration, nestedClass, propertyDeclaration */

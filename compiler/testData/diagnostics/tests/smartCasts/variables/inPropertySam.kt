@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: My.java
 
 public interface My {
@@ -11,8 +12,11 @@ class Your {
         arg: String? ->
         var y = arg
         val z: String
-        if (y != null) z = <!DEBUG_INFO_SMARTCAST!>y<!>
+        if (y != null) z = y
         else z = "42"
         z
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, equalityExpression, flexibleType, ifExpression, javaType,
+lambdaLiteral, localProperty, nullableType, propertyDeclaration, smartcast, stringLiteral */

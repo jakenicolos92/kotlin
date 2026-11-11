@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-2320 failure of complex case of type inference
 package i
 
@@ -8,6 +9,9 @@ interface Entry<B> {
 }
 
 
-fun <V, R> NotMap<V>.mapValuesOriginal(<!UNUSED_PARAMETER!>ff<!>: (Entry<V>) -> R): NotMap<R> = throw Exception()
+fun <V, R> NotMap<V>.mapValuesOriginal(ff: (Entry<V>) -> R): NotMap<R> = throw Exception()
 
 fun <B, C> NotMap<B>.mapValuesOnly(f: (B) -> C) = mapValuesOriginal { e -> f(e.getValue()) }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, interfaceDeclaration,
+lambdaLiteral, nullableType, typeParameter */

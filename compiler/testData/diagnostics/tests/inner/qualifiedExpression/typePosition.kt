@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 abstract class Outer {
     class Nested {
         class NestedNested
@@ -9,3 +10,5 @@ abstract class Outer {
 
 fun foo(): Outer.Nested = null!!
 val bar: Outer.Nested.NestedNested = null!!
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, functionDeclaration, nestedClass, propertyDeclaration */

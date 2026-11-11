@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun <T> getT(): T = null!!
 
 class A<in I>(init: I) {
@@ -18,3 +19,6 @@ class A<in I>(init: I) {
         i4 = i3
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, checkNotNullCall, classDeclaration, functionDeclaration, in, init, nullableType,
+primaryConstructor, propertyDeclaration, typeParameter */

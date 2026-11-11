@@ -1,0 +1,610 @@
+/*
+ * Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.gradle.plugin.statistics
+
+import org.gradle.api.Project
+import org.gradle.api.logging.Logger
+import org.gradle.api.provider.Provider
+import org.gradle.tooling.events.FailureResult
+import org.gradle.tooling.events.FinishEvent
+import org.gradle.tooling.events.task.TaskFinishEvent
+import org.jetbrains.kotlin.build.report.metrics.ANALYSIS_LPS
+import org.jetbrains.kotlin.build.report.metrics.CODE_GENERATION_LPS
+import org.jetbrains.kotlin.build.report.metrics.SOURCE_LINES_NUMBER
+import org.jetbrains.kotlin.cli.common.arguments.*
+import org.jetbrains.kotlin.compilerRunner.isKonanIncrementalCompilationEnabled
+import org.jetbrains.kotlin.gradle.ExperimentalNodeJsToolchainDsl
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
+import org.jetbrains.kotlin.gradle.dsl.kotlinExtension
+import org.jetbrains.kotlin.gradle.dsl.toolchain.nodejs.DefaultNodeJsToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.nodejs.DisabledNodeJsToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.nodejs.NodeJsToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.nodejs.PreInstalledNodeJsToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.wasiadapter.DefaultWasiAdapterToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.wasiadapter.DisabledWasiAdapterToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.wasiadapter.PreInstalledWasiAdapterToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.wasiadapter.WasiAdapterToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.wasmtools.DefaultWasmToolsToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.wasmtools.DisabledWasmToolsToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.wasmtools.PreInstalledWasmToolsToolchainService
+import org.jetbrains.kotlin.gradle.dsl.toolchain.wasmtools.WasmToolsToolchainService
+import org.jetbrains.kotlin.gradle.plugin.KotlinPluginLifecycle
+import org.jetbrains.kotlin.gradle.plugin.KotlinTarget
+import org.jetbrains.kotlin.gradle.plugin.PropertiesProvider.Companion.kotlinPropertiesProvider
+import org.jetbrains.kotlin.gradle.plugin.launchInStage
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCompilation
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.export.SwiftExportVisibility
+import org.jetbrains.kotlin.gradle.plugin.mpp.export.SwiftExportXcodeIntegrationConfiguration
+import org.jetbrains.kotlin.gradle.plugin.statistics.arguments.TrackedCompilerArgument
+import org.jetbrains.kotlin.gradle.plugin.statistics.arguments.TrackedCompilerArguments
+import org.jetbrains.kotlin.gradle.report.TaskExecutionResult
+import org.jetbrains.kotlin.gradle.targets.js.dsl.KotlinBrowserTestRunnerDsl
+import org.jetbrains.kotlin.gradle.targets.js.ir.*
+import org.jetbrains.kotlin.gradle.targets.js.testing.KotlinDefaultJsTestLocation
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilerExecutionStrategy
+import org.jetbrains.kotlin.gradle.utils.addConfigurationMetrics
+import org.jetbrains.kotlin.gradle.utils.runMetricMethodSafely
+import org.jetbrains.kotlin.gradle.utils.withType
+import org.jetbrains.kotlin.konan.target.HostManager
+import org.jetbrains.kotlin.statistics.metrics.*
+
+internal sealed interface FusMetrics
+internal object ExecutedTaskMetrics : FusMetrics {
+    private fun getMetricToReport(task: String) = when (task.substringAfterLast(":")) {
+        //tasks from DGPv1
+        "dokkaHtml" -> BooleanMetrics.ENABLED_DOKKA_HTML_TASK
+        "dokkaGfm" -> BooleanMetrics.ENABLED_DOKKA_GFM
+        "dokkaJavadoc" -> BooleanMetrics.ENABLED_DOKKA_JAVADOC_TASK
+        "dokkaJekyll" -> BooleanMetrics.ENABLED_DOKKA_JEKYLL
+        "dokkaHtmlMultiModule" -> BooleanMetrics.ENABLED_DOKKA_HTML_MULTI_MODULE
+        "dokkaGfmMultiModule" -> BooleanMetrics.ENABLED_DOKKA_GFM_MULTI_MODULE
+        "dokkaJekyllMultiModule" -> BooleanMetrics.ENABLED_DOKKA_JEKYLL_MULTI_MODULE
+        "dokkaHtmlCollector" -> BooleanMetrics.ENABLED_DOKKA_HTML_COLLECTOR
+        "dokkaGfmCollector" -> BooleanMetrics.ENABLED_DOKKA_GFM_COLLECTOR
+        "dokkaJavadocCollector" -> BooleanMetrics.ENABLED_DOKKA_JAVADOC_COLLECTOR
+        "dokkaJekyllCollector" -> BooleanMetrics.ENABLED_DOKKA_JEKYLL_COLLECTOR
+
+        //tasks from DGPv2
+        "dokkaGenerate" -> BooleanMetrics.ENABLE_DOKKA_GENERATE_TASK
+        "dokkaGenerateHtml" -> BooleanMetrics.ENABLE_DOKKA_GENERATE_HTML_TASK
+        "dokkaGenerateJavadoc" -> BooleanMetrics.ENABLE_DOKKA_GENERATE_JAVADOC_TASK
+        "dokkaGeneratePublication" -> BooleanMetrics.ENABLE_DOKKA_GENERATE_PUBLICATION_TASK
+        "dokkaGeneratePublicationHtml" -> BooleanMetrics.ENABLE_DOKKA_GENERATE_PUBLICATION_HTML_TASK
+        "dokkaGeneratePublicationJavadoc" -> BooleanMetrics.ENABLE_DOKKA_GENERATE_PUBLICATION_JAVADOC_TASK
+        "dokkaGenerateModule" -> BooleanMetrics.ENABLE_DOKKA_MODULE_TASK
+        "dokkaGenerateModuleHtml" -> BooleanMetrics.ENABLE_DOKKA_MODULE_HTML_TASK
+        "dokkaGenerateModuleJavadoc" -> BooleanMetrics.ENABLE_DOKKA_MODULE_JAVADOC_TASK
+        "logLinkDokkaGeneratePublicationHtml" -> BooleanMetrics.ENABLE_LINK_DOKKA_GENERATE_TASK
+        else -> null
+    }
+
+    internal fun collectMetrics(event: FinishEvent?, metricConsumer: StatisticsValuesConsumer) {
+        val name = event?.descriptor?.name ?: return
+        val metrics = getMetricToReport(name) ?: return
+        metricConsumer.report(metrics, value = true)
+    }
+}
+
+internal object CompilerArgumentMetrics : FusMetrics {
+    // compilerArgs arguments may have some attributes which are overrided by freeCompilerArguments.
+    // Here we perform the work which is repeated in compiler in order to obtain correct values. This extra work could be avoided when
+    // compiler would report metrics by itself via JMX
+    internal fun collectMetrics(
+        compilerArgs: CommonCompilerArguments?,
+        argsArray: Array<String>,
+        logger: Logger,
+        metricsConsumer: StatisticsValuesConsumer,
+    ) {
+        if (compilerArgs == null) return
+
+        val reconstructedArguments = runMetricMethodSafely(logger, "parse ${compilerArgs::class.simpleName} for FUS metrics") {
+            compilerArgs::class.java.getDeclaredConstructor().newInstance().also {
+                parseCommandLineArguments(argsArray.toList(), it)
+            }
+        } ?: return
+
+        collectTrackedArguments(reconstructedArguments, logger, metricsConsumer)
+        collectManualMetrics(reconstructedArguments, metricsConsumer)
+    }
+
+    internal fun collectTrackedArguments(
+        arguments: CommonToolArguments,
+        logger: Logger,
+        metricsConsumer: StatisticsValuesConsumer,
+        trackedArguments: List<TrackedCompilerArgument<*>> = TrackedCompilerArguments.ALL,
+    ) {
+        val applicableRules = trackedArguments.filter { it.argumentsClass.java.isAssignableFrom(arguments::class.java) }
+        if (applicableRules.isEmpty()) return
+
+        for (rule in applicableRules) {
+            runMetricMethodSafely(logger, "report FUS metrics for compiler arguments") {
+                rule.reportIfApplicable(arguments, metricsConsumer)
+            }
+        }
+    }
+
+    private fun collectManualMetrics(
+        args: CommonCompilerArguments,
+        metricsConsumer: StatisticsValuesConsumer,
+    ) {
+        when (args) {
+            is K2JVMCompilerArguments -> {
+                val pluginPatterns = listOf(
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_ALL_OPEN, "kotlin-allopen-.*jar"),
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_NO_ARG, "kotlin-noarg-.*jar"),
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_SAM_WITH_RECEIVER, "kotlin-sam-with-receiver-.*jar"),
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_LOMBOK, "kotlin-lombok-.*jar"),
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_PARSELIZE, "kotlin-parcelize-compiler-.*jar"),
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_ATOMICFU, "atomicfu-.*jar"),
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_POWER_ASSERT, "kotlin-power-assert-.*jar"),
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_KOTLINX_KOVER, "kover-.*jar"),
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_KOTLINX_SERIALIZATION, "serialization-.*jar"),
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_KOTLINX_DOKKA, "dokka-.*jar"),
+                    Pair(
+                        BooleanMetrics.ENABLED_COMPILER_PLUGIN_KOTLINX_BINARY_COMPATIBILITY_VALIDATOR,
+                        "binary-compatibility-validator-.*jar"
+                    ),
+                )
+
+                metricsConsumer.reportPluginsFromListIfUsed(args, pluginPatterns)
+            }
+            is K2JSCompilerArguments -> {
+                val pluginPatterns = listOf(
+                    Pair(BooleanMetrics.ENABLED_COMPILER_PLUGIN_JS_PLAIN_OBJECTS, "js-plain-objects-.*jar"),
+                )
+
+                metricsConsumer.reportPluginsFromListIfUsed(args, pluginPatterns)
+            }
+        }
+    }
+
+    private fun <Args : CommonCompilerArguments> StatisticsValuesConsumer.reportPluginsFromListIfUsed(
+        args: Args,
+        pluginPatterns: List<Pair<BooleanMetrics, String>>,
+    ) {
+        val pluginJars = args.pluginClasspaths.map { it.replace("\\", "/").split("/").last() }
+        for ((metrics, pattern) in pluginPatterns) {
+            if (pluginJars.any { it.matches(pattern.toRegex()) }) {
+                report(metrics, value = true)
+            }
+        }
+    }
+}
+
+internal object KotlinTaskExecutionMetrics : FusMetrics {
+    fun collectMetrics(taskExecutionResult: TaskExecutionResult, event: TaskFinishEvent, metricsConsumer: StatisticsValuesConsumer) {
+        val totalTimeMs = event.result.endTime - event.result.startTime
+        val buildMetrics = taskExecutionResult.buildMetrics
+        metricsConsumer.report(NumericalMetrics.COMPILATION_DURATION, totalTimeMs)
+        metricsConsumer.report(BooleanMetrics.KOTLIN_COMPILATION_FAILED, event.result is FailureResult)
+        metricsConsumer.report(NumericalMetrics.COMPILATIONS_COUNT, 1)
+
+        val metricsMap = buildMetrics.buildPerformanceMetrics.asMap()
+
+        val linesOfCode = metricsMap[SOURCE_LINES_NUMBER]
+        if (linesOfCode != null && linesOfCode > 0 && totalTimeMs > 0) {
+            metricsConsumer.report(NumericalMetrics.COMPILED_LINES_OF_CODE, linesOfCode)
+            metricsConsumer.report(NumericalMetrics.COMPILATION_LINES_PER_SECOND, linesOfCode * 1000 / totalTimeMs, null, linesOfCode)
+            metricsMap[ANALYSIS_LPS]?.also { value ->
+                metricsConsumer.report(NumericalMetrics.ANALYSIS_LINES_PER_SECOND, value, null, linesOfCode)
+            }
+            metricsMap[CODE_GENERATION_LPS]?.also { value ->
+                metricsConsumer.report(NumericalMetrics.CODE_GENERATION_LINES_PER_SECOND, value, null, linesOfCode)
+            }
+        }
+        metricsConsumer.report(
+            NumericalMetrics.INCREMENTAL_COMPILATIONS_COUNT,
+            if (taskExecutionResult.buildMetrics.buildAttributes.asMap().isEmpty()) 1 else 0
+        )
+    }
+}
+
+internal object BuildFinishMetrics : FusMetrics {
+    fun collectMetrics(
+        logger: Logger,
+        buildFailed: Boolean,
+        buildStartTime: Long?,
+        projectEvaluatedTime: Long?,
+        metricsConsumer: StatisticsValuesConsumer,
+    ) {
+        reportGlobalMetrics(logger, metricsConsumer)
+        reportBuildFinished(logger, buildFailed, buildStartTime, projectEvaluatedTime, metricsConsumer)
+    }
+
+    private fun reportGlobalMetrics(logger: Logger, metricConsumer: StatisticsValuesConsumer) {
+        runMetricMethodSafely(logger, "reportGlobalMetrics") {
+            System.getProperty("os.name")?.also { metricConsumer.report(StringMetrics.OS_TYPE, it) }
+            System.getProperty("os.version")?.also { metricConsumer.report(StringMetrics.OS_VERSION, it) }
+            metricConsumer.report(NumericalMetrics.CPU_NUMBER_OF_CORES, Runtime.getRuntime().availableProcessors().toLong())
+            metricConsumer.report(BooleanMetrics.EXECUTED_FROM_IDEA, System.getProperty("idea.active") != null)
+            metricConsumer.report(NumericalMetrics.GRADLE_DAEMON_HEAP_SIZE, Runtime.getRuntime().maxMemory())
+            metricConsumer.report(NumericalMetrics.GRADLE_BUILD_NUMBER_IN_CURRENT_DAEMON, DaemonReuseCounter.incrementAndGetOrdinal())
+        }
+    }
+
+    private fun reportBuildFinished(
+        logger: Logger,
+        buildFailed: Boolean,
+        buildStartedTime: Long?,
+        projectEvaluatedTime: Long?,
+        metricsContainer: StatisticsValuesConsumer,
+    ) {
+        runMetricMethodSafely(logger, "reportBuildFinish") {
+            val finishTime = System.currentTimeMillis()
+            if (buildStartedTime != null) {
+                metricsContainer.report(NumericalMetrics.GRADLE_BUILD_DURATION, finishTime - buildStartedTime)
+            }
+            if (projectEvaluatedTime != null) {
+                metricsContainer.report(NumericalMetrics.GRADLE_EXECUTION_DURATION, finishTime - projectEvaluatedTime)
+            }
+            metricsContainer.report(NumericalMetrics.BUILD_FINISH_TIME, finishTime)
+            metricsContainer.report(BooleanMetrics.BUILD_FAILED, buildFailed)
+        }
+    }
+
+}
+
+internal object CompileKotlinTaskMetrics : FusMetrics {
+    internal fun collectMetrics(
+        name: String,
+        firRunnerEnabled: Boolean, // jvm only as of 2.2.20
+        executionPolicy: KotlinCompilerExecutionStrategy,
+        // both are null for anything that is not a multiplatform Kotlin/JVM compilation
+        kmpJvmClasspathMetadataEnabled: Boolean?,
+        kmpJvmIncrementalCompilationOfCommonSourcesEnabled: Boolean?,
+        metricsContainer: StatisticsValuesConsumer,
+    ) {
+        if (name.contains("Test"))
+            metricsContainer.report(BooleanMetrics.TESTS_EXECUTED, true)
+        else
+            metricsContainer.report(BooleanMetrics.COMPILATION_STARTED, true)
+        if (firRunnerEnabled) {
+            metricsContainer.report(BooleanMetrics.KOTLIN_INCREMENTAL_FIR_RUNNER_ENABLED, true)
+        }
+        kmpJvmClasspathMetadataEnabled?.also {
+            metricsContainer.report(BooleanMetrics.KMP_JVM_CLASSPATH_METADATA_ENABLED, it)
+        }
+        kmpJvmIncrementalCompilationOfCommonSourcesEnabled?.also {
+            metricsContainer.report(BooleanMetrics.KMP_JVM_INCREMENTAL_COMPILATION_OF_COMMON_SOURCES_ENABLED, it)
+        }
+        metricsContainer.report(StringListMetrics.KOTLIN_COMPILER_EXECUTION_POLICY, executionPolicy.propertyValue)
+    }
+}
+
+internal object CompileKotlinJsIrLinkMetrics : FusMetrics {
+    internal fun collectMetrics(
+        incrementalJsIr: Boolean,
+        metricsConsumer: StatisticsValuesConsumer,
+    ) {
+        metricsConsumer.report(BooleanMetrics.JS_IR_INCREMENTAL, incrementalJsIr)
+    }
+}
+
+internal object CompileKotlinWasmIrLinkMetrics : FusMetrics {
+    internal fun collectMetrics(
+        incrementalWasm: Boolean,
+        metricsConsumer: StatisticsValuesConsumer,
+    ) {
+        metricsConsumer.report(BooleanMetrics.WASM_IR_INCREMENTAL, incrementalWasm)
+    }
+
+    internal fun collectWasmCompilerModeMetric(
+        wasmCompilerMode: String,
+        metricsConsumer: StatisticsValuesConsumer,
+    ) {
+        metricsConsumer.report(StringListMetrics.WASM_COMPILER_MODE, wasmCompilerMode)
+    }
+}
+
+
+internal object KotlinMetadataConfigurationMetrics : FusMetrics {
+    internal fun collectMetrics(metricContainer: MetricContainer) {
+        metricContainer.put(BooleanMetrics.ENABLED_HMPP, true)
+    }
+}
+
+internal object KotlinProjectConfigurationMetrics : FusMetrics {
+    internal fun collectMetrics(project: Project) = collectProjectConfigurationTimeMetrics(project)
+
+}
+
+internal object UrlRepoConfigurationMetrics : FusMetrics {
+    internal fun collectMetrics(
+        length: Long,
+        downloadDuration: Long,
+        metricsConsumer: StatisticsValuesConsumer,
+    ) {
+        metricsConsumer.report(NumericalMetrics.ARTIFACTS_DOWNLOAD_SPEED, length * 1000 / downloadDuration)
+    }
+}
+
+internal object KotlinJsBinaryTypeMetrics : FusMetrics {
+    internal fun collectMetrics(jsTarget: KotlinJsIrTarget, project: Project) {
+        project.launchInStage(KotlinPluginLifecycle.Stage.AfterFinaliseCompilations) {
+            val isLibraryConfigured = jsTarget.binaries.withType<Library>().isNotEmpty()
+            val isExecutableConfigured = jsTarget.binaries.withType<Executable>().isNotEmpty()
+            project.addConfigurationMetrics { metricContainer ->
+                @Suppress("KotlinConstantConditions")
+                when {
+                    isLibraryConfigured && isExecutableConfigured -> metricContainer.put(StringListMetrics.JS_BINARY_TYPE, "both")
+                    isLibraryConfigured -> metricContainer.put(StringListMetrics.JS_BINARY_TYPE, "library")
+                    isExecutableConfigured -> metricContainer.put(StringListMetrics.JS_BINARY_TYPE, "executable")
+                    !isExecutableConfigured && !isLibraryConfigured -> metricContainer.put(StringListMetrics.JS_BINARY_TYPE, "none")
+                }
+            }
+        }
+    }
+}
+
+internal object KotlinJsIrTargetMetrics : FusMetrics {
+    internal fun collectMetrics(isBrowserConfigured: Boolean, isNodejsConfigured: Boolean, project: Project) {
+        project.addConfigurationMetrics { metricContainer ->
+            @Suppress("KotlinConstantConditions")
+            when {
+                isBrowserConfigured && isNodejsConfigured -> metricContainer.put(StringListMetrics.JS_TARGET_MODE, "both")
+                isBrowserConfigured -> metricContainer.put(StringListMetrics.JS_TARGET_MODE, "browser")
+                isNodejsConfigured -> metricContainer.put(StringListMetrics.JS_TARGET_MODE, "nodejs")
+                !isBrowserConfigured && !isNodejsConfigured -> metricContainer.put(StringListMetrics.JS_TARGET_MODE, "none")
+            }
+        }
+    }
+}
+
+internal object KotlinJsBrowserTestMetrics : FusMetrics {
+
+    internal fun collectMetrics(project: Project, jdBrowserRunners: Collection<KotlinBrowserTestRunnerDsl>) {
+        jdBrowserRunners.forEach { jdBrowserRunner ->
+            collectMetrics(project, jdBrowserRunner)
+        }
+    }
+
+    internal fun collectMetrics(project: Project, jdBrowserRunner: KotlinBrowserTestRunnerDsl) {
+        // KT-90126: runners of unsupported types are reported via a diagnostic, FUS should not fail on them
+        val browserKind = jdBrowserRunner.getBrowserKindOrNull() ?: return
+        project.addConfigurationMetrics { metricContainer ->
+            metricContainer.put(StringListMetrics.JS_TEST_BROWSER_TYPE, browserKind.browserName)
+            metricContainer.put(StringListMetrics.JS_TEST_BROWSER_CHANGED_OPTION, jdBrowserRunner.optionsChangedFromDefaults())
+        }
+    }
+
+    private fun KotlinBrowserTestRunnerDsl.optionsChangedFromDefaults(): List<String> = mutableListOf<String>().apply {
+        if (testsLocation.get() !is KotlinDefaultJsTestLocation) add("testsLocation")
+        @Suppress("SimplifyBooleanWithConstants")
+        if (headless.get() != KotlinJsBrowserTestImpl.DEFAULT_HEADLESS) add("headless")
+        if (launchArgs.get().isNotEmpty()) add("launchArgs")
+        if (launchEnvironmentVariables.get().isNotEmpty()) add("launchEnvironmentVariables")
+        if (customBrowserExecutable.isPresent) add("customBrowserExecutable")
+    }
+}
+
+internal object MultiplatformTargetMetrics : FusMetrics {
+    internal fun collectMetrics(target: KotlinTarget, project: Project) {
+        /* Report the platform to the build stats service */
+        val targetName = if (target is KotlinNativeTarget) target.konanTarget.name
+        else target.platformType.name
+        project.addConfigurationMetrics {
+            it.put(StringListMetrics.MPP_PLATFORMS, targetName)
+        }
+    }
+}
+
+internal object NativeLinkTaskMetrics : FusMetrics {
+    internal fun collectMetrics(project: Project) {
+        project.addConfigurationMetrics {
+            it.put(BooleanMetrics.KOTLIN_INCREMENTAL_NATIVE_ENABLED, project.isKonanIncrementalCompilationEnabled())
+        }
+    }
+}
+
+internal object KotlinStdlibConfigurationMetrics : FusMetrics {
+    internal fun collectMetrics(project: Project, requestedStdlibVersion: String) {
+        project.addConfigurationMetrics {
+            it.put(StringMetrics.KOTLIN_STDLIB_VERSION, requestedStdlibVersion)
+        }
+    }
+}
+
+internal object KotlinCrossCompilationMetrics : FusMetrics {
+    internal fun collectMetrics(project: Project, compilation: KotlinNativeCompilation) {
+        val crossCompilationEnabled = project.kotlinPropertiesProvider.enableKlibsCrossCompilation
+        val isSupportedHost = runCatching {
+            HostManager().isEnabled(compilation.target.konanTarget)
+        }.getOrDefault(false)
+
+        if (isSupportedHost || !crossCompilationEnabled) return
+
+        project.launchInStage(KotlinPluginLifecycle.Stage.AfterFinaliseCompilations) {
+            if (compilation.cinterops.isNotEmpty()) {
+                project.addConfigurationMetrics {
+                    it.put(BooleanMetrics.KOTLIN_CROSS_COMPILATION_NOT_SUPPORTED, true)
+                }
+            }
+        }
+    }
+}
+
+internal object KotlinCompilerRefIndexMetrics : FusMetrics {
+    internal fun collectMetrics(enabled: Boolean, metricsConsumer: StatisticsValuesConsumer) {
+        metricsConsumer.report(BooleanMetrics.ENABLED_COMPILER_REFERENCE_INDEX, enabled)
+    }
+}
+
+internal object KotlinNativeCacheMetrics : FusMetrics {
+    internal fun collectMetrics(project: Project, disabled: Provider<Boolean>) {
+        project.launchInStage(KotlinPluginLifecycle.Stage.AfterFinaliseDsl) {
+            project.addConfigurationMetrics {
+                it.put(BooleanMetrics.KOTLIN_NATIVE_CACHE_DISABLED, disabled.get())
+            }
+        }
+    }
+}
+
+internal object KotlinSourceSetMetrics : FusMetrics {
+    internal fun collectMetrics(project: Project) {
+        project.launchInStage(KotlinPluginLifecycle.Stage.AfterFinaliseDsl) {
+            project.reportGeneratedSourcesUsage()
+            project.reportSourceSetSourcesUsage(
+                mapOf(
+                    "webMain" to BooleanMetrics.KOTLIN_WEB_MAIN_SOURCES_USED,
+                    "webTest" to BooleanMetrics.KOTLIN_WEB_TEST_SOURCES_USED,
+                )
+            )
+            project.reportSourceSetDependenciesUsage(
+                mapOf(
+                    "webMain" to BooleanMetrics.KOTLIN_WEB_MAIN_DEPENDENCIES_PRESENT,
+                    "webTest" to BooleanMetrics.KOTLIN_WEB_TEST_DEPENDENCIES_PRESENT,
+                )
+            )
+        }
+    }
+
+    private suspend fun Project.reportGeneratedSourcesUsage() {
+        project.kotlinExtension.awaitSourceSets().configureEach { sourceSet ->
+            if (sourceSet.generatedKotlin.srcDirs.isNotEmpty()) {
+                project.addConfigurationMetrics {
+                    it.put(BooleanMetrics.KOTLIN_GENERATED_SOURCES_USED, true)
+                }
+            }
+        }
+    }
+
+    private suspend fun Project.reportSourceSetSourcesUsage(
+        sourceSetNameToMetricMap: Map<String, BooleanMetrics>,
+    ) {
+        project.kotlinExtension.awaitSourceSets().configureEach { sourceSet ->
+            val metric = sourceSetNameToMetricMap[sourceSet.name]
+            if (metric != null) {
+                if (!sourceSet.allKotlinSources.isEmpty) {
+                    project.addConfigurationMetrics { metricsContainer ->
+                        metricsContainer.put(metric, true)
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun Project.reportSourceSetDependenciesUsage(
+        sourceSetNameToMetricMap: Map<String, BooleanMetrics>,
+    ) {
+        project.kotlinExtension.awaitSourceSets().configureEach { sourceSet ->
+            val metric = sourceSetNameToMetricMap[sourceSet.name]
+            if (metric != null) {
+                listOf(
+                    sourceSet.apiConfigurationName,
+                    sourceSet.implementationConfigurationName,
+                    sourceSet.compileOnlyConfigurationName,
+                    sourceSet.runtimeOnlyConfigurationName,
+                ).map { project.configurations.getByName(it) }
+                    .forEach { configuration ->
+                        if (configuration.dependencies.isNotEmpty()) {
+                            project.addConfigurationMetrics { metricsContainer ->
+                                metricsContainer.put(metric, true)
+                            }
+                        }
+                    }
+            }
+        }
+    }
+}
+
+internal object NodeJsToolchainServiceMetrics : FusMetrics {
+    @OptIn(ExperimentalNodeJsToolchainDsl::class)
+    internal fun collectServiceCreated(project: Project, serviceProvider: Provider<out NodeJsToolchainService<out NodeJsToolchainService.Parameters>>) {
+        project.addConfigurationMetrics {
+            val service = serviceProvider.orNull ?: return@addConfigurationMetrics
+            val metric = when (service) {
+                is DisabledNodeJsToolchainService -> "disable"
+                is PreInstalledNodeJsToolchainService -> "preinstalled"
+                is DefaultNodeJsToolchainService -> "download"
+                else -> "custom"
+            }
+
+            it.put(StringListMetrics.NODE_JS_TOOLCHAIN_SERVICE, metric)
+        }
+    }
+}
+
+internal object WasiAdapterToolchainServiceMetrics : FusMetrics {
+    @OptIn(ExperimentalWasmDsl::class)
+    internal fun collectServiceCreated(project: Project, serviceProvider: Provider<out WasiAdapterToolchainService<out WasiAdapterToolchainService.Parameters>>) {
+        project.addConfigurationMetrics {
+            val service = serviceProvider.orNull ?: return@addConfigurationMetrics
+            val metric = when (service) {
+                is DisabledWasiAdapterToolchainService -> "disable"
+                is PreInstalledWasiAdapterToolchainService -> "preinstalled"
+                is DefaultWasiAdapterToolchainService -> "download"
+                else -> "custom"
+            }
+
+            it.put(StringListMetrics.WASI_ADAPTER_TOOLCHAIN_SERVICE, metric)
+        }
+    }
+}
+
+internal object WasmToolsToolchainServiceMetrics : FusMetrics {
+    @OptIn(ExperimentalWasmDsl::class)
+    internal fun collectServiceCreated(
+        project: Project,
+        serviceProvider: Provider<out WasmToolsToolchainService<out WasmToolsToolchainService.Parameters>>,
+    ) {
+        project.addConfigurationMetrics {
+            val service = serviceProvider.orNull ?: return@addConfigurationMetrics
+            val metric = when (service) {
+                is DisabledWasmToolsToolchainService -> "disable"
+                is PreInstalledWasmToolsToolchainService -> "preinstalled"
+                is DefaultWasmToolsToolchainService -> "download"
+                else -> "custom"
+            }
+
+            it.put(StringListMetrics.WASM_TOOLS_TOOLCHAIN_SERVICE, metric)
+        }
+    }
+}
+
+internal object SwiftExportDslMetrics : FusMetrics {
+    internal fun collectSwiftExportConfigured(project: Project) {
+        project.addConfigurationMetrics {
+            it.put(BooleanMetrics.SWIFT_EXPORT_DSL_CONFIGURED, true)
+        }
+    }
+
+    internal fun collectModuleMetrics(project: Project, moduleNameOverridden: Boolean, rootPackageOverridden: Boolean) {
+        val overriddenOptions = buildList {
+            if (moduleNameOverridden) add("moduleName")
+            if (rootPackageOverridden) add("rootPackage")
+        }
+        if (overriddenOptions.isEmpty()) return
+        project.addConfigurationMetrics {
+            it.put(StringListMetrics.SWIFT_EXPORT_DSL_MODULE_OPTIONS_OVERRIDES, overriddenOptions)
+        }
+    }
+
+    internal fun collectXcodeIntegrationMetrics(
+        project: Project,
+        activatedXcodeIntegration: SwiftExportXcodeIntegrationConfiguration,
+    ) {
+        project.addConfigurationMetrics {
+            it.put(BooleanMetrics.SWIFT_EXPORT_DSL_XCODE_INTEGRATION_ACTIVATED, true)
+        }
+        val overriddenOptions = buildSet {
+            if (activatedXcodeIntegration.settings.get().isNotEmpty()) add("settings")
+            for ((moduleName, rootPackage, visibility) in activatedXcodeIntegration.dependencyOverrides.get().values) {
+                if (moduleName != null) add("moduleName")
+                if (rootPackage != null) add("rootPackage")
+                when (visibility) {
+                    SwiftExportVisibility.EXPOSED -> add("exposed")
+                    SwiftExportVisibility.HIDDEN -> add("hidden")
+                    null -> Unit
+                }
+            }
+        }
+        if (overriddenOptions.isEmpty()) return
+        project.addConfigurationMetrics {
+            it.put(StringListMetrics.SWIFT_EXPORT_DSL_XCODE_INTEGRATION_OVERRIDES, overriddenOptions.sorted())
+        }
+    }
+}

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_EXPRESSION
 class A {
     fun Int.extInt() = 42
     fun A.extA(x: String) = x
@@ -18,3 +19,6 @@ fun main() {
     A::<!UNRESOLVED_REFERENCE!>extInt<!>
     A::<!UNRESOLVED_REFERENCE!>extA<!>
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+integerLiteral */

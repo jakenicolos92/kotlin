@@ -22,9 +22,10 @@ import org.jetbrains.kotlin.incremental.components.LookupLocation
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.resolve.selectMostSpecificInEachOverridableGroup
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.util.collectionUtils.listOfNonEmptyScopes
 import org.jetbrains.kotlin.utils.Printer
 
-class TypeIntersectionScope private constructor(override val workerScope: ChainedMemberScope) : AbstractScopeAdapter() {
+class TypeIntersectionScope private constructor(private val debugName: String, override val workerScope: MemberScope) : AbstractScopeAdapter() {
     override fun getContributedFunctions(name: Name, location: LookupLocation) =
             super.getContributedFunctions(name, location).selectMostSpecificInEachOverridableGroup { this }
 
@@ -32,24 +33,26 @@ class TypeIntersectionScope private constructor(override val workerScope: Chaine
             super.getContributedVariables(name, location).selectMostSpecificInEachOverridableGroup { this }
 
     override fun getContributedDescriptors(kindFilter: DescriptorKindFilter, nameFilter: (Name) -> Boolean): Collection<DeclarationDescriptor> {
-        val (callables, other) = super.getContributedDescriptors(kindFilter, nameFilter).partition { it is CallableDescriptor }
+        val [callables, other] = super.getContributedDescriptors(kindFilter, nameFilter).partition { it is CallableDescriptor }
 
         @Suppress("UNCHECKED_CAST")
         return (callables as Collection<CallableDescriptor>).selectMostSpecificInEachOverridableGroup { this } + other
     }
 
     override fun printScopeStructure(p: Printer) {
-        p.print("TypeIntersectionScope for: " + workerScope.debugName)
+        p.print("TypeIntersectionScope for: " + debugName)
         super.printScopeStructure(p)
     }
 
     companion object {
         @JvmStatic
         fun create(message: String, types: Collection<KotlinType>): MemberScope {
-            val chainedScope = ChainedMemberScope(message, types.map { it.memberScope })
-            if (types.size <= 1) return chainedScope
+            val nonEmptyScopes = listOfNonEmptyScopes(types.map { it.memberScope })
+            val chainedOrSingle = ChainedMemberScope.createOrSingle(message, nonEmptyScopes)
 
-            return TypeIntersectionScope(chainedScope)
+            if (nonEmptyScopes.size <= 1) return chainedOrSingle
+
+            return TypeIntersectionScope(message, chainedOrSingle)
         }
     }
 }

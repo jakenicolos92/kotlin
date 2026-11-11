@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.resolve
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.annotations.Annotations
 import org.jetbrains.kotlin.descriptors.impl.SimpleFunctionDescriptorImpl
@@ -25,90 +26,40 @@ import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
 import org.jetbrains.kotlin.util.OperatorNameConventions
 
+@K1Deprecation
 object DataClassDescriptorResolver {
-    val EQUALS_METHOD_NAME = OperatorNameConventions.EQUALS
-    val HASH_CODE_METHOD_NAME = Name.identifier("hashCode")
-    val TO_STRING_METHOD_NAME = Name.identifier("toString")
-
     val COPY_METHOD_NAME = Name.identifier("copy")
 
-    private val COMPONENT_FUNCTION_NAME_PREFIX = "component"
+    fun createComponentName(index: Int): Name = DataClassResolver.createComponentName(index)
 
-    fun createComponentName(index: Int): Name
-            = Name.identifier(COMPONENT_FUNCTION_NAME_PREFIX + index)
+    fun getComponentIndex(componentName: String): Int = DataClassResolver.getComponentIndex(componentName)
 
-    fun getComponentIndex(componentName: String): Int
-            = componentName.substring(COMPONENT_FUNCTION_NAME_PREFIX.length).toInt()
-
-    fun isComponentLike(name: Name): Boolean
-            = isComponentLike(name.asString())
-
-    private fun isComponentLike(name: String): Boolean {
-        if (!name.startsWith(COMPONENT_FUNCTION_NAME_PREFIX)) return false
-
-        try {
-            getComponentIndex(name)
-        }
-        catch (e: NumberFormatException) {
-            return false
-        }
-
-        return true
-    }
-
-    fun createEqualsFunctionDescriptor(classDescriptor: ClassDescriptor): SimpleFunctionDescriptor =
-            doCreateFunctionFromAny(classDescriptor, EQUALS_METHOD_NAME)
-
-    fun createHashCodeFunctionDescriptor(classDescriptor: ClassDescriptor): SimpleFunctionDescriptor =
-            doCreateFunctionFromAny(classDescriptor, HASH_CODE_METHOD_NAME)
-
-    fun createToStringFunctionDescriptor(classDescriptor: ClassDescriptor): SimpleFunctionDescriptor =
-            doCreateFunctionFromAny(classDescriptor, TO_STRING_METHOD_NAME)
-
-    private fun doCreateFunctionFromAny(classDescriptor: ClassDescriptor, name: Name): SimpleFunctionDescriptor {
-        val functionDescriptor = SimpleFunctionDescriptorImpl.create(
-                classDescriptor, Annotations.EMPTY, name, CallableMemberDescriptor.Kind.SYNTHESIZED, classDescriptor.source
-        )
-
-        val functionFromAny = classDescriptor.builtIns.any.getMemberScope(emptyList())
-                .getContributedFunctions(name, NoLookupLocation.FROM_BUILTINS).single()
-
-        functionDescriptor.initialize(
-                null,
-                classDescriptor.thisAsReceiverParameter,
-                functionFromAny.typeParameters,
-                functionFromAny.valueParameters.map { it.copy(functionDescriptor, it.name, it.index) },
-                functionFromAny.returnType,
-                Modality.OPEN,
-                Visibilities.PUBLIC
-        )
-
-        return functionDescriptor
-    }
+    fun isComponentLike(name: Name): Boolean = DataClassResolver.isComponentLike(name)
 
     fun createComponentFunctionDescriptor(
-            parameterIndex: Int,
-            property: PropertyDescriptor,
-            parameter: ValueParameterDescriptor,
-            classDescriptor: ClassDescriptor,
-            trace: BindingTrace
+        parameterIndex: Int,
+        property: PropertyDescriptor,
+        parameter: ValueParameterDescriptor,
+        classDescriptor: ClassDescriptor,
+        trace: BindingTrace
     ): SimpleFunctionDescriptor {
         val functionDescriptor = SimpleFunctionDescriptorImpl.create(
-                classDescriptor,
-                Annotations.EMPTY,
-                createComponentName(parameterIndex),
-                CallableMemberDescriptor.Kind.SYNTHESIZED,
-                parameter.source
+            classDescriptor,
+            Annotations.EMPTY,
+            createComponentName(parameterIndex),
+            CallableMemberDescriptor.Kind.SYNTHESIZED,
+            parameter.source
         )
 
         functionDescriptor.initialize(
-                null,
-                classDescriptor.thisAsReceiverParameter,
-                emptyList<TypeParameterDescriptor>(),
-                emptyList<ValueParameterDescriptor>(),
-                property.type,
-                Modality.FINAL,
-                property.visibility
+            null,
+            classDescriptor.thisAsReceiverParameter,
+            emptyList<ReceiverParameterDescriptor>(),
+            emptyList<TypeParameterDescriptor>(),
+            emptyList<ValueParameterDescriptor>(),
+            property.type,
+            Modality.FINAL,
+            property.visibility
         )
         functionDescriptor.isOperator = true
 
@@ -117,16 +68,16 @@ object DataClassDescriptorResolver {
     }
 
     fun createCopyFunctionDescriptor(
-            constructorParameters: Collection<ValueParameterDescriptor>,
-            classDescriptor: ClassDescriptor,
-            trace: BindingTrace
+        constructorParameters: Collection<ValueParameterDescriptor>,
+        classDescriptor: ClassDescriptor,
+        trace: BindingTrace
     ): SimpleFunctionDescriptor {
         val functionDescriptor = SimpleFunctionDescriptorImpl.create(
-                classDescriptor,
-                Annotations.EMPTY,
-                COPY_METHOD_NAME,
-                CallableMemberDescriptor.Kind.SYNTHESIZED,
-                classDescriptor.source
+            classDescriptor,
+            Annotations.EMPTY,
+            COPY_METHOD_NAME,
+            CallableMemberDescriptor.Kind.SYNTHESIZED,
+            classDescriptor.source
         )
 
         val parameterDescriptors = arrayListOf<ValueParameterDescriptor>()
@@ -136,8 +87,8 @@ object DataClassDescriptorResolver {
             // If a parameter doesn't have the corresponding property, it must not have a default value in the 'copy' function
             val declaresDefaultValue = propertyDescriptor != null
             val parameterDescriptor = ValueParameterDescriptorImpl(
-                    functionDescriptor, null, parameter.index, parameter.annotations, parameter.name, parameter.type, declaresDefaultValue,
-                    parameter.isCrossinline, parameter.isNoinline, parameter.varargElementType, parameter.source
+                functionDescriptor, null, parameter.index, parameter.annotations, parameter.name, parameter.type, declaresDefaultValue,
+                parameter.isCrossinline, parameter.isNoinline, parameter.varargElementType, parameter.source
             )
             parameterDescriptors.add(parameterDescriptor)
             if (declaresDefaultValue) {
@@ -146,13 +97,14 @@ object DataClassDescriptorResolver {
         }
 
         functionDescriptor.initialize(
-                null,
-                classDescriptor.thisAsReceiverParameter,
-                emptyList<TypeParameterDescriptor>(),
-                parameterDescriptors,
-                classDescriptor.defaultType,
-                Modality.FINAL,
-                Visibilities.PUBLIC
+            null,
+            classDescriptor.thisAsReceiverParameter,
+            emptyList<ReceiverParameterDescriptor>(),
+            emptyList<TypeParameterDescriptor>(),
+            parameterDescriptors,
+            classDescriptor.defaultType,
+            Modality.FINAL,
+            DescriptorVisibilities.PUBLIC
         )
 
         trace.record(BindingContext.DATA_CLASS_COPY_FUNCTION, classDescriptor, functionDescriptor)

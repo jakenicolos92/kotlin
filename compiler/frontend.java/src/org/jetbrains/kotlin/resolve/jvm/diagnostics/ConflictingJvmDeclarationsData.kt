@@ -16,9 +16,13 @@
 
 package org.jetbrains.kotlin.resolve.jvm.diagnostics
 
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmMemberSignature
+
+@K1Deprecation
 class ConflictingJvmDeclarationsData(
-        val classInternalName: String,
-        val classOrigin: JvmDeclarationOrigin,
-        val signature: RawSignature,
-        val signatureOrigins: Collection<JvmDeclarationOrigin>
+    val classInternalName: String,
+    val signature: JvmMemberSignature,
+    val signatureDescriptors: Collection<DeclarationDescriptor>,
 )

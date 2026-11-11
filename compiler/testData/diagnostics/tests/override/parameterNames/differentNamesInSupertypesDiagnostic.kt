@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// RENDER_DIAGNOSTICS_FULL_TEXT
 interface C {
     fun foo(a : Int)
 }
@@ -13,3 +15,5 @@ interface F : C, D {
         throw UnsupportedOperationException()
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, override */

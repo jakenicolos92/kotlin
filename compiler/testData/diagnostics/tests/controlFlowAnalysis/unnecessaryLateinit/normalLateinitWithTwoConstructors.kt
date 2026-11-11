@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Foo {
     lateinit var x: String
 
@@ -7,3 +8,5 @@ class Foo {
 
     constructor()
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, lateinit, propertyDeclaration, secondaryConstructor */

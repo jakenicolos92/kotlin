@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +16,30 @@
 
 package org.jetbrains.kotlin.resolve.calls.tower
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.CallableDescriptor
 import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
-import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValueWithSmartCastInfo
 
-val ResolutionCandidateApplicability.isSuccess: Boolean
-    get() = this <= ResolutionCandidateApplicability.RESOLVED_LOW_PRIORITY
+private val INAPPLICABLE_STATUSES = setOf(
+    CandidateApplicability.INAPPLICABLE,
+    CandidateApplicability.INAPPLICABLE_ARGUMENTS_MAPPING_ERROR,
+    CandidateApplicability.INAPPLICABLE_WRONG_RECEIVER
+)
 
+@K1Deprecation
 val CallableDescriptor.isSynthesized: Boolean
     get() = (this is CallableMemberDescriptor && kind == CallableMemberDescriptor.Kind.SYNTHESIZED)
 
+@K1Deprecation
 val CandidateWithBoundDispatchReceiver.requiresExtensionReceiver: Boolean
     get() = descriptor.extensionReceiverParameter != null
 
-internal class CandidateWithBoundDispatchReceiverImpl(
-        override val dispatchReceiver: ReceiverValueWithSmartCastInfo?,
-        override val descriptor: CallableDescriptor,
-        override val diagnostics: List<ResolutionDiagnostic>
-) : CandidateWithBoundDispatchReceiver {
-    override fun copy(newDescriptor: CallableDescriptor) =
-            CandidateWithBoundDispatchReceiverImpl(dispatchReceiver, newDescriptor, diagnostics)
+@K1Deprecation
+val CandidateApplicability.isInapplicable: Boolean
+    get() = this in INAPPLICABLE_STATUSES
+
+@K1Deprecation
+fun <C : Candidate> C.forceResolution(): C {
+    resultingApplicability
+    return this
 }

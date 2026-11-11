@@ -4,8 +4,8 @@
 
 package org.jetbrains.kotlin.js.backend.ast;
 
-import org.jetbrains.kotlin.js.util.AstUtil;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.kotlin.js.util.AstUtil;
 
 /**
  * A <code>for</code> statement. If specified at all, the initializer part is
@@ -18,7 +18,7 @@ import org.jetbrains.annotations.NotNull;
  * Note that any of the parts of the <code>for</code> loop header can be
  * <code>null</code>, although the body will never be null.
  */
-public class JsFor extends SourceInfoAwareJsNode implements JsStatement {
+public class JsFor extends SourceInfoAwareJsNode implements JsLoop {
     private JsStatement body;
     private JsExpression condition;
     private JsExpression incrementExpression;
@@ -100,6 +100,7 @@ public class JsFor extends SourceInfoAwareJsNode implements JsStatement {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public void traverse(JsVisitorWithContext v, JsContext ctx) {
         if (v.visit(this, ctx)) {
             assert (!(initExpression != null && initVars != null));
@@ -115,7 +116,7 @@ public class JsFor extends SourceInfoAwareJsNode implements JsStatement {
                     initVars = null;
                     if (newInitVars instanceof JsExpressionStatement) {
                         initExpression = ((JsExpressionStatement) newInitVars).getExpression();
-                    } else if (newInitVars != null) {
+                    } else if (newInitVars != null && !(newInitVars instanceof JsBlock && ((JsBlock) newInitVars).isEmpty())) {
                         ctx.addPrevious(newInitVars);
                     }
                 }
@@ -144,9 +145,9 @@ public class JsFor extends SourceInfoAwareJsNode implements JsStatement {
         if (initVars != null) {
             result = new JsFor(initVars.deepCopy(), conditionCopy, incrementalExprCopy, bodyCopy);
         } else {
-            result = new JsFor(initExpression.deepCopy(), conditionCopy, incrementalExprCopy, bodyCopy);
+            result = new JsFor(initExpression != null ? initExpression.deepCopy() : null, conditionCopy, incrementalExprCopy, bodyCopy);
         }
 
-        return result.withMetadataFrom(this);
+        return AbstractNodeKt.withMetadataFrom(result, this);
     }
 }

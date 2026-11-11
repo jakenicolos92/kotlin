@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 import java.util.*
 
 import java.io.*
@@ -10,7 +11,7 @@ fun takeFirst(expr: StringBuilder): Char {
 
 fun evaluateArg(expr: CharSequence, numbers: ArrayList<Int>): Int {
   if (expr.length == 0) throw Exception("Syntax error: Character expected");
-  val c = takeFirst(<!TYPE_MISMATCH!>expr<!>)
+  val c = takeFirst(<!ARGUMENT_TYPE_MISMATCH!>expr<!>)
   if (c >= '0' && c <= '9') {
     val n = c - '0'
     if (!numbers.contains(n)) throw Exception("You used incorrect number: " + n)
@@ -31,13 +32,13 @@ fun evaluateAdd(expr: StringBuilder, numbers: ArrayList<Int>): Int {
 fun evaluate(expr: StringBuilder, numbers: ArrayList<Int>): Int {
   val lhs = evaluateAdd(expr, numbers)
   if (expr.length > 0) {
-    val <!UNUSED_VARIABLE!>c<!> = expr.get(0)
+    val c = expr.get(0)
     expr.deleteCharAt(0)
   }
   return lhs
 }
 
-fun main(args: Array<String>) {
+fun main() {
   System.out.println("24 game")
   val numbers = ArrayList<Int>(4)
   val rnd = Random();
@@ -63,3 +64,7 @@ fun main(args: Array<String>) {
     System.out.println(e.message)
   }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, andExpression, checkNotNullCall, comparisonExpression, equalityExpression,
+flexibleType, forLoop, functionDeclaration, ifExpression, integerLiteral, javaFunction, javaProperty, localProperty,
+nullableType, propertyDeclaration, rangeExpression, stringLiteral, tryExpression */

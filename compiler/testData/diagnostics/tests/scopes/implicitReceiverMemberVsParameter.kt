@@ -1,5 +1,9 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class A(val foo: Int)
 
 fun A.test(foo: String) {
-    val <!UNUSED_VARIABLE!>a<!>: String = foo
+    val a: String = foo
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, localProperty,
+primaryConstructor, propertyDeclaration */

@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/PsiElement.java
 
 package p;
@@ -34,3 +36,6 @@ fun test(e: JetExpression) {
 }
 
 fun <T> javaClass(): Class<T> = null!!
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, elvisExpression, flexibleType, functionDeclaration, javaFunction, javaType,
+nullableType, typeParameter */

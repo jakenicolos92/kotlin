@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 1224
+// KJS_WITH_FULL_RUNTIME
 package foo
 
 fun testFor(expected: Int, d: dynamic, case: String) {

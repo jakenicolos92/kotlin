@@ -1,0 +1,18 @@
+/* MODULE name=<lib> */
+
+/* FILE package=<root> fileName=A.kt */
+
+/* TARGET declaration */ private tailrec infix fun Int.gcd(other: Int): Int
+    /* TARGET use-site */ gcd(/* <this> = other, */ other = <this>.rem(other = other))
+internal inline fun internalFun(x: Int): Int
+    /* ACCESSOR use-site */ access$gcd$tAKt($receiver = x.minus(other = 2), other = x)
+/* ACCESSOR declaration */ internal fun access$gcd$tAKt($receiver: Int, other: Int): Int
+    /* TARGET use-site */ gcd(/* <this> = $receiver, */ other = other)
+
+
+/* MODULE name=<main> */
+
+/* FILE package=<root> fileName=B.kt */
+
+public fun box(): String
+    /* ACCESSOR use-site */ access$gcd$tAKt($receiver = x.minus(other = 2), other = x)

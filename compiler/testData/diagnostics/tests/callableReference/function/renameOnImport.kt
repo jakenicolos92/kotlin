@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 // FILE: a.kt
 
 package other
@@ -9,7 +10,7 @@ class A {
     fun bar() = 42
 }
 
-fun A.baz(<!UNUSED_PARAMETER!>x<!>: String) {}
+fun A.baz(x: String) {}
 
 // FILE: b.kt
 
@@ -28,3 +29,7 @@ fun main() {
     checkSubtype<KFunction1<AA, Int>>(y)
     checkSubtype<KFunction2<AA, String, Unit>>(z)
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, integerLiteral, localProperty, nullableType, propertyDeclaration, typeParameter,
+typeWithExtension */

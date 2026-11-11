@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // KT-16291 Smart cast doesn't work when getting class of instance
 
 import kotlin.reflect.KClass
@@ -21,3 +22,7 @@ fun test2(): KClass<out Foo>? {
     }
     return null
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, classReference, disjunctionExpression, equalityExpression,
+functionDeclaration, ifExpression, lambdaLiteral, localProperty, nullableType, operator, outProjection, override,
+propertyDeclaration, smartcast, thisExpression */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Test.java
 
 class Test {
@@ -9,3 +10,5 @@ class Test {
 fun main() {
     Test.foo(1)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, javaFunction */

@@ -1,8 +1,9 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 interface Predicate<T>
 
-fun <T> Predicate(<!UNUSED_PARAMETER!>x<!>: (T?) -> Boolean): Predicate<T> = null!!
+fun <T> Predicate(x: (T?) -> Boolean): Predicate<T> = null!!
 
 fun foo() {
     process(Predicate {
@@ -12,4 +13,7 @@ fun foo() {
     })
 }
 
-fun process(<!UNUSED_PARAMETER!>x<!>: Predicate<String>) {}
+fun process(x: Predicate<String>) {}
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, interfaceDeclaration, lambdaLiteral, nullableType, typeParameter, typeWithExtension */

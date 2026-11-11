@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 
 // FILE: p/J.java
 
@@ -14,3 +15,6 @@ import p.*
 fun test(j: J) {
     j.s()?.length ?: ""
 }
+
+/* GENERATED_FIR_TAGS: elvisExpression, flexibleType, functionDeclaration, intersectionType, javaFunction, javaType,
+nullableType, safeCall, stringLiteral */

@@ -1,5 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
+// CHECK_TYPE
 
 fun foo(d: dynamic) {
     val s: String = d

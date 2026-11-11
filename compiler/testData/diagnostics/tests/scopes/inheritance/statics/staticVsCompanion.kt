@@ -1,4 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 // FILE: A.java
 public class A {
     static void foo() {}
@@ -24,7 +26,7 @@ class C: B() {
 // FILE: X.java
 public class X extends B {
     static double foo() {
-        return 1.0
+        return 1.0;
     }
 }
 
@@ -34,3 +36,6 @@ class Y: X() {
         val a: Double = foo()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, init, integerLiteral, javaFunction,
+javaType, localProperty, objectDeclaration, propertyDeclaration */

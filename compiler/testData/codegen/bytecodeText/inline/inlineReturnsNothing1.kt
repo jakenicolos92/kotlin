@@ -1,4 +1,3 @@
-// NB '!!' uses Intrinsics.throwNpe()
 inline fun exit(): Nothing = null!!
 
 fun box(): String {
@@ -13,4 +12,4 @@ fun box(): String {
     return a
 }
 
-// 1 ATHROW
+// 2 ATHROW

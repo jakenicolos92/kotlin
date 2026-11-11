@@ -1,3 +1,6 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun test(a: Any) {
-    when (<!UNUSED_EXPRESSION!>a<!>)<!SYNTAX!><!>
+    when (a)<!SYNTAX!><!>
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, whenExpression, whenWithSubject */

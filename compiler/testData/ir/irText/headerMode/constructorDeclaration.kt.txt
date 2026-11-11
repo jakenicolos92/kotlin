@@ -1,0 +1,30 @@
+class A {
+  constructor()
+
+  constructor(a: String, b: Int) /* primary */
+
+  constructor(e: String)
+
+  val a: String
+    get
+
+  val b: Int
+    get
+
+}
+
+class B {
+  private constructor(a: String, b: Int) /* primary */
+
+  constructor()
+
+  constructor(e: String)
+
+  val a: String
+    get
+
+  val b: Int
+    get
+
+}
+

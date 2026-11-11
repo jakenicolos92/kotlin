@@ -1,7 +1,10 @@
+// RUN_PIPELINE_TILL: CODEGEN
 annotation class ann
 
-fun test(@ann <!UNUSED_PARAMETER!>p<!>: Int) {
+fun test(@ann p: Int) {
 
 }
 
-val bar = fun(@ann <!UNUSED_ANONYMOUS_PARAMETER!>g<!>: Int) {}
+val bar = fun(@ann g: Int) {}
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, anonymousFunction, functionDeclaration, propertyDeclaration */

@@ -1,4 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 // FILE: A.kt
 class A(s: String) {
@@ -21,10 +23,12 @@ public class B extends A {
 }
 
 // FILE: C.kt
-class C @Deprecated("") constructor(s: String) {
+open class C @Deprecated("") constructor(s: String) {
 }
 
 // FILE: use.kt
+class D : <!DEPRECATION!>C<!>("")
+
 fun use(a: A, b: B, c: C) {
     <!DEPRECATION!>A<!>(3)
     A("")
@@ -32,3 +36,6 @@ fun use(a: A, b: B, c: C) {
     B("")
     <!DEPRECATION!>C<!>("s")
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, javaFunction, javaType, primaryConstructor,
+secondaryConstructor, stringLiteral */

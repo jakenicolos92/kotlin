@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // See also KT-7800
 
 fun foo(): Int {
@@ -7,7 +8,10 @@ fun foo(): Int {
             return@let 1
         }
 
-        <!DEBUG_INFO_SMARTCAST!>value<!> // smart-cast should be here
+        value // smart-cast should be here
     }
     return x
 }
+
+/* GENERATED_FIR_TAGS: equalityExpression, functionDeclaration, ifExpression, integerLiteral, lambdaLiteral,
+localProperty, nullableType, propertyDeclaration, smartcast */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 class Foo() {
     lateinit var bar: String
@@ -7,3 +8,6 @@ class Foo() {
         bar = ""
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, lateinit, primaryConstructor, propertyDeclaration,
+secondaryConstructor, stringLiteral */

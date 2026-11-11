@@ -4,13 +4,13 @@
 
 package org.jetbrains.kotlin.js.backend.ast;
 
-import org.jetbrains.kotlin.js.util.AstUtil;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.kotlin.js.util.AstUtil;
 
 /**
  * A JavaScript <code>while</code> statement.
  */
-public class JsWhile extends SourceInfoAwareJsNode implements JsStatement {
+public class JsWhile extends SourceInfoAwareJsNode implements JsLoop {
     protected JsStatement body;
     protected JsExpression condition;
 
@@ -64,6 +64,6 @@ public class JsWhile extends SourceInfoAwareJsNode implements JsStatement {
         JsExpression conditionCopy = AstUtil.deepCopy(condition);
         JsStatement bodyCopy = AstUtil.deepCopy(body);
 
-        return new JsWhile(conditionCopy, bodyCopy).withMetadataFrom(this);
+        return AbstractNodeKt.withMetadataFrom(new JsWhile(conditionCopy, bodyCopy), this);
     }
 }

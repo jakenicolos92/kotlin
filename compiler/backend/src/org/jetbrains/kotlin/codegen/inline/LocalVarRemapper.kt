@@ -17,13 +17,13 @@
 package org.jetbrains.kotlin.codegen.inline
 
 import org.jetbrains.kotlin.codegen.StackValue
+import org.jetbrains.kotlin.codegen.inline.LocalVarRemapper.RemapStatus.*
+import org.jetbrains.kotlin.codegen.state.KotlinTypeMapperBase
 import org.jetbrains.kotlin.resolve.jvm.AsmTypes
 import org.jetbrains.org.objectweb.asm.Label
 import org.jetbrains.org.objectweb.asm.MethodVisitor
 import org.jetbrains.org.objectweb.asm.Opcodes
 import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter
-
-import org.jetbrains.kotlin.codegen.inline.LocalVarRemapper.RemapStatus.*
 
 class LocalVarRemapper(private val params: Parameters, private val additionalShift: Int) {
     private val actualParamsSize: Int
@@ -34,13 +34,12 @@ class LocalVarRemapper(private val params: Parameters, private val additionalShi
         for (info in params) {
             val shift = params.getDeclarationSlot(info)
             if (!info.isSkippedOrRemapped) {
-                remapValues[shift] = StackValue.local(realSize, AsmTypes.OBJECT_TYPE)
-                realSize += info.getType().size
-            }
-            else {
+                remapValues[shift] = StackValue.Local(realSize, AsmTypes.OBJECT_TYPE, null)
+                realSize += info.type.size
+            } else {
                 remapValues[shift] = if (info.isRemapped) info.remapValue else null
                 if (CapturedParamInfo.isSynthetic(info)) {
-                    realSize += info.getType().size
+                    realSize += info.type.size
                 }
             }
         }
@@ -59,18 +58,16 @@ class LocalVarRemapper(private val params: Parameters, private val additionalShi
             }
             if (info.isRemapped) {
                 return RemapInfo(info, remapped, REMAPPED)
-            }
-            else {
+            } else {
                 remappedIndex = (remapped as StackValue.Local).index
             }
-        }
-        else {
+        } else {
             //captured params are not used directly in this inlined method, they are used in closure
             //except captured ones for default lambdas, they are generated in default body
             remappedIndex = actualParamsSize - params.argsSizeOnStack + index
         }
 
-        return RemapInfo(null, StackValue.local(remappedIndex + additionalShift, AsmTypes.OBJECT_TYPE), SHIFT)
+        return RemapInfo(null, StackValue.Local(remappedIndex + additionalShift, AsmTypes.OBJECT_TYPE, null), SHIFT)
     }
 
     fun remap(index: Int): RemapInfo {
@@ -98,27 +95,26 @@ class LocalVarRemapper(private val params: Parameters, private val additionalShi
         }
     }
 
-    fun visitVarInsn(opcode: Int, `var`: Int, mv: InstructionAdapter) {
-        var opcode = opcode
+    fun visitVarInsn(opcode: Int, `var`: Int, mv: InstructionAdapter, typeMapper: KotlinTypeMapperBase) {
         val remapInfo = remap(`var`)
         val value = remapInfo.value
         if (value is StackValue.Local) {
-            val isStore = InlineCodegenUtil.isStoreInstruction(opcode)
-            if (remapInfo.parameterInfo != null) {
+            val isStore = isStoreInstruction(opcode)
+            val localOpcode = if (remapInfo.parameterInfo != null) {
                 //All remapped value parameters can't be rewritten except case of default ones.
                 //On remapping default parameter to actual value there is only one instruction that writes to it according to mask value
                 //but if such parameter remapped then it passed and this mask branch code never executed
                 //TODO add assertion about parameter default value: descriptor is required
-                opcode = value.type.getOpcode(if (isStore) Opcodes.ISTORE else Opcodes.ILOAD)
-            }
-            mv.visitVarInsn(opcode, value.index)
+                value.type.getOpcode(if (isStore) Opcodes.ISTORE else Opcodes.ILOAD)
+            } else opcode
+
+            mv.visitVarInsn(localOpcode, value.index)
             if (remapInfo.parameterInfo != null && !isStore) {
                 StackValue.coerce(value.type, remapInfo.parameterInfo.type, mv)
             }
-        }
-        else {
+        } else {
             assert(remapInfo.parameterInfo != null) { "Non local value should have parameter info" }
-            value!!.put(remapInfo.parameterInfo!!.type, mv)
+            value!!.put(remapInfo.parameterInfo!!.type, null, mv, typeMapper)
         }
     }
 
@@ -129,8 +125,8 @@ class LocalVarRemapper(private val params: Parameters, private val additionalShi
     }
 
     class RemapInfo(
-            @JvmField val parameterInfo: ParameterInfo?,
-            @JvmField val value: StackValue? = null,
-            @JvmField val status: RemapStatus = FAIL
+        @JvmField val parameterInfo: ParameterInfo?,
+        @JvmField val value: StackValue? = null,
+        @JvmField val status: RemapStatus = FAIL
     )
 }

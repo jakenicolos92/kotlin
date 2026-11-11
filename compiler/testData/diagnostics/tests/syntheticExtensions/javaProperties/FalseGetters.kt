@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 fun foo(javaClass: JavaClass) {
     javaClass.<!UNRESOLVED_REFERENCE!>something1<!>
@@ -19,3 +20,5 @@ public class JavaClass {
 
     public int getter() { return 1; }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaType */

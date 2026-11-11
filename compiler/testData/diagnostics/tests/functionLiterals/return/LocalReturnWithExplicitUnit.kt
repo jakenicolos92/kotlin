@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 val flag = true
 
 // type of lambda was checked by txt
@@ -14,3 +15,5 @@ val b = l@ { // () -> Any
 val c = l@ { // () -> Unit
     if (flag) return@l Unit
 }
+
+/* GENERATED_FIR_TAGS: ifExpression, integerLiteral, lambdaLiteral, propertyDeclaration */

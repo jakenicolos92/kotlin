@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.resolve.calls.inference
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystemBuilderImpl.ConstraintKind.EQUAL
 import org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystemBuilderImpl.ConstraintKind.SUB_TYPE
 import org.jetbrains.kotlin.resolve.calls.inference.TypeBounds.Bound
@@ -31,13 +32,16 @@ import org.jetbrains.kotlin.types.Variance.INVARIANT
 import org.jetbrains.kotlin.types.typesApproximation.approximateCapturedTypes
 import java.util.*
 
+@K1Deprecation
 data class ConstraintContext(
-        val position: ConstraintPosition,
-        // see TypeBounds.Bound.derivedFrom
-        val derivedFrom: Set<TypeVariable>? = null,
-        val initial: Boolean = false,
-        val initialReduction: Boolean = false)
+    val position: ConstraintPosition,
+    // see TypeBounds.Bound.derivedFrom
+    val derivedFrom: Set<TypeVariable>? = null,
+    val initial: Boolean = false,
+    val initialReduction: Boolean = false
+)
 
+@K1Deprecation
 fun ConstraintSystemBuilderImpl.incorporateBound(newBound: Bound) {
     val typeVariable = newBound.typeVariable
     val typeBounds = getTypeBounds(typeVariable)
@@ -82,6 +86,7 @@ private fun ConstraintSystemBuilderImpl.addConstraintFromBounds(old: Bound, new:
 }
 
 private fun ConstraintSystemBuilderImpl.generateNewBound(bound: Bound, substitution: Bound) {
+    if (bound === substitution) return
     // Let's have a bound 'T <=> My<R>', and a substitution 'R <=> Type'.
     // Here <=> means lower_bound, upper_bound or exact_bound constraint.
     // Then a new bound 'T <=> My<_/in/out Type>' can be generated.

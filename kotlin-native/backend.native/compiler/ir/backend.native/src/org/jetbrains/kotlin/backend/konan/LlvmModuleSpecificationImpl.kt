@@ -1,0 +1,60 @@
+/*
+ * Copyright 2010-2019 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license
+ * that can be found in the LICENSE file.
+ */
+
+package org.jetbrains.kotlin.backend.konan
+
+import org.jetbrains.kotlin.backend.common.serialization.kotlinLibrary
+import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.util.fileOrNull
+import org.jetbrains.kotlin.backend.konan.serialization.CacheDeserializationStrategy
+import org.jetbrains.kotlin.backend.konan.serialization.PartialCacheInfo
+import org.jetbrains.kotlin.ir.IrBasedFunctionFactory.Companion.isFunctionInterfaceFile
+import org.jetbrains.kotlin.ir.util.getPackageFragment
+import org.jetbrains.kotlin.library.KotlinLibrary
+import org.jetbrains.kotlin.library.isNativeStdlib
+
+internal abstract class LlvmModuleSpecificationBase(protected val cachedLibraries: CachedLibraries) : LlvmModuleSpecification {
+    override fun importsKotlinDeclarationsFromOtherObjectFiles(): Boolean =
+            cachedLibraries.hasStaticCaches // A bit conservative but still valid.
+
+    override fun importsKotlinDeclarationsFromOtherSharedLibraries(): Boolean =
+            cachedLibraries.hasDynamicCaches // A bit conservative but still valid.
+
+    override fun containsModule(module: IrModuleFragment): Boolean =
+            module.kotlinLibrary.let { it == null || containsLibrary(it) }
+
+    private val containsCache = mutableMapOf<IrDeclaration, Boolean>()
+
+    override fun containsDeclaration(declaration: IrDeclaration): Boolean = containsCache.getOrPut(declaration) {
+        val packageFragment = declaration.getPackageFragment()
+        packageFragment !is IrExternalPackageFragment && containsModule(packageFragment.module)
+    }
+}
+
+internal class DefaultLlvmModuleSpecification(cachedLibraries: CachedLibraries)
+    : LlvmModuleSpecificationBase(cachedLibraries) {
+    override val isFinal = true
+
+    override fun containsLibrary(library: KotlinLibrary): Boolean = !cachedLibraries.isLibraryCached(library)
+}
+
+internal class CacheLlvmModuleSpecification(
+        cachedLibraries: CachedLibraries,
+        private val libraryToCache: PartialCacheInfo,
+) : LlvmModuleSpecificationBase(cachedLibraries) {
+    override val isFinal = false
+
+    private val containsStdlib = libraryToCache.klib.isNativeStdlib
+
+    override fun containsLibrary(library: KotlinLibrary): Boolean = library == libraryToCache.klib
+
+    override fun containsDeclaration(declaration: IrDeclaration): Boolean {
+        if (containsStdlib && libraryToCache.strategy.containsKFunctionImpl && declaration.getPackageFragment().isFunctionInterfaceFile)
+            return true
+        if (!super.containsDeclaration(declaration)) return false
+        return (libraryToCache.strategy as? CacheDeserializationStrategy.SingleFile)
+                ?.filePath.let { it == null || it == declaration.fileOrNull?.path }
+    }
+}

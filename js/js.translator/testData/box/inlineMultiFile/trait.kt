@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 506
 /*
  * Copy of JVM-backend test
  * Found at: compiler/testData/codegen/boxInline/trait/trait.1.kt
@@ -8,8 +7,6 @@
 package foo
 
 import test.*
-
-// CHECK_CONTAINS_NO_CALLS: testClassObject
 
 internal fun testFinalInline(): String {
     return Z().finalInline({"final"})

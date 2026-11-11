@@ -15,14 +15,17 @@
  */
 
 @file:JvmName("KTypesJvm")
+
 package kotlin.reflect.jvm
 
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
-import org.jetbrains.kotlin.descriptors.ClassKind.ANNOTATION_CLASS
-import org.jetbrains.kotlin.descriptors.ClassKind.INTERFACE
-import kotlin.reflect.*
+import kotlin.metadata.ClassKind.ANNOTATION_CLASS
+import kotlin.metadata.ClassKind.INTERFACE
+import kotlin.reflect.KClass
+import kotlin.reflect.KClassifier
+import kotlin.reflect.KType
+import kotlin.reflect.KTypeParameter
+import kotlin.reflect.jvm.internal.KClassImpl
 import kotlin.reflect.jvm.internal.KotlinReflectionInternalError
-import kotlin.reflect.jvm.internal.KTypeImpl
 
 /**
  * Returns the [KClass] instance representing the runtime class to which this type is erased to on JVM.
@@ -38,8 +41,8 @@ internal val KClassifier.jvmErasure: KClass<*>
             // See getRepresentativeUpperBound in typeSignatureMapping.kt
             val bounds = upperBounds
             val representativeBound = bounds.firstOrNull {
-                val classDescriptor = (it as KTypeImpl).type.constructor.declarationDescriptor as? ClassDescriptor
-                classDescriptor != null && classDescriptor.kind != INTERFACE && classDescriptor.kind != ANNOTATION_CLASS
+                val klass = it.classifier as? KClassImpl<*>
+                klass != null && klass.classKind != INTERFACE && klass.classKind != ANNOTATION_CLASS
             } ?: bounds.firstOrNull()
             representativeBound?.jvmErasure ?: Any::class
         }

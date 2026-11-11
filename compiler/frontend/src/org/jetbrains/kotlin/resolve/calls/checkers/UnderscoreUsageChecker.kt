@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.resolve.calls.checkers
 
 import com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.ConstructorDescriptor
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.diagnostics.Errors
@@ -27,6 +28,7 @@ import org.jetbrains.kotlin.resolve.BindingTrace
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.calls.model.VariableAsFunctionResolvedCall
 
+@K1Deprecation
 object UnderscoreUsageChecker : CallChecker {
     override fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext) {
         if (resolvedCall is VariableAsFunctionResolvedCall) return
@@ -57,7 +59,7 @@ object UnderscoreUsageChecker : CallChecker {
         }
     }
 
-    fun String.isUnderscoreOnlyName() =
-            isNotEmpty() && all { it == '_' }
+    private fun String.isUnderscoreOnlyName() =
+        isNotEmpty() && all { it == '_' }
 
 }

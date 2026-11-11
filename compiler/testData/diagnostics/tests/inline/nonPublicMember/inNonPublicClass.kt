@@ -1,4 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -PRIVATE_CLASS_MEMBER_FROM_INLINE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -PRIVATE_CLASS_MEMBER_FROM_INLINE
+// LANGUAGE: +ForbidExposingLessVisibleTypesInInline
 private class Z public constructor(){
     public val publicProperty:Int = 12
     public fun publicFun() {}
@@ -10,8 +12,8 @@ public inline fun test() {
 }
 
 internal inline fun testInternal() {
-    Z().publicProperty
-    Z().publicFun()
+    <!LESS_VISIBLE_TYPE_IN_INLINE_ACCESSED_SIGNATURE_ERROR!>Z<!>().<!LESS_VISIBLE_TYPE_IN_INLINE_ACCESSED_SIGNATURE_ERROR!>publicProperty<!>
+    <!LESS_VISIBLE_TYPE_IN_INLINE_ACCESSED_SIGNATURE_ERROR!>Z<!>().<!LESS_VISIBLE_TYPE_IN_INLINE_ACCESSED_SIGNATURE_ERROR!>publicFun<!>()
 }
 
 internal class Z2 {
@@ -45,3 +47,6 @@ internal class Z2 {
         Z2().privateFun()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, inline, integerLiteral, primaryConstructor,
+propertyDeclaration */

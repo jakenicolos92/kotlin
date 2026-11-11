@@ -1,0 +1,108 @@
+/*
+ * Copyright 2010-2025 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.backend.konan.serialization
+
+import org.jetbrains.kotlin.backend.common.linkage.partial.PartialLinkageIssueSink
+import org.jetbrains.kotlin.backend.common.linkage.partial.PartialLinkageSupportForLinker
+import org.jetbrains.kotlin.backend.common.linkage.partial.createPartialLinkageSupportForLinker
+import org.jetbrains.kotlin.backend.common.overrides.IrLinkerFakeOverrideProvider
+import org.jetbrains.kotlin.backend.common.serialization.DeserializationStrategyResolver
+import org.jetbrains.kotlin.backend.common.serialization.IrModuleDeserializerWithBuiltIns
+import org.jetbrains.kotlin.backend.common.serialization.KotlinIrLinker
+import org.jetbrains.kotlin.backend.common.serialization.kotlinLibrary
+import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.ir.IrDiagnosticReporter
+import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.objcinterop.isObjCClass
+import org.jetbrains.kotlin.ir.overrides.IrExternalOverridabilityCondition
+import org.jetbrains.kotlin.ir.util.KotlinMangler
+import org.jetbrains.kotlin.ir.util.SymbolTable
+import org.jetbrains.kotlin.ir.util.parentAsClass
+import org.jetbrains.kotlin.library.KotlinLibrary
+import org.jetbrains.kotlin.library.isNativeStdlib
+import org.jetbrains.kotlin.library.metadata.isCInteropLibrary
+import org.jetbrains.kotlin.library.metadata.isForwardDeclarationModule
+
+class KonanIrLinker(
+    configuration: CompilerConfiguration,
+    symbolTable: SymbolTable,
+    friendModules: Map<String, Collection<String>>,
+    private val cInteropModuleDeserializerFactory: CInteropModuleDeserializerFactory<*>,
+    irDiagnosticReporter: IrDiagnosticReporter,
+    private val librariesBeingCached: Map<KotlinLibrary, PartialCacheInfo>,
+    externalOverridabilityConditions: List<IrExternalOverridabilityCondition>,
+    partialLinkageIssueSink: PartialLinkageIssueSink? = null,
+) : KotlinIrLinker(configuration, symbolTable) {
+    override fun isBuiltInModule(module: IrModuleFragment): Boolean {
+        val klib = module.kotlinLibrary ?: return false
+        return klib.isNativeStdlib
+    }
+
+    override val irMangler: KotlinMangler.IrMangler = KonanManglerIr
+
+    override val partialLinkageSupport: PartialLinkageSupportForLinker = createPartialLinkageSupportForLinker(
+        irFactory = symbolTable.irFactory,
+        anyClass = anyClass,
+        nothingClass = nothingClass,
+        diagnosticReporter = irDiagnosticReporter,
+        issueSink = partialLinkageIssueSink,
+    )
+
+    private val globalDeclarationTable = KonanGlobalDeclarationTable(null)
+
+    override val fakeOverrideBuilder = IrLinkerFakeOverrideProvider(
+        fileLocalSymbolProvider = fileLocalSymbolProvider,
+        symbolTable = symbolTable,
+        mangler = irMangler,
+        friendModules = friendModules,
+        partialLinkageSupport = partialLinkageSupport,
+        platformSpecificClassFilter = K1LazyFakeOverrideClassFilter,
+        fakeOverrideDeclarationTable = KonanDeclarationTable(globalDeclarationTable),
+        externalOverridabilityConditions = externalOverridabilityConditions,
+        isMultipleInheritedImplementationsAllowed = {
+            // Properties of ObjC protocols are serialized as final, along with their getters and setters.
+            // In case of intersection override, the usual logic of IrLinkerFakeOverrideBuilderStrategy.postProcessGeneratedFakeOverride()
+            // will raise AMBIGUOUS_NON_OVERRIDDEN_CALLABLE_MEMBER, since properties in protocols are non-abstract.
+            // So such properties are allowed to form intersection overrides without a partial linkage error. Native backend will handle them correctly.
+            // However, this predicate is much wider to cover also other similar usecases.
+            it.parentAsClass.isObjCClass()
+        },
+    )
+
+    override fun createModuleDeserializer(
+        moduleFragment: IrModuleFragment,
+        klib: KotlinLibrary?,
+        strategyResolver: DeserializationStrategyResolver,
+    ) = when {
+        moduleFragment.descriptor.isForwardDeclarationModule -> {
+            KonanForwardDeclarationModuleDeserializer(moduleFragment, this)
+        }
+        klib == null -> {
+            error("Expecting kotlin library for module fragment ${moduleFragment.name}")
+        }
+        klib.isCInteropLibrary() -> {
+            cInteropModuleDeserializerFactory.createIrModuleDeserializer(
+                moduleFragment,
+                klib,
+                this,
+            )
+        }
+        else -> {
+            val deserializationStrategy = librariesBeingCached[klib]?.strategy ?: CacheDeserializationStrategy.WholeModule
+            KonanPartialModuleDeserializer(
+                this, moduleFragment, klib, strategyResolver, deserializationStrategy
+            )
+        }
+    }
+
+    fun findKonanModuleDeserializer(library: KotlinLibrary): KonanPartialModuleDeserializer? {
+        return when (val deserializer = klibDeserializers[library]) {
+            is KonanPartialModuleDeserializer -> deserializer
+            is IrModuleDeserializerWithBuiltIns -> deserializer.delegate as? KonanPartialModuleDeserializer
+            else -> null
+        }
+    }
+}

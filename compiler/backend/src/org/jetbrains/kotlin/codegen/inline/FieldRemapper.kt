@@ -16,17 +16,19 @@
 
 package org.jetbrains.kotlin.codegen.inline
 
+import org.jetbrains.kotlin.codegen.InsnSequence
 import org.jetbrains.kotlin.codegen.StackValue
-import org.jetbrains.kotlin.codegen.optimization.common.InsnSequence
 import org.jetbrains.org.objectweb.asm.Opcodes
+import org.jetbrains.org.objectweb.asm.Type
 import org.jetbrains.org.objectweb.asm.tree.AbstractInsnNode
 import org.jetbrains.org.objectweb.asm.tree.FieldInsnNode
+import org.jetbrains.org.objectweb.asm.tree.MethodInsnNode
 import org.jetbrains.org.objectweb.asm.tree.MethodNode
 
 open class FieldRemapper(
-        val originalLambdaInternalName: String?,
-        @JvmField val parent: FieldRemapper?,
-        protected val parameters: Parameters
+    val originalLambdaInternalName: String?,
+    @JvmField val parent: FieldRemapper?,
+    protected val parameters: Parameters
 ) {
     val isRoot = parent == null
 
@@ -34,15 +36,15 @@ open class FieldRemapper(
 
     protected open fun canProcess(fieldOwner: String, fieldName: String, isFolding: Boolean): Boolean {
         return fieldOwner == originalLambdaInternalName &&
-               //don't process general field of anonymous objects
-               InlineCodegenUtil.isCapturedFieldName(fieldName)
+                //don't process general field of anonymous objects
+                isCapturedFieldName(fieldName)
     }
 
     fun foldFieldAccessChainIfNeeded(capturedFieldAccess: List<AbstractInsnNode>, node: MethodNode): AbstractInsnNode? =
-            if (capturedFieldAccess.size == 1)
-                null //single aload
-            else
-                foldFieldAccessChainIfNeeded(capturedFieldAccess, 1, node)
+        if (capturedFieldAccess.size == 1)
+            null //single aload
+        else
+            foldFieldAccessChainIfNeeded(capturedFieldAccess, 1, node)
 
     /**constructors could access outer not through
      * ALOAD 0 //this
@@ -51,13 +53,13 @@ open class FieldRemapper(
      * but directly through constructor parameter
      * ALOAD X //outer
      * GETFIELD this$0 //outer of outer
-    */
+     */
     open fun shouldProcessNonAload0FieldAccessChains(): Boolean = false
 
     private fun foldFieldAccessChainIfNeeded(
-            capturedFieldAccess: List<AbstractInsnNode>,
-            currentInstruction: Int,
-            node: MethodNode
+        capturedFieldAccess: List<AbstractInsnNode>,
+        currentInstruction: Int,
+        node: MethodNode
     ): AbstractInsnNode? {
         if (currentInstruction < capturedFieldAccess.lastIndex) {
             //try to fold longest chain first
@@ -66,13 +68,24 @@ open class FieldRemapper(
             }
         }
 
-        val insnNode = capturedFieldAccess[currentInstruction] as FieldInsnNode
-        if (canProcess(insnNode.owner, insnNode.name, true)) {
-            insnNode.name = InlineCodegenUtil.CAPTURED_FIELD_FOLD_PREFIX + getFieldNameForFolding(insnNode)
+        val insnNode = capturedFieldAccess[currentInstruction]
+        if (insnNode is FieldInsnNode && canProcess(insnNode.owner, insnNode.name, true)) {
+            insnNode.name = foldName(getFieldNameForFolding(insnNode))
             insnNode.opcode = Opcodes.GETSTATIC
 
             node.remove(InsnSequence(capturedFieldAccess[0], insnNode))
             return capturedFieldAccess[capturedFieldAccess.size - 1]
+        } else if (insnNode is MethodInsnNode) {
+            require(insnNode.isCallGetAccessorToCapturedField()) { "Expected GETSTATIC access\$get\$capturedField\$p"}
+            val fieldName = insnNode.name.extractAccessedCapturedField()
+            val fieldDesc = Type.getReturnType(insnNode.desc).descriptor
+            if (canProcess(insnNode.owner, fieldName, true)) {
+                // replace accessor call to direct captured field access
+                val fieldInsnNode = FieldInsnNode(Opcodes.GETSTATIC, insnNode.owner, foldName(fieldName), fieldDesc)
+                node.instructions.insertBefore(capturedFieldAccess[0], fieldInsnNode)
+                node.remove(InsnSequence(capturedFieldAccess[0], insnNode.next))
+                return fieldInsnNode
+            }
         }
 
         return null
@@ -94,5 +107,10 @@ open class FieldRemapper(
         get() = originalLambdaInternalName!!
 
     open fun getFieldForInline(node: FieldInsnNode, prefix: StackValue?): StackValue? =
-            MethodInliner.findCapturedField(node, this).remapValue
+        MethodInliner.findCapturedField(node, this).remapValue
+
+    companion object {
+        fun foldName(fieldName: String) =
+            CAPTURED_FIELD_FOLD_PREFIX + fieldName
+    }
 }

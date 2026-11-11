@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-1730 Method which has been implemented by Java is recognized to be abstract.
 
 // FILE: C.java
@@ -22,3 +23,5 @@ public class C implements java.lang.CharSequence {
 
 // FILE: T.kt
 class T : C()
+
+/* GENERATED_FIR_TAGS: classDeclaration, javaType */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 interface AnnotationsOnNullableParenthesizedTypes {
     fun B<(@A C)?>.receiverArgument() {}
@@ -27,3 +28,6 @@ annotation class A
 
 interface B<T>
 interface C
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+interfaceDeclaration, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

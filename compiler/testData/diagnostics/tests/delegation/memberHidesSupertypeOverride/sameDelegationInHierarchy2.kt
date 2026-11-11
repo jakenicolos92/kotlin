@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 public interface Base {
     fun test() = "Base"
 }
@@ -14,8 +15,10 @@ class Delegate : Derived {
 public open class MyClass : Base by Delegate()
 
 fun box(): String {
-    <!MANY_IMPL_MEMBER_NOT_IMPLEMENTED, DELEGATED_MEMBER_HIDES_SUPERTYPE_OVERRIDE!>object<!> : MyClass(), Derived by Delegate() {
+    <!DELEGATED_MEMBER_HIDES_SUPERTYPE_OVERRIDE!>object<!> : MyClass(), Derived by Delegate() {
     }
     return "OK"
 }
 
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, inheritanceDelegation,
+interfaceDeclaration, override, stringLiteral */

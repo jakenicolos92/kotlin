@@ -1,7 +1,11 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-174 Nullability info for extension function receivers
 interface Tree {}
 
 fun Any?.TreeValue() : Tree {
-  if (this is Tree) return <!DEBUG_INFO_SMARTCAST!>this<!>
+  if (this is Tree) return this
     throw Exception()
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, ifExpression, interfaceDeclaration, isExpression,
+nullableType, smartcast, thisExpression */

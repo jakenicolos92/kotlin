@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: MyMap.java
 
 import java.util.AbstractMap;
@@ -17,8 +18,8 @@ interface ResolverForProject<M1> {
 }
 
 class ResolverForProjectImpl<M>(
-        <!UNUSED_PARAMETER!>descriptorByModule<!>: Map<M, String>,
-        <!UNUSED_PARAMETER!>delegateResolver<!>: ResolverForProject<M>
+        descriptorByModule: Map<M, String>,
+        delegateResolver: ResolverForProject<M>
 ) : ResolverForProject<M>
 
 interface WithFoo {
@@ -36,3 +37,7 @@ fun <M2: WithFoo> foo(delegateResolver: ResolverForProject<M2?>): ResolverForPro
 
 // MyMap<M2, String> :< Map<M, String> => M = M2!
 // RFP<M2?> :< RFP<M> => M = M2?
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, flexibleType, functionDeclaration, getter,
+interfaceDeclaration, javaFunction, javaType, localProperty, nullableType, primaryConstructor, propertyDeclaration,
+safeCall, typeConstraint, typeParameter */

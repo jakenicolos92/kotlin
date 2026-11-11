@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 // FILE: p/J.java
 
@@ -28,3 +29,7 @@ fun test(j: J) {
     a!!.j()
     a.j()
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, javaFunction, javaType, localProperty, nullableType, propertyDeclaration, smartcast,
+typeParameter, typeWithExtension */

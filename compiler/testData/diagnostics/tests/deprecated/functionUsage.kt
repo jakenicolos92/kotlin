@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 
 import kotlin.reflect.KProperty
 
@@ -49,3 +50,7 @@ class Delegation {
     val x by <!DEPRECATION!>Obsolete<!>()
     var y by <!DEPRECATION!>Obsolete<!>()
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+integerLiteral, localProperty, objectDeclaration, operator, primaryConstructor, propertyDeclaration, propertyDelegate,
+setter, starProjection, stringLiteral, thisExpression */

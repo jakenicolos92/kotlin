@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/J.java
 
 package p;
@@ -14,3 +15,5 @@ fun test(ia: IntArray) {
     J().intArr(ia)
     J().intArr(null)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaType, nullableType */

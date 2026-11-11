@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE
 
 class Z {
     inline infix fun <R> inlineFun(crossinline p: () -> R) {
@@ -23,3 +24,6 @@ fun <R> fun4(p: () -> R) {
         return@lambda p();
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, crossinline, functionDeclaration, functionalType, infix, inline, lambdaLiteral,
+nullableType, typeParameter */

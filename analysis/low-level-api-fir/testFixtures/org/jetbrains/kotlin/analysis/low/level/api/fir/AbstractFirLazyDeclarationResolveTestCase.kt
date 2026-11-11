@@ -1,0 +1,364 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.analysis.low.level.api.fir
+
+import com.intellij.psi.util.PsiTreeUtil
+import org.jetbrains.kotlin.analysis.low.level.api.fir.AbstractFirLazyDeclarationResolveTestCase.Directives.RESOLVE_SCRIPT
+import org.jetbrains.kotlin.analysis.low.level.api.fir.api.LLResolutionFacade
+import org.jetbrains.kotlin.analysis.low.level.api.fir.api.resolveToFirSymbol
+import org.jetbrains.kotlin.analysis.low.level.api.fir.sessions.LLFirResolvableModuleSession
+import org.jetbrains.kotlin.analysis.low.level.api.fir.util.FirElementFinder
+import org.jetbrains.kotlin.analysis.test.framework.base.AbstractAnalysisApiBasedTest
+import org.jetbrains.kotlin.analysis.test.framework.services.expressionMarkerProvider
+import org.jetbrains.kotlin.fir.FirElementWithResolveState
+import org.jetbrains.kotlin.fir.declarations.FirCallableDeclaration
+import org.jetbrains.kotlin.fir.declarations.FirClass
+import org.jetbrains.kotlin.fir.declarations.FirDanglingModifierList
+import org.jetbrains.kotlin.fir.declarations.FirDeclarationOrigin
+import org.jetbrains.kotlin.fir.declarations.FirFile
+import org.jetbrains.kotlin.fir.declarations.FirResolvePhase
+import org.jetbrains.kotlin.fir.renderer.FirDeclarationRendererWithFilteredAttributes
+import org.jetbrains.kotlin.fir.renderer.FirErrorExpressionExtendedRenderer
+import org.jetbrains.kotlin.fir.renderer.FirRenderer
+import org.jetbrains.kotlin.fir.renderer.FirResolvePhaseRenderer
+import org.jetbrains.kotlin.fir.expandedClassWithConstructorsScope
+import org.jetbrains.kotlin.fir.resolve.FirSamResolver
+import org.jetbrains.kotlin.fir.resolve.calls.FirSyntheticPropertiesScope
+import org.jetbrains.kotlin.fir.resolve.defaultType
+import org.jetbrains.kotlin.fir.scopes.FirContainingNamesAwareScope
+import org.jetbrains.kotlin.fir.scopes.createImportingScopes
+import org.jetbrains.kotlin.fir.scopes.impl.FirIntegerConstantOperatorScope
+import org.jetbrains.kotlin.fir.scopes.unsubstitutedScope
+import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirClassLikeSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirClassSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirPropertySymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirScriptSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirTypeAliasSymbol
+import org.jetbrains.kotlin.fir.symbols.lazyResolveToPhase
+import org.jetbrains.kotlin.fir.symbols.lazyResolveToPhaseRecursively
+import org.jetbrains.kotlin.fir.symbols.lazyResolveToPhaseWithCallableMembers
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.name.StandardClassIds
+import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.test.directives.model.*
+import org.jetbrains.kotlin.test.services.TestServices
+import org.jetbrains.kotlin.test.services.moduleStructure
+import org.jetbrains.kotlin.utils.addToStdlib.requireIsInstance
+
+/**
+ * Test that we do not resolve declarations we do not need & do not build bodies for them
+ */
+abstract class AbstractFirLazyDeclarationResolveTestCase : AbstractAnalysisApiBasedTest() {
+    protected fun findFirDeclarationToResolve(
+        ktFile: KtFile,
+        testServices: TestServices,
+        resolutionFacade: LLResolutionFacade,
+        fileWithCaret: KtFile = ktFile,
+    ): Pair<FirElementWithResolveState, ((FirResolvePhase) -> Unit)> {
+        val allDirectives = testServices.moduleStructure.allDirectives
+        return when {
+            Directives.RESOLVE_FILE in allDirectives -> {
+                val session = resolutionFacade.useSiteFirSession as LLFirResolvableModuleSession
+                val file = session.moduleComponents.firFileBuilder.buildRawFirFileWithCaching(ktFile)
+                file to fun(phase: FirResolvePhase) {
+                    file.lazyResolveToPhaseByDirective(phase, testServices)
+                }
+            }
+            Directives.RESOLVE_DANGLING_MODIFIER in allDirectives -> {
+                val session = resolutionFacade.useSiteFirSession as LLFirResolvableModuleSession
+                val file = session.moduleComponents.firFileBuilder.buildRawFirFileWithCaching(ktFile)
+                val danglingModifier = file.declarations.last() as FirDanglingModifierList
+                danglingModifier to fun(phase: FirResolvePhase) {
+                    danglingModifier.lazyResolveToPhaseByDirective(phase, testServices)
+                }
+            }
+            Directives.RESOLVE_IMPORTED_CALLABLE in allDirectives -> {
+                val name = Name.identifier(allDirectives.singleValue(Directives.RESOLVE_IMPORTED_CALLABLE))
+                val callable = findImportedCallable(ktFile, name, resolutionFacade)
+                callable to fun(phase: FirResolvePhase) {
+                    callable.lazyResolveToPhaseByDirective(phase, testServices)
+                }
+            }
+            else -> {
+                val ktDeclaration = if (RESOLVE_SCRIPT in allDirectives) {
+                    ktFile.script!!
+                } else {
+                    testServices.expressionMarkerProvider.getBottommostElementOfTypeAtCaret<KtDeclaration>(fileWithCaret).let {
+                        if (ktFile === fileWithCaret) {
+                            it
+                        } else {
+                            PsiTreeUtil.findSameElementInCopy(it, ktFile)
+                        }
+                    }
+                }
+
+                val declarationSymbol = ktDeclaration.resolveToFirSymbol(resolutionFacade)
+                val firDeclaration = chooseMemberDeclarationIfNeeded(declarationSymbol, allDirectives, resolutionFacade).fir
+                firDeclaration to fun(phase: FirResolvePhase) {
+                    firDeclaration.lazyResolveToPhaseByDirective(phase, testServices)
+                }
+            }
+        }
+    }
+
+    /**
+     * Callables imported from objects are created on each lookup in the importing scopes,
+     * so a new instance is equivalent to the one used by the resolution.
+     */
+    private fun findImportedCallable(ktFile: KtFile, name: Name, resolutionFacade: LLResolutionFacade): FirCallableDeclaration {
+        val session = resolutionFacade.useSiteFirSession as LLFirResolvableModuleSession
+        val file = session.moduleComponents.firFileBuilder.buildRawFirFileWithCaching(ktFile)
+        file.lazyResolveToPhase(FirResolvePhase.IMPORTS)
+
+        val callables = mutableListOf<FirCallableSymbol<*>>()
+        for (scope in createImportingScopes(file, session, resolutionFacade.getScopeSessionFor(session))) {
+            val processor = { symbol: FirCallableSymbol<*> ->
+                if (symbol.origin == FirDeclarationOrigin.ImportedFromObjectOrStatic) {
+                    callables += symbol
+                }
+            }
+
+            scope.processFunctionsByName(name, processor)
+            scope.processPropertiesByName(name, processor)
+        }
+
+        return callables.singleOrNull()?.fir ?: error("Can't choose from:\n${callables.joinToString("\n")}")
+    }
+
+    protected fun chooseMemberDeclarationIfNeeded(
+        symbol: FirBasedSymbol<*>,
+        directives: RegisteredDirectives,
+        resolutionFacade: LLResolutionFacade,
+    ): FirBasedSymbol<*> {
+        val memberSymbol = chooseMemberDeclarationIfNeeded(symbol, resolutionFacade, directives)
+        val propertyPart = directives.singleOrZeroValue(Directives.RESOLVE_PROPERTY_PART) ?: return memberSymbol
+        requireIsInstance<FirPropertySymbol>(memberSymbol)
+
+        return when (propertyPart) {
+            PropertyPart.GETTER -> memberSymbol.getterSymbol!!
+            PropertyPart.SETTER -> memberSymbol.setterSymbol!!
+            PropertyPart.BACKING_FIELD -> memberSymbol.backingFieldSymbol!!
+        }
+    }
+
+    private fun chooseMemberDeclarationIfNeeded(
+        symbol: FirBasedSymbol<*>,
+        resolutionFacade: LLResolutionFacade,
+        directives: RegisteredDirectives,
+    ): FirBasedSymbol<*> {
+        val memberClassFilters = listOfNotNull(
+            directives.singleOrZeroValue(Directives.MEMBER_CLASS_FILTER),
+            directives.singleOrZeroValue(Directives.MEMBER_NAME_FILTER),
+            directives.singleOrZeroValue(Directives.MEMBER_ORIGIN_FILTER),
+        ).ifEmpty { return symbol }
+
+        val [classSymbol, declarations] = when (symbol) {
+            is FirClassSymbol -> symbol to symbol.declarationSymbols
+            is FirScriptSymbol -> {
+                symbol to symbol.fir.let { it.parameters + it.declarations }.map { it.symbol }
+            }
+
+            // Typealiased and SAM constructors exist only in scopes, so they are not a part of any FIR tree
+            is FirTypeAliasSymbol -> {
+                val constructors = mutableListOf<FirBasedSymbol<*>>()
+                symbol.expandedClassWithConstructorsScope(
+                    resolutionFacade.useSiteFirSession,
+                    resolutionFacade.getScopeSessionFor(resolutionFacade.useSiteFirSession),
+                    memberRequiredPhaseForRegularClasses = FirResolvePhase.STATUS,
+                )?.second?.processDeclaredConstructors { constructors += it }
+
+                symbol to constructors + listOfNotNull(samConstructor(symbol, resolutionFacade))
+            }
+
+            else -> error("Unknown container: ${symbol::class.simpleName}")
+        }
+
+        val filter = { declaration: FirBasedSymbol<*> -> memberClassFilters.all { it.invoke(declaration) } }
+        val filteredSymbols = declarations.filter(filter)
+        return when (filteredSymbols.size) {
+            0 -> {
+                (classSymbol as? FirClassSymbol)?.let { deepSearch(it, resolutionFacade, filter) }
+                    ?: error("Empty result for:${declarations.joinToString("\n")}")
+            }
+            1 -> filteredSymbols.single()
+            else -> error("Result ambiguity:\n${filteredSymbols.joinToString("\n")}")
+        }
+    }
+
+    private fun deepSearch(
+        classSymbol: FirClassSymbol<*>,
+        resolutionFacade: LLResolutionFacade,
+        filter: (FirBasedSymbol<*>) -> Boolean,
+    ): FirBasedSymbol<*>? {
+        val baseScope = classSymbol.unsubstitutedScope(
+            resolutionFacade.useSiteFirSession,
+            resolutionFacade.getScopeSessionFor(resolutionFacade.useSiteFirSession),
+            false,
+            FirResolvePhase.STATUS,
+        )
+
+        val scopes: List<FirContainingNamesAwareScope> = listOfNotNull(
+            baseScope,
+            FirSyntheticPropertiesScope.createIfSyntheticNamesProviderIsDefined(
+                resolutionFacade.useSiteFirSession,
+                classSymbol.defaultType(),
+                baseScope,
+            ),
+            integerConstantOperatorScope(classSymbol, resolutionFacade),
+        )
+
+        val declarations = mutableListOf<FirBasedSymbol<*>>()
+        for (typeScope in scopes) {
+            val names = typeScope.getCallableNames()
+            for (name in names) {
+                typeScope.processFunctionsByName(name) {
+                    if (filter(it)) {
+                        declarations += it
+                    }
+                }
+
+                typeScope.processPropertiesByName(name) {
+                    if (filter(it)) {
+                        declarations += it
+                    }
+                }
+
+                typeScope.processDeclaredConstructors {
+                    if (filter(it)) {
+                        declarations += it
+                    }
+                }
+            }
+        }
+
+        samConstructor(classSymbol, resolutionFacade)?.takeIf(filter)?.let { declarations += it }
+
+        return declarations.singleOrNull() ?: error("Can't choose from:\n${declarations.joinToString("\n")}")
+    }
+
+    /**
+     * Wrapped integer operators are provided only by a special scope used for integer literals.
+     */
+    private fun integerConstantOperatorScope(
+        classSymbol: FirClassSymbol<*>,
+        resolutionFacade: LLResolutionFacade,
+    ): FirIntegerConstantOperatorScope? {
+        val isUnsigned = when (classSymbol.classId) {
+            StandardClassIds.Int -> false
+            StandardClassIds.UInt -> true
+            else -> return null
+        }
+
+        val session = resolutionFacade.useSiteFirSession
+        return FirIntegerConstantOperatorScope(session, resolutionFacade.getScopeSessionFor(session), isUnsigned)
+    }
+
+    /**
+     * The SAM constructor is cached in the session, so it is the same instance as the one used by the resolution.
+     */
+    private fun samConstructor(classLikeSymbol: FirClassLikeSymbol<*>, resolutionFacade: LLResolutionFacade): FirNamedFunctionSymbol? {
+        val session = resolutionFacade.useSiteFirSession
+        return FirSamResolver(session, resolutionFacade.getScopeSessionFor(session)).getSamConstructor(classLikeSymbol.fir)?.symbol
+    }
+
+    override val additionalDirectives: List<DirectivesContainer>
+        get() = super.additionalDirectives + listOf(Directives)
+
+    protected object Directives : SimpleDirectivesContainer() {
+        val MEMBER_CLASS_FILTER: ValueDirective<(FirBasedSymbol<*>) -> Boolean> by valueDirective("Choose member declaration by a declaration class") { value ->
+            val clazz = Class.forName(value)
+            ({ symbol: FirBasedSymbol<*> ->
+                clazz.isInstance(symbol)
+            })
+        }
+
+        val MEMBER_NAME_FILTER: ValueDirective<(FirBasedSymbol<*>) -> Boolean> by valueDirective("Choose member declaration by a declaration name") { value ->
+            { symbol: FirBasedSymbol<*> ->
+                symbol.name() == value
+            }
+        }
+
+        val MEMBER_ORIGIN_FILTER: ValueDirective<(FirBasedSymbol<*>) -> Boolean> by valueDirective("Choose member declaration by a declaration origin") { value ->
+            { symbol: FirBasedSymbol<*> ->
+                symbol.origin.toString() == value
+            }
+        }
+
+        val RESOLVE_PROPERTY_PART by enumDirective<PropertyPart>("Choose getter/setter/backing field in the case of property")
+        val RESOLVE_SCRIPT by directive("Resolve script instead of declaration at caret")
+        val RESOLVE_FILE by directive("Resolve file instead of declaration at caret")
+        val RESOLVE_DANGLING_MODIFIER by directive("Resolve a file dangling modifier list instead of declaration at caret")
+        val RESOLVE_IMPORTED_CALLABLE by stringDirective("Resolve a callable with the given name imported from an object instead of declaration at caret")
+
+        val LAZY_MODE by enumDirective<LazyResolveMode>("Describes which lazy resolution call should be used")
+    }
+
+    /**
+     * Describes which part of [org.jetbrains.kotlin.analysis.api.symbols.KaPropertySymbol] should be chosen.
+     */
+    protected enum class PropertyPart {
+        GETTER,
+        SETTER,
+        BACKING_FIELD;
+    }
+
+    protected enum class LazyResolveMode {
+        /**
+         * The default option.
+         *
+         * @see lazyResolveToPhase
+         */
+        Regular,
+
+        /**
+         * @see org.jetbrains.kotlin.fir.symbols.lazyResolveToPhaseRecursively
+         */
+        Recursive,
+
+        /**
+         * @see org.jetbrains.kotlin.fir.symbols.lazyResolveToPhaseWithCallableMembers
+         */
+        WithCallableMembers,
+    }
+
+    protected fun FirElementWithResolveState.lazyResolveToPhaseByDirective(toPhase: FirResolvePhase, testServices: TestServices) {
+        when (testServices.moduleStructure.allDirectives.singleOrZeroValue(Directives.LAZY_MODE)) {
+            LazyResolveMode.Regular, null -> lazyResolveToPhase(toPhase)
+            LazyResolveMode.Recursive -> lazyResolveToPhaseRecursively(toPhase)
+            LazyResolveMode.WithCallableMembers -> {
+                if (this !is FirClass) {
+                    error(
+                        "Only ${FirClass::class.simpleName} can be used with ${LazyResolveMode.WithCallableMembers} mode, " +
+                                "but ${this::class.simpleName} found"
+                    )
+                }
+
+                lazyResolveToPhaseWithCallableMembers(toPhase)
+            }
+        }
+    }
+}
+
+fun lazyResolveRenderer(builder: StringBuilder): FirRenderer = FirRenderer(
+    builder = builder,
+    declarationRenderer = FirDeclarationRendererWithFilteredAttributes(),
+    resolvePhaseRenderer = FirResolvePhaseRenderer(),
+    errorExpressionRenderer = FirErrorExpressionExtendedRenderer(),
+)
+
+internal operator fun List<FirFile>.contains(element: FirElementWithResolveState): Boolean = if (element is FirFile) {
+    element in this
+} else {
+    any { file ->
+        FirElementFinder.findElementIn<FirElementWithResolveState>(file) {
+            it == element
+        } != null
+    }
+}

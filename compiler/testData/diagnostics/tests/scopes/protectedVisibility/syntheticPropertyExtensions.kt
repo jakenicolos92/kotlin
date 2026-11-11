@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: abc/A.java
 package abc;
 public class A {
@@ -21,25 +22,26 @@ class B : A() {
         b.foo
         b.bar = b.bar + ""
 
-        a.<!INVISIBLE_MEMBER!>foo<!>
-        // TODO: should be INVISIBLE_SETTER
-        a.bar = a.bar + ""
+        a.<!INVISIBLE_REFERENCE!>foo<!>
+        a.<!INVISIBLE_SETTER!>bar<!> = a.bar + ""
 
         if (a is B) {
-            <!DEBUG_INFO_SMARTCAST!>a<!>.foo
-            <!DEBUG_INFO_SMARTCAST!>a<!>.bar = <!DEBUG_INFO_SMARTCAST!>a<!>.bar + ""
+            a.foo
+            a.bar = a.bar + ""
         }
 
         if (d.x is B) {
             d.x.abc // Ok
-            d.x.<!INVISIBLE_MEMBER!>foo<!>
-            // TODO: should be INVISIBLE_SETTER
-            d.x.bar = d.x.bar + ""
+            d.x.<!INVISIBLE_REFERENCE!>foo<!>
+            d.x.<!INVISIBLE_SETTER!>bar<!> = d.x.bar + ""
         }
     }
 }
 
 fun baz(a: A) {
-    a.<!INVISIBLE_MEMBER!>foo<!>
-    <!INVISIBLE_SETTER!>a.bar<!> = a.bar + ""
+    a.<!INVISIBLE_REFERENCE!>foo<!>
+    a.<!INVISIBLE_SETTER!>bar<!> = a.bar + ""
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, classDeclaration, flexibleType, functionDeclaration, ifExpression,
+isExpression, javaProperty, javaType, primaryConstructor, propertyDeclaration, smartcast, stringLiteral */

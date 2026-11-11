@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface Base {
     fun test() = "OK"
 }
@@ -13,3 +14,6 @@ fun box(): String {
 
     return "OK"
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, inheritanceDelegation,
+interfaceDeclaration, stringLiteral */

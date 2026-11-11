@@ -1,0 +1,18 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// LANGUAGE: -CollectionLiterals
+// LANGUAGE_FEATURE_TOGGLED: CollectionLiteralsBasedAnnotationResolution
+
+enum class E { X }
+@Repeatable
+annotation class EnumAnno(val v: Array<E>)
+@Repeatable
+annotation class VarargIntAnno(vararg val v: Int)
+
+@EnumAnno(arrayOf(*arrayOf(*arrayOf(*[]))))
+@EnumAnno(arrayOf(elements = []))
+@VarargIntAnno(*intArrayOf(*intArrayOf(*[])))
+@VarargIntAnno(42, *intArrayOf(elements = intArrayOf(elements = intArrayOf(elements = []))))
+fun test() = Unit
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, collectionLiteral, enumDeclaration, enumEntry, functionDeclaration,
+integerLiteral, primaryConstructor, propertyDeclaration, vararg */

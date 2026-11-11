@@ -16,23 +16,41 @@
 
 package org.jetbrains.kotlin.incremental
 
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.incremental.util.ExceptionLocation
+import org.jetbrains.kotlin.incremental.util.reportException
 import java.io.*
 
-internal data class BuildInfo(val startTS: Long) : Serializable {
+data class BuildInfo(val startTS: Long) : Serializable {
     companion object {
-        fun read(file: File): BuildInfo? =
-                try {
-                    ObjectInputStream(FileInputStream(file)).use {
-                        it.readObject() as BuildInfo
+        // Older versions stored dependency ABI snapshots after the timestamp, now they are ignored
+        private fun ObjectInputStream.readBuildInfo(): BuildInfo = BuildInfo(readLong())
+
+        private fun ObjectOutputStream.writeBuildInfo(buildInfo: BuildInfo) {
+            writeLong(buildInfo.startTS)
+            writeInt(0) // Number of dependency ABI snapshots, obsolete
+        }
+
+        fun read(file: File, messageCollector: MessageCollector): BuildInfo? {
+            return try {
+                FileInputStream(file).use { fileStream ->
+                    ObjectInputStream(fileStream).use {
+                        it.readBuildInfo()
                     }
                 }
-                catch (e: Exception) {
-                    null
-                }
+            } catch (e: Exception) {
+                messageCollector.reportException(e, ExceptionLocation.INCREMENTAL_COMPILATION)
+                null
+            }
+        }
 
-        fun write(buildInfo: BuildInfo, file: File) {
-            ObjectOutputStream(FileOutputStream(file)).use {
-                it.writeObject(buildInfo)
+        fun write(icContext: IncrementalCompilationContext, buildInfo: BuildInfo, file: File) {
+            icContext.transaction.write(file.toPath()) {
+                FileOutputStream(file).use { fileStream ->
+                    ObjectOutputStream(fileStream).use {
+                        it.writeBuildInfo(buildInfo)
+                    }
+                }
             }
         }
     }

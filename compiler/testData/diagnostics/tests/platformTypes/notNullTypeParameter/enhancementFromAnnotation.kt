@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 import org.jetbrains.annotations.NotNull;
@@ -26,3 +27,5 @@ fun test() {
     C<String?>().foo(<!NULL_FOR_NONNULL_TYPE!>null<!>)
     C<String?>().foo("")
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaType, nullableType, stringLiteral */

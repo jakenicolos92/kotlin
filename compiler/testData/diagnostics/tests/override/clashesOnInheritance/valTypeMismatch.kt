@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 open class A {
     open val foo: Boolean = true
 }
@@ -27,3 +28,5 @@ class BS2: A(), IGA<Any>
 <!PROPERTY_TYPE_MISMATCH_ON_INHERITANCE!>class BS3<!>: A(), IGA<String>
 
 <!PROPERTY_TYPE_MISMATCH_ON_INHERITANCE!>class BG1<!><T>: A(), IGA<T>
+
+/* GENERATED_FIR_TAGS: classDeclaration, interfaceDeclaration, nullableType, propertyDeclaration, typeParameter */

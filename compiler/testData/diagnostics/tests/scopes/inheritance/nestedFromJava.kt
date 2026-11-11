@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 public interface A {
     public class A_S { // static
@@ -46,7 +47,7 @@ class Y: B() {
 
     init {
         B_()
-        B.<!RESOLUTION_TO_CLASSIFIER!>B_<!>()
+        B.<!INNER_CLASS_CONSTRUCTOR_NO_RECEIVER!>B_<!>()
         Y.<!UNRESOLVED_REFERENCE!>B_<!>()
 
         B_S()
@@ -59,7 +60,7 @@ class Y: B() {
         val b_s: B_S = null!!
 
         init {
-            <!RESOLUTION_TO_CLASSIFIER!>B_<!>()
+            <!INACCESSIBLE_OUTER_CLASS_RECEIVER!>B_<!>()
             B_S()
         }
     }
@@ -83,8 +84,11 @@ class Z: C() {
 
         init {
             <!UNRESOLVED_REFERENCE!>A_S<!>()
-            <!RESOLUTION_TO_CLASSIFIER!>B_<!>()
+            <!INACCESSIBLE_OUTER_CLASS_RECEIVER!>B_<!>()
             B_S()
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, init, javaFunction, javaType, nestedClass, objectDeclaration,
+propertyDeclaration */

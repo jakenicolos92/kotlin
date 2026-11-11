@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-3731 Resolve & inner class
 
 class A {
@@ -15,3 +16,6 @@ class B {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, functionalType, init, lambdaLiteral, nestedClass,
+thisExpression, typeWithExtension */

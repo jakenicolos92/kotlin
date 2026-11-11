@@ -1,7 +1,8 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun <T> getT() {}
 fun <A, B> getTT() {}
-fun <A, B, C> getTTT(<!UNUSED_PARAMETER!>x<!> : Any) {}
-fun foo(<!UNUSED_PARAMETER!>a<!> : Any?) {}
+fun <A, B, C> getTTT(x : Any) {}
+fun foo(a : Any?) {}
 
 public fun main() {
     getT<<!PROJECTION_ON_NON_CLASS_TYPE_ARGUMENT!>*<!>>()
@@ -11,3 +12,5 @@ public fun main() {
     getTT<Int, <!PROJECTION_ON_NON_CLASS_TYPE_ARGUMENT!>*<!>>()
     foo(getTTT<Int, <!PROJECTION_ON_NON_CLASS_TYPE_ARGUMENT!>*<!>, Int>(1))
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, nullableType, typeParameter */

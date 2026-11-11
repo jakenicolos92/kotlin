@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // MODULE: m1
 // FILE: x.kt
 package p
@@ -25,5 +26,8 @@ import p.*
 
 class Foo: A, B {
     override fun <T> foo(t: Array<T>) {}
-    override fun <T: Base> foo(t: Array<T>) {}
+    <!NOTHING_TO_OVERRIDE!>override<!> fun <T: Base> foo(t: Array<T>) {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, nullableType, override,
+typeConstraint, typeParameter */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class GenericBaseClass<T> {
     open fun foo(x: T): T = x
 }
@@ -20,3 +21,6 @@ class MixedDerivedClass<T> : GenericBaseClass<Int>(), GenericBaseInterface<T> {
     override fun foo(x: Int): Int = super.foo(x)
     override fun bar(x: T): T = super.bar(x)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, nullableType, override,
+superExpression, typeParameter */

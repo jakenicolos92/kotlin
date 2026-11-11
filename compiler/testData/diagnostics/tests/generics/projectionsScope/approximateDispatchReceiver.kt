@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 public abstract class A<E> {
     fun bar(): String = ""
@@ -12,3 +13,6 @@ fun test(b: B<*>) {
     b.bar()
     b.bar() checkType { _<String>() }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, infix,
+lambdaLiteral, nullableType, starProjection, stringLiteral, typeParameter, typeWithExtension */

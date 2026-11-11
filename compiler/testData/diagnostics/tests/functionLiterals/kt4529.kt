@@ -1,10 +1,11 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-4529 Lambdas are analyzed improperly in an infix call nested inside a println
 
 class G {
     infix fun foo(bar: (Int) -> Int) = bar
 }
 
-fun main(args: Array<String>) {
+fun main() {
     use(
             G().foo {it + 11} // no error
     )
@@ -17,3 +18,6 @@ fun main(args: Array<String>) {
 }
 
 fun use(a: Any?) = a
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, functionDeclaration, functionalType, infix, integerLiteral,
+lambdaLiteral, nullableType */

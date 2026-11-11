@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 488
 package foo
 
 fun foo(a: Int): Int = when {

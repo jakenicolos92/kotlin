@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package f
 
 
@@ -11,7 +12,8 @@ fun box(): Int {
     return local()
 }
 
-fun main(args: Array<String>) {
+fun main() {
     box()
 }
 
+/* GENERATED_FIR_TAGS: functionDeclaration, localFunction */

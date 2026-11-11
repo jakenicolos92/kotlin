@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 class Outer<T> {
     inner class Inner<I> {
@@ -10,7 +11,7 @@ class Outer<T> {
 
 fun test1() {
     Outer<Int>().Inner<String>().getOuter().useOuterParam(22)
-    Outer<Int>().Inner<String>().getOuter().useOuterParam(<!TYPE_MISMATCH!>""<!>)
+    Outer<Int>().Inner<String>().getOuter().useOuterParam(<!ARGUMENT_TYPE_MISMATCH!>""<!>)
 }
 
 
@@ -20,3 +21,6 @@ class B
 fun test1(a: A, b: B) {
     Outer<Int>().Inner<String>().genericFun(a).Inner<Double>().genericFun(b)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, inner, integerLiteral, nullableType, stringLiteral,
+thisExpression, typeParameter */

@@ -1,0 +1,155 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.lombok.config
+
+import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.fir.caches.FirCache
+import org.jetbrains.kotlin.fir.caches.createCache
+import org.jetbrains.kotlin.fir.caches.firCachesFactory
+import org.jetbrains.kotlin.fir.caches.getValue
+import org.jetbrains.kotlin.fir.extensions.FirExtensionSessionComponent
+import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.AbstractLog
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Accessors
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.AllArgsConstructor
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Builder
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Data
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.EqualsAndHashCode
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.FieldDefaults
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Getter
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Log
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Slf4jLog
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Log4jLog
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.CommonsLog
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.FloggerLog
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.JBossLog
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Log4j2Log
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.XSlf4jLog
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.ToString
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.NoArgsConstructor
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.RequiredArgsConstructor
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Setter
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Singular
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.SuperBuilder
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.Value
+import org.jetbrains.kotlin.lombok.config.ConeLombokAnnotations.With
+import java.io.File
+
+class LombokService(session: FirSession, configFile: File?) : FirExtensionSessionComponent(session) {
+    companion object {
+        fun getFactory(configFile: File?): Factory {
+            return Factory { LombokService(it, configFile) }
+        }
+    }
+
+    private val cachesFactory = session.firCachesFactory
+
+    private val accessorsCache: Cache<Accessors?> = cachesFactory.createCache { symbol ->
+        Accessors.getOrNull(symbol, session)
+    }
+
+    private val getterCache: Cache<Getter?> = cachesFactory.createCache { symbol ->
+        Getter.getOrNull(symbol, session)
+    }
+
+    private val setterCache: Cache<Setter?> = cachesFactory.createCache { symbol ->
+        Setter.getOrNull(symbol, session)
+    }
+
+    private val withCache: Cache<With?> = cachesFactory.createCache { symbol ->
+        With.getOrNull(symbol, session)
+    }
+
+    private val noArgsConstructorCache: Cache<NoArgsConstructor?> = cachesFactory.createCache { symbol ->
+        NoArgsConstructor.getOrNull(symbol, session)
+    }
+
+    private val allArgsConstructorCache: Cache<AllArgsConstructor?> = cachesFactory.createCache { symbol ->
+        AllArgsConstructor.getOrNull(symbol, session)
+    }
+
+    private val requiredArgsConstructorCache: Cache<RequiredArgsConstructor?> = cachesFactory.createCache { symbol ->
+        RequiredArgsConstructor.getOrNull(symbol, session)
+    }
+
+    private val dataCache: Cache<Data?> = cachesFactory.createCache { symbol ->
+        Data.getOrNull(symbol, session)
+    }
+
+    private val valueCache: Cache<Value?> = cachesFactory.createCache { symbol ->
+        Value.getOrNull(symbol, session)
+    }
+
+    private val fieldDefaultsCache: Cache<FieldDefaults?> = cachesFactory.createCache { symbol ->
+        FieldDefaults.getOrNull(symbol, session)
+    }
+
+    private val builderCache: Cache<Builder?> = cachesFactory.createCache { symbol ->
+        Builder.getOrNull(symbol, session)
+    }
+
+    private val superBuilderCache: Cache<SuperBuilder?> = cachesFactory.createCache { symbol ->
+        SuperBuilder.getOrNull(symbol, session)
+    }
+
+    private val singularCache: Cache<Singular?> = cachesFactory.createCache { symbol ->
+        Singular.getOrNull(symbol, session)
+    }
+
+    private val logsCache: Cache<List<AbstractLog>> = cachesFactory.createCache { symbol ->
+        listOfNotNull(
+            Log.getOrNull(symbol, session),
+            Slf4jLog.getOrNull(symbol, session),
+            Log4jLog.getOrNull(symbol, session),
+            CommonsLog.getOrNull(symbol, session),
+            FloggerLog.getOrNull(symbol, session),
+            JBossLog.getOrNull(symbol, session),
+            Log4j2Log.getOrNull(symbol, session),
+            XSlf4jLog.getOrNull(symbol, session),
+        )
+    }
+
+    private val toStringCache: Cache<ToString?> = cachesFactory.createCache { symbol ->
+        ToString.getOrNull(symbol, session)
+    }
+
+    val config: GlobalConfig by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        GlobalConfig.extract(configFile?.let(LombokConfig::parse) ?: LombokConfig.Empty)
+    }
+
+    private val equalsAndHashCodeCache: Cache<EqualsAndHashCode?> = cachesFactory.createCache { symbol ->
+        EqualsAndHashCode.getOrNull(symbol, session)
+    }
+
+    fun getAccessors(symbol: FirBasedSymbol<*>): Accessors? = accessorsCache.getValue(symbol)
+    fun getGetter(symbol: FirBasedSymbol<*>): Getter? = getterCache.getValue(symbol)
+    fun getSetter(symbol: FirBasedSymbol<*>): Setter? = setterCache.getValue(symbol)
+    fun getWith(symbol: FirBasedSymbol<*>): With? = withCache.getValue(symbol)
+    fun getNoArgsConstructor(symbol: FirBasedSymbol<*>): NoArgsConstructor? = noArgsConstructorCache.getValue(symbol)
+    fun getAllArgsConstructor(symbol: FirBasedSymbol<*>): AllArgsConstructor? = allArgsConstructorCache.getValue(symbol)
+    fun getRequiredArgsConstructor(symbol: FirBasedSymbol<*>): RequiredArgsConstructor? = requiredArgsConstructorCache.getValue(symbol)
+    fun getData(symbol: FirBasedSymbol<*>): Data? = dataCache.getValue(symbol)
+    fun getValue(symbol: FirBasedSymbol<*>): Value? = valueCache.getValue(symbol)
+    fun getFieldDefaults(symbol: FirBasedSymbol<*>): FieldDefaults? = fieldDefaultsCache.getValue(symbol)
+    fun getBuilder(symbol: FirBasedSymbol<*>): Builder? = builderCache.getValue(symbol)
+    fun getSuperBuilder(symbol: FirBasedSymbol<*>): SuperBuilder? = superBuilderCache.getValue(symbol)
+    fun getSingular(symbol: FirBasedSymbol<*>): Singular? = singularCache.getValue(symbol)
+    fun getLogs(symbol: FirBasedSymbol<*>): List<AbstractLog> = logsCache.getValue(symbol)
+
+    fun getToString(symbol: FirBasedSymbol<*>): ToString? {
+        return toStringCache.getValue(symbol)
+            ?: dataCache.getValue(symbol)?.toToString()
+    }
+
+    fun getEqualsAndHashCode(symbol: FirBasedSymbol<*>): EqualsAndHashCode? {
+        return equalsAndHashCodeCache.getValue(symbol)
+            ?: dataCache.getValue(symbol)?.toEqualsAndHashCode()
+    }
+}
+
+private typealias Cache<T> = FirCache<FirBasedSymbol<*>, T, Nothing?>
+
+val FirSession.lombokService: LombokService by FirSession.sessionComponentAccessor()

@@ -1,3 +1,4 @@
+
 class A {
     fun foo() {}
     val bar = 0

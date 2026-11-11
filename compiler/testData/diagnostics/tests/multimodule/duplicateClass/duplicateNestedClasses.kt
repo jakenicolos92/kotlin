@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
 // MODULE: m1
 // FILE: a.kt
 
@@ -64,5 +65,8 @@ fun test(m1: M1) {
     d(m1.d)
     e(m1.e)
     f(m1.f)
-    g(<!TYPE_MISMATCH!>m1.g<!>)
+    g(<!ARGUMENT_TYPE_MISMATCH!>m1.g<!>)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, inner, nestedClass, objectDeclaration,
+propertyDeclaration */

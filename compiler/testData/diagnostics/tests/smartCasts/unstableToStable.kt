@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class Foo(var x: Int?) {
     init {
         if (x != null) {
@@ -16,3 +17,6 @@ class Foo(var x: Int?) {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: andExpression, classDeclaration, equalityExpression, ifExpression, init, localProperty,
+nullableType, primaryConstructor, propertyDeclaration, smartcast */

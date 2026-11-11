@@ -1,4 +1,10 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 @file:kotlin.jvm.JvmName("TuplesKt")
+
 package kotlin
 
 
@@ -17,10 +23,11 @@ package kotlin
  * @property second Second value.
  * @constructor Creates a new instance of Pair.
  */
+@kotlin.js.JsImplicitExport(couldBeConvertedToExplicitExport = true)
 public data class Pair<out A, out B>(
-        public val first: A,
-        public val second: B
-                                    ) : Serializable {
+    public val first: A,
+    public val second: B
+) : Serializable {
 
     /**
      * Returns string representation of the [Pair] including its [first] and [second] values.
@@ -38,6 +45,7 @@ public infix fun <A, B> A.to(that: B): Pair<A, B> = Pair(this, that)
 
 /**
  * Converts this pair into a list.
+ * @sample samples.misc.Tuples.pairToList
  */
 public fun <T> Pair<T, T>.toList(): List<T> = listOf(first, second)
 
@@ -56,11 +64,12 @@ public fun <T> Pair<T, T>.toList(): List<T> = listOf(first, second)
  * @property second Second value.
  * @property third Third value.
  */
+@kotlin.js.JsImplicitExport(couldBeConvertedToExplicitExport = true)
 public data class Triple<out A, out B, out C>(
-        public val first: A,
-        public val second: B,
-        public val third: C
-                                             ) : Serializable {
+    public val first: A,
+    public val second: B,
+    public val third: C
+) : Serializable {
 
     /**
      * Returns string representation of the [Triple] including its [first], [second] and [third] values.
@@ -70,5 +79,6 @@ public data class Triple<out A, out B, out C>(
 
 /**
  * Converts this triple into a list.
+ * @sample samples.misc.Tuples.tripleToList
  */
 public fun <T> Triple<T, T, T>.toList(): List<T> = listOf(first, second, third)

@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 487
 package foo
 
 // CHECK_NOT_CALLED_IN_SCOPE: scope=box function=isType

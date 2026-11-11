@@ -1,7 +1,9 @@
+// RUN_PIPELINE_TILL: CODEGEN
+
 package foo
 
 class A(val x: String) {
-    @JsName("aa") <!JS_NAME_CLASH!>constructor(x: Int)<!> : this("int $x")
+    @JsName("aa") constructor(x: Int) : this("int $x")
 }
 
-<!JS_NAME_CLASH!>fun aa()<!> {}
+fun aa() {}

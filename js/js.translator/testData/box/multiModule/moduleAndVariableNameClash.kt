@@ -1,4 +1,9 @@
-// EXPECTED_REACHABLE_NODES: 494
+// KJS_WITH_FULL_RUNTIME
+// MODULE: module1
+// FILE: module1.kt
+
+fun bar() = "bar"
+
 // MODULE: main(module1)
 // FILE: main.kt
 
@@ -8,8 +13,3 @@ fun box(): String {
 
     return "OK"
 }
-
-// MODULE: module1
-// FILE: module1.kt
-
-fun bar() = "bar"

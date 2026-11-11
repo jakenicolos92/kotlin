@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 <!NOTHING_TO_INLINE!>inline<!> fun foo(<!ILLEGAL_INLINE_PARAMETER_MODIFIER!>noinline<!> x: Int) {}
 
@@ -15,6 +16,9 @@ class FunctionSubtype : () -> Unit {
 }
 
 <!NOTHING_TO_INLINE!>inline<!> fun functionSubtype(
-        <!ILLEGAL_INLINE_PARAMETER_MODIFIER!>noinline<!> f: FunctionSubtype,
-        <!ILLEGAL_INLINE_PARAMETER_MODIFIER!>crossinline<!> g: FunctionSubtype
+    <!ILLEGAL_INLINE_PARAMETER_MODIFIER!>noinline<!> f: FunctionSubtype,
+    <!ILLEGAL_INLINE_PARAMETER_MODIFIER!>crossinline<!> g: FunctionSubtype
 ) { }
+
+/* GENERATED_FIR_TAGS: classDeclaration, crossinline, functionDeclaration, functionalType, inline, noinline, operator,
+override */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun x(): Boolean { return true }
 
 public fun foo(pp: String?, rr: String?): Int {
@@ -9,7 +10,10 @@ public fun foo(pp: String?, rr: String?): Int {
         } while (r == null)  
     } while (!x())
     // Auto cast possible
-    <!DEBUG_INFO_SMARTCAST!>r<!>.length
+    r.length
     // Auto cast possible
-    return <!DEBUG_INFO_SMARTCAST!>p<!>.length
+    return p.length
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, doWhileLoop, equalityExpression, functionDeclaration, localProperty,
+nullableType, propertyDeclaration, smartcast */

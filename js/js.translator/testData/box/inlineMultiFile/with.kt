@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 510
 /*
  * Copy of JVM-backend test
  * Found at: compiler/testData/codegen/boxInline/complex/with.1.kt

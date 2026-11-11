@@ -1,3 +1,14 @@
+// RUN_PIPELINE_TILL: CODEGEN
+/*
+ * KOTLIN DIAGNOSTICS SPEC TEST (NEGATIVE)
+ *
+ * SPEC VERSION: 0.1-313
+ * PRIMARY LINKS: expressions, when-expression -> paragraph 5 -> sentence 1
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 3
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 4
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 5
+ */
+
 // See also: KT-3743
 fun foo(arg: Boolean): String {
     // Must be exhaustive
@@ -6,3 +17,6 @@ fun foo(arg: Boolean): String {
         false -> "falsehood"
     }
 }
+
+/* GENERATED_FIR_TAGS: equalityExpression, functionDeclaration, smartcast, stringLiteral, whenExpression,
+whenWithSubject */

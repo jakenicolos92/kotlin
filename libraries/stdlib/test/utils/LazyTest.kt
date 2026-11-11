@@ -1,8 +1,11 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 package test.utils
 
-import kotlin.*
 import kotlin.test.*
-import org.junit.Test
 
 class LazyTest {
 
@@ -16,7 +19,7 @@ class LazyTest {
         assertEquals(1, callCount)
         assertTrue(lazyInt.isInitialized())
 
-        lazyInt.value
+        assertEquals(1, lazyInt.value)
         assertEquals(1, callCount)
     }
 

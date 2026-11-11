@@ -1,8 +1,13 @@
-// !LANGUAGE: +MultiPlatformProjects
+// IGNORE_FIR_DIAGNOSTICS
+// RUN_PIPELINE_TILL: FIR2IR
 // MODULE: m1-common
 // FILE: common.kt
 
-<!CONFLICTING_OVERLOADS!>header fun foo()<!>
-<!CONFLICTING_OVERLOADS!>header fun foo()<!>
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> <!CONFLICTING_OVERLOADS, CONFLICTING_OVERLOADS{METADATA}!>fun foo()<!>
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> <!CONFLICTING_OVERLOADS, CONFLICTING_OVERLOADS{METADATA}!>fun foo()<!>
 
-header fun foo(x: Int)
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> fun foo(x: Int)
+
+// MODULE: m1-jvm()()(m1-common)
+
+/* GENERATED_FIR_TAGS: expect, functionDeclaration */

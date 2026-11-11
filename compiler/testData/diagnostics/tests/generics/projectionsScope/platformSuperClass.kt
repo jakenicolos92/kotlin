@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 // FILE: Clazz.java
 public class Clazz<T> {
@@ -20,3 +21,7 @@ fun test(clazz: Clazz<*>) {
         throw NullPointerException()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, flexibleType, funWithExtensionReceiver, functionDeclaration,
+functionalType, ifExpression, inProjection, infix, javaProperty, javaType, lambdaLiteral, nullableType, outProjection,
+starProjection, typeParameter, typeWithExtension */

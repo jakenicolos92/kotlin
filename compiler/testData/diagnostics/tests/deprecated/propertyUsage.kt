@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 
 import kotlin.reflect.KProperty
 
@@ -10,6 +11,15 @@ class Delegate() {
     operator fun setValue(instance: Any, property: KProperty<*>, value: Int) {}
 }
 
+class Delegate2() {
+    operator fun getValue(instance: Any, property: KProperty<*>) : Int = 1
+    operator fun setValue(instance: Any, property: KProperty<*>, value: Int) {}
+}
+
+class DelegateProvider() {
+    operator fun provideDelegate(instance: Any, property: KProperty<*>) = Delegate2()
+}
+
 class PropertyHolder {
     @Deprecated("text")
     val x = 1
@@ -17,8 +27,16 @@ class PropertyHolder {
     @Deprecated("text")
     var name = "String"
 
-    val valDelegate by <!DEPRECATION!>Delegate()<!>
-    var varDelegate by <!DEPRECATION, DEPRECATION!>Delegate()<!>
+    val valDelegate by <!DEPRECATION!>Delegate<!>()
+    var varDelegate by <!DEPRECATION, DEPRECATION!>Delegate<!>()
+
+    // no deprecation caused by access to itself
+    @Deprecated("text")
+    var deprecatedDelegated by Delegate2()
+
+    // no deprecation caused by access to itself
+    @Deprecated("text")
+    val deprecatedDelegated2 by DelegateProvider()
 
     public val test1: String = ""
         @Deprecated("val-getter") get
@@ -52,11 +70,11 @@ fun fn() {
     PropertyHolder().test4
     PropertyHolder().<!DEPRECATION!>test4<!> = ""
 
-    val <!UNUSED_VARIABLE!>a<!> = PropertyHolder().<!DEPRECATION!>x<!>
-    val <!UNUSED_VARIABLE!>b<!> = PropertyHolder().<!DEPRECATION!>name<!>
+    val a = PropertyHolder().<!DEPRECATION!>x<!>
+    val b = PropertyHolder().<!DEPRECATION!>name<!>
     PropertyHolder().<!DEPRECATION!>name<!> = "value"
 
-    val <!UNUSED_VARIABLE!>d<!> = PropertyHolder().valDelegate
+    val d = PropertyHolder().valDelegate
     PropertyHolder().varDelegate = 1
 }
 
@@ -64,3 +82,7 @@ fun literals() {
     PropertyHolder::test1
     PropertyHolder::<!DEPRECATION!>name<!>
 }
+
+/* GENERATED_FIR_TAGS: assignment, callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+integerLiteral, localProperty, operator, primaryConstructor, propertyDeclaration, propertyDelegate, setter,
+starProjection, stringLiteral */

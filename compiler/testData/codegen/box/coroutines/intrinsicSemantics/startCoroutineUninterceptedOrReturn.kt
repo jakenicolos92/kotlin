@@ -1,16 +1,27 @@
-// WITH_RUNTIME
+// Test exercises low-level coroutine intrinsics.
+// The Stack Switching implementation intentionally doesn't reproduce full intrinsic semantics.
+// Supporting it would require extra flags/checks for working with special cases of internal testing.
+// WASM_IGNORE_FOR: mode=regular runner=org.jetbrains.kotlin.wasm.test.WasmJsCodegenCoroutinesStackSwitchingTestGenerated
+// WASM_IGNORE_FOR: mode=single-module runner=org.jetbrains.kotlin.wasm.test.FirWasmJsCodegenCoroutinesStackSwitchingSingleModuleTestGenerated
+// WASM_IGNORE_FOR: mode=multi-module runner=org.jetbrains.kotlin.wasm.test.WasmJsCodegenCoroutinesStackSwitchingMultiModuleTestGenerated
+
+// WASM_IGNORE_FOR: mode=regular runner=org.jetbrains.kotlin.wasm.test.WasmWasiCodegenCoroutinesStackSwitchingTestGenerated
+
+// Unmute after KT-89625 [Wasm] remove WasmContinuationBox and fix inner resumptions with `startCoroutine...`
+
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 import kotlin.test.assertEquals
 
-suspend fun suspendHere(): String = suspendCoroutineOrReturn { x ->
+suspend fun suspendHere(): String = suspendCoroutineUninterceptedOrReturn { x ->
     x.resume("OK")
     COROUTINE_SUSPENDED
 }
 
-suspend fun suspendWithException(): String = suspendCoroutineOrReturn { x ->
+suspend fun suspendWithException(): String = suspendCoroutineUninterceptedOrReturn { x ->
     x.resumeWithException(RuntimeException("OK"))
     COROUTINE_SUSPENDED
 }
@@ -23,12 +34,12 @@ fun builder(shouldSuspend: Boolean, c: suspend () -> String): String {
             override val context: CoroutineContext
                 get() =  EmptyCoroutineContext
 
-            override fun resumeWithException(exception: Throwable) {
-                fromSuspension = "Exception: " + exception.message!!
-            }
-
-            override fun resume(value: String) {
-                fromSuspension = value
+            override fun resumeWith(value: Result<String>) {
+                fromSuspension = try {
+                    value.getOrThrow()
+                } catch (exception: Throwable) {
+                    "Exception: " + exception.message!!
+                }
             }
         })
     } catch (e: Exception) {
@@ -48,9 +59,14 @@ fun builder(shouldSuspend: Boolean, c: suspend () -> String): String {
 fun box(): String {
     if (builder(false) { "OK" } != "OK") return "fail 4"
     if (builder(true) { suspendHere() } != "OK") return "fail 5"
+    if (builder(true) { suspend{}(); suspendHere() } != "OK") return "fail 51"
 
     if (builder(false) { throw RuntimeException("OK") } != "Exception: OK") return "fail 6"
     if (builder(true) { suspendWithException() } != "Exception: OK") return "fail 7"
+    if (builder(true) { suspend{}(); suspendWithException() } != "Exception: OK") return "fail 71"
+
+    if (builder(true, ::suspendHere) != "OK") return "fail 8"
+    if (builder(true, ::suspendWithException) != "Exception: OK") return "fail 9"
 
     return "OK"
 }

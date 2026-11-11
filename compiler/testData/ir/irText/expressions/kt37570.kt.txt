@@ -1,0 +1,23 @@
+class A {
+  init {
+    apply<String>(/* <this> = a(), */ block = local fun String.<anonymous>() {
+      <this>.#b = $this$apply
+    }
+) /*~> Unit */
+  }
+
+  constructor() /* primary */ {
+    super/*Any*/()
+    /* <init>() */
+
+  }
+
+  val b: String
+    get
+
+}
+
+fun a(): String {
+  return "string"
+}
+

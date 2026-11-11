@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 <!REDUNDANT_MODIFIER_FOR_TARGET!>open<!> interface First
 // Now inspection
 abstract interface Second
@@ -8,3 +9,5 @@ final enum class Third {
 }
 // Now inspection
 final object Sixth
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, interfaceDeclaration, objectDeclaration */

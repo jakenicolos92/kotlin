@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: JavaSuperClass.java
 
 public class JavaSuperClass {
@@ -21,7 +22,10 @@ class KotlinSubSubClass : KotlinSubClass() {
 fun viaRealOverride() = KotlinSubSubClass().foo(kotlinName = 3)
 
 
-fun unresolvedParameter() = JavaSuperClass().foo(<!NAMED_ARGUMENTS_NOT_ALLOWED, NAMED_PARAMETER_NOT_FOUND!>nonexistentName<!> = 4<!NO_VALUE_FOR_PARAMETER!>)<!>
+fun unresolvedParameter() = JavaSuperClass().<!NO_VALUE_FOR_PARAMETER!>foo<!>(<!NAMED_ARGUMENTS_NOT_ALLOWED, NAMED_PARAMETER_NOT_FOUND!>nonexistentName<!> = 4)
 
 
 fun multipleParameters() = JavaSuperClass().multipleParameters(<!NAMED_ARGUMENTS_NOT_ALLOWED!>first<!> = 1, <!NAMED_ARGUMENTS_NOT_ALLOWED!>second<!> = 2L, <!NAMED_ARGUMENTS_NOT_ALLOWED!>third<!> = "3")
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, javaFunction, javaType, override,
+stringLiteral */

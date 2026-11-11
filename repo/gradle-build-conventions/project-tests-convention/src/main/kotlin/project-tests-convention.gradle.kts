@@ -1,0 +1,17 @@
+val extension = extensions.create("projectTests", ProjectTestsExtension::class)
+
+// Aggregate task for build related checks
+tasks.register("checkBuild")
+
+configureTestRuntime()
+configureTestSharding()
+configureTestSemaphore()
+configureTestCaching()
+configureTestTaskDisabling()
+configureTestDryRun()
+configureTestInventory()
+configureTestRetries()
+configureTestCacheDisabling()
+configureDefaultJvmArguments()
+configureTestInputs()
+configureTestMuting()

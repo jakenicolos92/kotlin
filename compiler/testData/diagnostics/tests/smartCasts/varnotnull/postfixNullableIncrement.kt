@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 operator fun Int?.inc(): Int? { return this }
 
 public fun box(arg: Int?) : Int? {
@@ -6,3 +7,6 @@ public fun box(arg: Int?) : Int? {
     j<!UNSAFE_CALL!>.<!>toInt()
     return i
 }
+
+/* GENERATED_FIR_TAGS: assignment, funWithExtensionReceiver, functionDeclaration, incrementDecrementExpression,
+localProperty, nullableType, operator, propertyDeclaration, thisExpression */

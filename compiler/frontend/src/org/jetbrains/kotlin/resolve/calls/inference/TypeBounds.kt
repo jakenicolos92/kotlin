@@ -16,11 +16,13 @@
 
 package org.jetbrains.kotlin.resolve.calls.inference
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.resolve.calls.inference.TypeBounds.BoundKind
 import org.jetbrains.kotlin.resolve.calls.inference.TypeBounds.BoundKind.*
 import org.jetbrains.kotlin.resolve.calls.inference.constraintPosition.ConstraintPosition
 import org.jetbrains.kotlin.types.KotlinType
 
+@K1Deprecation
 interface TypeBounds {
     val typeVariable: TypeVariable
 
@@ -38,13 +40,13 @@ interface TypeBounds {
     }
 
     class Bound(
-            val typeVariable: TypeVariable,
-            val constrainingType: KotlinType,
-            val kind: BoundKind,
-            val position: ConstraintPosition,
-            val isProper: Boolean,
-            // to prevent infinite recursion in incorporation we store the variables that was substituted to derive this bound
-            val derivedFrom: Set<TypeVariable>
+        val typeVariable: TypeVariable,
+        val constrainingType: KotlinType,
+        val kind: BoundKind,
+        val position: ConstraintPosition,
+        val isProper: Boolean,
+        // to prevent infinite recursion in incorporation we store the variables that was substituted to derive this bound
+        val derivedFrom: Set<TypeVariable>
     ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -73,6 +75,7 @@ interface TypeBounds {
     }
 }
 
+@K1Deprecation
 fun BoundKind.reverse() = when (this) {
     LOWER_BOUND -> UPPER_BOUND
     UPPER_BOUND -> LOWER_BOUND

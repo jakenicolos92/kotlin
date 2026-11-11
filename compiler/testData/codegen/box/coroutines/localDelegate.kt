@@ -1,15 +1,15 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.COROUTINE_SUSPENDED
-import kotlin.coroutines.experimental.intrinsics.suspendCoroutineOrReturn
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED
+import kotlin.coroutines.intrinsics.suspendCoroutineUninterceptedOrReturn
 
 class OkDelegate {
     operator fun getValue(receiver: Any?, property: Any?): String = "OK"
 }
 
-suspend fun <T> suspendWithValue(value: T): T = suspendCoroutineOrReturn { c ->
+suspend fun <T> suspendWithValue(value: T): T = suspendCoroutineUninterceptedOrReturn { c ->
     c.resume(value)
     COROUTINE_SUSPENDED
 }

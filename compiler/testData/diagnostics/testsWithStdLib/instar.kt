@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // Reproduces exception in TypeResolver.kt: EA-66870
 
 import java.util.ArrayList
@@ -9,3 +10,6 @@ abstract class J {
         foo(s)
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, functionDeclaration, javaFunction, localProperty,
+propertyDeclaration, starProjection, typeConstraint, typeParameter */

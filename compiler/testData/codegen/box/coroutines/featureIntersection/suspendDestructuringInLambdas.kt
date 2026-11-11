@@ -1,11 +1,13 @@
-// WITH_RUNTIME
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// WITH_STDLIB
 // WITH_COROUTINES
+
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 data class A(val o: String) {
-    operator suspend fun component2(): String = suspendCoroutineOrReturn { x ->
+    operator suspend fun component2(): String = suspendCoroutineUninterceptedOrReturn { x ->
         x.resume("K")
         COROUTINE_SUSPENDED
     }
@@ -18,7 +20,7 @@ fun box(): String {
     var result = ""
 
     builder {
-        (x, y) ->
+        [x, y] ->
         result = x + y
     }
 

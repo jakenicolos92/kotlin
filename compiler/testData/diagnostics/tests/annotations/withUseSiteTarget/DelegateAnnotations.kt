@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 import kotlin.reflect.KProperty
 
 @Target(AnnotationTarget.FIELD) annotation class Field
@@ -31,3 +32,6 @@ class WithPrimaryConstructor(<!INAPPLICABLE_TARGET_PROPERTY_HAS_NO_DELEGATE!>@de
 
 fun foo(<!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@delegate:Field<!> <!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@delegate:Prop<!> x: Int) = x
 
+/* GENERATED_FIR_TAGS: annotationDeclaration, annotationUseSiteTargetFieldDelegate, annotationUseSiteTargetParam,
+classDeclaration, functionDeclaration, getter, integerLiteral, nullableType, operator, primaryConstructor,
+propertyDeclaration, propertyDelegate, secondaryConstructor, starProjection, stringLiteral */

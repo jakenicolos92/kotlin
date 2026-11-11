@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Indexed<T>(val x: T, val y: Int)
 
 class Value<out T>(val x: T)
@@ -17,3 +18,7 @@ class WithValueIndexed<T>(val f: () -> Value<T>) : WithValue<Indexed<T>> {
 fun <T> Singleton<out T>.indexed(): WithValue<Indexed<T>> {
     return WithValueIndexed { value() }
 }
+
+/* GENERATED_FIR_TAGS: capturedType, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+integerLiteral, interfaceDeclaration, lambdaLiteral, nullableType, out, outProjection, override, primaryConstructor,
+propertyDeclaration, typeParameter */

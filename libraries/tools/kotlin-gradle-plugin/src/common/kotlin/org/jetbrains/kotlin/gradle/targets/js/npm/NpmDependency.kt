@@ -1,0 +1,107 @@
+/*
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+@file:Suppress("TYPEALIAS_EXPANSION_DEPRECATION")
+
+package org.jetbrains.kotlin.gradle.targets.js.npm
+
+import org.gradle.api.artifacts.Dependency
+import org.gradle.api.artifacts.FileCollectionDependency
+import org.gradle.api.artifacts.component.ComponentIdentifier
+import org.gradle.api.file.FileCollection
+import org.gradle.api.internal.artifacts.dependencies.SelfResolvingDependencyInternal
+import org.gradle.api.model.ObjectFactory
+import org.jetbrains.kotlin.gradle.targets.js.npm.NpmProject.Companion.PACKAGE_JSON
+import org.jetbrains.kotlin.gradle.utils.normalizedAbsoluteFile
+import java.io.File
+
+@Suppress("DEPRECATION")
+internal typealias NpmDependencyDeprecated = NpmDependency
+
+@Suppress("DEPRECATION")
+internal typealias NpmDependencyScopeDeprecated = NpmDependency.Scope
+
+@Deprecated("Declare npm dependencies with npm, npmDev, npmOptional, or npmPeer, without passing them to the implementation(...) or api(...) calls")
+@Suppress("DEPRECATION") // the deprecated Scope is a part of this deprecated class
+data class NpmDependency(
+    val objectFactory: ObjectFactory,
+    val scope: Scope = Scope.NORMAL,
+    private val name: String,
+    private val version: String,
+) : FileCollectionDependency,
+    SelfResolvingDependencyInternal {
+
+    @Deprecated("Select the scope by declaring the dependency with npm, npmDev, npmOptional, or npmPeer")
+    enum class Scope {
+        NORMAL,
+        DEV,
+        OPTIONAL,
+        PEER
+    }
+
+    private var reason: String? = null
+
+    override fun getGroup(): String? = null
+
+    override fun getName() = name
+
+    override fun getVersion() = version
+
+    override fun getTargetComponentId(): ComponentIdentifier? = null
+
+    override fun getFiles(): FileCollection = objectFactory.fileCollection()
+
+    override fun copy(): Dependency = this.copy(name = name)
+
+    override fun because(reason: String?) {
+        this.reason = reason
+    }
+
+    override fun getReason(): String? = reason
+}
+
+internal fun directoryNpmDependency(
+    objectFactory: ObjectFactory,
+    scope: NpmDependencyScopeDeprecated,
+    name: String,
+    directory: File,
+): NpmDependencyDeprecated {
+    check(directory.isDirectory) {
+        "Dependency on local path should point on directory but $directory found"
+    }
+
+    return NpmDependencyDeprecated(
+        objectFactory = objectFactory,
+        scope = scope,
+        name = name,
+        version = fileVersion(directory),
+    )
+}
+
+@Deprecated("Internal KGP utility. Scheduled for removal in Kotlin 2.7")
+fun String.isFileVersion() =
+    startsWith(NPM_DEP_FILE_VERSION_PREFIX)
+
+private fun fileVersion(directory: File): String =
+    "$NPM_DEP_FILE_VERSION_PREFIX${directory.normalizedAbsoluteFile()}"
+
+internal fun moduleName(directory: File): String {
+    val packageJson = directory.resolve(PACKAGE_JSON)
+
+    if (packageJson.isFile) {
+        return fromSrcPackageJson(packageJson)!!.name
+    }
+
+    return directory.name
+}
+
+/**
+ * A version that starts with `file:` indicates that the dependency is a local file.
+ * https://docs.npmjs.com/cli/v11/configuring-npm/package-json#local-paths
+ */
+internal const val NPM_DEP_FILE_VERSION_PREFIX = "file:"
+
+@Deprecated("Internal KGP utility. Scheduled for removal in Kotlin 2.7")
+const val FILE_VERSION_PREFIX = NPM_DEP_FILE_VERSION_PREFIX

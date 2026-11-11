@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 import java.lang.annotation.Retention
 import java.lang.annotation.Target
 import java.lang.annotation.*
@@ -6,5 +7,7 @@ import java.lang.annotation.*
 annotation class my
 
 <!DEPRECATED_JAVA_ANNOTATION!>@Retention(RetentionPolicy.RUNTIME)<!>
-<!DEPRECATED_JAVA_ANNOTATION!>@Target(ElementType.ANNOTATION_TYPE, ElementType.CONSTRUCTOR)<!>
+<!ANNOTATION_TARGETS_ONLY_IN_JAVA, DEPRECATED_JAVA_ANNOTATION!>@Target(ElementType.ANNOTATION_TYPE, ElementType.CONSTRUCTOR)<!>
 annotation class my1
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, javaProperty */

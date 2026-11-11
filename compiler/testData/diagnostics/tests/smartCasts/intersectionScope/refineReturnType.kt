@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 interface A {
     fun foo(): CharSequence?
@@ -10,7 +11,11 @@ interface B : A {
 
 fun test(a: A) {
     if (a is B) {
-        <!DEBUG_INFO_SMARTCAST!>a<!>.foo()
-        <!DEBUG_INFO_SMARTCAST!>a<!>.foo().checkType { _<String>() }
+        a.foo()
+        a.foo().checkType { _<String>() }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, ifExpression,
+infix, interfaceDeclaration, isExpression, lambdaLiteral, nullableType, override, smartcast, typeParameter,
+typeWithExtension */

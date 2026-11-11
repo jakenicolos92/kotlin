@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: propertyClassFileDependencyRecursion.kt
 package test
 
@@ -15,3 +16,5 @@ package other
 import test.PropType
 
 val prop: PropType? = null
+
+/* GENERATED_FIR_TAGS: classDeclaration, nullableType, propertyDeclaration */

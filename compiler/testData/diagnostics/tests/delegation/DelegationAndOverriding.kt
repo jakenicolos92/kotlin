@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package override
 
 interface T {
@@ -5,11 +6,11 @@ interface T {
     val v : Int
 }
 
-open <!ABSTRACT_MEMBER_NOT_IMPLEMENTED!>class Br<!>(<!UNUSED_PARAMETER!>t<!> : T) : T {
+open <!ABSTRACT_MEMBER_NOT_IMPLEMENTED!>class Br<!>(t : T) : T {
 
 }
 
-<!ABSTRACT_CLASS_MEMBER_NOT_IMPLEMENTED!>class Br3<!>(t : T) : Br(t) {
+<!ABSTRACT_MEMBER_NOT_IMPLEMENTED!>class Br3<!>(t : T) : Br(t) {
 
 }
 
@@ -36,3 +37,6 @@ open class GC1(g : G<Int>) : G<Int> by g {
 open class GC2(g : G<Int>) : GC1(g) {
 
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, inheritanceDelegation, interfaceDeclaration, nullableType,
+primaryConstructor, propertyDeclaration, typeParameter */

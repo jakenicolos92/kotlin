@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package c
 
 fun test() {
@@ -5,8 +6,10 @@ fun test() {
     fun inner1() {
         fun inner2() {
             fun inner3() {
-                val <!UNUSED_VARIABLE!>y<!> = x
+                val y = x
             }
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, localFunction, localProperty, propertyDeclaration */

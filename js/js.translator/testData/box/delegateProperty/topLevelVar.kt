@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 498
 package foo
 
 import kotlin.reflect.KProperty

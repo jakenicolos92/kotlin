@@ -1,0 +1,336 @@
+/*
+ * Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.tasks
+
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.ConfigurableFileCollection
+import org.gradle.api.file.FileCollection
+import org.gradle.api.file.FileSystemOperations
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.model.ObjectFactory
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.provider.MapProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.provider.SetProperty
+import org.gradle.api.tasks.*
+import org.gradle.work.NormalizeLineEndings
+import org.gradle.workers.WorkerExecutor
+import org.jetbrains.kotlin.gradle.plugin.diagnostics.ToolingDiagnostic
+import org.jetbrains.kotlin.gradle.plugin.diagnostics.UsesKotlinToolingDiagnostics
+import org.jetbrains.kotlin.gradle.plugin.internal.KotlinProjectSharedDataProvider
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.internal.SwiftExportAction
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.internal.SwiftExportTaskParameters
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.internal.SwiftExportedDependency
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.internal.SwiftExportedModule
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.internal.collectModules
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.internal.createFullyExportedSwiftExportedModule
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.internal.createTransitiveSwiftExportedModule
+import org.jetbrains.kotlin.gradle.plugin.mpp.export.internal.SwiftExportDeclaredModuleOptions
+import org.jetbrains.kotlin.gradle.plugin.mpp.export.internal.SwiftExportDependencySelector
+import org.jetbrains.kotlin.gradle.plugin.mpp.export.internal.SwiftExportMetadata
+import org.jetbrains.kotlin.gradle.targets.native.toolchain.KotlinNativeProvider
+import org.jetbrains.kotlin.gradle.utils.LazyResolvedConfigurationWithArtifacts
+import org.jetbrains.kotlin.gradle.utils.chainedFinalizeValueOnRead
+import org.jetbrains.kotlin.gradle.utils.getFile
+import org.jetbrains.kotlin.gradle.utils.listProperty
+import org.jetbrains.kotlin.konan.target.Distribution
+import javax.inject.Inject
+
+/**
+ * Translates the klibs into Swift and Kotlin bridge sources. The output has no absolute paths, so it can be cached.
+ * A cache hit skips the task action and with it the dependency resolution diagnostics, like compiler warnings of a
+ * cached compile task: the same inputs gave the same diagnostics to the build that stored the entry.
+ */
+@CacheableTask
+internal abstract class SwiftExportTask @Inject constructor(
+    private val workerExecutor: WorkerExecutor,
+    private val fileSystem: FileSystemOperations,
+    objectFactory: ObjectFactory,
+) : DefaultTask(), UsesKotlinToolingDiagnostics {
+
+    internal abstract class ModuleInput {
+        @get:Input
+        abstract val moduleName: Property<String>
+
+        @get:Input
+        @get:Optional
+        abstract val flattenPackage: Property<String>
+
+        /** The klib to translate. Wired from the compile task, so the dependency on it comes with the file. */
+        @get:InputFiles
+        @get:NormalizeLineEndings
+        @get:PathSensitive(PathSensitivity.RELATIVE)
+        abstract val artifact: RegularFileProperty
+    }
+
+    @get:Nested
+    abstract val mainModuleInput: ModuleInput
+
+    @get:Input
+    @get:Optional
+    abstract val cinteropModuleName: Property<String>
+
+    @get:InputFiles
+    @get:NormalizeLineEndings
+    @get:Optional
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val cinteropModuleArtifact: RegularFileProperty
+
+    @get:Nested
+    abstract val kotlinNativeProvider: Property<KotlinNativeProvider>
+
+    @get:Classpath
+    @get:NormalizeLineEndings
+    abstract val swiftExportClasspath: ConfigurableFileCollection
+
+    @get:Nested
+    abstract val parameters: SwiftExportTaskParameters
+
+    /**
+     * The complete compilation dependency graph the exported modules are resolved from.
+     *
+     * Held as Configuration-Cache-safe [LazyResolvedConfigurationWithArtifacts] rather than a precomputed module list
+     * so that the resolution happens at execution time (see [run]); up-to-date checking is provided by the raw
+     * configurations wired as task inputs in `registerSwiftExportRun`.
+     */
+    @get:Internal
+    abstract val exportConfiguration: Property<LazyResolvedConfigurationWithArtifacts>
+
+    /**
+     * Up-to-date tracking of [exportConfiguration]'s backing configuration.
+     */
+    @get:Classpath
+    @get:NormalizeLineEndings
+    abstract val exportConfigurationFiles: ConfigurableFileCollection
+
+    /**
+     * A version of the compilation dependency graph (represented by [exportConfiguration]) that only includes api
+     * dependencies. Used for identifying direct api dependencies of an exported module.
+     *
+     * Held as Configuration-Cache-safe [LazyResolvedConfigurationWithArtifacts] rather than a precomputed module list
+     * so that the resolution happens at execution time (see [run]); up-to-date checking is provided by the raw
+     * configurations wired as task inputs in `registerSwiftExportRun`.
+     */
+    @get:Internal
+    abstract val apiConfiguration: Property<LazyResolvedConfigurationWithArtifacts>
+
+    /**
+     * Up-to-date tracking of [apiConfiguration]'s backing configuration.
+     */
+    @get:Classpath
+    @get:NormalizeLineEndings
+    abstract val apiConfigurationFiles: ConfigurableFileCollection
+
+    /**
+     * Up-to-date tracking projection of [apiConfiguration]'s *direct* dependencies.
+     *
+     * Resolving [apiConfiguration]'s artifacts doesn't change when a transitive `api` dependency becomes direct - the
+     * resolved closure of files stays the same - but which modules are promoted to fully exported ones does. This
+     * property tracks the identities (project path or external `group:name`) of [apiConfiguration]'s direct dependencies,
+     * derived lazily from its resolution result (dependency-graph resolution only, not artifact resolution), as a stable,
+     * sorted list of strings - so the task re-runs whenever that set changes.
+     */
+    @get:Input
+    @get:Optional
+    abstract val apiDirectDependencyIdentities: ListProperty<String>
+
+    /**
+     * Mirrors [exportConfiguration] but contains Swift Export metadata of dependencies inside [exportConfiguration].
+     *
+     * Held as Configuration-Cache-safe [LazyResolvedConfigurationWithArtifacts] rather than a precomputed module list
+     * so that the resolution happens at execution time (see [run]); up-to-date checking is provided by the raw
+     * configurations wired as task inputs in `registerSwiftExportRun`.
+     */
+    @get:Internal
+    abstract val metadataConfiguration: Property<LazyResolvedConfigurationWithArtifacts>
+
+    /**
+     * Up-to-date tracking of [metadataConfiguration]'s backing configuration.
+     */
+    @get:InputFiles
+    @get:NormalizeLineEndings
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val metadataConfigurationFiles: ConfigurableFileCollection
+
+    /**
+     * Swift Export metadata shared by same-build subproject dependencies as a secondary variant.
+     *
+     * Held as a Configuration-Cache-safe [KotlinProjectSharedDataProvider] and read at execution time (see [run]);
+     * the producer's JSON is a task output, so it only exists once [sharedMetadataFiles] has forced the producing task to run.
+     */
+    @get:Internal
+    abstract val sharedMetadata: Property<KotlinProjectSharedDataProvider<SwiftExportMetadata>>
+
+    /**
+     * Gradle `InputFiles` view of [sharedMetadata]. Declaring it as a task input provides the `builtBy` edge that makes
+     * the subproject metadata producers run before this task executes, so their JSON exists when [run] reads it.
+     */
+    @get:InputFiles
+    @get:NormalizeLineEndings
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    val sharedMetadataFiles: List<FileCollection>
+        get() = sharedMetadata.orNull?.let { listOf(it.files) } ?: emptyList()
+
+    /**
+     * The explicitly-exported dependencies declared via the legacy `swiftExport { export(…) }` DSL. Is expected
+     * to be empty when the new `export { swift { … } }` DSL is used.
+     *
+     * Held as `@Internal` because [SwiftExportedDependency] wraps live Gradle `Property` values and a dependency
+     * selector, which is not a valid task input on its own. Up-to-date tracking of its output-affecting content
+     * is provided by [exportedModulesInputs].
+     */
+    @get:Internal
+    abstract val exportedModules: SetProperty<SwiftExportedDependency>
+
+    /**
+     * Up-to-date tracking projection of [exportedModules]. It exposes the plain, output-affecting values of every
+     * exported dependency - its identity (external coordinates or project path) and the explicit `moduleName` /
+     * `flattenPackage` overrides - as a stable list of strings.
+     */
+    @get:Input
+    internal val exportedModulesInputs: List<String>
+        get() = exportedModules.get()
+            .map { "${it.name}|${it.moduleName.orNull}|${it.flattenPackage.orNull}" }
+            .sorted()
+
+    /**
+     * The consumer-side module option overrides declared via `configure(…)` of the [integrationDsl] block,
+     * keyed by the dependency they apply to (external `group:name` coordinates or a project path).
+     *
+     * Held as `@Internal` because [SwiftExportDependencySelector] and [SwiftExportDeclaredModuleOptions] wrap plain
+     * values that are not a valid task input on their own. Read at execution time by [resolveSwiftExportedModules].
+     * Up-to-date tracking of its output-affecting content is provided by [dependencyOptionsOverridesInputs].
+     */
+    @get:Internal
+    abstract val dependencyOptionsOverrides: MapProperty<SwiftExportDependencySelector, SwiftExportDeclaredModuleOptions>
+
+    /**
+     * The DSL block of the integration this run belongs to, such as `xcodeIntegration`. Only diagnostics use it.
+     */
+    @get:Internal
+    abstract val integrationDsl: Property<String>
+
+    /**
+     * Up-to-date tracking projection of [dependencyOptionsOverrides]. It exposes the plain, output-affecting values of
+     * every override - the selector identity (external `group:name` coordinates or a project path) and the declared
+     * `moduleName` / `rootPackage` options - as a stable list of strings.
+     */
+    @get:Input
+    internal val dependencyOptionsOverridesInputs: List<String>
+        get() = dependencyOptionsOverrides.get()
+            .map { (selector, options) ->
+                val selectorKey = when (selector) {
+                    is SwiftExportDependencySelector.ProjectPath -> "project|${selector.projectPath}"
+                    is SwiftExportDependencySelector.Module -> "module|${selector.group}|${selector.name}"
+                }
+                "$selectorKey|${options.moduleName}|${options.rootPackage}|${options.visibility}"
+            }
+            .sorted()
+
+    /**
+     * The JVM arguments of the worker process. Tracked through [trackedWorkerJvmArgs]: the heap size and the other
+     * `-X` flags don't change what the translation produces, a `-D` property read by the tool might.
+     */
+    @get:Internal
+    internal val customJvmArgs: ListProperty<String> = objectFactory
+        .listProperty<String>()
+        .chainedFinalizeValueOnRead()
+
+    /** The entries of [customJvmArgs] that aren't `-X` flags. */
+    @get:Input
+    internal val trackedWorkerJvmArgs: List<String>
+        get() = customJvmArgs.get().filterNot { it.startsWith("-X") }
+
+    /**
+     * [customJvmArgs] with `-Xmx1g` appended unless they already set `-Xmx`.
+     */
+    @get:Internal
+    internal val workerJvmArgs: List<String>
+        get() {
+            val jvmArgs = customJvmArgs.get()
+            return if (jvmArgs.any { it.startsWith("-Xmx") }) jvmArgs else jvmArgs + DEFAULT_MAX_HEAP_SIZE
+        }
+
+    @TaskAction
+    fun run() {
+        cleanup()
+
+        // Run Swift Export with process isolation to avoid leakage for AA/IntelliJ classes. See KT-73438
+        val swiftExportQueue = workerExecutor.processIsolation { workerSpec ->
+            workerSpec.classpath.from(swiftExportClasspath)
+            workerSpec.forkOptions.jvmArgs(workerJvmArgs)
+            // With this flag of true, we would have to embed kotlinx.coroutines.internal.intellij.IntellijCoroutines into somewhere,
+            // to avoid ClassNotFoundException. As it's currently unclear how to embed this class, we disable it for now.
+            workerSpec.forkOptions.systemProperties.put("ide.can.use.coroutines.fork", "false")
+        }
+
+        // The exported-module list is resolved here, at execution time, rather than during configuration: the resolved
+        // configurations only need to be readable when the task runs, which keeps the resolution off the
+        // configuration-cache store phase.
+        val swiftModules = buildList {
+            addAll(resolveSwiftExportedModules())
+            add(
+                createFullyExportedSwiftExportedModule(
+                    mainModuleInput.moduleName.get(),
+                    mainModuleInput.flattenPackage.orNull,
+                    mainModuleInput.artifact.getFile()
+                )
+            )
+            if (cinteropModuleName.isPresent) {
+                add(
+                    createTransitiveSwiftExportedModule(
+                        moduleName = cinteropModuleName.get(),
+                        artifact = cinteropModuleArtifact.getFile()
+                    )
+                )
+            }
+        }
+
+        swiftExportQueue.submit(SwiftExportAction::class.java) { workParameters ->
+            workParameters.bridgeModuleName.set(parameters.bridgeModuleName)
+            workParameters.outputDirectory.set(parameters.outputDirectory)
+            workParameters.stableDeclarationsOrder.set(parameters.stableDeclarationsOrder)
+            workParameters.swiftModules.set(swiftModules)
+            workParameters.swiftExportSettings.set(parameters.swiftExportSettings)
+            workParameters.konanDistribution.set(kotlinNativeProvider.flatMap { it.bundleDirectory }.map { Distribution(it) })
+            workParameters.konanTarget.set(parameters.konanTarget)
+        }
+    }
+
+    /**
+     * Resolves the transitive and explicitly-exported Swift modules from the dependency graph. This is done at
+     * execution time (called from [run]), reading the Configuration-Cache-safe holders resolved during configuration.
+     * The main module and the optional cinterop module are appended by [run]; they are not part of this result.
+     *
+     * Exposed as `internal` so functional tests can assert the resolved module set without executing the whole task.
+     * [reportDiagnostic] defaults to this task's execution-time reporter; tests may pass a project-scoped reporter to
+     * observe resolution diagnostics through the regular collector.
+     */
+    internal fun resolveSwiftExportedModules(
+        reportDiagnostic: (ToolingDiagnostic) -> Unit = { this.reportDiagnostic(it) },
+    ): List<SwiftExportedModule> = collectModules(
+        exportConfiguration = exportConfiguration.get(),
+        apiConfiguration = apiConfiguration.orNull,
+        metadataConfiguration = metadataConfiguration.orNull,
+        sharedMetadata = sharedMetadata.orNull,
+        exportedModules = exportedModules.get(),
+        dependencyOptionsOverrides = dependencyOptionsOverrides.get(),
+        rootModuleName = mainModuleInput.moduleName.get(),
+        integrationDsl = integrationDsl.get(),
+        reportDiagnostic = reportDiagnostic,
+    )
+
+    private fun cleanup() {
+        fileSystem.delete {
+            it.delete(parameters.outputDirectory)
+        }
+    }
+
+    private companion object {
+        // Gradle gives worker processes 512 MB by default, which is too little for larger modules.
+        const val DEFAULT_MAX_HEAP_SIZE = "-Xmx1g"
+    }
+}

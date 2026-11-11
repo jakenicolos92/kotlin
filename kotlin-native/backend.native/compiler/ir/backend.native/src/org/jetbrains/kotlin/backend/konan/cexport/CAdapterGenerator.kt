@@ -1,0 +1,407 @@
+/*
+ * Copyright 2010-2022 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.backend.konan.cexport
+
+import org.jetbrains.kotlin.backend.common.pop
+import org.jetbrains.kotlin.backend.common.push
+import org.jetbrains.kotlin.backend.konan.*
+import org.jetbrains.kotlin.backend.konan.descriptors.getPackageFragments
+import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor
+import org.jetbrains.kotlin.descriptors.konan.allParameters
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.library.metadata.CurrentKlibModuleOrigin
+import org.jetbrains.kotlin.library.metadata.DeserializedKlibModuleOrigin
+import org.jetbrains.kotlin.library.metadata.SyntheticModulesOrigin
+import org.jetbrains.kotlin.library.metadata.klibModuleOrigin
+import org.jetbrains.kotlin.backend.konan.descriptors.isDeserializedAndHasCompanionExtensionReceiver
+import org.jetbrains.kotlin.descriptors.konan.explicitParameters
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
+import org.jetbrains.kotlin.ir.util.referenceFunction
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.isChildOf
+import org.jetbrains.kotlin.resolve.DescriptorUtils
+import org.jetbrains.kotlin.resolve.annotations.argumentValue
+import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
+import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
+import org.jetbrains.kotlin.resolve.descriptorUtil.isEffectivelyPublicApi
+import org.jetbrains.kotlin.resolve.descriptorUtil.module
+import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.types.typeUtil.isUnit
+
+@OptIn(K1Deprecation::class)
+private fun isExportedFunction(descriptor: FunctionDescriptor): Boolean {
+    if (!descriptor.isEffectivelyPublicApi || !descriptor.kind.isReal || descriptor.isExpect)
+        return false
+    if (descriptor.isSuspend)
+        return false
+    if (descriptor.contextReceiverParameters.any())
+        return false
+    if (descriptor.typeParameters.any())
+        return false
+    if (descriptor.isDeserializedAndHasCompanionExtensionReceiver)
+        return false
+    return true
+}
+
+private fun isExportedClass(descriptor: ClassDescriptor): Boolean {
+    if (!descriptor.isEffectivelyPublicApi) return false
+    // No sense to export annotations.
+    if (DescriptorUtils.isAnnotationClass(descriptor)) return false
+    // Do not export expect classes.
+    if (descriptor.isExpect) return false
+    // Do not export types with type parameters.
+    // TODO: is it correct?
+    if (!descriptor.declaredTypeParameters.isEmpty()) return false
+    // Do not export inline classes for now. TODO: add proper support.
+    if (descriptor.isInlined()) return false
+
+    return true
+}
+
+internal fun AnnotationDescriptor.properValue(key: String) =
+        this.argumentValue(key)?.toString()?.removeSurrounding("\"")
+
+private fun functionImplName(descriptor: DeclarationDescriptor, default: String, shortName: Boolean): String {
+    assert(descriptor is FunctionDescriptor)
+    val annotation = descriptor.annotations.findAnnotation(RuntimeNames.cnameAnnotation) ?: return default
+    val key = if (shortName) "shortName" else "externName"
+    val value = annotation.properValue(key)
+    return value.takeIf { value != null && value.isNotEmpty() } ?: default
+}
+
+/** Descriptor-backed [ExportedDeclarationKey]; keys [ExportedElementScope]'s name cache by the descriptor. */
+private data class DescriptorNameKey(val descriptor: DeclarationDescriptor) : ExportedDeclarationKey
+
+@OptIn(ObsoleteDescriptorBasedAPI::class)
+internal class ExportedElementK1(
+        override val kind: ElementKind,
+        override val scope: ExportedElementScope,
+        val declaration: DeclarationDescriptor,
+        override val generator: CAdapterGenerator,
+        private val typeTranslator: CAdapterTypeTranslator,
+) : ExportedElement {
+    init {
+        scope.elements.add(this)
+    }
+
+    override val name: String
+        get() = declaration.fqNameSafe.shortName().asString()
+
+    override lateinit var cname: String
+
+    override fun toString(): String {
+        return "$kind: $name (aliased to ${if (::cname.isInitialized) cname else "<unknown>"})"
+    }
+
+    fun uniqueName(descriptor: DeclarationDescriptor, shortName: Boolean): String {
+        val baseName = when (descriptor) {
+            is ConstructorDescriptor -> descriptor.constructedClass.fqNameSafe.shortName().asString()
+            is PropertyGetterDescriptor -> "get_${descriptor.correspondingProperty.name.asString()}"
+            is PropertySetterDescriptor -> "set_${descriptor.correspondingProperty.name.asString()}"
+            is FunctionDescriptor -> functionImplName(descriptor, descriptor.fqNameSafe.shortName().asString(), shortName)
+            else -> descriptor.fqNameSafe.shortName().asString()
+        }
+        return scope.scopeUniqueName(DescriptorNameKey(descriptor), shortName, baseName)
+    }
+
+    override val isFunction = declaration is FunctionDescriptor
+    override val isTopLevelFunction: Boolean
+        get() {
+            if (declaration !is FunctionDescriptor ||
+                    !declaration.annotations.hasAnnotation(RuntimeNames.cnameAnnotation))
+                return false
+            val annotation = declaration.annotations.findAnnotation(RuntimeNames.cnameAnnotation)!!
+            val externName = annotation.properValue("externName")
+            return externName != null && externName.isNotEmpty()
+        }
+    override val isConstructor = declaration is ConstructorDescriptor
+    override val isClass = declaration is ClassDescriptor && declaration.kind != ClassKind.ENUM_ENTRY
+    override val isEnumEntry = declaration is ClassDescriptor && declaration.kind == ClassKind.ENUM_ENTRY
+    override val isSingletonObject = declaration is ClassDescriptor && DescriptorUtils.isObject(declaration)
+
+    override val irSymbol = when {
+        isFunction -> generator.symbolTable.referenceFunction(declaration as FunctionDescriptor)
+        isClass -> generator.symbolTable.descriptorExtension.referenceClass(declaration as ClassDescriptor)
+        isEnumEntry -> generator.symbolTable.descriptorExtension.referenceEnumEntry(declaration as ClassDescriptor)
+        else -> error("unexpected $kind element: $declaration")
+    }
+
+    private fun KotlinType.includeToSignature() = !this.isUnit()
+
+    override fun makeCFunctionSignature(shortName: Boolean): List<SignatureElement> {
+        if (!isFunction) {
+            throw Error("only for functions")
+        }
+        val descriptor = declaration
+        val original = descriptor.original as FunctionDescriptor
+        val returned = when {
+            original is ConstructorDescriptor ->
+                SignatureElement(uniqueName(original, shortName), typeTranslator.exportedType(original.constructedClass.defaultType.asCExportableType()))
+            else ->
+                SignatureElement(uniqueName(original, shortName), typeTranslator.exportedType(original.returnType!!.asCExportableType()))
+        }
+
+        @OptIn(K1Deprecation::class)
+        val uniqueNames = generator.paramsToUniqueNames(original.explicitParameters)
+
+        @OptIn(K1Deprecation::class)
+        val params = ArrayList(original.explicitParameters
+                .filter { it.type.includeToSignature() }
+                .map { SignatureElement(uniqueNames[it]!!, typeTranslator.exportedType(it.type.asCExportableType())) })
+        return listOf(returned) + params
+    }
+
+    override fun makeBridgeSignature(): List<String> {
+        if (!isFunction) {
+            throw Error("only for functions")
+        }
+        val descriptor = declaration
+        val original = descriptor.original as FunctionDescriptor
+
+        @OptIn(K1Deprecation::class)
+        val returnedType = when {
+            original is ConstructorDescriptor -> original.builtIns.unitType
+            else -> original.returnType!!
+        }.asCExportableType()
+
+        @OptIn(K1Deprecation::class)
+        val params = ArrayList(original.allParameters
+                .filter { it.type.includeToSignature() }
+                .map {
+                    typeTranslator.translateTypeBridge(it.type.asCExportableType())
+                })
+        if (typeTranslator.isMappedToReference(returnedType) || typeTranslator.isMappedToString(returnedType)) {
+            params += "KObjHeader**"
+        }
+        return listOf(typeTranslator.translateTypeBridge(returnedType)) + params
+    }
+
+    override val classType: String
+        get() = typeTranslator.translateType((declaration as ClassDescriptor).defaultType.asCExportableType())
+
+    override val enumEntryContainingType: String
+        get() {
+            assert(isEnumEntry)
+            val enumClass = declaration.containingDeclaration as ClassDescriptor
+            return typeTranslator.translateType(enumClass.defaultType.asCExportableType())
+        }
+
+    override val cnameImpl: String
+        get() = if (isTopLevelFunction)
+            functionImplName(declaration, "******" /* Default value must never be used. */, false)
+        else
+            "${cname}_impl"
+
+    private fun addUsedType(type: KotlinType, set: MutableSet<CExportedType>) {
+        if (type.constructor.declarationDescriptor is TypeParameterDescriptor) return
+        set.add(typeTranslator.exportedType(type.asCExportableType()))
+    }
+
+    override fun addUsedTypes(set: MutableSet<CExportedType>) {
+        val descriptor = declaration
+        when (descriptor) {
+            is FunctionDescriptor -> {
+                val original = descriptor.original
+                @OptIn(K1Deprecation::class)
+                original.allParameters.forEach { addUsedType(it.type, set) }
+                original.returnType?.let { addUsedType(it, set) }
+            }
+            is PropertyAccessorDescriptor -> {
+                val original = descriptor.original
+                addUsedType(original.correspondingProperty.type, set)
+            }
+            is ClassDescriptor -> {
+                addUsedType(descriptor.defaultType, set)
+            }
+        }
+    }
+}
+
+/**
+ * First phase of C export: walk given declaration descriptors and create [CAdapterExportedElements] from them.
+ */
+internal class CAdapterGenerator(
+        private val context: LinkKlibsContext,
+        private val typeTranslator: CAdapterTypeTranslator,
+) : DeclarationDescriptorVisitor<Boolean, Void?>, CAdapterModelOwner {
+    private val scopes = mutableListOf<ExportedElementScope>()
+    override val prefix = typeTranslator.prefix
+    private val paramNamesRecorded = mutableMapOf<String, Int>()
+
+    internal val symbolTable get() = context.symbolTable!!
+
+    internal fun paramsToUniqueNames(params: List<ParameterDescriptor>): Map<ParameterDescriptor, String> {
+        paramNamesRecorded.clear()
+        return params.associate {
+            val name = translateName(it.name)
+            val count = paramNamesRecorded.getOrPut(name) { 0 }
+            paramNamesRecorded[name] = count + 1
+            if (count == 0) {
+                it to name
+            } else {
+                it to "$name${count.toString()}"
+            }
+        }
+    }
+
+    private fun visitChildren(descriptors: Collection<DeclarationDescriptor>) {
+        for (descriptor in descriptors) {
+            descriptor.accept(this, null)
+        }
+    }
+
+    private fun visitChildren(descriptor: DeclarationDescriptor) {
+        descriptor.accept(this, null)
+    }
+
+    override fun visitConstructorDescriptor(descriptor: ConstructorDescriptor, ignored: Void?): Boolean {
+        if (!isExportedFunction(descriptor)) return true
+        ExportedElementK1(ElementKind.FUNCTION, scopes.last(), descriptor, this, typeTranslator)
+        return true
+    }
+
+    override fun visitFunctionDescriptor(descriptor: FunctionDescriptor, ignored: Void?): Boolean {
+        if (!isExportedFunction(descriptor)) return true
+        ExportedElementK1(ElementKind.FUNCTION, scopes.last(), descriptor, this, typeTranslator)
+        return true
+    }
+
+    override fun visitClassDescriptor(descriptor: ClassDescriptor, ignored: Void?): Boolean {
+        if (!isExportedClass(descriptor)) return true
+        // TODO: fix me!
+        val shortName = descriptor.fqNameSafe.shortName()
+        if (shortName.isSpecial || shortName.asString().contains("<anonymous>"))
+            return true
+        val classScope = ExportedElementScope(ScopeKind.CLASS, shortName.asString())
+        scopes.last().scopes += classScope
+        scopes.push(classScope)
+        // Add type getter.
+        ExportedElementK1(ElementKind.TYPE, scopes.last(), descriptor, this, typeTranslator)
+        visitChildren(descriptor.getConstructors())
+        visitChildren(DescriptorUtils.getAllDescriptors(descriptor.getDefaultType().memberScope))
+        scopes.pop()
+        return true
+    }
+
+    override fun visitPropertyDescriptor(descriptor: PropertyDescriptor, ignored: Void?): Boolean {
+        if (descriptor.isExpect) return true
+        descriptor.getter?.let { visitChildren(it) }
+        descriptor.setter?.let { visitChildren(it) }
+        return true
+    }
+
+    override fun visitPropertyGetterDescriptor(descriptor: PropertyGetterDescriptor, ignored: Void?): Boolean {
+        if (!isExportedFunction(descriptor)) return true
+        ExportedElementK1(ElementKind.FUNCTION, scopes.last(), descriptor, this, typeTranslator)
+        return true
+    }
+
+    override fun visitPropertySetterDescriptor(descriptor: PropertySetterDescriptor, ignored: Void?): Boolean {
+        if (!isExportedFunction(descriptor)) return true
+        ExportedElementK1(ElementKind.FUNCTION, scopes.last(), descriptor, this, typeTranslator)
+        return true
+    }
+
+    override fun visitScriptDescriptor(descriptor: ScriptDescriptor, ignored: Void?) = true
+
+    override fun visitPackageViewDescriptor(descriptor: PackageViewDescriptor, ignored: Void?): Boolean {
+        if (descriptor.module !in moduleDescriptors) return true
+        // Sort fragments by their owning library's reverse-topological rank so declarations are emitted in a stable
+        // dependency-first order regardless of the order the libraries happened to be passed on the command line.
+        val fragments = descriptor.module.getPackage(FqName.ROOT).fragments
+                .filter { it.module in moduleDescriptors }
+                .sortedBy { it.module.reverseTopoRank() }
+        visitChildren(fragments)
+
+        // K2 does not serialize empty package fragments, thus breaking the scope chain.
+        // The following traverse definitely reaches every subpackage fragment.
+        scopes.push(getPackageScope(FqName.ROOT))
+        val subfragments = descriptor.module.getSubPackagesOf(FqName.ROOT) { true }
+                .flatMap {
+                    descriptor.module.getPackage(it).fragments
+                            .filter { it.module in moduleDescriptors }
+                            .sortedBy { it.module.reverseTopoRank() }
+                }
+        visitChildren(subfragments)
+        scopes.pop()
+
+        return true
+    }
+
+    override fun visitValueParameterDescriptor(descriptor: ValueParameterDescriptor, ignored: Void?): Boolean {
+        TODO("visitValueParameterDescriptor() shall not be seen")
+    }
+
+    override fun visitReceiverParameterDescriptor(descriptor: ReceiverParameterDescriptor?, ignored: Void?): Boolean {
+        TODO("visitReceiverParameterDescriptor() shall not be seen")
+    }
+
+    override fun visitVariableDescriptor(descriptor: VariableDescriptor, ignored: Void?) = true
+
+    override fun visitTypeParameterDescriptor(descriptor: TypeParameterDescriptor, ignored: Void?) = true
+
+    private val seenPackageFragments = mutableSetOf<PackageFragmentDescriptor>()
+    private var currentPackageFragments: List<PackageFragmentDescriptor> = emptyList()
+    private val packageScopes = mutableMapOf<FqName, ExportedElementScope>()
+
+    override fun visitModuleDeclaration(descriptor: ModuleDescriptor, ignored: Void?): Boolean {
+        TODO("Shall not be called directly")
+    }
+
+    override fun visitTypeAliasDescriptor(descriptor: TypeAliasDescriptor, ignored: Void?) = true
+
+    override fun visitPackageFragmentDescriptor(descriptor: PackageFragmentDescriptor, ignored: Void?): Boolean {
+        val fqName = descriptor.fqName
+        val packageScope = getPackageScope(fqName)
+        scopes.push(packageScope)
+        if (!seenPackageFragments.contains(descriptor))
+            visitChildren(DescriptorUtils.getAllDescriptors(descriptor.getMemberScope()))
+        for (currentPackageFragment in currentPackageFragments) {
+            if (!seenPackageFragments.contains(currentPackageFragment) &&
+                    currentPackageFragment.fqName.isChildOf(descriptor.fqName)) {
+                visitChildren(currentPackageFragment)
+                seenPackageFragments += currentPackageFragment
+            }
+        }
+        scopes.pop()
+        return true
+    }
+
+    private fun getPackageScope(fqName: FqName) = packageScopes.getOrPut(fqName) {
+        val name = if (fqName.isRoot) "root" else translateName(fqName.shortName())
+        val scope = ExportedElementScope(ScopeKind.PACKAGE, name)
+        scopes.last().scopes += scope
+        scope
+    }
+
+
+    private val moduleDescriptors = mutableSetOf<ModuleDescriptor>()
+
+    private fun ModuleDescriptor.reverseTopoRank(): Int =
+            when (val origin = klibModuleOrigin) {
+                is DeserializedKlibModuleOrigin -> context.config.klibDag.libraryReverseTopoRank[origin.library] ?: Int.MAX_VALUE
+                CurrentKlibModuleOrigin, SyntheticModulesOrigin -> Int.MAX_VALUE
+            }
+
+    fun buildExports(moduleDescriptor: ModuleDescriptor): CAdapterExportedElements {
+        scopes.push(ExportedElementScope(ScopeKind.TOP, "kotlin"))
+        moduleDescriptors += moduleDescriptor
+        moduleDescriptors += moduleDescriptor.getExportedDependencies(context.config)
+
+        currentPackageFragments = moduleDescriptors.flatMap { it.getPackageFragments() }.toSet()
+                .sortedWith(
+                        compareBy<PackageFragmentDescriptor> { it.fqName.toString() }
+                                .thenBy { it.module.reverseTopoRank() }
+                )
+
+        moduleDescriptor.getPackage(FqName.ROOT).accept(this, null)
+        return CAdapterExportedElements(prefix, scopes)
+    }
+
+    private var functionIndex = 0
+    override fun nextFunctionIndex() = functionIndex++
+}

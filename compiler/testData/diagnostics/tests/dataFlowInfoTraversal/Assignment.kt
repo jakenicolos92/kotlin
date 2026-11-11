@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface A
 interface B : A {
     fun foo()
@@ -5,13 +6,16 @@ interface B : A {
 
 fun bar1(a: A) {
     var b: B = a as B
-    <!DEBUG_INFO_SMARTCAST!>a<!>.foo()
+    a.foo()
     b.foo()
 }
 
 fun id(b: B) = b
 fun bar2(a: A) {
     var b: B = id(a as B)
-    <!DEBUG_INFO_SMARTCAST!>a<!>.foo()
+    a.foo()
     b.foo()
 }
+
+/* GENERATED_FIR_TAGS: asExpression, functionDeclaration, interfaceDeclaration, localProperty, propertyDeclaration,
+smartcast */

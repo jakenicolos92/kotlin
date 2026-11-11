@@ -16,9 +16,11 @@
 
 package org.jetbrains.kotlin.resolve.calls.smartcasts
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.psi.Call
 import org.jetbrains.kotlin.types.KotlinType
 
+@K1Deprecation
 interface ExplicitSmartCasts {
     fun type(call: Call?): KotlinType?
 
@@ -27,16 +29,18 @@ interface ExplicitSmartCasts {
     operator fun plus(smartCast: SingleSmartCast): ExplicitSmartCasts
 }
 
+@K1Deprecation
 data class SingleSmartCast(val call: Call?, val type: KotlinType) : ExplicitSmartCasts {
     override fun type(call: Call?) = if (call == this.call) type else null
 
     override val defaultType: KotlinType get() = type
 
     override fun plus(smartCast: SingleSmartCast) =
-            if (this == smartCast) this
-            else MultipleSmartCasts(mapOf(call to type, smartCast.call to smartCast.type))
+        if (this == smartCast) this
+        else MultipleSmartCasts(mapOf(call to type, smartCast.call to smartCast.type))
 }
 
+@K1Deprecation
 data class MultipleSmartCasts internal constructor(val map: Map<Call?, KotlinType>) : ExplicitSmartCasts {
     override fun type(call: Call?) = map[call]
 

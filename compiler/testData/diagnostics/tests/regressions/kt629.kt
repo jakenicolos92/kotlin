@@ -1,10 +1,11 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-629 Assignments are parsed as expressions.
 
 package kt629
 
 class A() {
     var p = "yeah"
-    operator fun rem(<!UNUSED_PARAMETER!>other<!> : A) : A {
+    operator fun rem(other : A) : A {
         return A();
     }
 }
@@ -21,3 +22,6 @@ fun box2() : Boolean {
     var c = A()
     return (<!ASSIGNMENT_IN_EXPRESSION_CONTEXT!>c.p = "yeah"<!>) && true
 }
+
+/* GENERATED_FIR_TAGS: andExpression, assignment, classDeclaration, equalityExpression, functionDeclaration,
+localProperty, multiplicativeExpression, operator, primaryConstructor, propertyDeclaration, stringLiteral */

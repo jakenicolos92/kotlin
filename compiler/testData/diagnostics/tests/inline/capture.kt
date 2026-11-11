@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -NON_LOCAL_RETURN_NOT_ALLOWED
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -NON_LOCAL_RETURN_NOT_ALLOWED
 
 infix fun Function1<Int, Unit>.noInlineExt(p: Int) {}
 
@@ -40,7 +41,7 @@ inline fun inlineFunWithInvokeNonInline(noinline s: (p: Int) -> Unit) {
 
 inline fun testExtension(s: (p: Int) -> Unit) {
     {
-        s.inlineExt()
+        <!USAGE_IS_NOT_INLINABLE!>s<!>.inlineExt()
     } ()
 }
 
@@ -49,3 +50,6 @@ inline fun inlineFunWrongExtension(s: (p: Int) -> Unit) {
         <!USAGE_IS_NOT_INLINABLE!>s<!>.noInlineExt(11)
     } ()
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, infix, inline, integerLiteral,
+lambdaLiteral, noinline, thisExpression */

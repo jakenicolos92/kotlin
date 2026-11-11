@@ -1,4 +1,5 @@
-//WITH_RUNTIME
+// TARGET_BACKEND: JVM
+// WITH_STDLIB
 class A
 
 fun test() {
@@ -7,4 +8,7 @@ fun test() {
 
     A::class.java
     A()::class.java
+
+    Array<String>::class
+    Array<Array<IntArray>?>::class
 }

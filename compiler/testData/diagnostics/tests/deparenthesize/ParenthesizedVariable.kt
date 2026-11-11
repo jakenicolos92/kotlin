@@ -1,3 +1,6 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun test() {
-    (d@ <!DECLARATION_IN_ILLEGAL_CONTEXT!>val <!UNUSED_VARIABLE!>bar<!> = 2<!>)
+    (d@ <!EXPRESSION_EXPECTED!>val bar = 2<!>)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, localProperty, propertyDeclaration */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 abstract class A {
     abstract protected fun foo(): String
     abstract protected val bar: String
@@ -10,7 +11,10 @@ interface B {
 
 fun test(x: A) {
     if (x is B) {
-        <!DEBUG_INFO_SMARTCAST!>x<!>.foo()
-        <!DEBUG_INFO_SMARTCAST!>x<!>.bar
+        x.foo()
+        x.bar
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, interfaceDeclaration, intersectionType,
+isExpression, propertyDeclaration, smartcast */

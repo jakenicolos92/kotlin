@@ -16,9 +16,11 @@
 
 package org.jetbrains.kotlin.resolve.jvm.checkers
 
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
-import org.jetbrains.kotlin.descriptors.Visibilities
+import org.jetbrains.kotlin.descriptors.DescriptorVisibilityUtils
 import org.jetbrains.kotlin.diagnostics.Errors
 import org.jetbrains.kotlin.load.java.descriptors.JavaClassDescriptor
 import org.jetbrains.kotlin.psi.KtExpression
@@ -27,6 +29,7 @@ import org.jetbrains.kotlin.resolve.calls.context.ResolutionContext
 import org.jetbrains.kotlin.types.KotlinType
 
 
+@K1Deprecation
 class JavaTypeAccessibilityChecker : AdditionalTypeChecker {
     override fun checkType(
             expression: KtExpression,
@@ -58,26 +61,27 @@ class JavaTypeAccessibilityChecker : AdditionalTypeChecker {
     private fun findInaccessibleJavaClasses(type: KotlinType, c: ResolutionContext<*>): Collection<ClassDescriptor> {
         val scopeOwner = c.scope.ownerDescriptor
         val inaccessibleJavaClasses = LinkedHashSet<ClassDescriptor>()
-        findInaccessibleJavaClassesRec(type, scopeOwner, inaccessibleJavaClasses)
+        findInaccessibleJavaClassesRec(type, scopeOwner, inaccessibleJavaClasses, c.languageVersionSettings)
         return inaccessibleJavaClasses
     }
 
     private fun findInaccessibleJavaClassesRec(
             type: KotlinType,
             scopeOwner: DeclarationDescriptor,
-            inaccessibleClasses: MutableCollection<ClassDescriptor>
+            inaccessibleClasses: MutableCollection<ClassDescriptor>,
+            languageVersionSettings: LanguageVersionSettings
     ) {
         val declarationDescriptor = type.constructor.declarationDescriptor
 
         if (declarationDescriptor is JavaClassDescriptor) {
-            if (!Visibilities.isVisibleIgnoringReceiver(declarationDescriptor, scopeOwner)) {
+            if (!DescriptorVisibilityUtils.isVisibleIgnoringReceiver(declarationDescriptor, scopeOwner, languageVersionSettings)) {
                 inaccessibleClasses.add(declarationDescriptor)
             }
         }
 
         for (typeProjection in type.arguments) {
             if (typeProjection.isStarProjection) continue
-            findInaccessibleJavaClassesRec(typeProjection.type, scopeOwner, inaccessibleClasses)
+            findInaccessibleJavaClassesRec(typeProjection.type, scopeOwner, inaccessibleClasses, languageVersionSettings)
         }
     }
 

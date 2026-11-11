@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 fun foo(javaClass: JavaClass) {
     javaClass.isSomething = !javaClass.isSomething
@@ -35,3 +36,5 @@ public class JavaClass {
         return true;
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, javaProperty, javaType */

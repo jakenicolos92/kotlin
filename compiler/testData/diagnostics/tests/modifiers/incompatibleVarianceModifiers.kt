@@ -1,7 +1,7 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 interface Foo<T>
-interface Foo1<<!INCOMPATIBLE_MODIFIERS!>in<!> <!INCOMPATIBLE_MODIFIERS!>out<!> T>
 interface Foo2<in <!REPEATED_MODIFIER!>in<!> T>
 
 fun test1(foo: Foo<<!INCOMPATIBLE_MODIFIERS!>in<!> <!INCOMPATIBLE_MODIFIERS!>out<!> Int>) = foo
@@ -21,3 +21,6 @@ class A {
 fun test4(a: A) {
     a.bar<<!PROJECTION_ON_NON_CLASS_TYPE_ARGUMENT!>out<!> <!REPEATED_MODIFIER!>out<!> Int>()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, in, inProjection, interfaceDeclaration, localClass,
+localProperty, nullableType, out, outProjection, propertyDeclaration, typeParameter */

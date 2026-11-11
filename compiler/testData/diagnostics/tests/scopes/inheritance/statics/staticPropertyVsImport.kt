@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 // FILE: A.java
 public class A {
     static byte foo = 1;
@@ -57,3 +58,5 @@ class W: A() {
         val a: Int = bar
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, init, javaProperty, javaType, localProperty, propertyDeclaration, stringLiteral */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER, -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER, -UNUSED_VARIABLE
 
 fun test(x: Int?) {
     val a1 = x <!USELESS_CAST!>as? Int<!>
@@ -7,7 +8,7 @@ fun test(x: Int?) {
     val a4 = x as? Number?
     val a5: Int? = x <!USELESS_CAST!>as? Int<!>
     val a6: Number? = x <!USELESS_CAST!>as? Int<!>
-    val a7: Number? = 1 <!USELESS_CAST!>as? Number<!>
+    val a7: Number? = 1 as? Number
 
     run { x <!USELESS_CAST!>as? Int<!> }
     run { x as? Number }
@@ -15,8 +16,11 @@ fun test(x: Int?) {
     foo(x as? Number)
 
     if (x is Int) {
-        val b = x as? Int
+        val b = x <!USELESS_CAST!>as? Int<!>
     }
 }
 
 fun foo(x: Number?) {}
+
+/* GENERATED_FIR_TAGS: functionDeclaration, ifExpression, integerLiteral, isExpression, lambdaLiteral, localProperty,
+nullableType, propertyDeclaration, smartcast */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //FILE: Bbb.kt
 open class Bbb
 
@@ -8,3 +9,4 @@ public class Ccc extends Bbb {
 //FILE: Ddd.kt
 import Ccc
 
+/* GENERATED_FIR_TAGS: classDeclaration */

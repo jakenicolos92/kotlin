@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-897 Don't allow assignment to a property before it is defined
 
 package kt897
@@ -18,3 +19,6 @@ class A() {
     }
     val k : Int
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, init, integerLiteral, nullableType, primaryConstructor,
+propertyDeclaration */

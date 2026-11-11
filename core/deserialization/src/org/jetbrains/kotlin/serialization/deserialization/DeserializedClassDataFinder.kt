@@ -16,15 +16,20 @@
 
 package org.jetbrains.kotlin.serialization.deserialization
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.PackageFragmentProvider
+import org.jetbrains.kotlin.descriptors.packageFragments
 import org.jetbrains.kotlin.name.ClassId
-import org.jetbrains.kotlin.serialization.ClassDataWithSource
 
+@K1Deprecation
 class DeserializedClassDataFinder(private val packageFragmentProvider: PackageFragmentProvider) : ClassDataFinder {
-    override fun findClassData(classId: ClassId): ClassDataWithSource? {
-        val packageFragment =
-                packageFragmentProvider.getPackageFragments(classId.packageFqName).singleOrNull()
-                        as? DeserializedPackageFragment ?: return null
-        return packageFragment.classDataFinder.findClassData(classId)
+    override fun findClassData(classId: ClassId): ClassData? {
+        val packageFragments = packageFragmentProvider.packageFragments(classId.packageFqName)
+        for (fragment in packageFragments) {
+            if (fragment !is DeserializedPackageFragment) continue
+
+            fragment.classDataFinder.findClassData(classId)?.let { return it }
+        }
+        return null
     }
 }

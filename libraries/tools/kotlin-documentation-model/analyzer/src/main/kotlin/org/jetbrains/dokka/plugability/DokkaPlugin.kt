@@ -1,0 +1,97 @@
+/*
+ * Copyright 2014-2024 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license.
+ */
+
+package org.jetbrains.dokka.plugability
+
+import org.jetbrains.dokka.DokkaConfiguration
+import org.jetbrains.dokka.utilities.DokkaLogger
+import kotlin.properties.ReadOnlyProperty
+import kotlin.reflect.KProperty
+import kotlin.reflect.KProperty1
+
+@RequiresOptIn(
+    level = RequiresOptIn.Level.WARNING,
+    message = "All of Dokka's plugin API is in preview and it can be changed " +
+            "in a backwards-incompatible manner with a best-effort migration. " +
+            "By opting in, you acknowledge the risks of relying on preview API."
+)
+@Target(AnnotationTarget.CLASS, AnnotationTarget.FUNCTION, AnnotationTarget.FIELD)
+@Retention(AnnotationRetention.BINARY)
+internal annotation class DokkaPluginApiPreview
+
+/**
+ * Acknowledgement for empty methods that inform users about [DokkaPluginApiPreview]
+ * Also, it allows to not propagates the annotation in IDE by default when a user autogenerate methods.
+ */
+@DokkaPluginApiPreview
+internal object PluginApiPreviewAcknowledgement
+
+internal abstract class DokkaPlugin {
+    private val extensionDelegates = mutableListOf<KProperty<*>>()
+    private val unsafePlugins = mutableListOf<Lazy<Extension<*, *, *>>>()
+
+    @PublishedApi
+    internal var context: DokkaContext? = null
+
+    protected val logger: DokkaLogger get() = context?.logger ?: throw IllegalStateException("No logger found")
+
+    /**
+     * @see PluginApiPreviewAcknowledgement
+     */
+    @OptIn(DokkaPluginApiPreview::class)
+    protected abstract fun pluginApiPreviewAcknowledgement(): PluginApiPreviewAcknowledgement
+    protected inline fun <reified T : DokkaPlugin> plugin(): T = context?.plugin(T::class) ?: throwIllegalQuery()
+
+    protected fun <T : Any> extensionPoint(): ReadOnlyProperty<DokkaPlugin, ExtensionPoint<T>> {
+        return ReadOnlyProperty { thisRef, property ->
+            ExtensionPoint(
+                thisRef::class.qualifiedName ?: throw AssertionError("Plugin must be named class"),
+                property.name
+            )
+        }
+    }
+    protected fun <T : Any> extending(definition: ExtendingDSL.() -> Extension<T, *, *>): ExtensionProvider<T> {
+        return ExtensionProvider(definition)
+    }
+
+    protected class ExtensionProvider<T : Any> internal constructor(
+        private val definition: ExtendingDSL.() -> Extension<T, *, *>
+    ) {
+        operator fun provideDelegate(thisRef: DokkaPlugin, property: KProperty<*>): Lazy<Extension<T, *, *>> {
+            return lazy {
+                ExtendingDSL(
+                    thisRef::class.qualifiedName ?: throw AssertionError("Plugin must be named class"),
+                    property.name
+                ).definition()
+            }.also { thisRef.extensionDelegates += property }
+        }
+    }
+
+    internal fun internalInstall(ctx: DokkaContextConfiguration, configuration: DokkaConfiguration) {
+        val extensionsToInstall = extensionDelegates.asSequence()
+            .filterIsInstance<KProperty1<DokkaPlugin, Extension<*, *, *>>>() // should be always true
+            .map { it.get(this) } + unsafePlugins.map { it.value }
+
+        extensionsToInstall.forEach { if (configuration.(it.condition)()) ctx.installExtension(it) }
+    }
+
+    protected fun <T : Any> unsafeInstall(ext: Lazy<Extension<T, *, *>>) {
+        unsafePlugins.add(ext)
+    }
+}
+
+internal interface WithUnsafeExtensionSuppression {
+    val extensionsSuppressed: List<Extension<*, *, *>>
+}
+
+internal interface ConfigurableBlock
+
+internal inline fun <reified P : DokkaPlugin, reified E : Any> P.query(extension: P.() -> ExtensionPoint<E>): List<E> =
+    context?.let { it[extension()] } ?: throwIllegalQuery()
+
+internal inline fun <reified P : DokkaPlugin, reified E : Any> P.querySingle(extension: P.() -> ExtensionPoint<E>): E =
+    context?.single(extension()) ?: throwIllegalQuery()
+
+internal fun throwIllegalQuery(): Nothing =
+    throw IllegalStateException("Querying about plugins is only possible with dokka context initialised")

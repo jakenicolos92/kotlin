@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface Runnable {
     fun run()
 }
@@ -8,3 +9,5 @@ class C {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, localClass, primaryConstructor */

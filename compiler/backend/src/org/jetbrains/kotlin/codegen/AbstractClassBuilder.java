@@ -16,28 +16,26 @@
 
 package org.jetbrains.kotlin.codegen;
 
-import com.intellij.psi.PsiElement;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.codegen.inline.FileMapping;
-import org.jetbrains.kotlin.codegen.inline.InlineCodegenUtil;
 import org.jetbrains.kotlin.codegen.inline.SMAPBuilder;
-import org.jetbrains.kotlin.codegen.serialization.JvmSerializationBindings;
-import org.jetbrains.kotlin.resolve.jvm.diagnostics.JvmDeclarationOrigin;
+import org.jetbrains.kotlin.codegen.inline.SourceMapper;
+import org.jetbrains.kotlin.ir.declarations.IrField;
+import org.jetbrains.kotlin.ir.declarations.IrFunction;
+import org.jetbrains.kotlin.load.java.JvmAnnotationNames;
 import org.jetbrains.org.objectweb.asm.*;
 
-import java.util.ArrayList;
 import java.util.List;
 
+import static org.jetbrains.kotlin.codegen.inline.InlineCodegenUtilsKt.GENERATE_SMAP;
+
 public abstract class AbstractClassBuilder implements ClassBuilder {
-    protected static final MethodVisitor EMPTY_METHOD_VISITOR = new MethodVisitor(Opcodes.ASM5) {};
-    protected static final FieldVisitor EMPTY_FIELD_VISITOR = new FieldVisitor(Opcodes.ASM5) {};
+    private static final MethodVisitor EMPTY_METHOD_VISITOR = new MethodVisitor(Opcodes.API_VERSION) {};
+    public static final RecordComponentVisitor EMPTY_RECORD_VISITOR = new RecordComponentVisitor(Opcodes.API_VERSION) {};
+    private static final FieldVisitor EMPTY_FIELD_VISITOR = new FieldVisitor(Opcodes.API_VERSION) {};
 
     private String thisName;
-
-    private final JvmSerializationBindings serializationBindings = new JvmSerializationBindings();
-
-    private final List<FileMapping> fileMappings = new ArrayList<>();
 
     private String sourceName;
 
@@ -60,7 +58,7 @@ public abstract class AbstractClassBuilder implements ClassBuilder {
     @Override
     @NotNull
     public FieldVisitor newField(
-            @NotNull JvmDeclarationOrigin origin,
+            @Nullable IrField origin,
             int access,
             @NotNull String name,
             @NotNull String desc,
@@ -77,7 +75,7 @@ public abstract class AbstractClassBuilder implements ClassBuilder {
     @Override
     @NotNull
     public MethodVisitor newMethod(
-            @NotNull JvmDeclarationOrigin origin,
+            @Nullable IrFunction origin,
             int access,
             @NotNull String name,
             @NotNull String desc,
@@ -91,10 +89,14 @@ public abstract class AbstractClassBuilder implements ClassBuilder {
         return visitor;
     }
 
-    @Override
     @NotNull
-    public JvmSerializationBindings getSerializationBindings() {
-        return serializationBindings;
+    @Override
+    public RecordComponentVisitor newRecordComponent(@NotNull String name, @NotNull String desc, @Nullable String signature) {
+        RecordComponentVisitor visitor = getVisitor().visitRecordComponent(name, desc, signature);
+        if (visitor == null) {
+            return EMPTY_RECORD_VISITOR;
+        }
+        return visitor;
     }
 
     @Override
@@ -104,22 +106,18 @@ public abstract class AbstractClassBuilder implements ClassBuilder {
     }
 
     @Override
-    public void done() {
-        if (!fileMappings.isEmpty() && InlineCodegenUtil.GENERATE_SMAP) {
-            FileMapping origin = fileMappings.get(0);
-            assert sourceName == null || origin.getName().equals(sourceName) : "Error " + origin.getName() +  " != "  + sourceName;
-            getVisitor().visitSource(origin.getName(), new SMAPBuilder(origin.getName(), origin.getPath(), fileMappings).build());
+    public void done(boolean generateSmapCopyToAnnotation) {
+        getVisitor().visitSource(sourceName, debugInfo);
+        if (generateSmapCopyToAnnotation && debugInfo != null) {
+            AnnotationVisitor v = getVisitor().visitAnnotation(JvmAnnotationNames.SOURCE_DEBUG_EXTENSION_DESC, false);
+            CodegenUtilKt.visitWithSplitting(v, "value", debugInfo);
+            v.visitEnd();
         }
-        else {
-            getVisitor().visitSource(sourceName, debugInfo);
-        }
-
         getVisitor().visitEnd();
     }
 
     @Override
     public void defineClass(
-            @Nullable PsiElement origin,
             int version,
             int access,
             @NotNull String name,
@@ -133,8 +131,24 @@ public abstract class AbstractClassBuilder implements ClassBuilder {
 
     @Override
     public void visitSource(@NotNull String name, @Nullable String debug) {
+        assert sourceName == null || sourceName.equals(name) : "inconsistent file name: " + sourceName + " vs " + name;
         sourceName = name;
         debugInfo = debug;
+    }
+
+    @Override
+    public void visitSMAP(@NotNull SourceMapper smap, boolean intoInline, boolean validate) {
+        // Generate trivial SMAPs for inline functions, since after inlining them they are no longer trivial
+        if (GENERATE_SMAP && !(smap.isTrivial() && !intoInline) && !smap.getResultMappings().isEmpty()) {
+            List<FileMapping> fileMappings = smap.getResultMappings();
+            visitSource(fileMappings.get(0).getName(), SMAPBuilder.INSTANCE.build(fileMappings, validate));
+        } else {
+            SourceInfo sourceInfo = smap.getSourceInfo();
+            if (sourceInfo == null) return;
+            String fileName = sourceInfo.getSourceFileName();
+            if (fileName == null) return;
+            visitSource(fileName, null);
+        }
     }
 
     @Override
@@ -152,10 +166,5 @@ public abstract class AbstractClassBuilder implements ClassBuilder {
     public String getThisName() {
         assert thisName != null : "This name isn't set";
         return thisName;
-    }
-
-    @Override
-    public void addSMAP(FileMapping mapping) {
-        fileMappings.add(mapping);
     }
 }

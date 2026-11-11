@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface A<R>
 
 interface B {
@@ -8,3 +9,5 @@ interface B {
 interface C : B {
     override fun <R> accept(visitor: A<R>): R
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, nullableType, override, typeParameter */

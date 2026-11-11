@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 @JvmName("bar")
 fun foo(a: Any) {}
 
@@ -20,3 +21,6 @@ class C {
     fun getRwProp(): Int = 123
     fun setRwProp(v: Int) {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, getter, integerLiteral,
+propertyDeclaration, setter, stringLiteral */

@@ -17,7 +17,5 @@ fun box(): String {
     return "OK"
 }
 
-// 1 areEqual \(Ljava/lang/Float;Ljava/lang/Float;\)Z
-// 1 areEqual \(FLjava/lang/Float;\)Z
-// 1 areEqual \(Ljava/lang/Float;F\)Z
+// 3 areEqual \(Ljava/lang/Float;Ljava/lang/Float;\)Z
 // 3 areEqual

@@ -1,7 +1,8 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 // FILE: test/A.java
 
-package test
+package test;
 
 import java.util.Arrays;
 
@@ -22,3 +23,6 @@ fun foo(args: Array<String>) {
     main2(args)
     (A::main)(args)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, javaCallableReference, localProperty, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

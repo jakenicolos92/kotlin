@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface IA
 interface IB
 interface IC
@@ -19,9 +20,13 @@ fun test(a: IA, b: IB, c: IC) {
         with(b) lambdaB@{
             with(c) lambdaC@{
                 if (this@lambdaA is Prop && this@lambdaB is Host && this@lambdaC is Invoke) {
-                    <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>foo<!>()
+                    foo()
                 }
             }
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: andExpression, funWithExtensionReceiver, functionDeclaration, getter, ifExpression,
+interfaceDeclaration, isExpression, lambdaLiteral, objectDeclaration, operator, propertyDeclaration,
+propertyWithExtensionReceiver, smartcast, thisExpression */

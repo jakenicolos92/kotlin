@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 905
+// KJS_WITH_FULL_RUNTIME
 
 interface Tr {
     fun extra(): String = "_"

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 abstract class Runnable(val arg: Int) {
     abstract fun run(): Int
 }
@@ -10,8 +11,12 @@ fun foo(): Int {
             override fun run() = arg
         }
         k.run()
-        val d: Int = <!DEBUG_INFO_SMARTCAST!>c<!>
-        return <!DEBUG_INFO_SMARTCAST!>a<!> + d
+        val d: Int = c
+        return a + d
     }
     else return -1
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, anonymousObjectExpression, checkNotNullCall, classDeclaration,
+functionDeclaration, ifExpression, integerLiteral, isExpression, localProperty, nullableType, override,
+primaryConstructor, propertyDeclaration, smartcast */

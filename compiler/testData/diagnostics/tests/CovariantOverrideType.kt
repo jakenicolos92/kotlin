@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface A<H> {
     fun foo() : Int = 1
     fun foo2() : Int = 1
@@ -24,3 +25,6 @@ abstract class B<H>() : A<H> {
 
     abstract override val g : <!PROPERTY_TYPE_MISMATCH_ON_OVERRIDE!>Iterator<Int><!>
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, interfaceDeclaration, nullableType,
+override, primaryConstructor, propertyDeclaration, typeParameter */

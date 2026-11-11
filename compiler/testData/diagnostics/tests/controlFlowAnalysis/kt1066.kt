@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-1066 false 'Variable cannot be initialized before declaration'
 
 package kt1066
@@ -32,3 +33,7 @@ fun test() {
         first = temp
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, break, comparisonExpression, doWhileLoop, equalityExpression,
+functionDeclaration, ifExpression, integerLiteral, localProperty, multiplicativeExpression, propertyDeclaration,
+whileLoop */

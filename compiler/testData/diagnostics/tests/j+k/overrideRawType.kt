@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //FILE: Foo.java
 public class Foo<T extends CharSequence> {
 }
@@ -13,3 +14,5 @@ class BarImpl: Bar {
         throw UnsupportedOperationException()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaType, nullableType, override, starProjection */

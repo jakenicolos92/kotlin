@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package bar
 
 class S<T> {
@@ -6,3 +7,5 @@ class S<T> {
         <!TYPE_PARAMETER_ON_LHS_OF_DOT!>T<!>.<!UNRESOLVED_REFERENCE!>create<!>()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, nullableType, typeParameter */

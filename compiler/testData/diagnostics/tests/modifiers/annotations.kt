@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 annotation class My(
     public val x: Int,
     <!WRONG_MODIFIER_CONTAINING_DECLARATION!>protected<!> val y: Int,
@@ -10,3 +11,6 @@ open class Your {
 }
 
 annotation class His(<!WRONG_MODIFIER_CONTAINING_DECLARATION!>override<!> val x: Int): <!SUPERTYPES_FOR_ANNOTATION_CLASS!>Your()<!>
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration, integerLiteral, override, primaryConstructor,
+propertyDeclaration */

@@ -1,15 +1,20 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 class A {
     val x: Int
-    val useUnitialized = <!UNINITIALIZED_VARIABLE, UNINITIALIZED_VARIABLE!>x<!> + // reported on each secondary constructor
-                         <!UNINITIALIZED_VARIABLE, UNINITIALIZED_VARIABLE!>y<!> +
-                         <!UNINITIALIZED_VARIABLE, UNINITIALIZED_VARIABLE!>v<!>
+    val useUnitialized = <!UNINITIALIZED_VARIABLE!>x<!> + // reported on each secondary constructor
+                         <!UNINITIALIZED_VARIABLE!>y<!> +
+                         <!UNINITIALIZED_VARIABLE!>v<!>
     var y: Int
     val v = -1
 
     val useInitialized = useUnitialized + v
 
     <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>val uninitialized: Int<!>
+
+    constructor(x: String): this() {
+        x + y + v + uninitialized
+    }
 
     constructor() {
         x = 1
@@ -30,13 +35,9 @@ class A {
         x + y + v + <!UNINITIALIZED_VARIABLE!>uninitialized<!>
     }
 
-    constructor(x: String): this() {
-        x + y + v + uninitialized
-    }
-
     //anonymous
     init {
-        <!UNINITIALIZED_VARIABLE, UNINITIALIZED_VARIABLE!>y<!>
+        <!UNINITIALIZED_VARIABLE!>y<!>
     }
 
     // anonymous
@@ -44,3 +45,6 @@ class A {
         y = 9
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, classDeclaration, init, integerLiteral, propertyDeclaration,
+secondaryConstructor */

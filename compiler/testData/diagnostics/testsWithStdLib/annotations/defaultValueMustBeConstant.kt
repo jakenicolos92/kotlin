@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 import kotlin.reflect.KClass
 
 const val CONST = 1
@@ -20,3 +21,6 @@ annotation class InvalidAnn(
     val p2: Int = <!ANNOTATION_PARAMETER_DEFAULT_VALUE_MUST_BE_CONSTANT!>nonConst<!>,
     val p3: KClass<*> = <!ANNOTATION_PARAMETER_DEFAULT_VALUE_MUST_BE_CONSTANT!>nonConstKClass<!>
 )
+
+/* GENERATED_FIR_TAGS: additiveExpression, annotationDeclaration, classReference, collectionLiteral, const,
+functionDeclaration, integerLiteral, primaryConstructor, propertyDeclaration, starProjection, stringLiteral */

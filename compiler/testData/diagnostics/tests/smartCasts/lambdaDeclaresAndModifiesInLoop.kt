@@ -1,10 +1,14 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 fun foo(arg: Int?) {
     run {
         var x = arg
         while (x != null) {
-            x = <!DEBUG_INFO_SMARTCAST!>x<!>.hashCode()
+            x = x.hashCode()
             if (x == 0) x = null
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, equalityExpression, functionDeclaration, ifExpression, integerLiteral, lambdaLiteral,
+localProperty, nullableType, propertyDeclaration, smartcast, whileLoop */

@@ -1,4 +1,7 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun foo(s: String) {
     s.<!SYNTAX!><!>
-    val <!UNUSED_VARIABLE!>b<!> = 42
+    val b = 42
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, localProperty, propertyDeclaration */

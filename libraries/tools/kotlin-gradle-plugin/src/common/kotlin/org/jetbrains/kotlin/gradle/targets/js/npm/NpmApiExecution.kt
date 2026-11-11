@@ -1,0 +1,88 @@
+/*
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.gradle.targets.js.npm
+
+import org.gradle.api.file.Directory
+import org.gradle.api.logging.Logger
+import org.gradle.api.provider.Provider
+import org.gradle.internal.service.ServiceRegistry
+import org.jetbrains.kotlin.gradle.targets.js.nodejs.NodeJsEnv
+import org.jetbrains.kotlin.gradle.targets.js.nodejs.PackageManagerEnvironment
+import org.jetbrains.kotlin.gradle.targets.js.npm.resolved.PreparedKotlinCompilationNpmResolution
+import org.jetbrains.kotlin.gradle.targets.web.npm.ObsoleteNpmDependencyModel
+import java.io.File
+import java.io.Serializable
+
+/**
+ * NodeJS package manager API
+ */
+@ObsoleteNpmDependencyModel
+interface NpmApiExecution<out T : PackageManagerEnvironment> : Serializable {
+    fun preparedFiles(nodeJs: NodeJsEnvironment): Collection<File>
+
+    fun prepareRootProject(
+        nodeJs: NodeJsEnvironment,
+        packageManagerEnvironment: @UnsafeVariance T,
+        rootProjectName: String,
+        rootProjectVersion: String,
+        subProjects: Collection<PreparedKotlinCompilationNpmResolution>,
+    )
+
+    fun resolveRootProject(
+        logger: Logger,
+        nodeJs: NodeJsEnvironment,
+        packageManagerEnvironment: @UnsafeVariance T,
+        cliArgs: List<String>,
+    )
+
+    @Deprecated(
+        "Removed unused `services` parameter. Schedule for removal in Kotlin 2.6.",
+        ReplaceWith("resolveRootProject(logger, nodeJs, packageManagerEnvironment, cliArgs)"),
+        level = DeprecationLevel.ERROR,
+    )
+    fun resolveRootProject(
+        services: ServiceRegistry,
+        logger: Logger,
+        nodeJs: NodeJsEnvironment,
+        packageManagerEnvironment: @UnsafeVariance T,
+        cliArgs: List<String>,
+    ) = resolveRootProject(logger, nodeJs, packageManagerEnvironment, cliArgs)
+
+    fun prepareTooling(dir: File)
+
+    fun packageManagerExec(
+        logger: Logger,
+        nodeJs: NodeJsEnvironment,
+        environment: @UnsafeVariance T,
+        dir: Provider<File>,
+        description: String,
+        args: List<String>,
+    )
+
+    @ObsoleteNpmDependencyModel
+    companion object {
+        fun resolveOperationDescription(packageManagerTitle: String): String =
+            "Resolving NPM dependencies using $packageManagerTitle"
+    }
+}
+
+@ObsoleteNpmDependencyModel
+data class NodeJsEnvironment(
+    val rootPackageDir: Provider<Directory>,
+    val nodeExecutable: String,
+    val packageManager: NpmApiExecution<PackageManagerEnvironment>,
+) : Serializable
+
+@ObsoleteNpmDependencyModel
+internal fun asNodeJsEnvironment(
+    rootPackageDirectory: Provider<Directory>,
+    packageManager: Provider<NpmApiExecution<PackageManagerEnvironment>>,
+    nodeJsEnv: NodeJsEnv,
+) = NodeJsEnvironment(
+    rootPackageDirectory,
+    nodeJsEnv.executable,
+    packageManager.get()
+)

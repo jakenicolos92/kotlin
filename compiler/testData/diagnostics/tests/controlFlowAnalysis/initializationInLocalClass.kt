@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE
 
 fun foo() {
     var x: String
@@ -36,7 +37,7 @@ fun gav() {
     class C(val s: String) {
         constructor(): this("") {
             // Error!
-            <!VAL_REASSIGNMENT!>y<!> = s
+            <!CAPTURED_VAL_INITIALIZATION!>y<!> = s
         }
     }
     <!UNINITIALIZED_VARIABLE!>y<!>.length
@@ -88,3 +89,21 @@ class My {
 fun init() {
     <!VAL_REASSIGNMENT!>top<!> = 1
 }
+
+// A local property declared inside a member of a local class. The class graph is a sub-graph of the 'localClassMember' graph, and the
+// class is not analyzed on its own because of that, so 'q' is only reachable by traversing into the class.
+fun localClassMember() {
+    class D {
+        val p: Int
+        init {
+            val q: Int
+            q = 1
+            <!VAL_REASSIGNMENT!>q<!> = 2
+            p = q
+        }
+    }
+}
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, assignment, classDeclaration, functionDeclaration, ifExpression, init,
+integerLiteral, localClass, localFunction, localProperty, primaryConstructor, propertyDeclaration, secondaryConstructor,
+stringLiteral */

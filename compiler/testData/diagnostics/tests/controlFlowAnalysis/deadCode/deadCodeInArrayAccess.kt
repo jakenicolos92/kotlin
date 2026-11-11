@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun testArrayAccess1(array: Array<Any>) {
     array<!UNREACHABLE_CODE!>[<!>todo()<!UNREACHABLE_CODE!>]<!>
@@ -15,11 +16,11 @@ fun testAraryAccess3() {
 }
 
 fun testArrayAssignment1(array: Array<Any>) {
-    array[todo()] <!UNREACHABLE_CODE!>= 11<!>
+    array<!UNREACHABLE_CODE!>[<!>todo()<!UNREACHABLE_CODE!>] = 11<!>
 }
 
 fun testArrayAssignment2(array: Array<Any>) {
-    array[1] <!UNREACHABLE_CODE!>=<!> todo()
+    array<!UNREACHABLE_CODE!>[<!>1<!UNREACHABLE_CODE!>] =<!> todo()
 }
 
 fun testArrayAssignment3(n: Nothing) {
@@ -34,7 +35,10 @@ fun testArrayAssignment4(n: Nothing) {
 
 fun testArrayPlusAssign(array: Array<Any>) {
     operator fun Any.plusAssign(a: Any) {}
-    array[1] <!UNREACHABLE_CODE!>+=<!> todo()
+    <!UNREACHABLE_CODE!>array<!><!UNREACHABLE_CODE!>[<!><!UNREACHABLE_CODE!>1<!><!UNREACHABLE_CODE!>] +=<!> todo()
 }
 
 fun todo(): Nothing = throw Exception()
+
+/* GENERATED_FIR_TAGS: assignment, funWithExtensionReceiver, functionDeclaration, integerLiteral, localFunction,
+operator, stringLiteral */

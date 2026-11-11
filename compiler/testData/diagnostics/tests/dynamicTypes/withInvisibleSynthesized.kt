@@ -1,4 +1,5 @@
-// !MARK_DYNAMIC_CALLS
+// RUN_PIPELINE_TILL: FRONTEND
+// MARK_DYNAMIC_CALLS
 
 // FILE: p/J.java
 
@@ -20,16 +21,19 @@ public class J {
 import p.*
 
 class K: J.C() {
-    fun <!UNSUPPORTED, DYNAMIC_RECEIVER_NOT_ALLOWED!>dynamic<!>.test() {
-        <!DEBUG_INFO_DYNAMIC!>sam<!>(null)
-        <!DEBUG_INFO_DYNAMIC!>sam<!>(
+    fun <!DYNAMIC_RECEIVER_NOT_ALLOWED, UNSUPPORTED!>dynamic<!>.test() {
+        sam(null)
+        <!NONE_APPLICABLE!>sam<!>(
             name = null,
             <!ARGUMENT_PASSED_TWICE!>name<!> = null
-        <!NO_VALUE_FOR_PARAMETER!>)<!>
+        )
     }
 
     fun test() {
-        <!INVISIBLE_MEMBER!>sam<!>(null)
+        <!INVISIBLE_REFERENCE!>sam<!>(null)
     }
 
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration, javaFunction,
+javaType, nullableType */

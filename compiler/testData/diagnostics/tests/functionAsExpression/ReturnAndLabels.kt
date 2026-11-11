@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 val label_fun = label@ fun () {
     return@label
@@ -7,3 +8,5 @@ val label_fun = label@ fun () {
 val parenthesized_label_fun = (label@ fun () {
     return@label
 })
+
+/* GENERATED_FIR_TAGS: anonymousFunction, propertyDeclaration */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: p/Nameless.java
 
 package p;
@@ -11,7 +12,9 @@ public class Nameless {
 
 import p.*
 
-class K : <!INVISIBLE_MEMBER!>Nameless<!>() {
+class K : <!INVISIBLE_REFERENCE!>Nameless<!>() {
     <!FUNCTION_DECLARATION_WITH_NO_NAME!>fun ()<!> {}
     val<!SYNTAX!><!> : Int = 1
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, javaType, propertyDeclaration */

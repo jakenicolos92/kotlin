@@ -18,25 +18,29 @@ package org.jetbrains.kotlin.incremental
 
 import org.jetbrains.kotlin.load.kotlin.FileBasedKotlinClass
 import org.jetbrains.kotlin.load.kotlin.header.KotlinClassHeader
+import org.jetbrains.kotlin.metadata.deserialization.MetadataVersion
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.resolve.jvm.JvmClassName
 import java.io.File
 
 class LocalFileKotlinClass private constructor(
-        private val file: File,
-        private val fileContents: ByteArray,
-        className: ClassId,
-        classVersion: Int,
-        classHeader: KotlinClassHeader,
-        innerClasses: InnerClassesInfo
-) : FileBasedKotlinClass(className, classVersion, classHeader, innerClasses) {
+    private val file: File,
+    private val fileContents: ByteArray,
+    className: ClassId,
+    classVersion: Int,
+    classAccess: Int,
+    classHeader: KotlinClassHeader,
+    innerClasses: InnerClassesInfo
+) : FileBasedKotlinClass(className, classVersion, classAccess, classHeader, innerClasses) {
 
     companion object {
-        fun create(file: File): LocalFileKotlinClass? {
-            val fileContents = file.readBytes()
-            return FileBasedKotlinClass.create(fileContents) {
-                className, classVersion, classHeader, innerClasses ->
-                LocalFileKotlinClass(file, fileContents, className, classVersion, classHeader, innerClasses)
+        fun create(file: File, metadataVersionFromLanguageVersion: MetadataVersion): LocalFileKotlinClass? {
+            return create(file, file.readBytes(), metadataVersionFromLanguageVersion)
+        }
+
+        fun create(file: File, fileContents: ByteArray, metadataVersionFromLanguageVersion: MetadataVersion): LocalFileKotlinClass? {
+            return create(fileContents, metadataVersionFromLanguageVersion) { className, classVersion, classAccess, classHeader, innerClasses ->
+                LocalFileKotlinClass(file, fileContents, className, classVersion, classAccess, classHeader, innerClasses)
             }
         }
     }

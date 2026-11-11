@@ -1,4 +1,6 @@
-// WITH_RUNTIME
+// WITH_STDLIB
+// DUMP_IR_DIFFERENCE: JVM
+//   K/JVM uses actualized java.util.HashMap instead of kotlin.collections.HashMap
 
 class C {
     val test1 = 0

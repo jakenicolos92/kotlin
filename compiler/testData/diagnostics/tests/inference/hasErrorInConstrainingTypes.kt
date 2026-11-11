@@ -1,8 +1,11 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package n
 
-fun <T> foo(<!UNUSED_PARAMETER!>t<!>: T, <!UNUSED_PARAMETER!>t1<!>: T) {}
+fun <T> foo(t: T, t1: T) {}
 
 fun test() {
     //no type inference error
-    foo(<!UNRESOLVED_REFERENCE!>aaab<!>, <!UNRESOLVED_REFERENCE!>bbb<!>)
+    <!CANNOT_INFER_PARAMETER_TYPE!>foo<!>(<!UNRESOLVED_REFERENCE!>aaab<!>, <!UNRESOLVED_REFERENCE!>bbb<!>)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, nullableType, typeParameter */

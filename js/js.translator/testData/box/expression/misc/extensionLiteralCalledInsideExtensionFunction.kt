@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 491
 package foo
 
 fun A.create(init: A.() -> Unit): A {

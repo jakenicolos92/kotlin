@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // MODULE: m1
 // FILE: x.kt
 package p
@@ -29,3 +30,5 @@ public interface B : Base
 import p.*
 
 class Foo: C, B
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, override */

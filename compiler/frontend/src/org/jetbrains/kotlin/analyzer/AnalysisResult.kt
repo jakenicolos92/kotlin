@@ -16,17 +16,18 @@
 
 package org.jetbrains.kotlin.analyzer
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.resolve.BindingContext
-import org.jetbrains.kotlin.types.ErrorUtils
+import org.jetbrains.kotlin.types.error.ErrorUtils
 import java.io.File
 
+@K1Deprecation
 open class AnalysisResult protected constructor(
-        val bindingContext: BindingContext,
-        val moduleDescriptor: ModuleDescriptor,
-        val shouldGenerateCode: Boolean = true
+    val bindingContext: BindingContext,
+    val moduleDescriptor: ModuleDescriptor,
+    val shouldGenerateCode: Boolean = true
 ) {
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         return (other is AnalysisResult && bindingContext == other.bindingContext &&
@@ -47,39 +48,10 @@ open class AnalysisResult protected constructor(
 
     operator fun component3() = shouldGenerateCode
 
-    val error: Throwable
-        get() = if (this is Error) this.exception else throw IllegalStateException("Should only be called for error analysis result")
-
-    fun isError(): Boolean = this is Error
-
-    fun throwIfError() {
-        if (isError()) {
-            throw IllegalStateException("failed to analyze: " + error, error)
-        }
-    }
-
-    private class Error(bindingContext: BindingContext, val exception: Throwable) : AnalysisResult(bindingContext, ErrorUtils.getErrorModule())
-    
-    class RetryWithAdditionalJavaRoots(
-            bindingContext: BindingContext, 
-            moduleDescriptor: ModuleDescriptor, 
-            val additionalJavaRoots: List<File>,
-            val addToEnvironment: Boolean = true
-    ) : AnalysisResult(bindingContext, moduleDescriptor)
-
     companion object {
-        val EMPTY: AnalysisResult = success(BindingContext.EMPTY, ErrorUtils.getErrorModule())
-
-        @JvmStatic fun success(bindingContext: BindingContext, module: ModuleDescriptor): AnalysisResult {
+        @JvmStatic
+        fun success(bindingContext: BindingContext, module: ModuleDescriptor): AnalysisResult {
             return AnalysisResult(bindingContext, module, true)
-        }
-
-        @JvmStatic fun success(bindingContext: BindingContext, module: ModuleDescriptor, shouldGenerateCode: Boolean): AnalysisResult {
-            return AnalysisResult(bindingContext, module, shouldGenerateCode)
-        }
-
-        @JvmStatic fun error(bindingContext: BindingContext, error: Throwable): AnalysisResult {
-            return Error(bindingContext, error)
         }
     }
 }

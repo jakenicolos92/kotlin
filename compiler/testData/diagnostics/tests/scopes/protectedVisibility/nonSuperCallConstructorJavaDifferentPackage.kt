@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 // FILE: abc/A.java
 package abc;
@@ -30,3 +31,6 @@ class B4 : A(1) {
         class Local : A()
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, init, integerLiteral,
+javaFunction, javaType, localClass */

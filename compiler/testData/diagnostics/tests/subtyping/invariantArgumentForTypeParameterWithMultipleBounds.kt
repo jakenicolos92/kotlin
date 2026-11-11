@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 import java.io.Serializable
 
 class A<T> where T : Cloneable, T : Serializable
@@ -16,3 +17,6 @@ interface I2 : I1 {
 interface I3 : I1 {
     override fun foo(): A<in CS1>
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, inProjection, interfaceDeclaration, override,
+typeConstraint, typeParameter */

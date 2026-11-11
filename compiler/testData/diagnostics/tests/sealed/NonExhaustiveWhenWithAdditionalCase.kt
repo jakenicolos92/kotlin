@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 sealed class Sealed(val x: Int) {
     interface ITuple {
         val x: Int
@@ -20,3 +21,6 @@ fun foo(s: Sealed): Int {
     }
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, interfaceDeclaration, isExpression,
+nestedClass, objectDeclaration, override, primaryConstructor, propertyDeclaration, sealed, smartcast, whenExpression,
+whenWithSubject */

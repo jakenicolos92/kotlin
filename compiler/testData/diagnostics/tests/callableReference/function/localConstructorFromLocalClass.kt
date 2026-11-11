@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 import kotlin.reflect.KFunction0
 
 fun main() {
@@ -8,3 +9,5 @@ fun main() {
         val f: KFunction0<A> = x
     }
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, functionDeclaration, localClass, propertyDeclaration */

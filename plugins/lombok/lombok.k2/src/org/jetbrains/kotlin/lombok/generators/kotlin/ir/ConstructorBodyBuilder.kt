@@ -1,0 +1,129 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.lombok.generators.kotlin.ir
+
+import org.jetbrains.kotlin.backend.common.extensions.IrPluginContext
+import org.jetbrains.kotlin.descriptors.ClassKind
+import org.jetbrains.kotlin.ir.builders.IrBlockBodyBuilder
+import org.jetbrains.kotlin.ir.builders.irCallConstructor
+import org.jetbrains.kotlin.ir.builders.irGet
+import org.jetbrains.kotlin.ir.builders.irReturn
+import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.declarations.IrConstructor
+import org.jetbrains.kotlin.ir.declarations.IrParameterKind
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.declarations.createBlockBody
+import org.jetbrains.kotlin.ir.expressions.impl.IrDelegatingConstructorCallImpl
+import org.jetbrains.kotlin.ir.symbols.UnsafeDuringIrConstructionAPI
+import org.jetbrains.kotlin.ir.types.IrSimpleType
+import org.jetbrains.kotlin.ir.types.classOrNull
+import org.jetbrains.kotlin.ir.types.defaultType
+import org.jetbrains.kotlin.ir.types.getClass
+import org.jetbrains.kotlin.ir.types.makeNullable
+import org.jetbrains.kotlin.ir.types.starProjectedType
+import org.jetbrains.kotlin.ir.types.typeOrFail
+import org.jetbrains.kotlin.ir.util.allTypeParameters
+import org.jetbrains.kotlin.ir.util.constructors
+import org.jetbrains.kotlin.ir.util.erasedUpperBound
+import org.jetbrains.kotlin.ir.util.primaryConstructor
+import org.jetbrains.kotlin.ir.util.render
+import org.jetbrains.kotlin.lombok.generators.ConstructorGeneratorKey
+
+/**
+ * Both bodies `AbstractConstructorGeneratorPart` leaves for the backend: the generated no-args constructor's,
+ * and that of the static factory a `staticName` asks for. Neither is written in FIR, so the two halves of one
+ * feature stay in one place instead of being split across the two representations.
+ *
+ * The constructor's body is a delegating call to the superclass's no-args constructor and nothing else. Built
+ * after fir2ir so that the class's property initializers and `init` blocks are not inlined into it - an
+ * initializer referencing a primary constructor parameter crashed the JVM backend with "No mapping for symbol"
+ * (KT-88659). Mirrors the noarg plugin's `generateNoArgConstructorBody` with `invokeInitializers` always off: no
+ * `IrInstanceInitializerCall`, so every field keeps its JVM default until someone assigns it.
+ *
+ * Every constructor generated for a Kotlin class arrives here bodiless, an inner and a local class being
+ * excluded from generation altogether.
+ */
+object ConstructorBodyBuilder : IrBodyBuilder<ConstructorGeneratorKey>() {
+    /**
+     * The static factory: `return Entity(...)` and nothing else, the function existing only so that a constructor
+     * can be called by that name - the no-args one when the factory takes no parameters, and otherwise the primary
+     * one, the parameters of which the factory copies (see `RequiredArgsConstructorGeneratorPart`).
+     */
+    @OptIn(UnsafeDuringIrConstructionAPI::class)
+    override fun IrBlockBodyBuilder.build(key: ConstructorGeneratorKey, declaration: IrSimpleFunction) {
+        // The return type is the constructed type already, carrying the factory's own type parameters as its
+        // arguments - the very ones the constructor call has to be given.
+        val constructedClass = declaration.returnType.classOrNull?.owner
+            ?: error("No constructed class for ${declaration.render()}")
+
+        val regularParameters = declaration.parameters.filter { it.kind == IrParameterKind.Regular }
+        val constructor = if (regularParameters.isEmpty()) {
+            constructedClass.constructors.firstOrNull(IrConstructor::takesNoArguments)
+                ?: error("No no-args constructor for ${constructedClass.render()}")
+        } else {
+            constructedClass.primaryConstructor?.takeIf { it.parameters.size == regularParameters.size }
+                ?: error("No primary constructor with ${regularParameters.size} parameters for ${constructedClass.render()}")
+        }
+
+        // `irCallConstructor` types the call from the constructor's own return type, which carries the class's
+        // type parameters rather than the factory's copies of them, and the IR validator rejects a reference to
+        // a type parameter from another scope. The factory's return type is that same type already substituted.
+        val constructorCall = irCallConstructor(constructor.symbol, declaration.typeParameters.map { it.defaultType }).apply {
+            constructor.parameters.zip(regularParameters).forEach { [parameter, value] ->
+                arguments[parameter] = irGet(value)
+            }
+        }
+        constructorCall.type = declaration.returnType
+
+        +irReturn(constructorCall)
+    }
+
+    /**
+     * The superclass constructor is resolved here rather than carried over from FIR, the way the noarg plugin
+     * does it; `AbstractConstructorGeneratorPart` only generates when it exists, hence the error for the
+     * impossible case.
+     */
+    @OptIn(UnsafeDuringIrConstructionAPI::class)
+    fun buildConstructorBody(context: IrPluginContext, constructor: IrConstructor) {
+        val ownerClass = constructor.parent as? IrClass ?: return
+
+        val superType = ownerClass.superTypes.singleOrNull { it.getClass()?.kind == ClassKind.CLASS }
+        val superClass = superType?.getClass() ?: context.irBuiltIns.anyClass.owner
+
+        val superConstructor = superClass.constructors.firstOrNull(IrConstructor::takesNoArguments)
+            ?: error("No no-args superclass constructor for ${ownerClass.render()}")
+
+        // The class's type arguments come from the supertype (`Base<String>` gives `<String>`);
+        // a generic Java constructor's own type parameters like U in `public <U> constructor(...)`
+        // can't be inferred from no arguments, so they get their erased upper bound, as javac infers them
+        // (`Number?` for `<U extends Number>`, `Any?` for an unbounded one).
+        val superTypeArguments = (superType as? IrSimpleType)?.arguments.orEmpty()
+            .take(superClass.typeParameters.size)
+            .map { it.typeOrFail }
+        val constructorTypeArguments = superConstructor.typeParameters.map {
+            it.erasedUpperBound.symbol.starProjectedType.makeNullable()
+        }
+
+        constructor.body = context.irFactory.createBlockBody(
+            constructor.startOffset, constructor.endOffset,
+            listOf(
+                IrDelegatingConstructorCallImpl(
+                    constructor.startOffset, constructor.endOffset, context.irBuiltIns.unitType,
+                    superConstructor.symbol, typeArgumentsCount = superConstructor.allTypeParameters.size,
+                ).apply {
+                    (superTypeArguments + constructorTypeArguments).forEachIndexed { index, type -> typeArguments[index] = type }
+                }
+            )
+        )
+    }
+}
+
+/**
+ * Whether [this] can be called with no arguments at all. A dispatch receiver doesn't count - an inner class's
+ * constructor takes the outer instance as one - and neither does a type parameter.
+ */
+private val IrConstructor.takesNoArguments: Boolean
+    get() = parameters.none { it.kind == IrParameterKind.Regular || it.kind == IrParameterKind.Context }

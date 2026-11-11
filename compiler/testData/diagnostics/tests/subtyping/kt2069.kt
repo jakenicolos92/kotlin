@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-2069 Cannot call super method when superclass has type parameters
 package kt2069
 
@@ -12,3 +13,6 @@ class T : T1 {
 
     companion object {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, interfaceDeclaration, objectDeclaration,
+superExpression */

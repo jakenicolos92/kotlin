@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 import java.util.*;
@@ -39,3 +40,4 @@ fun test() {
     C1().bar(<!NULL_FOR_NONNULL_TYPE!>null<!>)
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaFunction, javaType, nullableType, override */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 <!WRONG_MODIFIER_TARGET!>inner<!> fun foo() {}
 <!WRONG_MODIFIER_TARGET!>inner<!> val prop = 42
 
@@ -16,10 +17,10 @@ class D {
 
 enum class H {
     I0 {
-        <!WRONG_MODIFIER_CONTAINING_DECLARATION!>inner<!> class II0
+        inner class II0
     },
     <!WRONG_MODIFIER_TARGET!>inner<!> I {
-        <!WRONG_MODIFIER_CONTAINING_DECLARATION!>inner<!> class II
+        inner class II
     };
     
     inner class J
@@ -42,3 +43,7 @@ class P {
 val R = object {
     inner class S
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, anonymousObjectExpression, classDeclaration, companionObject,
+enumDeclaration, enumEntry, functionDeclaration, inner, integerLiteral, interfaceDeclaration, localClass,
+objectDeclaration, propertyDeclaration */

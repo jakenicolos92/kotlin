@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 class KotlinClass {
     public fun doSomething(runnable: Runnable) { runnable.run() }
@@ -12,11 +13,11 @@ fun foo(javaClass: JavaClass, kotlinClass: KotlinClass) {
         bar()
     }
 
-    kotlinClass.doSomething <!TYPE_MISMATCH!>{
+    kotlinClass.doSomething {
         bar()
-    }<!>
+    }
 
-    javaClass.doSomething2 <!TYPE_MISMATCH!>{
+    javaClass.doSomething2 <!ARGUMENT_TYPE_MISMATCH!>{
         bar()
     }<!>
 }
@@ -28,3 +29,6 @@ public class JavaClass {
     public void doSomething(Runnable runnable) { runnable.run(); }
     public void doSomething2(I i) { i.doIt(); }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, javaFunction, javaType,
+lambdaLiteral, samConversion */

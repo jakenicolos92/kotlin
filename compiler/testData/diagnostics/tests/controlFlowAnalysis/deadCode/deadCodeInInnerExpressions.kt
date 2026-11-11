@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun testCompound() {
     operator fun Nothing.get(i: Int) {}
@@ -11,3 +12,6 @@ fun testCompound1() {
 }
 
 fun todo(): Nothing = throw Exception()
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, funWithExtensionReceiver, functionDeclaration, integerLiteral, localFunction,
+multiplicativeExpression, operator, stringLiteral */

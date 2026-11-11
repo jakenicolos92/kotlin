@@ -1,3 +1,4 @@
+
 val test1 get() = 42
 
 var test2 get() = 42; set(value) {}

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-2014 Better diagnostic when using property syntax to call a method
 package c
 
@@ -10,11 +11,13 @@ class Foo {
 
 fun x(f : Foo) {
     f.<!FUNCTION_CALL_EXPECTED!>prop<!>
-    f.<!NO_VALUE_FOR_PARAMETER, FUNCTION_CALL_EXPECTED!>bar<!>
+    f.<!FUNCTION_CALL_EXPECTED, NO_VALUE_FOR_PARAMETER!>bar<!>
 
     f.<!FUNCTION_EXPECTED!>a<!>()
     <!UNRESOLVED_REFERENCE!>c<!>()
-    <!FUNCTION_EXPECTED!>R<!>()
+    <!UNRESOLVED_REFERENCE!>R<!>()
 }
 
 object R {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, objectDeclaration, propertyDeclaration */

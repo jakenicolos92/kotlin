@@ -1,18 +1,7 @@
-buildscript {
-    repositories {
-        mavenLocal()
-        jcenter()
-    }
-    dependencies {
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
-        classpath('com.android.tools.build:gradle:' + android_tools_version)
-        classpath 'com.jakewharton.sdkmanager:gradle-plugin:0.12.+'
-    }
-}
-
-allprojects {
-    repositories {
-        mavenLocal()
-        mavenCentral()
-    }
+plugins {
+    // Ensure non-separated kotlin and android classpath for all projects
+    id 'org.jetbrains.kotlin.multiplatform' apply false
+    id 'org.jetbrains.kotlin.jvm' apply false
+    id 'com.android.library' apply false
+    id 'com.android.application' apply false
 }

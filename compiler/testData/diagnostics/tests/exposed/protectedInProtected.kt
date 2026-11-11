@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // See KT-9540 
 
 // all protected should have lower bound that is more permissive than private
@@ -10,3 +11,14 @@ open class A {
     }
 }
 
+open class Owner {
+    protected open class A : Owner() {
+        protected open class ProtectedInA
+    }
+
+    protected abstract class B : A() {
+        protected abstract fun foo(): ProtectedInA
+    }
+}
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, nestedClass */

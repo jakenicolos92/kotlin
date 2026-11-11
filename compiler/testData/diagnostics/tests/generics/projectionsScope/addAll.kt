@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 interface C<out T>
 interface MC<T> : C<T> {
@@ -14,18 +15,21 @@ fun <T> mc(): MC<T> = null!!
 fun <T> c(): C<T> = null!!
 
 fun foo(x: MC<out Open>) {
-    x.addAll(<!TYPE_MISMATCH_DUE_TO_TYPE_PROJECTIONS(C<Nothing>; MC<out Open>; MC<out Open>; public abstract fun addAll\(x: C<T>\): Boolean defined in MC)!>x<!>)
-    x.addAllMC(<!TYPE_MISMATCH_DUE_TO_TYPE_PROJECTIONS(MC<Nothing>; MC<out Open>; MC<out Open>; public abstract fun addAllMC\(x: MC<out T>\): Boolean defined in MC)!>x<!>)
+    x.addAll(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
+    x.addAllMC(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
 
-    x.addAll(<!TYPE_MISMATCH_DUE_TO_TYPE_PROJECTIONS(C<Nothing>; MC<Open>; MC<out Open>; public abstract fun addAll\(x: C<T>\): Boolean defined in MC)!>mc<Open>()<!>)
-    x.addAllMC(<!TYPE_MISMATCH_DUE_TO_TYPE_PROJECTIONS(MC<Nothing>; MC<Open>; MC<out Open>; public abstract fun addAllMC\(x: MC<out T>\): Boolean defined in MC)!>mc<Open>()<!>)
+    x.addAll(<!ARGUMENT_TYPE_MISMATCH!>mc<Open>()<!>)
+    x.addAllMC(<!ARGUMENT_TYPE_MISMATCH!>mc<Open>()<!>)
 
-    x.addAll(<!TYPE_MISMATCH_DUE_TO_TYPE_PROJECTIONS(C<Nothing>; MC<Derived>; MC<out Open>; public abstract fun addAll\(x: C<T>\): Boolean defined in MC)!>mc<Derived>()<!>)
-    x.addAllMC(<!TYPE_MISMATCH_DUE_TO_TYPE_PROJECTIONS(MC<Nothing>; MC<Derived>; MC<out Open>; public abstract fun addAllMC\(x: MC<out T>\): Boolean defined in MC)!>mc<Derived>()<!>)
+    x.addAll(<!ARGUMENT_TYPE_MISMATCH!>mc<Derived>()<!>)
+    x.addAllMC(<!ARGUMENT_TYPE_MISMATCH!>mc<Derived>()<!>)
 
     x.addAll(c())
     x.addAll(c<Nothing>())
 
-    x.<!MEMBER_PROJECTED_OUT!>addAllInv<!>(mc<Open>())
-    x.addAll(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>)
+    x.addAllInv(<!ARGUMENT_TYPE_MISMATCH!>mc<Open>()<!>)
+    x.addAll(<!ARGUMENT_TYPE_MISMATCH!>1<!>)
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, functionDeclaration, integerLiteral, interfaceDeclaration,
+nullableType, out, outProjection, typeParameter */

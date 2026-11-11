@@ -1,4 +1,5 @@
-import <!DEPRECATION!>C<!> as C2
+// RUN_PIPELINE_TILL: CODEGEN
+import C as C2
 
 @Deprecated("obsolete")
 class C {
@@ -6,3 +7,5 @@ class C {
 }
 
 fun useAlias(c : <!DEPRECATION!>C2<!>) { c.use() }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, stringLiteral */

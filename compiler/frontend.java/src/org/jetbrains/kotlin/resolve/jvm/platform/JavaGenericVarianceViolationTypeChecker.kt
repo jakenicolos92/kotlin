@@ -16,15 +16,18 @@
 
 package org.jetbrains.kotlin.resolve.jvm.platform
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.load.java.lazy.types.RawTypeImpl
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.resolve.calls.checkers.AdditionalTypeChecker
 import org.jetbrains.kotlin.resolve.calls.context.ResolutionContext
 import org.jetbrains.kotlin.resolve.jvm.diagnostics.ErrorsJvm
 import org.jetbrains.kotlin.types.*
+import org.jetbrains.kotlin.types.error.ErrorUtils
 import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
 import org.jetbrains.kotlin.types.checker.TypeCheckingProcedure
 
+@K1Deprecation
 object JavaGenericVarianceViolationTypeChecker : AdditionalTypeChecker {
     // Prohibits covariant type argument conversions `List<String> -> (MutableList<Any>..List<Any>)` when expected type's lower bound is invariant.
     // It's needed to prevent accident unsafe covariant conversions of mutable collections.
@@ -41,7 +44,7 @@ object JavaGenericVarianceViolationTypeChecker : AdditionalTypeChecker {
             c: ResolutionContext<*>
     ) {
         val expectedType = c.expectedType
-        if (TypeUtils.noExpectedType(expectedType) || ErrorUtils.containsErrorType(expectedType) || ErrorUtils.containsUninferredParameter(expectedType)) return
+        if (TypeUtils.noExpectedType(expectedType) || ErrorUtils.containsErrorType(expectedType) || ErrorUtils.containsUninferredTypeVariable(expectedType)) return
 
         // optimization: if no arguments or flexibility, everything is OK
         if (expectedType.arguments.isEmpty() || !expectedType.isFlexible()) return

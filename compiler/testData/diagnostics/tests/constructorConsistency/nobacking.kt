@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class My {
 
     val x: Int
@@ -10,3 +11,5 @@ class My {
 
     fun foo() {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, getter, init, integerLiteral, propertyDeclaration */

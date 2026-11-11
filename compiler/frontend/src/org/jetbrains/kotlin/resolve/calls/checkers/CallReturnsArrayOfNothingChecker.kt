@@ -17,11 +17,13 @@
 package org.jetbrains.kotlin.resolve.calls.checkers
 
 import com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.diagnostics.Errors
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.typeUtil.isArrayOfNothing
 
+@K1Deprecation
 class CallReturnsArrayOfNothingChecker : CallChecker {
     override fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext) {
         if (resolvedCall.resultingDescriptor.returnType.containsArrayOfNothing()) {
@@ -33,6 +35,6 @@ class CallReturnsArrayOfNothingChecker : CallChecker {
         if (this == null || isComputingDeferredType(this)) return false
 
         return isArrayOfNothing() ||
-               arguments.any { !it.isStarProjection && it.type.containsArrayOfNothing() }
+                arguments.any { !it.isStarProjection && it.type.containsArrayOfNothing() }
     }
 }

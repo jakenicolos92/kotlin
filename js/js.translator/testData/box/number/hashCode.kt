@@ -1,5 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 487
-
 fun box(): String {
 
 

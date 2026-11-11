@@ -1,40 +1,47 @@
-// !LANGUAGE: +MultiPlatformProjects
+// IGNORE_FIR_DIAGNOSTICS
+// RUN_PIPELINE_TILL: FIR2IR
 // MODULE: m1-common
 // FILE: common.kt
 
-header val justVal: String
-header var justVar: String
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> val justVal: String
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> var justVar: String
 
-header val String.extensionVal: Unit
-header var <T> T.genericExtensionVar: T
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> val String.extensionVal: Unit
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> var <T> T.genericExtensionVar: T
 
-header val valWithGet: String
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> val valWithGet: String
     get
-header var varWithGetSet: String
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> var varWithGetSet: String
     get set
 
-header var varWithPlatformGetSet: String
-    <!WRONG_MODIFIER_TARGET!>header<!> get
-    <!WRONG_MODIFIER_TARGET!>header<!> set
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> var varWithPlatformGetSet: String
+    <!WRONG_MODIFIER_TARGET!>expect<!> get
+    <!WRONG_MODIFIER_TARGET!>expect<!> set
 
-header val backingFieldVal: String = <!HEADER_PROPERTY_INITIALIZER!>"no"<!>
-header var backingFieldVar: String = <!HEADER_PROPERTY_INITIALIZER!>"no"<!>
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> val backingFieldVal: String = <!EXPECTED_PROPERTY_INITIALIZER!>"no"<!>
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> var backingFieldVar: String = <!EXPECTED_PROPERTY_INITIALIZER!>"no"<!>
 
-header val customAccessorVal: String
-    <!HEADER_DECLARATION_WITH_BODY!>get()<!> = "no"
-header var customAccessorVar: String
-    <!HEADER_DECLARATION_WITH_BODY!>get()<!> = "no"
-    <!HEADER_DECLARATION_WITH_BODY!>set(value)<!> {}
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> val customAccessorVal: String
+    <!EXPECTED_DECLARATION_WITH_BODY!>get()<!> = "no"
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> var customAccessorVar: String
+    <!EXPECTED_DECLARATION_WITH_BODY!>get()<!> = "no"
+    <!EXPECTED_DECLARATION_WITH_BODY!>set(value)<!> {}
 
-header <!CONST_VAL_WITHOUT_INITIALIZER!>const<!> val constVal: Int
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> <!CONST_VAL_WITHOUT_INITIALIZER!>const<!> val constVal: Int
 
-header <!WRONG_MODIFIER_TARGET!>lateinit<!> var lateinitVar: String
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> <!EXPECTED_LATEINIT_PROPERTY!>lateinit<!> var lateinitVar: String
 
-<!WRONG_MODIFIER_TARGET!>header<!> val delegated: String by Delegate
+<!NO_ACTUAL_FOR_EXPECT{JVM}!>expect<!> val delegated: String by <!EXPECTED_DELEGATED_PROPERTY!>Delegate<!>
 object Delegate { operator fun getValue(x: Any?, y: Any?): String = "" }
 
 fun test(): String {
-    <!WRONG_MODIFIER_TARGET!>header<!> val localVariable: String
+    <!WRONG_MODIFIER_TARGET!>expect<!> val localVariable: String
     localVariable = "no"
     return localVariable
 }
+
+// MODULE: m1-jvm()()(m1-common)
+
+/* GENERATED_FIR_TAGS: assignment, const, expect, functionDeclaration, getter, lateinit, localProperty, nullableType,
+objectDeclaration, operator, propertyDeclaration, propertyDelegate, propertyWithExtensionReceiver, setter, stringLiteral,
+typeParameter */

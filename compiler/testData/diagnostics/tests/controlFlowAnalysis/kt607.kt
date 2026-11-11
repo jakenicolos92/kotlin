@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-607 Val reassignment is not marked as an error
 
 package kt607
@@ -8,11 +9,14 @@ fun foo(a: A) {
            get() = 42
     }
 
-    <!VAL_REASSIGNMENT!>a.z<!> = 23
-    <!VAL_REASSIGNMENT!>o.y<!> = 11   //Should be an error here
+    a.<!VAL_REASSIGNMENT!>z<!> = 23
+    o.<!VAL_REASSIGNMENT!>y<!> = 11   //Should be an error here
 }
 
 class A() {
     val z : Int
     get() = 3
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, assignment, classDeclaration, functionDeclaration, getter,
+integerLiteral, localProperty, primaryConstructor, propertyDeclaration */

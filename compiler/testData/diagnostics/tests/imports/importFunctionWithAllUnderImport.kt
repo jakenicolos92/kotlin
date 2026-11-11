@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: importFunctionWithAllUnderImport.kt
 package test
 
@@ -11,3 +12,5 @@ package testOther
 
 open class A
 fun testFun() = 1
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, propertyDeclaration */

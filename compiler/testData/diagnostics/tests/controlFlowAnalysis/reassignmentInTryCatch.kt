@@ -1,9 +1,11 @@
+// RUN_PIPELINE_TILL: FRONTEND
+// WITH_EXTRA_CHECKERS
 // KT-13612 related tests (reassignment in try-catch-finally)
 
 fun f1() {
     val n: Int
     try {
-        <!UNUSED_VALUE!>n =<!> 1
+        <!ASSIGNED_VALUE_IS_NEVER_READ!>n<!> = 1
         throw Exception()
     }
     catch (e: Exception) {
@@ -14,13 +16,13 @@ fun f1() {
 }
 
 fun f2() {
-    val <!ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE!>n<!>: Int
+    val n: Int
     try {
-        <!UNUSED_VALUE!>n =<!> 1
+        <!ASSIGNED_VALUE_IS_NEVER_READ!>n<!> = 1
         throw Exception()
     }
     finally {
-        <!UNUSED_VALUE!><!VAL_REASSIGNMENT!>n<!> =<!> 2
+        <!ASSIGNED_VALUE_IS_NEVER_READ, VAL_REASSIGNMENT!>n<!> = 2
     }
     <!UNREACHABLE_CODE!>n.hashCode()<!>
 }
@@ -42,7 +44,7 @@ fun g2(flag: Boolean) {
     val n: Int
     try {
         if (flag) throw Exception()
-        <!UNUSED_VALUE!>n =<!> 1
+        <!ASSIGNED_VALUE_IS_NEVER_READ!>n<!> = 1
     }
     finally {
         <!VAL_REASSIGNMENT!>n<!> = 2
@@ -92,7 +94,7 @@ fun k1(flag: Boolean) {
 fun k2(flag: Boolean) {
     val n: Int
     try {
-        <!UNUSED_VALUE!>n =<!> 1
+        <!ASSIGNED_VALUE_IS_NEVER_READ!>n<!> = 1
         j(flag)
     }
     finally {
@@ -100,3 +102,6 @@ fun k2(flag: Boolean) {
     }
     n.hashCode()
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, ifExpression, integerLiteral, localProperty, propertyDeclaration,
+tryExpression */

@@ -1,0 +1,2 @@
+@Ann(s = "str")
+val a: kotlin.Int

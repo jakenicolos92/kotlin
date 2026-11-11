@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-1571 Frontend fails to check val reassigment for operator overloading.
 package kt1571
 
@@ -7,10 +8,10 @@ var c2 = 0
 
 class A() {
     var p = 0
-    operator fun divAssign(<!UNUSED_PARAMETER!>a<!> : Int) {
+    operator fun divAssign(a : Int) {
         c1++;
     }
-    operator fun times(<!UNUSED_PARAMETER!>a<!> : Int) : A {
+    operator fun times(a : Int) : A {
         c2++;
         return this;
     }
@@ -40,3 +41,7 @@ fun box() : String {
     }
     return "OK"
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, equalityExpression, functionDeclaration, getter, ifExpression,
+incrementDecrementExpression, integerLiteral, multiplicativeExpression, operator, primaryConstructor,
+propertyDeclaration, stringLiteral, thisExpression */

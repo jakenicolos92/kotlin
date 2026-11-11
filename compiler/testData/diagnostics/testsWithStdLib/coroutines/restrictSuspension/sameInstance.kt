@@ -1,6 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -SUSPENSION_CALL_MUST_BE_USED_AS_RETURN_VALUE
-
-@kotlin.coroutines.experimental.RestrictsSuspension
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER -SUSPENSION_CALL_MUST_BE_USED_AS_RETURN_VALUE
+@kotlin.coroutines.RestrictsSuspension
 class RestrictedController {
     suspend fun member() {}
 }
@@ -51,3 +51,6 @@ suspend fun RestrictedController.l() {
     }
 
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, integerLiteral,
+lambdaLiteral, localProperty, propertyDeclaration, suspend, thisExpression, typeWithExtension */

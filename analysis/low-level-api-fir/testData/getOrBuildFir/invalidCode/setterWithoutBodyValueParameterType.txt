@@ -1,0 +1,12 @@
+KT element: KtTypeReference
+FIR element: FirResolvedTypeRefImpl
+FIR source kind: KtRealSourceElementKind
+
+FIR element rendered:
+R|kotlin/CharSequence|
+
+FIR FILE:
+FILE: [ResolvedTo(IMPORTS)] setterWithoutBodyValueParameterType.kt
+    public? final? [ResolvedTo(TYPES)] var prop: R|kotlin/String| = LAZY_EXPRESSION
+        public? [ResolvedTo(TYPES)] get(): R|kotlin/String|
+        public? [ResolvedTo(TYPES)] set([ResolvedTo(TYPES)] value: R|kotlin/CharSequence|): R|kotlin/Unit|

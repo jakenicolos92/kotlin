@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -SENSELESS_COMPARISON
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -SENSELESS_COMPARISON
 
 // FILE: J.java
 
@@ -41,3 +42,5 @@ fun test() {
     }
 }
 
+/* GENERATED_FIR_TAGS: equalityExpression, flexibleType, functionDeclaration, ifExpression, javaFunction, javaProperty,
+javaType, localProperty, nullableType, propertyDeclaration, safeCall, smartcast */

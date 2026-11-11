@@ -1,3 +1,4 @@
+
 abstract class AbstractClass {
     abstract fun abstractFun()
     abstract val abstractVal: Int

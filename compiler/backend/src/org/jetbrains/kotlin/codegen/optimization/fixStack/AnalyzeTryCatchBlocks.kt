@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.codegen.optimization.fixStack
 
+import org.jetbrains.kotlin.codegen.inline.isCatchStoreInstruction
 import org.jetbrains.kotlin.codegen.optimization.common.findNextOrNull
 import org.jetbrains.kotlin.codegen.optimization.common.hasOpcode
 import org.jetbrains.kotlin.codegen.pseudoInsns.PseudoInsn
@@ -26,19 +27,18 @@ import org.jetbrains.org.objectweb.asm.tree.AbstractInsnNode
 import org.jetbrains.org.objectweb.asm.tree.LabelNode
 import org.jetbrains.org.objectweb.asm.tree.MethodNode
 import org.jetbrains.org.objectweb.asm.tree.TryCatchBlockNode
-import java.util.*
 
 private class DecompiledTryDescriptor(val tryStartLabel: LabelNode) {
     // Only used for assertions
-    var defaultHandlerTcb : TryCatchBlockNode? = null
+    var defaultHandlerTcb: TryCatchBlockNode? = null
     val handlerStartLabels = hashSetOf<LabelNode>()
 }
 
 private fun TryCatchBlockNode.isDefaultHandlerNode(): Boolean =
-        start == handler
+    start == handler
 
 private fun MethodNode.debugString(tcb: TryCatchBlockNode): String =
-        "TCB<${instructions.indexOf(tcb.start)}, ${instructions.indexOf(tcb.end)}, ${instructions.indexOf(tcb.handler)}>"
+    "TCB<${instructions.indexOf(tcb.start)}, ${instructions.indexOf(tcb.end)}, ${instructions.indexOf(tcb.handler)}>"
 
 internal fun insertTryCatchBlocksMarkers(methodNode: MethodNode): Map<AbstractInsnNode, AbstractInsnNode> {
     if (methodNode.tryCatchBlocks.isEmpty()) return emptyMap()
@@ -64,9 +64,9 @@ private fun transformTryCatchBlocks(methodNode: MethodNode, newTryStartLabels: H
 }
 
 private fun insertSaveRestoreStackMarkers(
-        decompiledTryDescriptorForStart: Map<LabelNode, DecompiledTryDescriptor>,
-        methodNode: MethodNode,
-        newTryStartLabels: MutableMap<LabelNode, LabelNode>
+    decompiledTryDescriptorForStart: Map<LabelNode, DecompiledTryDescriptor>,
+    methodNode: MethodNode,
+    newTryStartLabels: MutableMap<LabelNode, LabelNode>
 ): Map<AbstractInsnNode, AbstractInsnNode> {
     val restoreStackToSaveMarker = hashMapOf<AbstractInsnNode, AbstractInsnNode>()
     val saveStackMarkerByTryLabel = hashMapOf<LabelNode, AbstractInsnNode>()
@@ -92,8 +92,7 @@ private fun insertSaveRestoreStackMarkers(
                 methodNode.instructions.insertBefore(nopNode, saveStackMarker)
                 methodNode.instructions.insertBefore(nopNode, newTryStartLabel)
                 methodNode.instructions.insert(nopNode, restoreStackMarker)
-            }
-            else {
+            } else {
                 saveStackMarker = saveStackMarkerByTryLabel[tryStartLabel]!!
             }
 
@@ -101,12 +100,14 @@ private fun insertSaveRestoreStackMarkers(
                 if (!doneHandlerLabels.contains(handlerStartLabel)) {
                     doneHandlerLabels.add(handlerStartLabel)
 
-                    val storeNode = handlerStartLabel.findNextOrNull { it.hasOpcode() }!!
-                    assert(storeNode.opcode == Opcodes.ASTORE) { "${methodNode.instructions.indexOf(storeNode)}: handler should start with ASTORE" }
+                    val firstInstruction = handlerStartLabel.findNextOrNull { it.hasOpcode() }!!
+                    assert(isCatchStoreInstruction(firstInstruction)) {
+                        "${methodNode.instructions.indexOf(firstInstruction)}: handler should start with ASTORE"
+                    }
 
                     val restoreStackMarker = PseudoInsn.RESTORE_STACK_IN_TRY_CATCH.createInsnNode()
                     restoreStackToSaveMarker[restoreStackMarker] = saveStackMarker
-                    methodNode.instructions.insert(storeNode, restoreStackMarker)
+                    methodNode.instructions.insert(firstInstruction, restoreStackMarker)
                 }
             }
         }

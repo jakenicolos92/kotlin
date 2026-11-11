@@ -1,11 +1,14 @@
-//KT-1293 Kompiler doesn't show error when element of Array<Int?> is assigned to Int
+// RUN_PIPELINE_TILL: FRONTEND
+//KT-1293 Compiler doesn't show error when element of Array<Int?> is assigned to Int
 
 package kt1293
 
-fun main(args : Array<String>) {
+fun main() {
     val intArray = arrayOfNulls<Int>(10)
-    val <!UNUSED_VARIABLE!>i<!> : Int = <!TYPE_MISMATCH!>intArray[0]<!>
-    requiresInt(<!TYPE_MISMATCH!>intArray[0]<!>)
+    val i : Int <!INITIALIZER_TYPE_MISMATCH!>=<!> intArray[0]
+    requiresInt(<!ARGUMENT_TYPE_MISMATCH!>intArray[0]<!>)
 }
 
-fun requiresInt(<!UNUSED_PARAMETER!>i<!>: Int) {}
+fun requiresInt(i: Int) {}
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, localProperty, nullableType, propertyDeclaration */

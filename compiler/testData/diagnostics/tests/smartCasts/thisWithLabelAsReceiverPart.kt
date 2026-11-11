@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package foo
 
 class C(val i: Int?) {}
@@ -5,15 +6,15 @@ class C(val i: Int?) {}
 class A(val c: C) {
     fun test1() {
         if (this@A.c.i != null) {
-            useInt(<!DEBUG_INFO_SMARTCAST!>this.c.i<!>)
-            useInt(<!DEBUG_INFO_SMARTCAST!>c.i<!>)
+            useInt(this.c.i)
+            useInt(c.i)
         }
     }
 
     inner class B {
         fun test2() {
             if (c.i != null) {
-                useInt(<!DEBUG_INFO_SMARTCAST!>this@A.c.i<!>)
+                useInt(this@A.c.i)
             }
         }
     }
@@ -21,15 +22,15 @@ class A(val c: C) {
 
 fun A.foo() {
     if (this@foo.c.i != null) {
-        useInt(<!DEBUG_INFO_SMARTCAST!>this.c.i<!>)
-        useInt(<!DEBUG_INFO_SMARTCAST!>c.i<!>)
+        useInt(this.c.i)
+        useInt(c.i)
     }
 }
 
 fun test3() {
     useFunction {
         if(c.i != null) {
-            useInt(<!DEBUG_INFO_SMARTCAST!>this.c.i<!>)
+            useInt(this.c.i)
         }
     }
 }
@@ -37,3 +38,6 @@ fun test3() {
 fun useInt(i: Int) = i
 fun useFunction(f: A.() -> Unit) = f
 
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, funWithExtensionReceiver, functionDeclaration,
+functionalType, ifExpression, inner, lambdaLiteral, nullableType, primaryConstructor, propertyDeclaration, smartcast,
+thisExpression, typeWithExtension */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: J.java
 public class J {
     public static void foo() {}
@@ -6,18 +7,18 @@ public class J {
 // FILE: test.kt
 class A {
     init {
-        foo()
+        <!UNRESOLVED_REFERENCE!>foo<!>()
         bar()
     }
 
     fun test1() {
-        foo()
+        <!UNRESOLVED_REFERENCE!>foo<!>()
         bar()
     }
 
     object O {
         fun test() {
-            foo()
+            <!UNRESOLVED_REFERENCE!>foo<!>()
             bar()
         }
     }
@@ -36,3 +37,6 @@ class A {
         fun bar() {}
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, init, javaFunction, javaType, nestedClass,
+objectDeclaration */

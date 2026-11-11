@@ -1,26 +1,27 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun foo(x : String?, y : String?) {
     if (y != null && x == y) {
         // Both not null
-        <!DEBUG_INFO_SMARTCAST!>x<!>.length
-        <!DEBUG_INFO_SMARTCAST!>y<!>.length
+        x.length
+        y.length
     }
     else {
         x<!UNSAFE_CALL!>.<!>length
         y<!UNSAFE_CALL!>.<!>length
     }
-    if (y != null || x == <!DEBUG_INFO_CONSTANT!>y<!>) {
+    if (y != null || x == y) {
         x<!UNSAFE_CALL!>.<!>length
         y<!UNSAFE_CALL!>.<!>length
     }
     else {
         // y == null but x != y
-        <!DEBUG_INFO_SMARTCAST!>x<!>.length
-        <!DEBUG_INFO_CONSTANT!>y<!><!UNSAFE_CALL!>.<!>length
+        x.length
+        y<!UNSAFE_CALL!>.<!>length
     }
-    if (y == null && x != <!DEBUG_INFO_CONSTANT!>y<!>) {
+    if (y == null && x != y) {
         // y == null but x != y
-        <!DEBUG_INFO_SMARTCAST!>x<!>.length
-        <!DEBUG_INFO_CONSTANT!>y<!><!UNSAFE_CALL!>.<!>length
+        x.length
+        y<!UNSAFE_CALL!>.<!>length
     }
     else {
         x<!UNSAFE_CALL!>.<!>length
@@ -32,7 +33,10 @@ fun foo(x : String?, y : String?) {
     }
     else {
         // Both not null
-        <!DEBUG_INFO_SMARTCAST!>x<!>.length
-        <!DEBUG_INFO_SMARTCAST!>y<!>.length
+        x.length
+        y.length
     }
 }
+
+/* GENERATED_FIR_TAGS: andExpression, disjunctionExpression, equalityExpression, functionDeclaration, ifExpression,
+nullableType, smartcast */

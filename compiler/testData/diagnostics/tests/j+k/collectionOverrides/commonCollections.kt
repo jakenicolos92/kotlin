@@ -1,8 +1,9 @@
+// RUN_PIPELINE_TILL: FRONTEND
 import java.util.*
 fun foo() {
     val al = ArrayList<String>()
     al.size
-    al.contains(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>)
+    al.contains(<!ARGUMENT_TYPE_MISMATCH!>1<!>)
     al.contains("")
 
     al.remove("")
@@ -10,7 +11,7 @@ fun foo() {
 
     val hs = HashSet<String>()
     hs.size
-    hs.contains(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>)
+    hs.contains(<!ARGUMENT_TYPE_MISMATCH!>1<!>)
     hs.contains("")
 
     hs.remove("")
@@ -18,11 +19,14 @@ fun foo() {
 
     val hm = HashMap<String, Int>()
     hm.size
-    hm.containsKey(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>)
+    hm.containsKey(<!ARGUMENT_TYPE_MISMATCH!>1<!>)
     hm.containsKey("")
 
-    hm[<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>]
+    hm[<!ARGUMENT_TYPE_MISMATCH!>1<!>]
     hm[""]
 
     hm.remove("")
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, integerLiteral, javaFunction, localProperty, nullableType,
+propertyDeclaration, stringLiteral */

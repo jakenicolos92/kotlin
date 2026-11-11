@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 858
+// KJS_WITH_FULL_RUNTIME
 package foo
 
 data class Holder<T>(val v: T)

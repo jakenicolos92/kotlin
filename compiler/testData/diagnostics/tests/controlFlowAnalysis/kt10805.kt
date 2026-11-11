@@ -1,11 +1,14 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // AssertionError for nested ifs with lambdas and Nothing as results
 
-val <!IMPLICIT_NOTHING_PROPERTY_TYPE!>fn<!> = if (true) {
-    <!TYPE_MISMATCH!>{ true }<!>
-} 
+val fn = if (true) {
+    { true }
+}
 else if (true) {
-    <!TYPE_MISMATCH!>{ true }<!>
+    { true }
 }
 else {
     null!!
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, ifExpression, lambdaLiteral, propertyDeclaration */

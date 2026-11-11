@@ -1,24 +1,34 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 import kotlin.reflect.KFunction0
 
-fun explicitlyExpectFunction0(f: () -> Unit) = f
-fun explicitlyExpectFunction1(f: (A) -> Unit) = f
+fun expectFunction0Unit(f: () -> Unit) = f
+fun expectFunction0String(f: () -> String) = f
+fun expectFunction1Unit(f: (A) -> Unit) = f
+fun expectFunction1String(f: (A) -> String) = f
 
-fun foo() {}
+fun foo(): String = ""
 
 class A {
     fun foo() {}
-    
+
     fun main() {
-        val x = ::<!CALLABLE_REFERENCE_TO_MEMBER_OR_EXTENSION_WITH_EMPTY_LHS!>foo<!>
+        val x = ::foo
 
         checkSubtype<KFunction0<Unit>>(x)
 
-        explicitlyExpectFunction0(x)
-        explicitlyExpectFunction1(<!TYPE_MISMATCH!>x<!>)
+        expectFunction0Unit(x)
+        expectFunction0String(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
+        expectFunction1Unit(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
+        expectFunction1String(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
 
-        explicitlyExpectFunction0(::<!CALLABLE_REFERENCE_TO_MEMBER_OR_EXTENSION_WITH_EMPTY_LHS!>foo<!>)
-        explicitlyExpectFunction1(<!TYPE_MISMATCH!>::<!CALLABLE_REFERENCE_TO_MEMBER_OR_EXTENSION_WITH_EMPTY_LHS!>foo<!><!>)
+        expectFunction0Unit(::foo)
+        expectFunction0String(::foo)
+        expectFunction1Unit(::<!NONE_APPLICABLE!>foo<!>)
+        expectFunction1String(::<!NONE_APPLICABLE!>foo<!>)
     }
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, localProperty, nullableType, propertyDeclaration, stringLiteral, typeParameter, typeWithExtension */

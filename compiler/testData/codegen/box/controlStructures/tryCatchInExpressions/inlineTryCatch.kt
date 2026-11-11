@@ -1,3 +1,4 @@
+// FILE: lib.kt
 inline fun <T> tryOrElse(f1: () -> T, f2: () -> T): T {
     try {
         return f1()
@@ -7,6 +8,7 @@ inline fun <T> tryOrElse(f1: () -> T, f2: () -> T): T {
     }
 }
 
+// FILE: main.kt
 fun testIt() = "abc" + tryOrElse({ "def" }, { "oops" }) + "ghi"
 
 fun box(): String {

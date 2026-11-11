@@ -1,11 +1,11 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 
-suspend fun <T> await(t: T): T = suspendCoroutineOrReturn { c ->
+suspend fun <T> await(t: T): T = suspendCoroutineUninterceptedOrReturn { c ->
     c.resume(t)
     COROUTINE_SUSPENDED
 }

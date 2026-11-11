@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class Bar(val gav: String)
 
 class Foo(val bar: Bar, val nbar: Bar?) {
@@ -28,7 +29,7 @@ fun testNotNull(foo: Foo) {
     foo.baz(s!!)?.gav.let {
         it<!UNSAFE_CALL!>.<!>length
         // Ok because of foo.
-        <!DEBUG_INFO_SMARTCAST!>s<!>.length.hashCode()
+        s.length.hashCode()
     }
 }
 
@@ -40,3 +41,7 @@ fun testNullable(foo: Foo?) {
         s?.length?.hashCode()
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, equalityExpression, funWithExtensionReceiver,
+functionDeclaration, functionalType, ifExpression, lambdaLiteral, localProperty, nullableType, primaryConstructor,
+propertyDeclaration, safeCall, smartcast, stringLiteral, thisExpression */

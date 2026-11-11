@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 public class A {
     public static void foo() {}
@@ -25,3 +26,5 @@ class D: C() {
         D.<!UNRESOLVED_REFERENCE!>bar<!>()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, init, javaFunction, javaType */

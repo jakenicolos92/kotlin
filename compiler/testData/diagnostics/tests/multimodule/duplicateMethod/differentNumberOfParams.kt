@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // MODULE: m1
 // FILE: a.kt
 package p
@@ -29,6 +30,9 @@ import p.*
 
 fun test(b: B?) {
     if (b is C) {
-        <!DEBUG_INFO_SMARTCAST!>b<!><!UNNECESSARY_SAFE_CALL!>?.<!>foo(1, "")
+        b<!UNNECESSARY_SAFE_CALL!>?.<!>foo(1, "")
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, ifExpression, integerLiteral, interfaceDeclaration, isExpression,
+nullableType, override, safeCall, smartcast, stringLiteral */

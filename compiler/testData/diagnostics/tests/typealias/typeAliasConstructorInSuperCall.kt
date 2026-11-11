@@ -1,5 +1,6 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class MyBase protected constructor() {
-    protected constructor(<!UNUSED_PARAMETER!>x<!>: Nothing?): this()
+    protected constructor(x: Nothing?): this()
 }
 typealias MyAlias = MyBase
 
@@ -10,5 +11,7 @@ class MyDerived2 : MyAlias(null)
 class MyDerived2a : MyBase(null)
 
 class MyDerived3 : MyAlias {
-    constructor(x: Nothing?) : super(<!DEBUG_INFO_CONSTANT!>x<!>)
+    constructor(x: Nothing?) : super(x)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, nullableType, primaryConstructor, secondaryConstructor, typeAliasDeclaration */

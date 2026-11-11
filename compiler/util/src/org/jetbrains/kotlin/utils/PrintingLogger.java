@@ -48,8 +48,9 @@ public class PrintingLogger extends Logger {
 
     @Override
     public void debug(@Nullable Throwable t) {
-        //noinspection ConstantConditions
-        t.printStackTrace(out);
+        if (t != null) {
+            t.printStackTrace(out);
+        }
     }
 
     @Override
@@ -81,7 +82,8 @@ public class PrintingLogger extends Logger {
         }
     }
 
+    @Deprecated // deprecated in com.intellij.openapi.diagnostic.Logger
     @Override
-    public void setLevel(Level level) {
+    public void setLevel(@NotNull Level level) {
     }
 }

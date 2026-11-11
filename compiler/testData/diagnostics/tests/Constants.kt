@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 fun varargByte(vararg v: Byte) = v
 
@@ -12,7 +13,7 @@ fun varargFloat(vararg v: Float) = v
 
 fun varargDouble(vararg v: Double) = v
 
-fun <T> testFun(<!UNUSED_PARAMETER!>p<!>: T) {}
+fun <T> testFun(p: T) {}
 
 fun test() {
     checkSubtype<Byte>(1)
@@ -29,25 +30,28 @@ fun test() {
     checkSubtype<Double>(1e5)
     checkSubtype<Float>(1e-5.toFloat())
 
-    checkSubtype<Double>(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>)
-    checkSubtype<Float>(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>)
-    
-    1 <!CAST_NEVER_SUCCEEDS!>as<!> Byte
-    1 <!USELESS_CAST!>as Int<!>
-    0xff <!CAST_NEVER_SUCCEEDS!>as<!> Long
-    
-    1.1 <!CAST_NEVER_SUCCEEDS!>as<!> Int
-    checkSubtype<Int>(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1.1<!>)
+    checkSubtype<Double>(<!ARGUMENT_TYPE_MISMATCH!>1<!>)
+    checkSubtype<Float>(<!ARGUMENT_TYPE_MISMATCH!>1<!>)
 
-    varargByte(0x77, 1, 3, <!CONSTANT_EXPECTED_TYPE_MISMATCH!>200<!>, 0b111)
-    varargShort(0x777, 1, 2, 3, <!CONSTANT_EXPECTED_TYPE_MISMATCH!>200000<!>, 0b111)
-    varargInt(0x77777777, <!CONSTANT_EXPECTED_TYPE_MISMATCH!>0x7777777777<!>, 1, 2, 3, 2000000000, 0b111)
+    1 <!NUMERIC_CAST_NEVER_SUCCEEDS_BUT_CAN_BE_REPLACED_WITH_TO_CALL!>as Byte<!>
+    1 <!INTEGER_LITERAL_CAST_INSTEAD_OF_TO_CALL!>as Int<!>
+    0xff <!NUMERIC_CAST_NEVER_SUCCEEDS_BUT_CAN_BE_REPLACED_WITH_TO_CALL!>as Long<!>
+
+    1.1 <!NUMERIC_CAST_NEVER_SUCCEEDS_BUT_CAN_BE_REPLACED_WITH_TO_CALL!>as Int<!>
+    checkSubtype<Int>(<!ARGUMENT_TYPE_MISMATCH!>1.1<!>)
+
+    varargByte(0x77, 1, 3, <!ARGUMENT_TYPE_MISMATCH!>200<!>, 0b111)
+    varargShort(0x777, 1, 2, 3, <!ARGUMENT_TYPE_MISMATCH!>200000<!>, 0b111)
+    varargInt(0x77777777, <!ARGUMENT_TYPE_MISMATCH!>0x7777777777<!>, 1, 2, 3, 2000000000, 0b111)
     varargLong(0x777777777777, 1, 2, 3, 200000, 0b111)
-    varargFloat(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>, <!CONSTANT_EXPECTED_TYPE_MISMATCH!>1.0<!>, <!TYPE_MISMATCH!>-0.1<!>, <!CONSTANT_EXPECTED_TYPE_MISMATCH!>1e4<!>, <!CONSTANT_EXPECTED_TYPE_MISMATCH!>1e-4<!>, <!TYPE_MISMATCH!>-1e4<!>)
-    varargDouble(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>, 1.0, -0.1, 1e4, 1e-4, -1e4)
+    varargFloat(<!ARGUMENT_TYPE_MISMATCH!>1<!>, <!ARGUMENT_TYPE_MISMATCH!>1.0<!>, <!ARGUMENT_TYPE_MISMATCH!>-0.1<!>, <!ARGUMENT_TYPE_MISMATCH!>1e4<!>, <!ARGUMENT_TYPE_MISMATCH!>1e-4<!>, <!ARGUMENT_TYPE_MISMATCH!>-1e4<!>)
+    varargDouble(<!ARGUMENT_TYPE_MISMATCH!>1<!>, 1.0, -0.1, 1e4, 1e-4, -1e4)
 
     testFun(1.0)
-    testFun<Float>(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1.0<!>)
+    testFun<Float>(<!ARGUMENT_TYPE_MISMATCH!>1.0<!>)
     testFun(1.0.toFloat())
     testFun<Float>(1.0.toFloat())
 }
+
+/* GENERATED_FIR_TAGS: asExpression, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, integerLiteral, nullableType, typeParameter, typeWithExtension, unaryExpression, vararg */

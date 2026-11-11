@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 import kotlin.jvm.*
 
 external fun foo()
@@ -23,3 +24,6 @@ fun test() {
         external fun foo()
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, companionObject, external, functionDeclaration,
+localClass, objectDeclaration */

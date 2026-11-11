@@ -1,11 +1,12 @@
+// RUN_PIPELINE_TILL: FRONTEND
 val f: Boolean = true
 private fun doUpdateRegularTasks() {
     try {
         while (f) {
             val xmlText = <!UNRESOLVED_REFERENCE!>getText<!>()
-            if (<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>xmlText<!> <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>==<!> null) {}
+            if (xmlText == null) {}
             else {
-                <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>xmlText<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>value<!> = 0 // !!!
+                xmlText.<!UNRESOLVED_REFERENCE!>value<!> = 0 // !!!
             }
         }
 
@@ -14,3 +15,6 @@ private fun doUpdateRegularTasks() {
         fun execute() {}
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, equalityExpression, functionDeclaration, ifExpression, integerLiteral, localFunction,
+localProperty, propertyDeclaration, smartcast, tryExpression, whileLoop */

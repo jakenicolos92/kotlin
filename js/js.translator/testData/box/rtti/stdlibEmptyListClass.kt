@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 906
+// KJS_WITH_FULL_RUNTIME
 // KT-5192 JS compiler fails to generate correct code for List implementation
 package foo
 

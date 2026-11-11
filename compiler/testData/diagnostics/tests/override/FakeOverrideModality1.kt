@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface A {
     fun foo() {}
 }
@@ -12,3 +13,5 @@ interface C {
 
 // Fake override Z#foo should be abstract
 <!ABSTRACT_MEMBER_NOT_IMPLEMENTED!>class Z<!> : B, C
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, override */

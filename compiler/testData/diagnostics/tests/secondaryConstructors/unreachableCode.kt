@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class A0 {
     <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>val x: Int<!>
     constructor() {
@@ -17,7 +18,7 @@ class A1 {
         if (1 == 1) {
             return
         } else null!!
-        <!UNREACHABLE_CODE!>x = 1<!>
+        x = 1
     }
 }
 
@@ -36,3 +37,6 @@ class A2 {
         x = arg
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, checkNotNullCall, classDeclaration, equalityExpression, ifExpression, integerLiteral,
+propertyDeclaration, secondaryConstructor */

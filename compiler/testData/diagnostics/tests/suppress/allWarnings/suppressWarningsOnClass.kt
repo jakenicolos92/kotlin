@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 @Suppress("warnings")
 class C {
     fun foo(p: String??) {
@@ -5,3 +6,5 @@ class C {
         <!VAL_REASSIGNMENT!>p<!> = ""
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, functionDeclaration, nullableType, stringLiteral */

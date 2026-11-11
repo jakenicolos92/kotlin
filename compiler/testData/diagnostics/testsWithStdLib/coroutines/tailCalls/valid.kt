@@ -1,6 +1,7 @@
-// !DIAGNOSTICS: -UNUSED_ANONYMOUS_PARAMETER
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_ANONYMOUS_PARAMETER
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 suspend fun baz() = 1
 
@@ -15,17 +16,20 @@ suspend fun bar1() {
     return if (1.hashCode() > 0) {
         foo()
     }
-    else suspendCoroutineOrReturn { x: Continuation<Unit> -> }
+    else suspendCoroutineUninterceptedOrReturn { x: Continuation<Unit> -> }
 }
 
 suspend fun bar2() =
         if (1.hashCode() > 0) {
             foo()
         }
-        else suspendCoroutineOrReturn { x: Continuation<Unit> -> }
+        else suspendCoroutineUninterceptedOrReturn { x: Continuation<Unit> -> }
 
 suspend fun bar3() =
         when {
             true -> { foo() }
-            else -> suspendCoroutineOrReturn { x: Continuation<Unit> -> }
+            else -> suspendCoroutineUninterceptedOrReturn { x: Continuation<Unit> -> }
         }
+
+/* GENERATED_FIR_TAGS: comparisonExpression, functionDeclaration, ifExpression, integerLiteral, lambdaLiteral, suspend,
+whenExpression */

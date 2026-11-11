@@ -1,0 +1,168 @@
+/*
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.test.services.configuration
+
+import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
+import org.jetbrains.kotlin.cli.common.allowKotlinPackage
+import org.jetbrains.kotlin.cli.common.allowNoSourceFiles
+import org.jetbrains.kotlin.cli.common.testEnvironment
+import org.jetbrains.kotlin.cli.jvm.config.JvmClasspathRoot
+import org.jetbrains.kotlin.cli.jvm.config.addJvmClasspathRoot
+import org.jetbrains.kotlin.codegen.forTestCompile.ForTestCompileRuntime
+import org.jetbrains.kotlin.config.*
+import org.jetbrains.kotlin.config.AnalysisFlags.allowFullyQualifiedNameInKClass
+import org.jetbrains.kotlin.platform.isCommon
+import org.jetbrains.kotlin.platform.isMultiplatformWeb
+import org.jetbrains.kotlin.test.FirParser
+import org.jetbrains.kotlin.test.directives.ConfigurationDirectives
+import org.jetbrains.kotlin.test.directives.ConfigurationDirectives.DISABLE_TYPEALIAS_EXPANSION
+import org.jetbrains.kotlin.test.directives.ConfigurationDirectives.SEPARATE_KMP_COMPILATION
+import org.jetbrains.kotlin.test.directives.ConfigurationDirectives.WITH_STDLIB
+import org.jetbrains.kotlin.test.directives.FirDiagnosticsDirectives
+import org.jetbrains.kotlin.test.directives.model.DirectivesContainer
+import org.jetbrains.kotlin.test.directives.model.RegisteredDirectives
+import org.jetbrains.kotlin.test.directives.model.singleOrZeroValue
+import org.jetbrains.kotlin.test.model.DependencyRelation.*
+import org.jetbrains.kotlin.test.model.TestFile
+import org.jetbrains.kotlin.test.model.TestModule
+import org.jetbrains.kotlin.test.services.*
+
+class CommonEnvironmentConfigurator(testServices: TestServices) : EnvironmentConfigurator(testServices) {
+    override val directiveContainers: List<DirectivesContainer>
+        get() = listOf(ConfigurationDirectives)
+
+    override fun provideAdditionalAnalysisFlags(
+        directives: RegisteredDirectives,
+        languageVersion: LanguageVersion
+    ): Map<AnalysisFlag<*>, Any?> {
+        return buildMap {
+            put(allowFullyQualifiedNameInKClass, true)
+            put(AnalysisFlags.hierarchicalMultiplatformCompilation, SEPARATE_KMP_COMPILATION in directives)
+            if (DISABLE_TYPEALIAS_EXPANSION in directives) {
+                put(AnalysisFlags.expandTypeAliasesInTypeResolution, false)
+            }
+        }
+    }
+
+    override fun configureCompilerConfiguration(configuration: CompilerConfiguration, module: TestModule) {
+        configuration.testEnvironment = true
+        if (module.targetPlatform(testServices).isCommon() && WITH_STDLIB in module.directives) {
+            configuration.add(
+                CLIConfigurationKeys.CONTENT_ROOTS,
+                JvmClasspathRoot(ForTestCompileRuntime.stdlibCommonForTests())
+            )
+        }
+        if (FirDiagnosticsDirectives.WITH_EXTRA_CHECKERS in module.directives) {
+            configuration.useFirExtraCheckers = true
+        }
+        if (FirDiagnosticsDirectives.DUMP_INFERENCE_LOGS in module.directives) {
+            configuration.dumpInferenceLogs = true
+        }
+
+        when (module.directives.singleOrZeroValue(FirDiagnosticsDirectives.FIR_PARSER)) {
+            FirParser.Psi -> configuration.parserMode = ParserMode.Psi
+            FirParser.LightTree -> configuration.parserMode = ParserMode.LightTree
+            FirParser.KmpTree -> configuration.parserMode = ParserMode.KmpTree
+            null -> {}
+        }
+
+        setupK2CliConfiguration(module, configuration)
+    }
+
+    private fun setupK2CliConfiguration(
+        module: TestModule,
+        configuration: CompilerConfiguration,
+    ) {
+        if (!testServices.cliBasedFacadesEnabled) return
+
+        if (
+            module.languageVersionSettings.supportsFeature(LanguageFeature.MultiPlatformProjects) &&
+            module.isLeafModuleInMppGraph(testServices)
+        ) {
+            val hmppModules = module.transitiveDependsOnDependencies(includeSelf = true, reverseOrder = true)
+                .associateWith {
+                    HmppCliModule(
+                        name = it.name,
+                        sources = it.kotlinFiles
+                            .map { testServices.sourceFileProvider.getOrCreateRealFileForSourceFile(it).canonicalPath }
+                            .toSet()
+                    )
+                }
+
+            val sourceDependencies = buildMap {
+                for ([testModule, cliModule] in hmppModules) {
+                    put(cliModule, testModule.dependsOnDependencies.map { hmppModules.getValue(it.dependencyModule) })
+                }
+            }
+
+            val moduleDependencies = mutableMapOf<HmppCliModule, List<String>>()
+            val friendDependencies = mutableMapOf<HmppCliModule, List<String>>()
+
+            if (SEPARATE_KMP_COMPILATION in module.directives) {
+                val allModuleDependencies = mutableMapOf<HmppCliModule, List<String>>()
+                val allFriendDependencies = mutableMapOf<HmppCliModule, List<String>>()
+                for ([testModule, cliModule] in hmppModules) {
+                    val dependencies = mutableListOf<String>()
+                    val friends = mutableListOf<String>()
+
+                    testModule.allDependencies.forEach { dependencyDescription ->
+                        val dependencyOutputDir =
+                            testServices.compiledClassesManager.getOutputDirForModule(dependencyDescription.dependencyModule)
+                        configuration.addJvmClasspathRoot(dependencyOutputDir)
+                        when (dependencyDescription.relation) {
+                            RegularDependency -> dependencies += dependencyOutputDir.canonicalPath
+                            FriendDependency -> friends += dependencyOutputDir.canonicalPath
+                            DependsOnDependency -> {}
+                        }
+                    }
+
+                    val standardLibrariesPathProvider = testServices.standardLibrariesPathProvider
+                    dependencies.add(standardLibrariesPathProvider.commonStdlibForTests().canonicalPath)
+                    if (testModule.targetPlatform(testServices).isMultiplatformWeb()) {
+                        dependencies.add(standardLibrariesPathProvider.webStdlibForTests().canonicalPath)
+                    }
+
+                    allModuleDependencies[cliModule] = dependencies
+                    allFriendDependencies[cliModule] = friends
+
+                    fun List<String>.deduplicateDependencies(allDeps: Map<HmppCliModule, List<String>>): List<String> {
+                        val result = this.toMutableList()
+                        for ([dependencyModule, _, _] in testModule.dependsOnDependencies) {
+                            val dependencyCliModule = hmppModules.getValue(dependencyModule)
+                            result -= allDeps.getValue(dependencyCliModule)
+                        }
+                        return result
+                    }
+
+                    moduleDependencies[cliModule] = dependencies.deduplicateDependencies(allModuleDependencies)
+                    friendDependencies[cliModule] = friends.deduplicateDependencies(allFriendDependencies)
+                }
+            }
+
+            configuration.hmppModuleStructure = HmppCliModuleStructure(
+                hmppModules.values.toList(),
+                sourceDependencies,
+                moduleDependencies,
+                friendDependencies,
+            )
+        }
+
+        if (FirDiagnosticsDirectives.WITH_EXPERIMENTAL_CHECKERS in module.directives) {
+            configuration.useFirExperimentalCheckers = true
+        }
+        configuration.allowNoSourceFiles = true
+        configuration.allowAnyScriptsInSourceRoots = true
+        configuration.allowKotlinPackage = true
+        configuration.dontCreateSeparateSessionForScripts = true
+        configuration.dontSortSourceFiles = true
+    }
+}
+
+val RegisteredDirectives.inferenceLogsFormats: List<InferenceLogsFormat>
+    get() = this[FirDiagnosticsDirectives.DUMP_INFERENCE_LOGS]
+
+val TestModule.kotlinFiles: List<TestFile>
+    get() = files.filter { it.isKtFile || it.isKtsFile }

@@ -17,14 +17,17 @@
 package org.jetbrains.kotlin.resolve.calls.checkers
 
 import com.intellij.psi.PsiElement
-import org.jetbrains.kotlin.psi.KtExpression
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.resolve.BindingTrace
 import org.jetbrains.kotlin.types.KotlinType
 
+@K1Deprecation
 interface RttiExpressionChecker {
     fun check(rttiInformation: RttiExpressionInformation, reportOn: PsiElement, trace: BindingTrace)
 }
 
+@K1Deprecation
 enum class RttiOperation {
     IS,
     NOT_IS,
@@ -32,9 +35,10 @@ enum class RttiOperation {
     SAFE_AS
 }
 
+@K1Deprecation
 class RttiExpressionInformation(
-        val subject: KtExpression,
-        val sourceType: KotlinType?,
-        val targetType: KotlinType?,
-        val operation: RttiOperation
+    val subject: KtElement,
+    val sourceType: KotlinType?,
+    val targetType: KotlinType?,
+    val operation: RttiOperation
 )

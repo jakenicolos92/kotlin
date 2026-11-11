@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package d
 
 <!WRONG_MODIFIER_TARGET!>abstract<!> val a : Int = 1
@@ -10,3 +11,6 @@ package d
 
 class T {}
 <!WRONG_MODIFIER_TARGET!>override<!> fun T.bar() = 2
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, integerLiteral, override,
+propertyDeclaration */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class `___` {
     class `____`
 }
@@ -9,3 +10,5 @@ val testClassLiteralLHSType = <!UNDERSCORE_USAGE_WITHOUT_BACKTICKS!>___<!>::clas
 val testClassLiteralLHSType2 = `___`::class
 
 val tesLHSTypeFQN = `___`.<!UNDERSCORE_USAGE_WITHOUT_BACKTICKS!>____<!>::class
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, classReference, nestedClass, propertyDeclaration */

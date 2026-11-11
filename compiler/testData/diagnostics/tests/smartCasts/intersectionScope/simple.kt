@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface A {
     fun foo()
 }
@@ -10,3 +11,5 @@ fun test(c: C) {
         c.foo() // OVERLOAD_RESOLUTION_AMBIGUITY: B.foo() and C.foo()
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, ifExpression, interfaceDeclaration, isExpression */

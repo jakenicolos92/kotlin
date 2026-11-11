@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: FRONTEND
+
 class A {
     inner class B {
         <!NESTED_CLASS_NOT_ALLOWED!>class C<!>
@@ -19,7 +21,8 @@ fun foo() {
 
 enum class E {
     E1 {
-        // Not allowed in Java, but no reason to disallow in Kotlin
-        class D
+        <!NESTED_CLASS_NOT_ALLOWED!>class D<!>
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, enumDeclaration, enumEntry, functionDeclaration, inner, localClass, nestedClass */

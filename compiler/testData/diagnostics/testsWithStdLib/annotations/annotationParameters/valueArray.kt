@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 public @interface A {
     String[] value();
@@ -20,4 +21,6 @@ public @interface A {
 
 @A(y = 7) fun test7() {}
 
-@A("8", "9", "10"<!NO_VALUE_FOR_PARAMETER!>)<!> fun test8() {}
+@<!NO_VALUE_FOR_PARAMETER!>A<!>("8", "9", "10") fun test8() {}
+
+/* GENERATED_FIR_TAGS: classReference, collectionLiteral, functionDeclaration, integerLiteral, javaType, stringLiteral */

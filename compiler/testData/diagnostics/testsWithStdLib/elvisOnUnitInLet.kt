@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun foo(x: Int?) {
     // Both parts of the Elvis should be alive, see KT-7936
     x?.let {
@@ -7,3 +8,5 @@ fun foo(x: Int?) {
 
 fun smth() {}
 fun orElse() {}
+
+/* GENERATED_FIR_TAGS: elvisExpression, functionDeclaration, lambdaLiteral, nullableType, safeCall */

@@ -1,3 +1,4 @@
+
 fun foo(): String = ""
 val x = 42
 

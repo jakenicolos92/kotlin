@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 import kotlin.reflect.*
 
@@ -9,3 +10,6 @@ class A {
 
 fun f1(): KProperty<Int> = A::x  // ok, property
 fun f2(): (A) -> Unit = A::x     // ok, function
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, functionDeclaration, functionalType, integerLiteral,
+propertyDeclaration */

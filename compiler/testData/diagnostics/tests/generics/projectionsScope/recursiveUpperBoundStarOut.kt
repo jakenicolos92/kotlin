@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 // See KT-7296
 interface Out<out F>
 interface B<T> : Out<Out<T>>
@@ -10,3 +11,5 @@ fun foo(x : B<*>) {
 
 fun bar1(x : Out<Out<*>>) { }
 fun bar2(x : Out<*>) { }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, nullableType, out, starProjection, typeParameter */

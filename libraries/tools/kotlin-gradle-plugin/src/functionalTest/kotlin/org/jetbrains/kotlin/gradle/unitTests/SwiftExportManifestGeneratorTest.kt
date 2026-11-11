@@ -1,0 +1,527 @@
+/*
+ * Copyright 2010-2024 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.gradle.unitTests
+
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.internal.GradleSwiftExportFiles
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.internal.GradleSwiftExportModule
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.SwiftPackagePlatform
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.tasks.SwiftPackageDependency
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.tasks.SPMManifestGenerator
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.swiftexport.tasks.SwiftPackageModule
+import org.jetbrains.kotlin.konan.target.Family
+import kotlin.test.Test
+import java.io.File
+import kotlin.test.assertEquals
+
+class SwiftExportManifestGeneratorTest {
+
+    @Test
+    fun `test swift export SPM manifest generation`() {
+        val swiftApiModule = "Shared"
+
+        val manifest = SPMManifestGenerator.generateManifest(
+            swiftApiModule,
+            "SharedLibrary",
+            "KotlinRuntime",
+            sharedModulesFixture(swiftApiModule).inPackage()
+        )
+
+        val manifestGold = sharedLibraryManifestGold()
+
+        assertEquals(manifestGold, manifest)
+    }
+
+    @Test
+    fun `test swift export SPM manifest complicated generation`() {
+        val swiftApiModule = "Shared"
+
+        val manifest = SPMManifestGenerator.generateManifest(
+            swiftApiModule,
+            "SharedLibrary",
+            "KotlinRuntime",
+            complicatedModulesFixture(swiftApiModule).inPackage()
+        )
+
+        val manifestGold = complicatedManifestGold()
+
+        assertEquals(manifestGold, manifest)
+    }
+
+    @Test
+    fun `test swift export SPM empty manifest generation`() {
+        val swiftApiModule = "Shared"
+
+        val manifest = SPMManifestGenerator.generateManifest(
+            swiftApiModule,
+            "SharedLibrary",
+            "KotlinRuntime",
+            emptyModulesFixture().inPackage()
+        )
+
+        val manifestGold = emptyManifestGold()
+
+        assertEquals(manifestGold, manifest)
+    }
+
+    @Test
+    fun `test generated manifest has no trailing commas before closing brackets`() {
+        val manifest = SPMManifestGenerator.generateManifest(
+            "Shared",
+            "SharedLibrary",
+            "KotlinRuntime",
+            sharedModulesFixture("Shared").inPackage()
+        )
+
+        val expectedManifest = sharedLibraryManifestGold()
+
+        assertEquals(expectedManifest, manifest)
+    }
+
+    @Test
+    fun `test single module manifest has no trailing commas`() {
+        val manifest = SPMManifestGenerator.generateManifest(
+            "SingleModule",
+            "SingleLibrary",
+            "KotlinRuntime",
+            singleModuleFixture().inPackage()
+        )
+
+        val expectedManifest = singleModuleManifestGold()
+
+        assertEquals(expectedManifest, manifest)
+    }
+
+    @Test
+    fun `test swift export SPM manifest with reexported cinterop package dependency`() {
+        val swiftApiModule = "Shared"
+
+        val manifest = SPMManifestGenerator.generateManifest(
+            swiftApiModule,
+            "SharedLibrary",
+            "KotlinRuntime",
+            sharedModulesFixture(swiftApiModule).inPackage(),
+            listOf(
+                SwiftPackageDependency(
+                    packageDeclaration = ".package(path: \"/repo/build/kotlin/swiftImport\")",
+                    productDeclarations = listOf(".product(name: \"KotlinMultiplatformLinkedPackage\", package: \"swiftImport\")"),
+                )
+            )
+        )
+
+        assertEquals(cinteropDependencyManifestGold(), manifest)
+    }
+
+    @Test
+    fun `test swift export SPM manifest with the imported packages`() {
+        val manifest = SPMManifestGenerator.generateManifest(
+            "Shared",
+            "SharedLibrary",
+            "KotlinRuntime",
+            sharedModulesFixture("Shared").inPackage(),
+            listOf(
+                SwiftPackageDependency(
+                    packageDeclaration = ".package(url: \"https://github.com/example/Lib.git\", from: \"1.2.0\", traits: [\"UI\"])",
+                    productDeclarations = listOf(
+                        ".product(name: \"Lib\", package: \"Lib\")",
+                        ".product(name: \"LibUI\", package: \"Lib\", condition: .when(platforms: [.iOS]))",
+                    ),
+                ),
+                SwiftPackageDependency(
+                    packageDeclaration = ".package(path: \"/repo/localSwiftPackage\")",
+                    productDeclarations = listOf(".product(name: \"LocalSwiftPackage\", package: \"LocalSwiftPackage\")"),
+                ),
+            ),
+            kotlinBinaryTarget = "SharedKotlin",
+        )
+
+        assertEquals(importedPackagesManifestGold(), manifest)
+    }
+
+    @Test
+    fun `test swift export SPM manifest with a kotlin binary target and platforms`() {
+        val manifest = SPMManifestGenerator.generateManifest(
+            "Shared",
+            "SharedLibrary",
+            "KotlinRuntime",
+            sharedModulesFixture("Shared").inPackage(),
+            kotlinBinaryTarget = "SharedKotlin",
+            platforms = listOf(SwiftPackagePlatform("iOS", "18.0"), SwiftPackagePlatform("macOS", "15.0")),
+        )
+
+        assertEquals(platformsManifestGold(), manifest)
+    }
+
+    @Test
+    fun `test swift export SPM manifest with a dependency limited to a platform`() {
+        val manifest = SPMManifestGenerator.generateManifest(
+            "Shared",
+            "SharedLibrary",
+            "KotlinRuntime",
+            // Platforms follow the order of swiftPackagePlatformNames, not the order of the set.
+            sharedModulesFixture("Shared").inPackage(
+                dependencyPlatforms = mapOf("Shared" to mapOf("Dependency" to setOf(Family.TVOS, Family.IOS)))
+            ),
+        )
+
+        assertEquals(
+            """
+            // swift-tools-version: 6.1
+
+            import PackageDescription
+            let package = Package(
+                name: "Shared",
+                products: [
+                    .library(
+                        name: "SharedLibrary",
+                        targets: ["Shared", "Dependency"]
+                    )
+                ],
+                targets: [
+                    .target(
+                        name: "Shared",
+                        dependencies: [.target(name: "Dependency", condition: .when(platforms: [.iOS, .tvOS])), "SharedBridge", "KotlinRuntime"]
+                    ),
+                    .target(
+                        name: "SharedBridge"
+                    ),
+                    .target(
+                        name: "Dependency",
+                        dependencies: ["KotlinRuntime"]
+                    ),
+                    .target(
+                        name: "KotlinRuntime"
+                    )
+                ],
+                swiftLanguageModes: [.v5]
+            )
+            """.trimIndent() + "\n",
+            manifest,
+        )
+    }
+
+    private fun importedPackagesManifestGold() = """
+        // swift-tools-version: 6.1
+
+        import PackageDescription
+        let package = Package(
+            name: "Shared",
+            products: [
+                .library(
+                    name: "SharedLibrary",
+                    targets: ["Shared", "Dependency"]
+                )
+            ],
+            dependencies: [
+                .package(url: "https://github.com/example/Lib.git", from: "1.2.0", traits: ["UI"]),
+                .package(path: "/repo/localSwiftPackage")
+            ],
+            targets: [
+                .binaryTarget(
+                    name: "SharedKotlin",
+                    path: "SharedKotlin.xcframework"
+                ),
+                .target(
+                    name: "Shared",
+                    dependencies: ["Dependency", "SharedBridge", "KotlinRuntime", .product(name: "Lib", package: "Lib"), .product(name: "LibUI", package: "Lib", condition: .when(platforms: [.iOS])), .product(name: "LocalSwiftPackage", package: "LocalSwiftPackage")]
+                ),
+                .target(
+                    name: "SharedBridge"
+                ),
+                .target(
+                    name: "Dependency",
+                    dependencies: ["KotlinRuntime", .product(name: "Lib", package: "Lib"), .product(name: "LibUI", package: "Lib", condition: .when(platforms: [.iOS])), .product(name: "LocalSwiftPackage", package: "LocalSwiftPackage")]
+                ),
+                .target(
+                    name: "KotlinRuntime",
+                    dependencies: ["SharedKotlin"]
+                )
+            ],
+            swiftLanguageModes: [.v5]
+        )
+    """.trimIndent() + "\n"
+
+    private fun platformsManifestGold() = """
+        // swift-tools-version: 6.1
+
+        import PackageDescription
+        let package = Package(
+            name: "Shared",
+            platforms: [
+                .iOS("18.0"),
+                .macOS("15.0")
+            ],
+            products: [
+                .library(
+                    name: "SharedLibrary",
+                    targets: ["Shared", "Dependency"]
+                )
+            ],
+            targets: [
+                .binaryTarget(
+                    name: "SharedKotlin",
+                    path: "SharedKotlin.xcframework"
+                ),
+                .target(
+                    name: "Shared",
+                    dependencies: ["Dependency", "SharedBridge", "KotlinRuntime"]
+                ),
+                .target(
+                    name: "SharedBridge"
+                ),
+                .target(
+                    name: "Dependency",
+                    dependencies: ["KotlinRuntime"]
+                ),
+                .target(
+                    name: "KotlinRuntime",
+                    dependencies: ["SharedKotlin"]
+                )
+            ],
+            swiftLanguageModes: [.v5]
+        )
+    """.trimIndent() + "\n"
+
+    private fun List<GradleSwiftExportModule>.inPackage(
+        dependencyPlatforms: Map<String, Map<String, Set<Family>>> = emptyMap(),
+    ): List<SwiftPackageModule> = map {
+        SwiftPackageModule(it, variants = emptyMap(), dependencyPlatforms = dependencyPlatforms[it.name].orEmpty())
+    }
+
+    private fun sharedModulesFixture(swiftApiModule: String): List<GradleSwiftExportModule> = listOf(
+        GradleSwiftExportModule.BridgesToKotlin(
+            GradleSwiftExportFiles(
+                File(""),
+                File(""),
+                File("")
+            ),
+            "SharedBridge",
+            swiftApiModule,
+            listOf("Dependency")
+        ),
+        GradleSwiftExportModule.SwiftOnly(
+            File(""),
+            "Dependency",
+            emptyList()
+        )
+    )
+
+    private fun complicatedModulesFixture(swiftApiModule: String): List<GradleSwiftExportModule> = listOf(
+        GradleSwiftExportModule.BridgesToKotlin(
+            GradleSwiftExportFiles(
+                File(""),
+                File(""),
+                File("")
+            ),
+            "SharedBridge",
+            swiftApiModule,
+            listOf("Dependency1", "Dependency2")
+        ),
+        GradleSwiftExportModule.SwiftOnly(
+            File(""),
+            "Dependency1",
+            emptyList()
+        ),
+        GradleSwiftExportModule.SwiftOnly(
+            File(""),
+            "Dependency2",
+            listOf("Dependency3")
+        ),
+        GradleSwiftExportModule.SwiftOnly(
+            File(""),
+            "Dependency3",
+            listOf("Dependency4")
+        ),
+        GradleSwiftExportModule.SwiftOnly(
+            File(""),
+            "Dependency4",
+            emptyList()
+        ),
+        GradleSwiftExportModule.BridgesToKotlin(
+            GradleSwiftExportFiles(
+                File(""),
+                File(""),
+                File("")
+            ),
+            "Dependency5Bridge",
+            "Dependency5",
+            listOf("Dependency4")
+        ),
+    )
+
+    private fun emptyModulesFixture(): List<GradleSwiftExportModule> = emptyList()
+
+    private fun singleModuleFixture(): List<GradleSwiftExportModule> = listOf(
+        GradleSwiftExportModule.SwiftOnly(
+            File(""),
+            "SingleModule",
+            emptyList()
+        )
+    )
+
+    private fun complicatedManifestGold() = """
+        // swift-tools-version: 6.1
+
+        import PackageDescription
+        let package = Package(
+            name: "Shared",
+            products: [
+                .library(
+                    name: "SharedLibrary",
+                    targets: ["Shared", "Dependency1", "Dependency2", "Dependency3", "Dependency4", "Dependency5"]
+                )
+            ],
+            targets: [
+                .target(
+                    name: "Shared",
+                    dependencies: ["Dependency1", "Dependency2", "SharedBridge", "KotlinRuntime"]
+                ),
+                .target(
+                    name: "SharedBridge"
+                ),
+                .target(
+                    name: "Dependency1",
+                    dependencies: ["KotlinRuntime"]
+                ),
+                .target(
+                    name: "Dependency2",
+                    dependencies: ["Dependency3", "KotlinRuntime"]
+                ),
+                .target(
+                    name: "Dependency3",
+                    dependencies: ["Dependency4", "KotlinRuntime"]
+                ),
+                .target(
+                    name: "Dependency4",
+                    dependencies: ["KotlinRuntime"]
+                ),
+                .target(
+                    name: "Dependency5",
+                    dependencies: ["Dependency4", "Dependency5Bridge", "KotlinRuntime"]
+                ),
+                .target(
+                    name: "Dependency5Bridge"
+                ),
+                .target(
+                    name: "KotlinRuntime"
+                )
+            ],
+            swiftLanguageModes: [.v5]
+        )
+    """.trimIndent() + "\n"
+
+    private fun emptyManifestGold() = """
+        // swift-tools-version: 6.1
+
+        import PackageDescription
+        let package = Package(
+            name: "Shared",
+            products: [
+                .library(
+                    name: "SharedLibrary",
+                    targets: []
+                )
+            ],
+            targets: [
+                .target(
+                    name: "KotlinRuntime"
+                )
+            ],
+            swiftLanguageModes: [.v5]
+        )
+    """.trimIndent() + "\n"
+
+    private fun singleModuleManifestGold() = """
+        // swift-tools-version: 6.1
+
+        import PackageDescription
+        let package = Package(
+            name: "SingleModule",
+            products: [
+                .library(
+                    name: "SingleLibrary",
+                    targets: ["SingleModule"]
+                )
+            ],
+            targets: [
+                .target(
+                    name: "SingleModule",
+                    dependencies: ["KotlinRuntime"]
+                ),
+                .target(
+                    name: "KotlinRuntime"
+                )
+            ],
+            swiftLanguageModes: [.v5]
+        )
+    """.trimIndent() + "\n"
+
+    private fun cinteropDependencyManifestGold() = """
+        // swift-tools-version: 6.1
+
+        import PackageDescription
+        let package = Package(
+            name: "Shared",
+            products: [
+                .library(
+                    name: "SharedLibrary",
+                    targets: ["Shared", "Dependency"]
+                )
+            ],
+            dependencies: [
+                .package(path: "/repo/build/kotlin/swiftImport")
+            ],
+            targets: [
+                .target(
+                    name: "Shared",
+                    dependencies: ["Dependency", "SharedBridge", "KotlinRuntime", .product(name: "KotlinMultiplatformLinkedPackage", package: "swiftImport")]
+                ),
+                .target(
+                    name: "SharedBridge"
+                ),
+                .target(
+                    name: "Dependency",
+                    dependencies: ["KotlinRuntime", .product(name: "KotlinMultiplatformLinkedPackage", package: "swiftImport")]
+                ),
+                .target(
+                    name: "KotlinRuntime"
+                )
+            ],
+            swiftLanguageModes: [.v5]
+        )
+    """.trimIndent() + "\n"
+
+    private fun sharedLibraryManifestGold() = """
+        // swift-tools-version: 6.1
+
+        import PackageDescription
+        let package = Package(
+            name: "Shared",
+            products: [
+                .library(
+                    name: "SharedLibrary",
+                    targets: ["Shared", "Dependency"]
+                )
+            ],
+            targets: [
+                .target(
+                    name: "Shared",
+                    dependencies: ["Dependency", "SharedBridge", "KotlinRuntime"]
+                ),
+                .target(
+                    name: "SharedBridge"
+                ),
+                .target(
+                    name: "Dependency",
+                    dependencies: ["KotlinRuntime"]
+                ),
+                .target(
+                    name: "KotlinRuntime"
+                )
+            ],
+            swiftLanguageModes: [.v5]
+        )
+    """.trimIndent() + "\n"
+}

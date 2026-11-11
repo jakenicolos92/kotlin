@@ -29,19 +29,19 @@ import java.util.Collections;
 import java.util.List;
 
 public abstract class PropertyAccessorDescriptorImpl extends DeclarationDescriptorNonRootImpl implements PropertyAccessorDescriptor {
-    private final boolean isDefault;
+    private boolean isDefault;
     private final boolean isExternal;
     private final Modality modality;
     private final PropertyDescriptor correspondingProperty;
     private final boolean isInline;
     private final Kind kind;
-    private Visibility visibility;
+    private DescriptorVisibility visibility;
     @Nullable
     private FunctionDescriptor initialSignatureDescriptor = null;
 
     public PropertyAccessorDescriptorImpl(
             @NotNull Modality modality,
-            @NotNull Visibility visibility,
+            @NotNull DescriptorVisibility visibility,
             @NotNull PropertyDescriptor correspondingProperty,
             @NotNull Annotations annotations,
             @NotNull Name name,
@@ -64,6 +64,10 @@ public abstract class PropertyAccessorDescriptorImpl extends DeclarationDescript
     @Override
     public boolean isDefault() {
         return isDefault;
+    }
+
+    public void setDefault(boolean aDefault) {
+        isDefault = aDefault;
     }
 
     @NotNull
@@ -103,19 +107,19 @@ public abstract class PropertyAccessorDescriptorImpl extends DeclarationDescript
     }
 
     @Override
-    public boolean isHeader() {
+    public boolean isExpect() {
         return false;
     }
 
     @Override
-    public boolean isImpl() {
+    public boolean isActual() {
         return false;
     }
 
     @NotNull
     @Override
     public FunctionDescriptor substitute(@NotNull TypeSubstitutor substitutor) {
-        throw new UnsupportedOperationException(); // TODO
+        return this; // no substitution since we work with originals of accessors in the backend anyway
     }
 
     @NotNull
@@ -142,11 +146,11 @@ public abstract class PropertyAccessorDescriptorImpl extends DeclarationDescript
 
     @NotNull
     @Override
-    public Visibility getVisibility() {
+    public DescriptorVisibility getVisibility() {
         return visibility;
     }
 
-    public void setVisibility(Visibility visibility) {
+    public void setVisibility(DescriptorVisibility visibility) {
         this.visibility = visibility;
     }
 
@@ -160,6 +164,12 @@ public abstract class PropertyAccessorDescriptorImpl extends DeclarationDescript
     @NotNull
     public PropertyDescriptor getCorrespondingProperty() {
         return correspondingProperty;
+    }
+
+    @NotNull
+    @Override
+    public List<ReceiverParameterDescriptor> getContextReceiverParameters() {
+        return getCorrespondingProperty().getContextReceiverParameters();
     }
 
     @Nullable
@@ -185,7 +195,7 @@ public abstract class PropertyAccessorDescriptorImpl extends DeclarationDescript
     public PropertyAccessorDescriptor copy(
             DeclarationDescriptor newOwner,
             Modality modality,
-            Visibility visibility,
+            DescriptorVisibility visibility,
             Kind kind,
             boolean copyOverrides
     ) {

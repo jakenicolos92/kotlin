@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 class A<T> {
     operator fun plus(x: T): A<T> = this
@@ -7,7 +8,10 @@ class A<T> {
 }
 
 fun test(a: A<out CharSequence>) {
-    a <!MEMBER_PROJECTED_OUT(public final operator fun plus\(x: T\): A<T> defined in A; A<out CharSequence>)!>+<!> ""
-    <!MEMBER_PROJECTED_OUT(public final operator fun set\(x: Int, y: T\): Unit defined in A; A<out CharSequence>)!>a[1]<!> = ""
-    <!MEMBER_PROJECTED_OUT(public final operator fun get\(x: T\): Int defined in A; A<out CharSequence>)!>a[""]<!>
+    a + <!MEMBER_PROJECTED_OUT!>""<!>
+    a[1] = <!MEMBER_PROJECTED_OUT!>""<!>
+    a[<!MEMBER_PROJECTED_OUT!>""<!>]
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, capturedType, classDeclaration, functionDeclaration,
+integerLiteral, nullableType, operator, outProjection, stringLiteral, thisExpression, typeParameter */

@@ -1,4 +1,6 @@
-// EXPECTED_REACHABLE_NODES: 1450
+// KJS_WITH_FULL_RUNTIME
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // MODULE: lib
 // FILE: lib.kt
 package lib
@@ -9,7 +11,7 @@ open class A {
     fun foo() = x
 }
 
-// MODULE: lib-old
+// MODULE: lib_old
 // FILE: lib.kt
 package lib
 
@@ -19,7 +21,7 @@ open class A {
 
 inline fun check() = true
 
-// MODULE: main(lib-old)
+// MODULE: main(lib_old)
 // FILE: main.kt
 package main
 

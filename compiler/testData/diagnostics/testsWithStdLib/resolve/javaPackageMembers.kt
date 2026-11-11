@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun fn(): Nothing = throw java.lang.RuntimeException("oops")
 
 val x: Nothing = throw java.lang.RuntimeException("oops")
@@ -7,3 +8,5 @@ class SomeClass {
         throw java.lang.AssertionError("!!!")
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaFunction, propertyDeclaration, stringLiteral */

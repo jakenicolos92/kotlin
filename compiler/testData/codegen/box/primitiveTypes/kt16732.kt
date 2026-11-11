@@ -1,9 +1,9 @@
-//WITH_RUNTIME
+// WITH_STDLIB
 
 fun valueFromDB(value: Any): Any {
     return when (value) {
         is Char -> value
-        is Number-> value.toChar()
+        is Number-> value.toInt().toChar()
         is String -> value.single()
         else -> error("Unexpected value of type Char: $value")
     }

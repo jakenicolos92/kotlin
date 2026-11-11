@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 
 abstract public class A<F> extends MyList<F> {
@@ -11,3 +13,5 @@ abstract class MyList<G> : Collection<G> {}
 fun main(a: A<String>) {
     a.size
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaType, nullableType, typeParameter */

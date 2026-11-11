@@ -1,3 +1,0 @@
-package
-
-public fun kotlin.String.gah(/*0*/ view: foo.View?): kotlin.Unit

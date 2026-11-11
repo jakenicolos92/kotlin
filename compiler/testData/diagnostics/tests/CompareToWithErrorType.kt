@@ -1,5 +1,8 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun test() {
-  if (<!UNRESOLVED_REFERENCE!>x<!> <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>><!> 0) {
+  if (<!UNRESOLVED_REFERENCE!>x<!> > 0) {
 
   }
 }
+
+/* GENERATED_FIR_TAGS: comparisonExpression, functionDeclaration, ifExpression, integerLiteral */

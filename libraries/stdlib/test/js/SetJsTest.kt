@@ -1,16 +1,20 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 package test.collections.js
 
 import kotlin.test.*
-import org.junit.Test
 import test.collections.*
 import test.collections.behaviors.*
 
 class ComplexSetJsTest : SetJsTest() {
     // Helper function with generic parameter to force to use ComlpexHashMap
     fun <T> doTest() {
-        HashSet<T>()
-        HashSet<T>(3)
-        HashSet<T>(3, 0.5f)
+        val _ = HashSet<T>()
+        val _ = HashSet<T>(3)
+        val _ = HashSet<T>(3, 0.5f)
 
         @Suppress("UNCHECKED_CAST")
         val set = HashSet<T>(data as HashSet<T>)
@@ -25,6 +29,7 @@ class ComplexSetJsTest : SetJsTest() {
 
     // hashSetOf returns ComlpexHashSet because it is Generic
     override fun createEmptyMutableSet(): MutableSet<String> = genericHashSetOf()
+
     override fun createEmptyMutableSetWithNullableValues(): MutableSet<String?> = genericHashSetOf()
 
 
@@ -35,9 +40,9 @@ class PrimitiveSetJsTest : SetJsTest() {
     override fun createEmptyMutableSetWithNullableValues(): MutableSet<String?> = HashSet()
     @Test
     override fun constructors() {
-        HashSet<String>()
-        HashSet<String>(3)
-        HashSet<String>(3, 0.5f)
+        val _ = HashSet<String>()
+        val _ = HashSet<String>(3)
+        val _ = HashSet<String>(3, 0.5f)
 
         val set = HashSet<String>(data)
 
@@ -62,9 +67,9 @@ class LinkedHashSetJsTest : SetJsTest() {
     override fun createEmptyMutableSetWithNullableValues(): MutableSet<String?> = LinkedHashSet()
     @Test
     override fun constructors() {
-        LinkedHashSet<String>()
-        LinkedHashSet<String>(3)
-        LinkedHashSet<String>(3, 0.5f)
+        val _ = LinkedHashSet<String>()
+        val _ = LinkedHashSet<String>(3)
+        val _ = LinkedHashSet<String>(3, 0.5f)
 
         val set = LinkedHashSet<String>(data)
 
@@ -88,7 +93,16 @@ abstract class SetJsTest {
     val data: Set<String> = createTestMutableSet()
     val empty: Set<String> = createEmptyMutableSet()
 
-    val SPECIAL_NAMES = arrayOf("__proto__", "constructor", "toString", "toLocaleString", "valueOf", "hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable")
+    val SPECIAL_NAMES = arrayOf(
+        "__proto__",
+        "constructor",
+        "toString",
+        "toLocaleString",
+        "valueOf",
+        "hasOwnProperty",
+        "isPrototypeOf",
+        "propertyIsEnumerable"
+    )
 
     @Test
     fun size() {
@@ -266,6 +280,7 @@ abstract class SetJsTest {
 
     //Helpers
     abstract fun createEmptyMutableSet(): MutableSet<String>
+
     abstract fun createEmptyMutableSetWithNullableValues(): MutableSet<String?>
 
     fun createTestMutableSet(): MutableSet<String> {
@@ -274,6 +289,7 @@ abstract class SetJsTest {
         set.add("bar")
         return set
     }
+
     fun createTestMutableSetReversed(): MutableSet<String> {
         val set = createEmptyMutableSet()
         set.add("bar")

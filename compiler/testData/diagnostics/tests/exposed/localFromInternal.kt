@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class My {
     internal open class ThreadLocal
     // Private from local: ???
@@ -5,3 +6,5 @@ class My {
             // Local from internal: Ok
             object: ThreadLocal() {}
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, nestedClass, propertyDeclaration */

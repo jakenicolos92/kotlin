@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_VARIABLE, -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_VARIABLE, -UNUSED_PARAMETER
 
 fun <T, R> foo(x: T): R = TODO()
 
@@ -15,9 +16,9 @@ fun test1() {
     bar("", 1, ::foo).checkType { _<Pair<String, Int>>() }
     bar("", 1, ::fooReturnInt).checkType { _<Pair<String, Int>>() }
     bar("", 1, ::fooTakeString).checkType { _<Pair<String, Int>>() }
-    bar("", "", ::fooReturnInt).checkType { _<Pair<String, Any>>() }
+    bar("", "", ::fooReturnInt).checkType { <!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>_<!><Pair<String, Any>>() }
 
-    val x: String = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>bar("", "", ::fooReturnInt)<!>
+    val x: String = <!INITIALIZER_TYPE_MISMATCH!>bar<!>("", "", ::fooReturnInt)
 
     baz(Int::toString, ::foo).checkType { _<Pair<Int, String>>() }
 }
@@ -34,3 +35,7 @@ fun <T> test2(x: T) {
     bar(listOf<T>(), 1, ::foo).checkType { _<Pair<List<T>, Int>>() }
     bar(1, listOf<T>(), ::foo).checkType { _<Pair<Int, List<T>>>() }
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, integerLiteral, intersectionType, lambdaLiteral, localProperty, nullableType, primaryConstructor,
+propertyDeclaration, stringLiteral, typeParameter, typeWithExtension */

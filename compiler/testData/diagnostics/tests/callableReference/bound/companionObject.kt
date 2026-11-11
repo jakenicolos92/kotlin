@@ -1,7 +1,10 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 
 package test
+
+import checkSubtype
 
 class C {
     companion object {
@@ -26,14 +29,18 @@ fun test() {
     checkSubtype<() -> String>(r4)
 
     val r5 = (C)::foo
-    checkSubtype<() -> String>(r5)
+    checkSubtype<() -> String>(<!ARGUMENT_TYPE_MISMATCH!>r5<!>)
 
     val r6 = (test.C)::foo
-    checkSubtype<() -> String>(r6)
+    checkSubtype<() -> String>(<!ARGUMENT_TYPE_MISMATCH!>r6<!>)
 
     val c = C.Companion
     val r7 = c::foo
     checkSubtype<() -> String>(r7)
 
-    C::<!UNRESOLVED_REFERENCE!>bar<!>
+    C::bar
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, companionObject, funWithExtensionReceiver,
+functionDeclaration, functionalType, infix, integerLiteral, localProperty, nullableType, objectDeclaration,
+propertyDeclaration, stringLiteral, typeParameter, typeWithExtension */

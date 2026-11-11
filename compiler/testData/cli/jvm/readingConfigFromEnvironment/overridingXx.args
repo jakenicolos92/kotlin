@@ -1,0 +1,6 @@
+$TESTDATA_DIR$/overridingXx.kt
+-d
+$TEMP_DIR$
+-language-version
+2.4
+-XXLanguage\:+ExplicitContextArguments

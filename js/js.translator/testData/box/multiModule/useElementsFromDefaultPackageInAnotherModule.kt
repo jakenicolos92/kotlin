@@ -1,4 +1,11 @@
-// EXPECTED_REACHABLE_NODES: 496
+// KJS_WITH_FULL_RUNTIME
+// MODULE: module1
+// FILE: module1.kt
+
+public fun f(s: String): String = "${s}: invoked from module"
+
+public class A(val x: Int)
+
 // MODULE: main(module1)
 // FILE: main.kt
 
@@ -9,10 +16,3 @@ fun box(): String {
 
     return "OK"
 }
-
-// MODULE: module1
-// FILE: module1.kt
-
-public fun f(s: String): String = "${s}: invoked from module"
-
-public class A(val x: Int)

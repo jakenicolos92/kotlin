@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 package k
 
@@ -5,10 +6,10 @@ import JavaClass
 
 fun foo(javaClass: JavaClass) {
     javaClass.somethingPublic
-    javaClass.<!INVISIBLE_MEMBER!>somethingProtected<!>
-    javaClass.<!UNRESOLVED_REFERENCE!>somethingPrivate<!>
-    javaClass.<!INVISIBLE_MEMBER!>somethingPackage<!>
-    <!INVISIBLE_SETTER!>javaClass.somethingPublic<!> = 1
+    javaClass.<!INVISIBLE_REFERENCE!>somethingProtected<!>
+    javaClass.<!INVISIBLE_REFERENCE!>somethingPrivate<!>
+    javaClass.<!INVISIBLE_REFERENCE!>somethingPackage<!>
+    javaClass.<!INVISIBLE_SETTER!>somethingPublic<!> = 1
 }
 
 // FILE: JavaClass.java
@@ -20,3 +21,5 @@ public class JavaClass {
 
     protected void setSomethingPublic(int value) {}
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, integerLiteral, javaProperty, javaType */

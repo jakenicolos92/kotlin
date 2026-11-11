@@ -1,4 +1,5 @@
-// WITH_RUNTIME
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// WITH_STDLIB
 
 operator fun Int.component1(): String {
     return arrayListOf("zero", "one", "two", "three")[this]
@@ -12,7 +13,7 @@ fun box(): String {
     val strings = arrayListOf<String>()
     val squares = arrayListOf<Int>()
 
-    for ((str, sq) in 1..3) {
+    for ([str, sq] in 1..3) {
         strings.add(str)
         squares.add(sq)
     }

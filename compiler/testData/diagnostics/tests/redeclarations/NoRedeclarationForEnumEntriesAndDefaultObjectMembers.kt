@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 enum class E {
     FIRST,
 
@@ -6,6 +7,9 @@ enum class E {
     companion object {
         class FIRST
 
-        val SECOND = <!DEBUG_INFO_LEAKING_THIS!>this<!>
+        val SECOND = this
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, enumDeclaration, enumEntry, nestedClass, objectDeclaration,
+propertyDeclaration, thisExpression */

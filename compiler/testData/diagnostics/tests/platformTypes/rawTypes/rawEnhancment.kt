@@ -1,5 +1,7 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: B.java
-import java.util.List
+import java.util.List;
 
 public class B implements X {
     @Override
@@ -15,3 +17,5 @@ interface X {
 }
 
 internal class C : B()
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, javaType, nullableType */

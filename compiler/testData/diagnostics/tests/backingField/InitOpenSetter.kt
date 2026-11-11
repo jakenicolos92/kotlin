@@ -1,10 +1,11 @@
+// RUN_PIPELINE_TILL: FRONTEND
 abstract class My(val v: Int) {
     // Ok: variable is just abstract
     abstract var x: Int
 
-    <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>open var y: Int<!>
+    open <!MUST_BE_INITIALIZED_OR_FINAL_OR_ABSTRACT!>var y: Int<!>
 
-    <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>open var z: Int<!>
+    open <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>var z: Int<!>
 
     // Ok: initializer available
     open var w: Int = v
@@ -16,12 +17,15 @@ abstract class My(val v: Int) {
         set(arg) { w = 2 * arg }
 
     constructor(): this(0) {
-        <!DEBUG_INFO_LEAKING_THIS!>z<!> = v
+        z = v
     }
 
     init {
-        <!DEBUG_INFO_LEAKING_THIS!>x<!> = 1
-        <!DEBUG_INFO_LEAKING_THIS!>y<!> = 2
-        <!DEBUG_INFO_LEAKING_THIS!>u<!> = 3
+        x = 1
+        y = 2
+        u = 3
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, getter, init, integerLiteral, multiplicativeExpression,
+primaryConstructor, propertyDeclaration, secondaryConstructor, setter */

@@ -17,9 +17,10 @@
 package org.jetbrains.kotlin.psi;
 
 import com.intellij.lang.ASTNode;
+import kotlin.annotations.jvm.ReadOnly;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.ReadOnly;
+import org.jetbrains.kotlin.lexer.KtTokens;
 import org.jetbrains.kotlin.resolve.scopes.receivers.Receiver;
 import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValue;
 
@@ -30,6 +31,10 @@ public interface Call {
     // SAFE_ACCESS or DOT or so
     @Nullable
     ASTNode getCallOperationNode();
+
+    default boolean isSemanticallyEquivalentToSafeCall() {
+        return getCallOperationNode() != null && getCallOperationNode().getElementType() == KtTokens.SAFE_ACCESS;
+    }
 
     @Nullable
     Receiver getExplicitReceiver();
@@ -62,7 +67,7 @@ public interface Call {
     KtElement getCallElement();
 
     enum CallType {
-        DEFAULT, ARRAY_GET_METHOD, ARRAY_SET_METHOD, INVOKE
+        DEFAULT, ARRAY_GET_METHOD, ARRAY_SET_METHOD, INVOKE, CONTAINS
     }
 
     @NotNull

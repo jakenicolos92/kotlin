@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 suspend fun unit1() {
     unit1()
 }
@@ -16,3 +17,5 @@ suspend fun int3(): Int {
     int3()
     return int3()
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, suspend */

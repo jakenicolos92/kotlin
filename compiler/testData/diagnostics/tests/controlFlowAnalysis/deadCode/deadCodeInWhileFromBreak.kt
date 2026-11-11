@@ -1,5 +1,6 @@
-fun foo(<!UNUSED_PARAMETER!>a<!>: Any) {}
-fun bar(<!UNUSED_PARAMETER!>a<!>: Any, <!UNUSED_PARAMETER!>b<!>: Any) {}
+// RUN_PIPELINE_TILL: CODEGEN
+fun foo(a: Any) {}
+fun bar(a: Any, b: Any) {}
 
 fun test(arr: Array<Int>) {
     while (true) {
@@ -16,7 +17,7 @@ fun test(arr: Array<Int>) {
     }
 
     while (true) {
-        arr[1] <!UNREACHABLE_CODE!>=<!> break
+        arr<!UNREACHABLE_CODE!>[<!>1<!UNREACHABLE_CODE!>] =<!> break
     }
 
     while (true) {
@@ -25,14 +26,14 @@ fun test(arr: Array<Int>) {
     }
 
     while (true) {
-        var <!UNUSED_VARIABLE!>x<!> = 1
+        var <!VARIABLE_NEVER_READ!>x<!> = 1
         break
-        <!UNREACHABLE_CODE!>x = 2<!>
+        <!UNREACHABLE_CODE!><!ASSIGNED_VALUE_IS_NEVER_READ!>x<!> = 2<!>
     }
 
     while (true) {
-        var <!UNUSED_VARIABLE!>x<!> = 1
-        <!UNREACHABLE_CODE!>x =<!> break
+        var <!VARIABLE_NEVER_READ!>x<!> = 1
+        <!UNREACHABLE_CODE!><!ASSIGNED_VALUE_IS_NEVER_READ!>x<!> =<!> break
     }
 
     // TODO: bug, should be fixed in CFA
@@ -50,6 +51,9 @@ fun test(arr: Array<Int>) {
     }
 
     while (true) {
-        break <!USELESS_ELVIS, UNREACHABLE_CODE!>?: null<!>
+        break <!UNREACHABLE_CODE, USELESS_ELVIS!>?: null<!>
     }
 }
+
+/* GENERATED_FIR_TAGS: andExpression, assignment, break, comparisonExpression, disjunctionExpression, elvisExpression,
+functionDeclaration, ifExpression, integerLiteral, localProperty, nullableType, propertyDeclaration, whileLoop */

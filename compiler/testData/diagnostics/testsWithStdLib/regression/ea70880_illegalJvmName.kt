@@ -1,8 +1,11 @@
-<!ILLEGAL_JVM_NAME!>@JvmName(<!NO_VALUE_FOR_PARAMETER!>)<!><!>
+// RUN_PIPELINE_TILL: FRONTEND
+@<!NO_VALUE_FOR_PARAMETER!>JvmName<!>()
 fun foo() {}
 
-<!ILLEGAL_JVM_NAME!>@JvmName(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>42<!>)<!>
+@JvmName(<!ARGUMENT_TYPE_MISMATCH!>42<!>)
 fun bar() {}
 
 @JvmName("a", <!TOO_MANY_ARGUMENTS!>"b"<!>)
 fun baz() {}
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, stringLiteral */

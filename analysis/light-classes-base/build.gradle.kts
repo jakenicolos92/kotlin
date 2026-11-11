@@ -1,0 +1,20 @@
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("jvm")
+}
+
+dependencies {
+    api(project(":compiler:util"))
+    api(project(":compiler:frontend.common"))
+    api(project(":compiler:frontend.common-psi"))
+    api(project(":compiler:frontend.common.jvm"))
+    api(project(":compiler:resolution.common.jvm"))
+    api(project(":core:compiler.common.jvm"))
+    implementation(project(":analysis:analysis-api"))
+    compileOnly(intellijCore())
+}
+
+sourceSets {
+    "main" { projectDefault() }
+}

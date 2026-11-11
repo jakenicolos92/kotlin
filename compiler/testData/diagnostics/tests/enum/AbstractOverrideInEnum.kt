@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 enum class E : T {
     ENTRY {
         override fun f() {
@@ -10,3 +11,5 @@ enum class E : T {
 interface T {
     fun f()
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, functionDeclaration, interfaceDeclaration, override */

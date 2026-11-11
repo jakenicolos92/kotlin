@@ -1,3 +1,5 @@
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: FRONTEND
 class A {
     operator fun component1() = 1
     operator fun component2() = 1
@@ -8,7 +10,10 @@ class C {
 }
 
 fun test() {
-    for ((<!REDECLARATION, UNUSED_VARIABLE!>x<!>, <!NAME_SHADOWING, REDECLARATION, UNUSED_VARIABLE!>x<!>) in C()) {
+    for ([<!REDECLARATION!>x<!>, <!REDECLARATION!>x<!>] in C()) {
 
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, forLoop, functionDeclaration, integerLiteral, localProperty,
+operator, propertyDeclaration */

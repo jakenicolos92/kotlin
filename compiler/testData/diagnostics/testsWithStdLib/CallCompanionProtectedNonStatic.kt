@@ -1,9 +1,10 @@
+// RUN_PIPELINE_TILL: FRONTEND
 open class VeryBase {
     protected fun baz() {}
 }
 
 open class Base {
-    protected fun foo() { 
+    protected fun foo() {
         bar() // Ok
         baz() // Ok
     }
@@ -25,14 +26,14 @@ open class Base {
             baz() // Ok
         }
     }
-    
+
     companion object : VeryBase() {
         var prop = 42
             protected set
 
         protected fun bar() {}
 
-        @JvmStatic protected fun gav() {}       
+        @JvmStatic protected fun gav() {}
 
         class Nested {
             fun fromNested() {
@@ -74,20 +75,23 @@ class Derived : Base() {
 
 class Other {
     fun test(base: Base, derived: Derived) {
-        base.<!INVISIBLE_MEMBER!>foo<!>()
+        base.<!INVISIBLE_REFERENCE!>foo<!>()
         base.<!UNRESOLVED_REFERENCE!>gav<!>()
         base.<!UNRESOLVED_REFERENCE!>bar<!>()
-        derived.<!INVISIBLE_MEMBER!>foo<!>()
+        derived.<!INVISIBLE_REFERENCE!>foo<!>()
         derived.<!UNRESOLVED_REFERENCE!>gav<!>()
         derived.<!UNRESOLVED_REFERENCE!>bar<!>()
     }
 }
 
 fun top(base: Base, derived: Derived) {
-    base.<!INVISIBLE_MEMBER!>foo<!>()
+    base.<!INVISIBLE_REFERENCE!>foo<!>()
     base.<!UNRESOLVED_REFERENCE!>bar<!>()
     base.<!UNRESOLVED_REFERENCE!>gav<!>()
-    derived.<!INVISIBLE_MEMBER!>foo<!>()
+    derived.<!INVISIBLE_REFERENCE!>foo<!>()
     derived.<!UNRESOLVED_REFERENCE!>bar<!>()
     derived.<!UNRESOLVED_REFERENCE!>gav<!>()
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, companionObject, functionDeclaration, inner, integerLiteral,
+nestedClass, objectDeclaration, propertyDeclaration */

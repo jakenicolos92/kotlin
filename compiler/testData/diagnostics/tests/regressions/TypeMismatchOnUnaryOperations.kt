@@ -1,15 +1,21 @@
-fun main(args : Array<String>) {
+// RUN_PIPELINE_TILL: FRONTEND
+// K2: See KT-65342
+
+fun main() {
     val a : Int? = null;
     var v = 1
-    val <!UNUSED_VARIABLE!>b<!> : String = <!TYPE_MISMATCH!>v<!>;
-    val <!UNUSED_VARIABLE!>f<!> : String = <!TYPE_MISMATCH!>a<!>!!;
-    val <!UNUSED_VARIABLE!>g<!> : String = <!TYPE_MISMATCH!>v++<!>;
-    val <!UNUSED_VARIABLE!>g1<!> : String = <!TYPE_MISMATCH!>++v<!>;
-    val <!UNUSED_VARIABLE!>h<!> : String = <!TYPE_MISMATCH!>v--<!>;
-    val <!UNUSED_VARIABLE!>h1<!> : String = <!TYPE_MISMATCH!>--v<!>;
-    val <!UNUSED_VARIABLE!>i<!> : String = <!TYPE_MISMATCH!>!true<!>;
-    val <!UNUSED_VARIABLE!>j<!> : String = foo@ <!CONSTANT_EXPECTED_TYPE_MISMATCH!>true<!>;
-    val <!UNUSED_VARIABLE!>k<!> : String = foo@ bar@ <!CONSTANT_EXPECTED_TYPE_MISMATCH!>true<!>;
-    val <!UNUSED_VARIABLE!>l<!> : String = <!TYPE_MISMATCH!>-1<!>;
-    val <!UNUSED_VARIABLE!>m<!> : String = <!TYPE_MISMATCH!>+1<!>;
+    val b : String = <!INITIALIZER_TYPE_MISMATCH!>v<!>;
+    val f : String <!INITIALIZER_TYPE_MISMATCH!>=<!> a!!;
+    val g : String <!INITIALIZER_TYPE_MISMATCH!>=<!> v++;
+    val g1 : String <!INITIALIZER_TYPE_MISMATCH!>=<!> ++v;
+    val h : String <!INITIALIZER_TYPE_MISMATCH!>=<!> v--;
+    val h1 : String <!INITIALIZER_TYPE_MISMATCH!>=<!> --v;
+    val i : String <!INITIALIZER_TYPE_MISMATCH!>=<!> !true;
+    val j : String <!INITIALIZER_TYPE_MISMATCH!>=<!> foo@ true;
+    val k : String = <!MULTIPLE_LABELS_ARE_FORBIDDEN!>foo@<!> bar@ true;
+    val l : String <!INITIALIZER_TYPE_MISMATCH!>=<!> -1;
+    val m : String <!INITIALIZER_TYPE_MISMATCH!>=<!> +1;
 }
+
+/* GENERATED_FIR_TAGS: assignment, checkNotNullCall, functionDeclaration, incrementDecrementExpression, integerLiteral,
+localProperty, nullableType, propertyDeclaration */

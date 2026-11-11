@@ -1,8 +1,12 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION, -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_EXPRESSION, -UNUSED_PARAMETER
 
 open class C<T>() {
     @Deprecated("")
     constructor(p: Int) : this(){}
 }
 
-class D : <!DEPRECATION!>C<String><!>(1)
+class D : <!DEPRECATION!>C<!><String>(1)
+
+/* GENERATED_FIR_TAGS: classDeclaration, integerLiteral, nullableType, primaryConstructor, secondaryConstructor,
+stringLiteral, typeParameter */

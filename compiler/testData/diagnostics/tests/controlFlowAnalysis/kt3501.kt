@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// WITH_EXTRA_CHECKERS
 //KT-3501 Variable/parameter is highlighted as unused if it is used in member of local class
 
 fun f(p: String) { // "p" is marked as unused
@@ -7,3 +9,5 @@ fun f(p: String) { // "p" is marked as unused
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, localClass */

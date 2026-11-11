@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-604 Internal frontend error
 
 interface ChannelPipeline {
@@ -18,3 +19,6 @@ class StandardPipelineFactory(val config:  ChannelPipeline.()->Unit) : ChannelPi
         return pipeline
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, functionalType, interfaceDeclaration, localProperty,
+override, primaryConstructor, propertyDeclaration, typeWithExtension */

@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.resolve.calls.context
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.CallableDescriptor
 import org.jetbrains.kotlin.psi.Call
 import org.jetbrains.kotlin.resolve.DelegatingBindingTrace
@@ -24,34 +25,36 @@ import org.jetbrains.kotlin.resolve.calls.results.OverloadResolutionResultsImpl
 import org.jetbrains.kotlin.resolve.calls.tasks.TracingStrategy
 import java.util.*
 
+@K1Deprecation
 interface ResolutionResultsCache {
     data class CachedData(
-            val resolutionResults: OverloadResolutionResultsImpl<*>,
-            val deferredComputation: BasicCallResolutionContext,
-            val tracing: TracingStrategy,
-            val resolutionTrace: DelegatingBindingTrace
+        val resolutionResults: OverloadResolutionResultsImpl<*>,
+        val deferredComputation: BasicCallResolutionContext,
+        val tracing: TracingStrategy,
+        val resolutionTrace: DelegatingBindingTrace
     )
 
     fun record(
-            call: Call,
-            results: OverloadResolutionResultsImpl<*>,
-            deferredComputation: BasicCallResolutionContext,
-            tracing: TracingStrategy,
-            resolutionTrace: DelegatingBindingTrace
+        call: Call,
+        results: OverloadResolutionResultsImpl<*>,
+        deferredComputation: BasicCallResolutionContext,
+        tracing: TracingStrategy,
+        resolutionTrace: DelegatingBindingTrace
     )
 
     operator fun get(call: Call): CachedData?
 }
 
+@K1Deprecation
 class ResolutionResultsCacheImpl : ResolutionResultsCache {
     private val data = HashMap<Call, CachedData>()
 
     override fun record(
-            call: Call,
-            results: OverloadResolutionResultsImpl<out CallableDescriptor?>,
-            deferredComputation: BasicCallResolutionContext,
-            tracing: TracingStrategy,
-            resolutionTrace: DelegatingBindingTrace
+        call: Call,
+        results: OverloadResolutionResultsImpl<out CallableDescriptor?>,
+        deferredComputation: BasicCallResolutionContext,
+        tracing: TracingStrategy,
+        resolutionTrace: DelegatingBindingTrace
     ) {
         data[call] = CachedData(results, deferredComputation, tracing, resolutionTrace)
     }
@@ -63,15 +66,16 @@ class ResolutionResultsCacheImpl : ResolutionResultsCache {
     }
 }
 
+@K1Deprecation
 class TemporaryResolutionResultsCache(private val parentCache: ResolutionResultsCache) : ResolutionResultsCache {
     private val innerCache = ResolutionResultsCacheImpl()
 
     override fun record(
-            call: Call,
-            results: OverloadResolutionResultsImpl<out CallableDescriptor?>,
-            deferredComputation: BasicCallResolutionContext,
-            tracing: TracingStrategy,
-            resolutionTrace: DelegatingBindingTrace
+        call: Call,
+        results: OverloadResolutionResultsImpl<out CallableDescriptor?>,
+        deferredComputation: BasicCallResolutionContext,
+        tracing: TracingStrategy,
+        resolutionTrace: DelegatingBindingTrace
     ) {
         innerCache.record(call, results, deferredComputation, tracing, resolutionTrace)
     }

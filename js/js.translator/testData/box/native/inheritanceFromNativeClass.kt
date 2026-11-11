@@ -1,4 +1,5 @@
-// EXPECTED_REACHABLE_NODES: 505
+// DONT_TARGET_EXACT_BACKEND: WASM_JS
+// WASM_MUTE_REASON: UNSUPPORTED_JS_INTEROP
 package foo
 
 internal external open class A(a: Int) {

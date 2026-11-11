@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun testPrefix() {
     operator fun Any.not() {}
     <!UNREACHABLE_CODE!>!<!>todo()
@@ -5,7 +6,7 @@ fun testPrefix() {
 
 fun testPostfixWithCall(n: Nothing) {
     operator fun Nothing.inc(): Nothing = this
-    n<!UNREACHABLE_CODE!>++<!>
+    <!VAL_REASSIGNMENT!>n<!><!UNREACHABLE_CODE, UNREACHABLE_CODE!>++<!>
 }
 
 fun testPostfixSpecial() {
@@ -13,3 +14,6 @@ fun testPostfixSpecial() {
 }
 
 fun todo(): Nothing = throw Exception()
+
+/* GENERATED_FIR_TAGS: assignment, checkNotNullCall, funWithExtensionReceiver, functionDeclaration,
+incrementDecrementExpression, localFunction, operator, thisExpression */

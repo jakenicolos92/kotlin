@@ -1,3 +1,6 @@
+// ISSUE: KT-70764 (apt failure)
+// IGNORE_BACKEND: JVM
+
 package test
 
 interface KotlinInterface

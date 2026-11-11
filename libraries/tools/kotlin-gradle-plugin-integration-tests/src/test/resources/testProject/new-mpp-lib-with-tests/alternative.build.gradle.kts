@@ -1,0 +1,56 @@
+plugins {
+    id("org.jetbrains.kotlin.multiplatform")
+}
+
+group = "com.example"
+version = "1.0"
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+kotlin {
+    val jvmWithoutJava = jvm("jvmWithoutJava")
+    val js = js {
+        nodejs()
+    }
+    val macosArm64 = macosArm64("macosArm64")
+    val linux64 = linuxX64("linux64")
+    val mingw64 = mingwX64("mingw64")
+
+    sourceSets {
+        val commonMain = getByName("commonMain")
+        val commonTest = getByName("commonTest")
+        commonTest.dependencies {
+            implementation(kotlin("test-common"))
+            implementation(kotlin("test-annotations-common"))
+        }
+
+        jvmWithoutJava.compilations["main"].defaultSourceSet {
+            dependencies {
+                implementation(kotlin("stdlib"))
+                implementation(kotlin("script-runtime"))
+            }
+        }
+
+        jvmWithoutJava.compilations["test"].defaultSourceSet {
+            dependencies {
+                implementation(kotlin("test-junit"))
+            }
+        }
+
+        js.compilations["test"].defaultSourceSet {
+            dependencies {
+                implementation(kotlin("test-js"))
+            }
+        }
+
+        val nativeMain = create("nativeMain")
+        nativeMain.dependsOn(commonMain)
+
+        configure(listOf(macosArm64, linux64, mingw64)) {
+            compilations["main"].defaultSourceSet.dependsOn(nativeMain)
+        }
+    }
+}

@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 505
 package foo
 
 class A(val s: String)
@@ -45,7 +44,8 @@ fun box(): String {
     success("castsNullableToNotNullT<A>(a)") { castsNullableToNotNullT<A>(a) }
     success("castsNullableToNotNullT<A>(null)") { castsNullableToNotNullT<A>(null) }
     success("castNullableToNotNullT<A>(a)") { castNullableToNotNullT<A>(a) }
-    failsClassCast("castNullableToNotNullT<A>(null)") { castNullableToNotNullT<A>(null) }
+
+    failsNullPointer("castNullableToNotNullT<A>(null)") { castNullableToNotNullT<A>(null) }
 
     return "OK"
 }

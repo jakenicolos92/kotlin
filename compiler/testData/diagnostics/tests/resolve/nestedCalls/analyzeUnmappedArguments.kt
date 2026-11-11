@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package c
 
 fun test() {
@@ -7,3 +8,5 @@ fun test() {
 }
 
 fun foo(x: Int) = x
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, lambdaLiteral, thisExpression */

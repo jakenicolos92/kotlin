@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class A {
     enum class E {
         ENTRY
@@ -17,3 +18,5 @@ class B {
         ENTRY
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, enumDeclaration, enumEntry, nestedClass, objectDeclaration */

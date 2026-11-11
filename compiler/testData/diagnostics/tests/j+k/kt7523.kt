@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 public interface A<T extends A<? super T, ?>, S extends A<? super T, ?>> {}
 
@@ -12,3 +13,5 @@ fun foo() {
     // TODO: uncomment when KT-9597 is fixed
     // C().f(object : A<*, *> {})
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration */

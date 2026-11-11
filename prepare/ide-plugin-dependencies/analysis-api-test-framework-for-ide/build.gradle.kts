@@ -1,0 +1,14 @@
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("jvm")
+}
+
+publishTestJarsForIde(
+    projectWithFixturesNames = listOf(
+        ":analysis:analysis-api-fir",
+        ":analysis:low-level-api-fir",
+        ":analysis:analysis-test-framework",
+        ":analysis:analysis-api-standalone",
+    )
+)

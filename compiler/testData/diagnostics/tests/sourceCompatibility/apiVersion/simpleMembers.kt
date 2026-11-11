@@ -1,4 +1,5 @@
-// !API_VERSION: 1.0
+// RUN_PIPELINE_TILL: FRONTEND
+// API_VERSION: 1.0
 
 @SinceKotlin("1.1")
 fun f() {}
@@ -17,3 +18,5 @@ fun t2() = <!UNRESOLVED_REFERENCE!>p<!>
 fun t3() { <!UNRESOLVED_REFERENCE!>p<!> = Unit }
 
 fun t4() { <!UNRESOLVED_REFERENCE!>z<!>() }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, propertyDeclaration, stringLiteral */

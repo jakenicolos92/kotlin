@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // http://youtrack.jetbrains.net/issue/KT-419
 
 class A(w: Int) {
@@ -8,3 +9,4 @@ class A(w: Int) {
     }
 }
 
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, init, integerLiteral, primaryConstructor, propertyDeclaration */

@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 abstract public class A implements CharSequence {
     public char charAt(int x) { }
@@ -28,3 +30,6 @@ fun main(a: A, b: B, c: C) {
 
     a.length + b.length + c.length
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, functionDeclaration, getter, integerLiteral, javaFunction,
+javaProperty, javaType, operator, override, propertyDeclaration */

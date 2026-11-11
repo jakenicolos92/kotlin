@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: test/AnnotationTargets.java
 
 package test;
@@ -75,8 +76,12 @@ import test.AnnotationTargets.*
     ): <!WRONG_ANNOTATION_TARGET!>@fieldann<!> <!WRONG_ANNOTATION_TARGET!>@parameter<!> Int {
 
         @local @base <!WRONG_ANNOTATION_TARGET!>@multiple<!> <!WRONG_ANNOTATION_TARGET!>@fieldann<!> val j = i + 1
-        <!WRONG_ANNOTATION_TARGET!>@base<!> <!WRONG_ANNOTATION_TARGET!>@multiple<!> return j
+        @base @multiple return j
     }
 
     @base <!WRONG_ANNOTATION_TARGET!>@method<!> @konstructor constructor(): this(0)
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, annotationDeclaration, annotationUseSiteTargetFile, classDeclaration,
+functionDeclaration, integerLiteral, javaType, localProperty, primaryConstructor, propertyDeclaration,
+secondaryConstructor */

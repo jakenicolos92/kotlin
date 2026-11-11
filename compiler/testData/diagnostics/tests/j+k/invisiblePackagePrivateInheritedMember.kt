@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: a/M.java
 package a;
 
@@ -19,5 +20,7 @@ package c
 import b.F
 
 fun f() {
-    F().<!INVISIBLE_MEMBER!>m<!>
+    F().<!INVISIBLE_REFERENCE!>m<!>
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaProperty, javaType */

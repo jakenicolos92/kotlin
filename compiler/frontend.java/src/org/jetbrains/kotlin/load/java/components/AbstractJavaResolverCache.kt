@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.load.java.components
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.tail
@@ -24,12 +25,14 @@ import org.jetbrains.kotlin.resolve.BindingTrace
 import org.jetbrains.kotlin.resolve.lazy.ResolveSession
 import org.jetbrains.kotlin.resolve.lazy.ResolveSessionUtils
 
+@K1Deprecation
 abstract class AbstractJavaResolverCache(private val resolveSession: ResolveSession) : JavaResolverCache {
 
     protected val trace: BindingTrace get() = resolveSession.trace
 
     override fun getClassResolvedFromSource(fqName: FqName): ClassDescriptor? {
-        return trace.get(BindingContext.FQNAME_TO_CLASS_DESCRIPTOR, fqName.toUnsafe()) ?: findInPackageFragments(fqName)
+        return trace.get(BindingContext.FQNAME_TO_CLASS_DESCRIPTOR, fqName.toUnsafe())?.takeUnless { it.isExpect }
+            ?: findInPackageFragments(fqName)
     }
 
     private fun findInPackageFragments(fullFqName: FqName): ClassDescriptor? {

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-2484 Type inferred for function literal is (...) -> Int instead of (...) -> Unit, when function literal parameter is explicit 
 
 package a
@@ -16,3 +17,6 @@ fun main(args: Array<String>) {
     bar { a -> a.length }
     bar { it.length }
 }
+
+/* GENERATED_FIR_TAGS: forLoop, funWithExtensionReceiver, functionDeclaration, functionalType, lambdaLiteral,
+localProperty, nullableType, propertyDeclaration, stringLiteral, thisExpression, typeParameter */

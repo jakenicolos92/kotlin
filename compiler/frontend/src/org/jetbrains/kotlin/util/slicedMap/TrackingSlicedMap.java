@@ -16,26 +16,26 @@
 
 package org.jetbrains.kotlin.util.slicedMap;
 
-import com.google.common.collect.Maps;
 import kotlin.jvm.functions.Function3;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.kotlin.utils.Printer;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
 public class TrackingSlicedMap extends SlicedMapImpl {
-    private final Map<ReadOnlySlice<?, ?>, SliceWithStackTrace<?, ?>> sliceTranslationMap = Maps.newHashMap();
+    private final Map<ReadOnlySlice<?, ?>, SliceWithStackTrace<?, ?>> sliceTranslationMap = new HashMap<>();
     private final boolean trackWithStackTraces;
 
     public TrackingSlicedMap(boolean trackWithStackTraces) {
+        super(false);
         this.trackWithStackTraces = trackWithStackTraces;
     }
 
+    @SuppressWarnings("unchecked")
     private <K, V> SliceWithStackTrace<K, V> wrapSlice(ReadOnlySlice<K, V> slice) {
-        SliceWithStackTrace<?, ?> translated = sliceTranslationMap.computeIfAbsent(slice, k -> new SliceWithStackTrace<>(slice));
-        //noinspection unchecked
-        return (SliceWithStackTrace) translated;
+        return (SliceWithStackTrace) sliceTranslationMap.computeIfAbsent(slice, k -> new SliceWithStackTrace<>(slice));
     }
 
     @Override

@@ -1,10 +1,11 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: KotlinFile.kt
 fun foo(javaClass: JavaClass) {
     javaClass.<!DEPRECATION!>something1<!>
 
     javaClass.<!DEPRECATION!>something2<!>
     javaClass.something2 = 1
-    javaClass.something2++
+    javaClass.<!DEPRECATION!>something2<!>++
 
     javaClass.something3
     javaClass.<!DEPRECATION!>something3<!> = 1
@@ -12,11 +13,11 @@ fun foo(javaClass: JavaClass) {
 
     javaClass.<!DEPRECATION!>something4<!>
     javaClass.<!DEPRECATION!>something4<!> = 1
-    javaClass.<!DEPRECATION!>something4<!>++
+    javaClass.<!DEPRECATION, DEPRECATION!>something4<!>++
 
     javaClass.<!DEPRECATION!>something5<!>
     javaClass.<!DEPRECATION!>something5<!> = 1
-    javaClass.<!DEPRECATION!>something5<!>++
+    javaClass.<!DEPRECATION, DEPRECATION!>something5<!>++
 }
 
 // FILE: JavaClass.java
@@ -46,3 +47,6 @@ public class JavaClass {
      */
     public void setSomething5(int value) { }
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, incrementDecrementExpression, integerLiteral, javaProperty,
+javaType */

@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: MyFunc.java
 public interface MyFunc<K, V> {
     V apply(K String);
@@ -20,3 +22,6 @@ public fun concurrentMap() {
     val map = ConcHashMap<String, String>()
     map.computeIfAbsent("") { "" } // here
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, inProjection, javaFunction, javaType, lambdaLiteral,
+localProperty, outProjection, propertyDeclaration, samConversion, stringLiteral */

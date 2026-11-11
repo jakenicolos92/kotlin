@@ -1,12 +1,47 @@
+/*
+ * Copyright 2010-2021 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 package kotlin.test.tests
 
-import org.junit.*
+import kotlin.reflect.typeOf
 import kotlin.test.*
 
+@OptIn(ExperimentalKotlinTestApi::class)
 class BasicAssertionsTest {
     @Test
     fun testAssertEquals() {
         assertEquals(1, 1)
+    }
+
+    @Test
+    fun testAssertEqualsLazy() {
+        assertEquals(1, 1) { fail() }
+
+        val msg = "I did not expect that!"
+        testFailureMessagesAreTheSame(
+            expected = { assertEquals(1, 2, message = msg) },
+            actual = { assertEquals(1, 2) { msg } }
+        )
+    }
+
+    @Test
+    fun testAssertSame() {
+        val instance: Any = object {}
+        assertSame(instance, instance)
+    }
+
+    @Test
+    fun testAssertSameLazy() {
+        val instance: Any = object {}
+        assertSame(instance, instance) { fail() }
+
+        val msg = "This is unacceptable!"
+        testFailureMessagesAreTheSame(
+            expected = { assertSame(instance, 42, message = msg) },
+            actual = { assertSame(instance, 42) { msg } }
+        )
     }
 
     @Test
@@ -20,24 +55,25 @@ class BasicAssertionsTest {
         assertFailsWith<AssertionError> { throw AssertionError() }
     }
 
-    @Test fun testAssertFailsWithFails() {
+    @Test
+    fun testAssertFailsWithFails() {
         assertTrue(true) // at least one assertion required for qunit
 
-        withDefaultAsserter run@ {
+        withDefaultAsserter run@{
+            val rootCause = IllegalArgumentException()
             try {
-                assertFailsWith<IllegalStateException> { throw IllegalArgumentException() }
-            }
-            catch (e: AssertionError) {
+                assertFailsWith<IllegalStateException> { throw rootCause }
+            } catch (e: AssertionError) {
+                if (e.cause !== rootCause) throw AssertionError("Expected to fail with correct cause")
                 return@run
             }
             throw AssertionError("Expected to fail")
         }
 
-        withDefaultAsserter run@ {
+        withDefaultAsserter run@{
             try {
-                assertFailsWith<IllegalStateException> {  }
-            }
-            catch (e: AssertionError) {
+                assertFailsWith<IllegalStateException> { }
+            } catch (e: AssertionError) {
                 return@run
             }
             throw AssertionError("Expected to fail")
@@ -53,9 +89,11 @@ class BasicAssertionsTest {
 
     @Test
     fun testAssertFailsWithClassFails() {
-        checkFailedAssertion {
-            assertFailsWith(IllegalArgumentException::class) { throw IllegalStateException() }
+        val rootCause = IllegalStateException()
+        val actual = checkFailedAssertion {
+            assertFailsWith(IllegalArgumentException::class) { throw rootCause }
         }
+        assertSame(rootCause, actual.cause, "Expected to fail with correct cause")
 
         checkFailedAssertion {
             assertFailsWith(Exception::class) { }
@@ -68,15 +106,191 @@ class BasicAssertionsTest {
     }
 
     @Test
+    fun testAssertSameFails() {
+        val instance1: Any = object {}
+        val instance2: Any = object {}
+        checkFailedAssertion { assertSame(instance1, instance2) }
+    }
+
+    @Test
+    fun testAssertEqualsDouble() {
+        assertEquals(0.01, 0.02, .01)
+
+        // 0.0, -0.0
+        assertEquals(0.0, 0.0, 0.0)
+        assertEquals(0.0, -0.0, 0.0)
+        assertEquals(-0.0, 0.0, 0.0)
+        assertEquals(0.0, 0.0, -0.0)
+        assertEquals(0.0, -0.0, -0.0)
+        assertEquals(-0.0, 0.0, -0.0)
+
+        // NaN
+        val nans = doubleArrayOf(Double.NaN, Double.fromBits(0xFFF80000L shl 32))
+        for (nan1 in nans) {
+            assertTrue(nan1.isNaN())
+            for (nan2 in nans) {
+                assertEquals(nan1, nan2, 0.1)
+                assertEquals(nan1, nan2, 0.0)
+            }
+        }
+
+        // MIN_VALUE, MAX_VALUE
+        assertEquals(Double.MAX_VALUE, Double.MAX_VALUE, 0.0)
+        assertEquals(Double.MIN_VALUE, Double.MIN_VALUE, 0.0)
+        assertEquals(Double.MAX_VALUE, Double.MIN_VALUE, Double.MAX_VALUE)
+        assertEquals(Double.MIN_VALUE, Double.MAX_VALUE, Double.MAX_VALUE)
+
+        // POSITIVE_INFINITY, NEGATIVE_INFINITY
+        assertEquals(Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, 0.0)
+        assertEquals(Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY, 0.0)
+        assertEquals(Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY)
+        assertEquals(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY)
+    }
+
+    @Test
+    fun testAssertEqualsDoubleFails() {
+        checkFailedAssertion { assertEquals(0.01, 1.03, .01) }
+
+        // negative absoluteTolerance
+        assertFailsWith<IllegalArgumentException> { assertEquals(0.01, 1.03, -5.0) }
+
+    }
+
+    @Test
+    fun testAssertEqualsFloat() {
+        assertEquals(0.01f, 0.02f, .01f)
+
+        // 0.0, -0.0
+        assertEquals(0.0f, 0.0f, 0.0f)
+        assertEquals(0.0f, -0.0f, 0.0f)
+        assertEquals(-0.0f, 0.0f, 0.0f)
+        assertEquals(0.0f, 0.0f, -0.0f)
+        assertEquals(0.0f, -0.0f, -0.0f)
+        assertEquals(-0.0f, 0.0f, -0.0f)
+
+        // NaN
+        val nans = floatArrayOf(Float.NaN, Float.fromBits(0xFFC00000.toInt()))
+        for (nan1 in nans) {
+            assertTrue(nan1.isNaN())
+            for (nan2 in nans) {
+                assertEquals(nan1, nan2, 0.1f)
+                assertEquals(nan1, nan2, 0.0f)
+            }
+        }
+
+        // MIN_VALUE, MAX_VALUE
+        assertEquals(Float.MAX_VALUE, Float.MAX_VALUE, 0.0f)
+        assertEquals(Float.MIN_VALUE, Float.MIN_VALUE, 0.0f)
+        assertEquals(Float.MAX_VALUE, Float.MIN_VALUE, Float.MAX_VALUE)
+        assertEquals(Float.MIN_VALUE, Float.MAX_VALUE, Float.MAX_VALUE)
+
+        // POSITIVE_INFINITY, NEGATIVE_INFINITY
+        assertEquals(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY, 0.0f)
+        assertEquals(Float.NEGATIVE_INFINITY, Float.NEGATIVE_INFINITY, 0.0f)
+        assertEquals(Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY)
+        assertEquals(Float.NEGATIVE_INFINITY, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY)
+    }
+
+    @Test
+    fun testAssertEqualsFloatFails() {
+        checkFailedAssertion { assertEquals(0.01f, 1.03f, .01f) }
+
+        // negative absoluteTolerance
+        assertFailsWith<IllegalArgumentException> { assertEquals(0.01f, 1.03f, -5.0f) }
+    }
+
+    @Test
+    fun testAssertNotEqualsDouble() {
+        assertNotEquals(0.1, 0.3, 0.1)
+    }
+
+    @Test
+    fun testAssertNotEqualsDoubleFails() {
+        checkFailedAssertion { assertNotEquals(0.1, 0.11, 0.1) }
+
+        // negative absoluteTolerance
+        assertFailsWith<IllegalArgumentException> { assertNotEquals(0.1, 0.11, -0.001) }
+    }
+
+    @Test
+    fun testAssertNotEqualsFloat() {
+        assertNotEquals(0.1f, 0.3f, 0.1f)
+    }
+
+    @Test
+    fun testAssertNotEqualsFloatFails() {
+        checkFailedAssertion { assertNotEquals(0.1f, 0.11f, .1f) }
+
+        // negative absoluteTolerance
+        assertFailsWith<IllegalArgumentException> { assertNotEquals(0.1f, 0.11f, -0.001f) }
+    }
+
+    @Test
+    fun testAssertEqualsDoubleLazy() {
+        assertEquals(0.0, 0.0, 100000.0) { fail() }
+
+        val msg = "This will not be tolerated"
+        testFailureMessagesAreTheSame(
+            expected = { assertEquals(0.0, 1.0, 0.0, msg) },
+            actual = { assertEquals(0.0, 1.0, 0.0) { msg } }
+        )
+    }
+
+    @Test
+    fun testAssertNotEqualsDoubleLazy() {
+        assertNotEquals(0.0, 100000.0, 0.0) { fail() }
+
+        val msg = "This should not be tolerated"
+        testFailureMessagesAreTheSame(
+            expected = { assertNotEquals(0.0, 1.0, 1000.0, msg) },
+            actual = { assertNotEquals(0.0, 1.0, 1000.0) { msg } }
+        )
+    }
+
+
+    @Test
+    fun testAssertEqualsFloatLazy() {
+        assertEquals(0.0f, 0.0f, 100000.0f) { fail() }
+
+        val msg = "This will not be tolerated"
+        testFailureMessagesAreTheSame(
+            expected = { assertEquals(0.0f, 1.0f, 0.0f, msg) },
+            actual = { assertEquals(0.0f, 1.0f, 0.0f) { msg } }
+        )
+    }
+
+    @Test
+    fun testAssertNotEqualsFloatLazy() {
+        assertNotEquals(0.0f, 100000.0f, 0.0f) { fail() }
+
+        val msg = "This should not be tolerated"
+        testFailureMessagesAreTheSame(
+            expected = { assertNotEquals(0.0f, 1.0f, 1000.0f, msg) },
+            actual = { assertNotEquals(0.0f, 1.0f, 1000.0f) { msg } }
+        )
+    }
+
+    @Test
     fun testAssertTrue() {
         assertTrue(true)
         assertTrue { true }
     }
 
-    @Test()
+    @Test
     fun testAssertTrueFails() {
         checkFailedAssertion { assertTrue(false) }
         checkFailedAssertion { assertTrue { false } }
+    }
+
+    @Test
+    fun testAssertTrueLazy() {
+        assertTrue(true) { fail() }
+
+        val msg = "I was hoping to find the truth here"
+        testFailureMessagesAreTheSame(
+            expected = { assertTrue(false, message = msg) },
+            actual = { assertTrue(false) { msg } }
+        )
     }
 
     @Test
@@ -88,7 +302,18 @@ class BasicAssertionsTest {
     @Test
     fun testAssertFalseFails() {
         checkFailedAssertion { assertFalse(true) }
-        checkFailedAssertion{ assertFalse { true } }
+        checkFailedAssertion { assertFalse { true } }
+    }
+
+    @Test
+    fun testAssertFalseLazy() {
+        assertFalse(false) { fail() }
+
+        val msg = "Who flipped the flag?"
+        testFailureMessagesAreTheSame(
+            expected = { assertFalse(true, message = msg) },
+            actual = { assertFalse(true) { msg } }
+        )
     }
 
     @Test
@@ -96,9 +321,9 @@ class BasicAssertionsTest {
         assertFails { throw IllegalStateException() }
     }
 
-    @Test()
+    @Test
     fun testAssertFailsFails() {
-        checkFailedAssertion { assertFails {  } }
+        checkFailedAssertion { assertFails { } }
     }
 
 
@@ -107,9 +332,47 @@ class BasicAssertionsTest {
         assertNotEquals(1, 2)
     }
 
-    @Test()
+    @Test
+    fun testAssertNotSame() {
+        val instance1: Any = object {}
+        val instance2: Any = object {}
+        assertNotSame(instance1, instance2)
+    }
+
+    @Test
     fun testAssertNotEqualsFails() {
         checkFailedAssertion { assertNotEquals(1, 1) }
+    }
+
+    @Test
+    fun testAssertNotSameFails() {
+        val instance: Any = object {}
+        checkFailedAssertion { assertNotSame(instance, instance) }
+    }
+
+    @Test
+    fun testAssertNotEqualsLazy() {
+        assertNotEquals(1, 2) { fail() }
+
+        val msg = "Something unexpected happened"
+        testFailureMessagesAreTheSame(
+            expected = { assertNotEquals(1, 1, msg) },
+            actual = { assertNotEquals(1, 1) { msg } }
+        )
+    }
+
+    @Test
+    fun testAssertNotSameLazy() {
+        val instance1: Any = object {}
+        val instance2: Any = object {}
+
+        assertNotSame(instance1, instance2) { fail() }
+
+        val msg = "Something unexpected happened"
+        testFailureMessagesAreTheSame(
+            expected = { assertNotSame(instance1, instance1, msg) },
+            actual = { assertNotSame(instance1, instance1) { msg } }
+        )
     }
 
     @Test
@@ -117,13 +380,14 @@ class BasicAssertionsTest {
         assertNotNull(true)
     }
 
-    @Test()
+    @Test
     fun testAssertNotNullFails() {
-        checkFailedAssertion { assertNotNull(null) }
+        checkFailedAssertion { assertNotNull<Any>(null) }
     }
 
     @Test
     fun testAssertNotNullLambda() {
+        @Suppress("DEPRECATION")
         assertNotNull("") { assertEquals("", it) }
     }
 
@@ -131,6 +395,7 @@ class BasicAssertionsTest {
     fun testAssertNotNullLambdaFails() {
         checkFailedAssertion {
             val value: String? = null
+            @Suppress("DEPRECATION")
             assertNotNull(value) {
                 it.substring(0, 0)
             }
@@ -139,7 +404,11 @@ class BasicAssertionsTest {
 
     @Test
     fun testAssertNull() {
-        assertNull(null)
+        val s: String? = null
+        assertNull(s)
+
+        @Suppress("UnusedVariable")
+        val smartCastDueToContract: Nothing? = s
     }
 
     @Test
@@ -147,9 +416,20 @@ class BasicAssertionsTest {
         checkFailedAssertion { assertNull("") }
     }
 
-    @Test()
+    @Test
     fun testFail() {
-        checkFailedAssertion { fail("should fail") }
+        val message = "should fail"
+        val actual = checkFailedAssertion { fail(message) }
+        assertEquals(message, actual.message)
+    }
+
+    @Test
+    fun testFailWithCause() {
+        val message = "should fail due to"
+        val cause = IllegalStateException()
+        val actual = checkFailedAssertion { fail(message, cause) }
+        assertEquals(message, actual.message)
+        assertSame(cause, actual.cause)
     }
 
     @Test
@@ -161,20 +441,88 @@ class BasicAssertionsTest {
     fun testExpectFails() {
         checkFailedAssertion { expect(1) { 2 } }
     }
+
+    @Test
+    fun testAssertIsOfType() {
+        val s: Any = "test"
+        val result = assertIs<String>(s)
+        assertEquals(4, s.length)
+        assertEquals(s, result)
+        assertEquals(4, result.length)
+    }
+
+    @OptIn(ExperimentalStdlibApi::class)
+    @Test
+    fun testAssertIsOfTypeFails() {
+        val error = checkFailedAssertion { assertIs<Int>("test") }
+        val message = assertNotNull(error.message)
+        val onFailure = "Actual message: $message"
+        assertTrue(message.startsWith("Expected value to be of type"), onFailure)
+        assertTrue(message.contains(typeOf<Int>().toString()), onFailure)
+        assertTrue(message.contains("String"), onFailure)
+    }
+
+    @Test
+    fun testAssertIsNotOfType() {
+        assertIsNot<Int>("test")
+    }
+
+    @Test
+    @OptIn(ExperimentalStdlibApi::class)
+    fun testAssertIsNotOfTypeFails() {
+        val error = checkFailedAssertion { assertIsNot<Int>(1) }
+        val message = assertNotNull(error.message)
+        val onFailure = "Actual message: $message"
+        assertTrue(message.startsWith("Expected value to not be of type"), onFailure)
+        assertTrue(message.contains(typeOf<Int>().toString()), onFailure)
+    }
+
+    @Test
+    fun testAssertIsOfTypeLazy() {
+        val s: Any = "test"
+        val result = assertIs<String>(s) { fail() }
+        assertEquals(s, result)
+
+        val msg = "Everything IS supposed to be a string"
+        testFailureMessagesAreTheSame(
+            expected = { assertIs<String>(42, msg) },
+            actual = { assertIs<String>(42) { msg } }
+        )
+    }
+
+    @Test
+    fun testAssertIsNotOfTypeLazy() {
+        assertIsNot<String>(42) { fail() }
+
+        val msg = "Not everything is supposed to be a string"
+        testFailureMessagesAreTheSame(
+            expected = { assertIsNot<String>("42", msg) },
+            actual = { assertIsNot<String>("42") { msg } }
+        )
+    }
 }
 
 
-private fun checkFailedAssertion(assertion: () -> Unit) {
-    assertFailsWith<AssertionError> { withDefaultAsserter(assertion) }
+internal fun testFailureMessage(expected: String, block: () -> Unit) {
+    val exception = checkFailedAssertion(block)
+    assertEquals(expected, exception.message, "Wrong assertion message")
 }
 
-@Suppress("INVISIBLE_MEMBER")
+internal fun testFailureMessagesAreTheSame(expected: () -> Unit, actual: () -> Unit) {
+    val expectedException = checkFailedAssertion(expected)
+    val exception = checkFailedAssertion(actual)
+    assertEquals(expectedException.message, exception.message, "Wrong assertion message")
+}
+
+internal fun checkFailedAssertion(assertion: () -> Unit): AssertionError {
+    return assertFailsWith<AssertionError> { withDefaultAsserter(assertion) }
+}
+
 private fun withDefaultAsserter(block: () -> Unit) {
-    val current = overrideAsserter(DefaultAsserter())
+    val current = overrideAsserter(DefaultAsserter)
     try {
         block()
-    }
-    finally {
+    } finally {
         overrideAsserter(current)
     }
 }

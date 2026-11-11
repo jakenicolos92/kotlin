@@ -1,5 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
-// SKIP_TXT
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 // FILE: Outer.kt
 package abc
 class Outer {
@@ -10,15 +10,15 @@ class Outer {
     companion object {
 
         fun baz() {
-            <!RESOLUTION_TO_CLASSIFIER!>Inner<!>()
-            <!RESOLUTION_TO_CLASSIFIER!>Inner<!>(1)
+            <!INNER_CLASS_CONSTRUCTOR_NO_RECEIVER!>Inner<!>()
+            <!INNER_CLASS_CONSTRUCTOR_NO_RECEIVER!>Inner<!>(1)
         }
     }
 }
 
 fun foo() {
-    Outer.<!RESOLUTION_TO_CLASSIFIER!>Inner<!>()
-    Outer.<!RESOLUTION_TO_CLASSIFIER!>Inner<!>(1)
+    Outer.<!INNER_CLASS_CONSTRUCTOR_NO_RECEIVER!>Inner<!>()
+    Outer.<!INNER_CLASS_CONSTRUCTOR_NO_RECEIVER!>Inner<!>(1)
 }
 
 // FILE: imported.kt
@@ -26,11 +26,14 @@ import abc.Outer
 import abc.Outer.Inner
 
 fun bar() {
-    <!RESOLUTION_TO_CLASSIFIER!>Inner<!>()
-    <!RESOLUTION_TO_CLASSIFIER!>Inner<!>(1)
+    <!INNER_CLASS_CONSTRUCTOR_NO_RECEIVER!>Inner<!>()
+    <!INNER_CLASS_CONSTRUCTOR_NO_RECEIVER!>Inner<!>(1)
 
     with(Outer()) {
         Inner()
         Inner(1)
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, inner, integerLiteral, lambdaLiteral,
+objectDeclaration, primaryConstructor, secondaryConstructor */

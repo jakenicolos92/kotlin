@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun A.foobar() = 1
 val A.prop: Int get() = 2
@@ -13,3 +14,6 @@ class A {
             <!INSTANCE_ACCESS_BEFORE_SUPER_CALL!>this@A<!>.prop
     )
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, funWithExtensionReceiver, functionDeclaration, getter,
+integerLiteral, propertyDeclaration, propertyWithExtensionReceiver, secondaryConstructor, thisExpression */

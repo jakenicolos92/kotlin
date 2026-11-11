@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //FILE:a.kt
 package a
 
@@ -10,3 +11,5 @@ fun foo() = a
 package b
 
 object a {}
+
+/* GENERATED_FIR_TAGS: functionDeclaration, objectDeclaration */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -WARNING +CAST_NEVER_SUCCEEDS
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -PLATFORM_CLASS_MAPPED_TO_KOTLIN -USELESS_CAST
 import java.lang.String as JString
 import java.lang.CharSequence as JCS
 
@@ -31,3 +32,5 @@ fun test(
   jcs <!CAST_NEVER_SUCCEEDS!>as<!> Int
   s <!CAST_NEVER_SUCCEEDS!>as<!> java.lang.Integer
 }
+
+/* GENERATED_FIR_TAGS: asExpression, functionDeclaration, intersectionType, smartcast */

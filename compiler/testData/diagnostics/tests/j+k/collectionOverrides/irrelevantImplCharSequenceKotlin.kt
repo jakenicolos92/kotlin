@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 // FILE: AImpl.kt
 
 abstract class AImpl {
@@ -19,10 +20,13 @@ public class A extends AImpl implements CharSequence {
 }
 
 // FILE: X.kt
-class X : A()
+<!ABSTRACT_MEMBER_NOT_IMPLEMENTED!>class X<!> : A()
 
 fun main() {
     val x = X()
     x[0]
     x.length
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, javaType, localProperty,
+propertyDeclaration */

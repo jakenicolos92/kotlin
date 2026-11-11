@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 501
 // see KT-7683
 // WhenTranslator must recognize KtWhenConditionInRange for custom classes that implement ClosedRange
 package foo

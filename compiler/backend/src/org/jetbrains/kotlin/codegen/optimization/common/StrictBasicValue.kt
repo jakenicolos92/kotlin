@@ -53,19 +53,23 @@ open class StrictBasicValue(type: Type?) : BasicValue(type) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other == null || other::class.java != this::class.java) return false
-        if (!super.equals(other)) return false
 
         other as StrictBasicValue
 
-        if (type != other.type) return false
+        if (this === NULL_VALUE || other === NULL_VALUE) return false
 
-        return true
+        return type == other.type
     }
 
     override fun hashCode() = (type?.hashCode() ?: 0)
 
     override fun toString(): String {
-        if (this === UNINITIALIZED_VALUE) return "."
-        return super.toString()
+        val inner = when {
+            this === REFERENCE_VALUE -> "R"
+            this === NULL_VALUE -> "null"
+            this === UNINITIALIZED_VALUE -> "."
+            else -> super.toString()
+        }
+        return "${this::class.java.simpleName}($inner)"
     }
 }

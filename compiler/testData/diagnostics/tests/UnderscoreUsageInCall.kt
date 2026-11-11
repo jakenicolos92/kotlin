@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -DEPRECATION -TOPLEVEL_TYPEALIASES_ONLY
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -DEPRECATION
 
 fun test(`_`: Int) {
     <!UNDERSCORE_USAGE_WITHOUT_BACKTICKS!>_<!> + 1
@@ -40,3 +41,6 @@ fun testCallableRefLHSValue2(`_`: Any) = `_`::toString
 
 val testCallableRefLHSObject = <!UNDERSCORE_USAGE_WITHOUT_BACKTICKS!>___<!>::toString
 val testCallableRefLHSObject2 = `___`::toString
+
+/* GENERATED_FIR_TAGS: additiveExpression, callableReference, functionDeclaration, integerLiteral, nestedClass,
+objectDeclaration, propertyDeclaration */

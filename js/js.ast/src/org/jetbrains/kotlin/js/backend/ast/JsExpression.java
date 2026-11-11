@@ -11,7 +11,7 @@ import java.util.List;
 public abstract class JsExpression extends SourceInfoAwareJsNode {
     /**
      * Determines whether or not this expression is a leaf, such as a
-     * {@link JsNameRef}, {@link JsLiteral.JsBooleanLiteral}, and so on. Leaf expressions
+     * {@link JsNameRef}, {@link JsBooleanLiteral}, and so on. Leaf expressions
      * never need to be parenthesized.
      */
     public boolean isLeaf() {
@@ -36,12 +36,6 @@ public abstract class JsExpression extends SourceInfoAwareJsNode {
         public List<JsExpression> getArguments() {
             return arguments;
         }
-    }
-
-    @Override
-    public JsExpression source(Object info) {
-        setSource(info);
-        return this;
     }
 
     @NotNull

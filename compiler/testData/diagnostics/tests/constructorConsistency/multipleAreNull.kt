@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 interface Context
 class Point
@@ -10,7 +11,7 @@ class Example {
     constructor(context: Context?, arg1: Int, arg2: Int, arg3: Int)
 
     var condition: Boolean = false
-    private var index = <!DEBUG_INFO_LEAKING_THIS!>newIndex<!>(condition)
+    private var index = newIndex(condition)
     private fun newIndex(zero: Boolean) = if (zero) 0 else 1
 
     private lateinit var latePoint1: Point
@@ -22,3 +23,6 @@ class Example {
     private val point4 = Point()
     private var nullPoint: Point? = null
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, integerLiteral, interfaceDeclaration,
+lateinit, nullableType, propertyDeclaration, secondaryConstructor */

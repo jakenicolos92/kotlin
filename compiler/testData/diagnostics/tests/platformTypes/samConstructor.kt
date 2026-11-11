@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/J.java
 
 package p;
@@ -15,3 +16,5 @@ import p.*
 fun test() {
     J.c(Comparator { a, b -> b - a })
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, flexibleType, functionDeclaration, javaFunction, lambdaLiteral */

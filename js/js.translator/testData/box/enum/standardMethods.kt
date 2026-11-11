@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 941
+// KJS_WITH_FULL_RUNTIME
 package foo
 
 enum class EmptyEnum

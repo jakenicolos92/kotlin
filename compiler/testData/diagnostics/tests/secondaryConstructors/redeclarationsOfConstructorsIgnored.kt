@@ -1,5 +1,6 @@
-class <!PACKAGE_OR_CLASSIFIER_REDECLARATION!>A<!>
-class <!PACKAGE_OR_CLASSIFIER_REDECLARATION!>A<!> {
+// RUN_PIPELINE_TILL: FRONTEND
+class <!CLASSIFIER_REDECLARATION!>A<!>
+class <!CLASSIFIER_REDECLARATION!>A<!> {
     constructor()
 }
 
@@ -9,3 +10,5 @@ class Outer {
         constructor()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, nestedClass, secondaryConstructor */

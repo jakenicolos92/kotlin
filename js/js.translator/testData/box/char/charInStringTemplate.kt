@@ -1,5 +1,5 @@
-// EXPECTED_REACHABLE_NODES: 498
 package foo
+import kotlin.test.assertEquals
 
 var log = ""
 

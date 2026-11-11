@@ -16,58 +16,171 @@
 
 package org.jetbrains.kotlin.diagnostics.rendering
 
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
+import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.MemberDescriptor
-import org.jetbrains.kotlin.resolve.checkers.HeaderImplDeclarationChecker
+import org.jetbrains.kotlin.resolve.multiplatform.K1ExpectActualCompatibility.Incompatible
+import org.jetbrains.kotlin.resolve.multiplatform.K1ExpectActualMemberDiff
+import java.text.MessageFormat
 
-object PlatformIncompatibilityDiagnosticRenderer :
-        DiagnosticParameterRenderer<Map<HeaderImplDeclarationChecker.Compatibility.Incompatible, Collection<MemberDescriptor>>> {
-    private val INDENTATION_UNIT = "    "
-
+@K1Deprecation
+class PlatformIncompatibilityDiagnosticRenderer(
+    private val mode: MultiplatformDiagnosticRenderingMode
+) : DiagnosticParameterRenderer<Map<Incompatible<MemberDescriptor>, Collection<MemberDescriptor>>> {
     override fun render(
-            obj: Map<HeaderImplDeclarationChecker.Compatibility.Incompatible, Collection<MemberDescriptor>>,
-            renderingContext: RenderingContext
+        obj: Map<Incompatible<MemberDescriptor>, Collection<MemberDescriptor>>,
+        renderingContext: RenderingContext
     ): String {
         if (obj.isEmpty()) return ""
 
-        val renderDescriptor: (DeclarationDescriptor) -> String = { Renderers.COMPACT_WITH_MODIFIERS.render(it, renderingContext) }
-
         return buildString {
-            appendln()
-            render(obj, "", renderDescriptor)
+            mode.newLine(this)
+            renderIncompatibilityInformation(obj, "", renderingContext, mode)
         }
     }
 
-    private fun StringBuilder.render(
-            map: Map<HeaderImplDeclarationChecker.Compatibility.Incompatible, Collection<MemberDescriptor>>,
-            indent: String,
-            renderDescriptor: (DeclarationDescriptor) -> String
-    ) {
-        for ((incompatibility, descriptors) in map) {
-            append(indent)
-            append("The following declaration")
-            if (descriptors.size == 1) append(" is") else append("s are")
-            append(" incompatible")
-            incompatibility.reason?.let { appendln(" because $it:") }
+    companion object {
+        @JvmField
+        val TEXT = PlatformIncompatibilityDiagnosticRenderer(MultiplatformDiagnosticRenderingMode())
+    }
+}
 
-            for (descriptor in descriptors) {
-                append(indent + "    ")
-                appendln(renderDescriptor(descriptor))
-            }
+@K1Deprecation
+class IncompatibleExpectedActualClassScopesRenderer(
+    private val mode: MultiplatformDiagnosticRenderingMode
+) : DiagnosticParameterRenderer<List<Pair<MemberDescriptor, Map<Incompatible<MemberDescriptor>, Collection<MemberDescriptor>>>>> {
+    override fun render(
+        obj: List<Pair<MemberDescriptor, Map<Incompatible<MemberDescriptor>, Collection<MemberDescriptor>>>>,
+        renderingContext: RenderingContext
+    ): String {
+        if (obj.isEmpty()) return ""
 
-            incompatibility.unimplemented?.let { unimplemented ->
-                append(indent)
-                appendln("No implementations are found for members listed below:")
-                for ((descriptor, mapping) in unimplemented) {
-                    appendln()
-                    append(indent + "    ")
-                    appendln(renderDescriptor(descriptor))
-                    if (mapping.isNotEmpty()) {
-                        appendln()
-                    }
-                    render(mapping, indent + INDENTATION_UNIT, renderDescriptor)
+        return buildString {
+            mode.newLine(this)
+            renderIncompatibleClassScopes(obj, "", renderingContext, mode)
+        }
+    }
+
+    companion object {
+        @JvmField
+        val TEXT = IncompatibleExpectedActualClassScopesRenderer(MultiplatformDiagnosticRenderingMode())
+    }
+}
+
+@K1Deprecation
+class ExpectActualScopeDiffsRenderer(
+    private val mode: MultiplatformDiagnosticRenderingMode,
+) : DiagnosticParameterRenderer<Set<K1ExpectActualMemberDiff<CallableMemberDescriptor, ClassDescriptor>>> {
+    override fun render(
+        obj: Set<K1ExpectActualMemberDiff<CallableMemberDescriptor, ClassDescriptor>>,
+        renderingContext: RenderingContext,
+    ): String {
+        check(obj.isNotEmpty())
+        return buildString {
+            mode.renderList(this, obj.toList().map { diff ->
+                {
+                    appendLine()
+                    appendLine(ExpectActualScopeDiffRenderer.render(diff, renderingContext))
                 }
-            }
+            })
+        }
+    }
+
+    companion object {
+        @JvmField
+        val TEXT = ExpectActualScopeDiffsRenderer(MultiplatformDiagnosticRenderingMode())
+    }
+}
+
+@K1Deprecation
+object ExpectActualScopeDiffRenderer : DiagnosticParameterRenderer<K1ExpectActualMemberDiff<CallableMemberDescriptor, ClassDescriptor>> {
+    override fun render(
+        obj: K1ExpectActualMemberDiff<CallableMemberDescriptor, ClassDescriptor>,
+        renderingContext: RenderingContext,
+    ): String = MessageFormat.format(
+        obj.kind.rawMessage,
+        Renderers.DECLARATION_NAME_WITH_KIND.render(obj.actualMember, renderingContext),
+        Renderers.NAME.render(obj.expectClass)
+    )
+}
+
+@K1Deprecation
+class ListRenderer<T>(
+    private val elementRenderer: DiagnosticParameterRenderer<T>,
+    private val elemProcessor: (String) -> String = { it },
+) : DiagnosticParameterRenderer<List<T>> {
+    override fun render(obj: List<T>, renderingContext: RenderingContext): String =
+        obj.joinToString { elemProcessor(elementRenderer.render(it, renderingContext)) }
+}
+
+@K1Deprecation
+open class MultiplatformDiagnosticRenderingMode {
+    open fun newLine(sb: StringBuilder) {
+        sb.appendLine()
+    }
+
+    open fun renderList(sb: StringBuilder, elements: List<() -> Unit>) {
+        sb.appendLine()
+        for (element in elements) {
+            element()
+        }
+    }
+
+    open fun renderDescriptor(sb: StringBuilder, descriptor: DeclarationDescriptor, context: RenderingContext, indent: String) {
+        sb.append(indent)
+        sb.append(INDENTATION_UNIT)
+        sb.appendLine(Renderers.COMPACT_WITH_MODIFIERS.render(descriptor, context))
+    }
+}
+
+private fun StringBuilder.renderIncompatibilityInformation(
+    map: Map<Incompatible<MemberDescriptor>, Collection<MemberDescriptor>>,
+    indent: String,
+    context: RenderingContext,
+    mode: MultiplatformDiagnosticRenderingMode
+) {
+    for ([incompatibility, descriptors] in map) {
+        append(indent)
+        append("The following declaration")
+        if (descriptors.size == 1) append(" is") else append("s are")
+        append(" incompatible")
+        incompatibility.reason?.let { append(" because $it") }
+        append(":")
+
+        mode.renderList(this, descriptors.map { descriptor ->
+            { mode.renderDescriptor(this, descriptor, context, indent) }
+        })
+
+        if (incompatibility is Incompatible.ClassScopes) {
+            append(indent)
+            append("No actual members are found for expected members listed below:")
+            mode.newLine(this)
+            renderIncompatibleClassScopes(incompatibility.unfulfilled, indent, context, mode)
         }
     }
 }
+
+private fun StringBuilder.renderIncompatibleClassScopes(
+    unfulfilled: List<Pair<MemberDescriptor, Map<Incompatible<MemberDescriptor>, Collection<MemberDescriptor>>>>,
+    indent: String,
+    context: RenderingContext,
+    mode: MultiplatformDiagnosticRenderingMode
+) {
+    mode.renderList(this, unfulfilled.indices.map { index ->
+        {
+            val [descriptor, mapping] = unfulfilled[index]
+            mode.renderDescriptor(this, descriptor, context, indent)
+            if (mapping.isNotEmpty()) {
+                mode.newLine(this)
+                renderIncompatibilityInformation(mapping, indent + INDENTATION_UNIT, context, mode)
+            }
+            if (index != unfulfilled.lastIndex) {
+                mode.newLine(this)
+            }
+        }
+    })
+}
+
+private const val INDENTATION_UNIT = "    "

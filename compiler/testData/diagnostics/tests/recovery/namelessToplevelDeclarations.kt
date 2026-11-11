@@ -1,8 +1,9 @@
-// !DIAGNOSTICS: -REDECLARATION
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -REDECLARATION
 
 package<!SYNTAX!><!>
 
-<!FUNCTION_DECLARATION_WITH_NO_NAME, CONFLICTING_OVERLOADS!>fun ()<!> {
+<!FUNCTION_DECLARATION_WITH_NO_NAME!>fun ()<!> {
 
 }
 
@@ -23,4 +24,7 @@ object<!SYNTAX!><!> {
 
 enum class<!SYNTAX!><!> {}
 
-annotation class<!SYNTAX!><!> <!ANNOTATION_CLASS_WITH_BODY!>{}<!>
+annotation class<!SYNTAX!><!> {}
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration, enumDeclaration, functionDeclaration, integerLiteral,
+interfaceDeclaration, objectDeclaration, propertyDeclaration */

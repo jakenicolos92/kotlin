@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 fun test(a: Int) {
     val x = run f@{
@@ -7,3 +8,7 @@ fun test(a: Int) {
     }
     checkSubtype<Unit>(x)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, comparisonExpression, funWithExtensionReceiver, functionDeclaration,
+functionalType, ifExpression, infix, integerLiteral, lambdaLiteral, localProperty, nullableType, propertyDeclaration,
+typeParameter, typeWithExtension */

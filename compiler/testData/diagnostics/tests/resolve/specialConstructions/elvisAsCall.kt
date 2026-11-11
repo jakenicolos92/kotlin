@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package a
 
 interface A
@@ -11,9 +12,9 @@ fun <T: A> emptyListOfA(): List<T> = throw Exception()
 
 fun testElvis(a: Int?, b: Int?) {
     if (a != null) {
-        doInt(b ?: <!DEBUG_INFO_SMARTCAST!>a<!>)
+        doInt(b ?: a)
     }
-    doList(getList() ?: <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>emptyListOfA<!>()) //should be an error
+    doList(getList() ?: <!INFERRED_TYPE_VARIABLE_INTO_POSSIBLE_EMPTY_INTERSECTION!>emptyListOfA<!>()) //should be an error
     doList(getList() ?: strangeList { doInt(it) }) //lambda was not analyzed
 }
 
@@ -22,15 +23,19 @@ fun testDataFlowInfo1(a: Int?, b: Int?) {
     val c: Int = a ?: b!!
     doInt(c)
     // b is nullable if a != null
-    b <!UNSAFE_INFIX_CALL!>+<!> 1
+    b <!UNSAFE_OPERATOR_CALL!>+<!> 1
 }
 
 fun testDataFlowInfo2(a: Int?, b: Int?) {
     doInt(a ?: b!!)
     // b is nullable if a != null
-    b <!UNSAFE_INFIX_CALL!>+<!> 1
+    b <!UNSAFE_OPERATOR_CALL!>+<!> 1
 }
 
 fun testTypeMismatch(a: String?, b: Any) {
-    doInt(<!TYPE_MISMATCH!>a<!> ?: <!TYPE_MISMATCH!>b<!>)
+    doInt(<!ARGUMENT_TYPE_MISMATCH!>a ?: b<!>)
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, checkNotNullCall, elvisExpression, equalityExpression, functionDeclaration,
+functionalType, ifExpression, integerLiteral, interfaceDeclaration, intersectionType, lambdaLiteral, localProperty,
+nullableType, propertyDeclaration, smartcast, typeConstraint, typeParameter */

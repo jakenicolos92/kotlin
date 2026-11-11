@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //If this test hangs, it means something is broken.
 object A {
     val iii = 42
@@ -34,3 +35,6 @@ fun test() {
         })
     })
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, anonymousObjectExpression, functionDeclaration, functionalType,
+integerLiteral, objectDeclaration, operator, override, propertyDeclaration */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class ResolutionCandidate<A>
 
 class ResolutionTask<B, C : B>(val candidate: ResolutionCandidate<B>)
@@ -10,7 +11,10 @@ public class ResolutionTaskHolder<F, G : F> {
         tasks.add(ResolutionTask<F, G>(candidate))
 
         //todo the problem is the type of ResolutionTask is inferred as ResolutionTask<F, F> too early
-        tasks.<!TYPE_INFERENCE_CONFLICTING_SUBSTITUTIONS!>bar<!>(ResolutionTask(candidate))
+        tasks.bar(ResolutionTask(candidate))
         tasks.add(ResolutionTask(candidate))
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, nullableType, primaryConstructor,
+propertyDeclaration, typeConstraint, typeParameter */

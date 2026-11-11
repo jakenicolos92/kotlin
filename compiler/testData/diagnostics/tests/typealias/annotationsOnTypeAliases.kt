@@ -1,4 +1,5 @@
-// WITH_RUNTIME
+// RUN_PIPELINE_TILL: FRONTEND
+// WITH_STDLIB
 import kotlin.annotation.AnnotationTarget.*
 
 annotation class NoTarget
@@ -13,3 +14,5 @@ annotation class TypealiasTarget
 <!WRONG_ANNOTATION_TARGET!>@IrrelevantTarget<!>
 @TypealiasTarget
 typealias Test = String
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, typeAliasDeclaration */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER -TOPLEVEL_TYPEALIASES_ONLY
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER -TOPLEVEL_TYPEALIASES_ONLY -UNSUPPORTED_FEATURE
 // FILE: file1.kt
 package package1
 
@@ -23,3 +24,5 @@ import package2.Outer.A
 val testS: S = ""
 val testI: I = 42
 val testA: A = Any()
+
+/* GENERATED_FIR_TAGS: classDeclaration, integerLiteral, propertyDeclaration, stringLiteral, typeAliasDeclaration */

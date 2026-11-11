@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 493
 package foo
 
 public class Foo {

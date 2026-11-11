@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 // FILE: Function.java
 public interface Function<E extends java.util.Map<String, Integer>, F extends CharSequence> {
     F handle(E e);
@@ -31,3 +32,7 @@ fun main() {
     A().foo(block)
     A.bar(block)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, javaFunction, javaType, lambdaLiteral, localProperty, nullableType, propertyDeclaration, samConversion,
+starProjection, stringLiteral, typeParameter, typeWithExtension */

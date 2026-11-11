@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 interface A extends C {
@@ -15,3 +16,5 @@ interface B : <!CYCLIC_INHERITANCE_HIERARCHY!>A<!> {
 interface C extends B {
     void baz();
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration */

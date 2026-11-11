@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // See KT-10276
 
 class Bar() {
@@ -9,3 +10,6 @@ class Bar() {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, functionDeclaration, ifExpression, nullableType,
+primaryConstructor, propertyDeclaration, safeCall, smartcast */

@@ -1,5 +1,0 @@
-package
-
-package d {
-    public fun test(): kotlin.Unit
-}

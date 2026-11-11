@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface IA {
     fun method(): String
     val propVal: String
@@ -31,3 +32,5 @@ interface IGC3<T> : IGB4T<T>, IGB5T<T>
 interface IGC4<T> : <!INCONSISTENT_TYPE_PARAMETER_VALUES!>IGB4T<T>, IGB5T<String><!>
 
 interface IGC5 : IGB4T<String>, IGB5T<String>
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, nullableType, propertyDeclaration, typeParameter */

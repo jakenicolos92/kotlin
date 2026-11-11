@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 fun foo(javaClass: JavaClass) {
     javaClass.getSomething()<!UNSAFE_CALL!>.<!>length
@@ -11,3 +12,5 @@ public class JavaClass {
     @Nullable
     public String getSomething() { return null; }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaProperty, javaType, nullableType */

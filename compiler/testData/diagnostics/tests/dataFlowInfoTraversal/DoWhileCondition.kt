@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 fun simpleDoWhile(x: Int?, y0: Int) {
     var y = y0
@@ -6,7 +7,7 @@ fun simpleDoWhile(x: Int?, y0: Int) {
         checkSubtype<Int?>(x)
         y++
     } while (x!! == y)
-    checkSubtype<Int>(<!DEBUG_INFO_SMARTCAST!>x<!>)
+    checkSubtype<Int>(x)
 }
 
 fun doWhileWithBreak(x: Int?, y0: Int) {
@@ -16,5 +17,10 @@ fun doWhileWithBreak(x: Int?, y0: Int) {
         y++
         if (y > 0) break
     } while (x!! == y)
-    checkSubtype<Int>(<!TYPE_MISMATCH!>x<!>)
+    checkSubtype<Int>(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
 }
+
+/* GENERATED_FIR_TAGS: assignment, break, checkNotNullCall, classDeclaration, comparisonExpression, doWhileLoop,
+equalityExpression, funWithExtensionReceiver, functionDeclaration, functionalType, ifExpression,
+incrementDecrementExpression, infix, integerLiteral, localProperty, nullableType, propertyDeclaration, smartcast,
+typeParameter, typeWithExtension */

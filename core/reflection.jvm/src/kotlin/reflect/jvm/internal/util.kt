@@ -16,36 +16,61 @@
 
 package kotlin.reflect.jvm.internal
 
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
-import org.jetbrains.kotlin.descriptors.Visibilities
-import org.jetbrains.kotlin.descriptors.Visibility
+import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+import org.jetbrains.kotlin.builtins.PrimitiveType
+import org.jetbrains.kotlin.builtins.functions.FunctionTypeKind
+import org.jetbrains.kotlin.builtins.jvm.JavaToKotlinClassMap
+import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.annotations.Annotated
+import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor
+import org.jetbrains.kotlin.descriptors.impl.DeclarationDescriptorVisitorEmptyBodies
+import org.jetbrains.kotlin.descriptors.runtime.components.ReflectAnnotationSource
+import org.jetbrains.kotlin.descriptors.runtime.components.ReflectKotlinClass
+import org.jetbrains.kotlin.descriptors.runtime.components.RuntimeSourceElementFactory
+import org.jetbrains.kotlin.descriptors.runtime.components.tryLoadClass
+import org.jetbrains.kotlin.descriptors.runtime.structure.ReflectJavaAnnotation
+import org.jetbrains.kotlin.descriptors.runtime.structure.ReflectJavaClass
+import org.jetbrains.kotlin.descriptors.runtime.structure.safeClassLoader
 import org.jetbrains.kotlin.load.java.JvmAbi
-import org.jetbrains.kotlin.load.java.components.RuntimeSourceElementFactory
-import org.jetbrains.kotlin.load.java.reflect.tryLoadClass
-import org.jetbrains.kotlin.load.java.structure.reflect.ReflectJavaAnnotation
-import org.jetbrains.kotlin.load.java.structure.reflect.ReflectJavaClass
-import org.jetbrains.kotlin.load.java.structure.reflect.safeClassLoader
+import org.jetbrains.kotlin.load.java.JvmAnnotationNames
 import org.jetbrains.kotlin.load.kotlin.KotlinJvmBinarySourceElement
-import org.jetbrains.kotlin.load.kotlin.header.KotlinClassHeader
-import org.jetbrains.kotlin.load.kotlin.reflect.ReflectAnnotationSource
-import org.jetbrains.kotlin.load.kotlin.reflect.ReflectKotlinClass
+import org.jetbrains.kotlin.metadata.ProtoBuf
+import org.jetbrains.kotlin.metadata.deserialization.BinaryVersion
+import org.jetbrains.kotlin.metadata.deserialization.NameResolver
+import org.jetbrains.kotlin.metadata.deserialization.TypeTable
+import org.jetbrains.kotlin.metadata.deserialization.VersionRequirementTable
+import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.platform.JavaToKotlinClassMap
-import org.jetbrains.kotlin.resolve.DescriptorUtils
+import org.jetbrains.kotlin.protobuf.MessageLite
+import org.jetbrains.kotlin.resolve.constants.*
+import org.jetbrains.kotlin.resolve.descriptorUtil.annotationClass
 import org.jetbrains.kotlin.resolve.descriptorUtil.classId
-import org.jetbrains.kotlin.serialization.jvm.JvmProtoBuf
-import org.jetbrains.kotlin.serialization.jvm.JvmProtoBufUtil
+import org.jetbrains.kotlin.serialization.deserialization.DeserializationContext
+import org.jetbrains.kotlin.serialization.deserialization.IncompatibleVersionErrorData
+import org.jetbrains.kotlin.serialization.deserialization.MemberDeserializer
+import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedContainerAbiStability
+import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedContainerSource
+import org.jetbrains.kotlin.serialization.deserialization.descriptors.PreReleaseInfo
+import java.lang.annotation.Inherited
+import java.lang.reflect.Field
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+import java.lang.reflect.Type
+import kotlin.jvm.internal.CallableReference
 import kotlin.jvm.internal.FunctionReference
 import kotlin.jvm.internal.PropertyReference
-import kotlin.reflect.KVisibility
+import kotlin.jvm.internal.RepeatableContainer
+import kotlin.reflect.*
 import kotlin.reflect.full.IllegalCallableAccessException
+import kotlin.reflect.jvm.internal.calls.createAnnotationInstance
+import kotlin.reflect.jvm.internal.types.AbstractKType
+import kotlin.reflect.jvm.jvmErasure
+import kotlin.reflect.jvm.jvmName
 
 internal val JVM_STATIC = FqName("kotlin.jvm.JvmStatic")
 
 internal fun ClassDescriptor.toJavaClass(): Class<*>? {
-    val source = source
-    return when (source) {
+    return when (val source = source) {
         is KotlinJvmBinarySourceElement -> {
             (source.binaryClass as ReflectKotlinClass).klass
         }
@@ -53,20 +78,40 @@ internal fun ClassDescriptor.toJavaClass(): Class<*>? {
             (source.javaElement as ReflectJavaClass).element
         }
         else -> {
-            // If this is neither a Kotlin class nor a Java class, it is either a built-in or some fake class descriptor like the one
+            // If this is neither a Kotlin class nor a Java class, it's likely either a built-in or some fake class descriptor like the one
             // that's created for java.io.Serializable in JvmBuiltInsSettings
-            val classId = JavaToKotlinClassMap.mapKotlinToJava(DescriptorUtils.getFqName(this)) ?: classId!!
-            val packageName = classId.packageFqName.asString()
-            val className = classId.relativeClassName.asString()
-            // All pseudo-classes like kotlin.String.Companion must be accessible from the current class loader
-            loadClass(javaClass.safeClassLoader, packageName, className)
+            val classId = classId ?: return null
+            javaClass.safeClassLoader.loadClass(classId)
         }
     }
 }
 
-internal fun loadClass(classLoader: ClassLoader, packageName: String, className: String): Class<*>? {
+private val SUSPEND_FUNCTION_PREFIX =
+    FunctionTypeKind.SuspendFunction.packageFqName.asString() + "." + FunctionTypeKind.SuspendFunction.classNamePrefix
+
+internal fun ClassLoader.loadClass(kotlinClassId: ClassId, arrayDimensions: Int = 0): Class<*>? {
+    val kotlinFqName = kotlinClassId.asSingleFqName().toUnsafe()
+    kotlinFqName.asString().substringAfter(SUSPEND_FUNCTION_PREFIX).toIntOrNull()?.let { suspendFunctionArity ->
+        return loadClass(FunctionTypeKind.Function.numberedClassId(suspendFunctionArity + 1), arrayDimensions)
+    }
+
+    val javaClassId = JavaToKotlinClassMap.mapKotlinToJava(kotlinFqName) ?: kotlinClassId
+    // Pseudo-classes like `kotlin/String.Companion` can be accessible from different class loaders. To ensure that we always use the
+    // same class, we always load it from the stdlib's class loader.
+    val correctClassLoader = if (javaClassId != kotlinClassId) stdlibClassLoader else this
+    return loadClass(correctClassLoader, javaClassId.packageFqName.asString(), javaClassId.relativeClassName.asString(), arrayDimensions)
+}
+
+internal val stdlibClassLoader: ClassLoader
+    get() = Unit::class.java.safeClassLoader
+
+// JDK and kotlin-stdlib can be loaded by different class loaders. In this case, trying to resolve `kotlin/Unit` reference in a builtin
+// class will use the JDK class loader which cannot load `kotlin/Unit`. Same for `kotlin/ranges/IntRange` reference in `kotlin/Int`.
+internal fun ClassLoader.tryLoadClassOrFallbackToStdlib(fqName: String): Class<*>? =
+    tryLoadClass(fqName) ?: stdlibClassLoader.tryLoadClass(fqName)
+
+private fun loadClass(classLoader: ClassLoader, packageName: String, className: String, arrayDimensions: Int): Class<*>? {
     if (packageName == "kotlin") {
-        // See mapBuiltInType() in typeSignatureMapping.kt
         when (className) {
             "Array" -> return Array<Any>::class.java
             "BooleanArray" -> return BooleanArray::class.java
@@ -80,68 +125,416 @@ internal fun loadClass(classLoader: ClassLoader, packageName: String, className:
         }
     }
 
-    return classLoader.tryLoadClass("$packageName.${className.replace('.', '$')}")
+    val fqName = buildString {
+        if (arrayDimensions > 0) {
+            repeat(arrayDimensions) {
+                append("[")
+            }
+            append("L")
+        }
+        if (packageName.isNotEmpty()) {
+            append("$packageName.")
+        }
+        append(className.replace('.', '$'))
+        if (arrayDimensions > 0) {
+            append(";")
+        }
+    }
+
+    return classLoader.tryLoadClassOrFallbackToStdlib(fqName)
 }
 
-internal fun Visibility.toKVisibility(): KVisibility? =
-        when (this) {
-            Visibilities.PUBLIC -> KVisibility.PUBLIC
-            Visibilities.PROTECTED -> KVisibility.PROTECTED
-            Visibilities.INTERNAL -> KVisibility.INTERNAL
-            Visibilities.PRIVATE, Visibilities.PRIVATE_TO_THIS -> KVisibility.PRIVATE
-            else -> null
-        }
+internal fun Class<*>.createArrayType(): Class<*> =
+    java.lang.reflect.Array.newInstance(this, 0)::class.java
+
+internal fun computeArrayClassifier(arguments: List<KTypeProjection>): KClass<*> {
+    val elementType = arguments.singleOrNull()?.takeUnless { it.variance == KVariance.IN }?.type ?: StandardKTypes.ANY
+    return elementType.jvmErasure.javaObjectType.createArrayType().kotlin
+}
+
+internal fun DescriptorVisibility.toKVisibility(): KVisibility? =
+    when (this) {
+        DescriptorVisibilities.PUBLIC -> KVisibility.PUBLIC
+        DescriptorVisibilities.PROTECTED -> KVisibility.PROTECTED
+        DescriptorVisibilities.INTERNAL -> KVisibility.INTERNAL
+        DescriptorVisibilities.PRIVATE, DescriptorVisibilities.PRIVATE_TO_THIS -> KVisibility.PRIVATE
+        else -> null
+    }
 
 internal fun Annotated.computeAnnotations(): List<Annotation> =
-        annotations.mapNotNull {
-            val source = it.source
-            when (source) {
-                is ReflectAnnotationSource -> source.annotation
-                is RuntimeSourceElementFactory.RuntimeSourceElement -> (source.javaElement as? ReflectJavaAnnotation)?.annotation
-                else -> null
+    annotations.mapNotNull {
+        when (val source = it.source) {
+            is ReflectAnnotationSource -> source.annotation
+            is RuntimeSourceElementFactory.RuntimeSourceElement -> (source.javaElement as? ReflectJavaAnnotation)?.annotation
+            else -> it.toAnnotationInstance()
+        }
+    }.unwrapKotlinRepeatableAnnotations()
+
+internal fun Annotation.hasInherited(): Boolean = annotationClass.hasInherited()
+
+private fun KClass<out Annotation>.hasInherited(): Boolean =
+    java.getAnnotation(Inherited::class.java) != null
+
+@Suppress("UNCHECKED_CAST")
+private fun getRepeatableContainerComponentType(containerClass: KClass<out Annotation>) =
+    containerClass.java.getDeclaredMethod("value").returnType.componentType!!.kotlin as KClass<out Annotation>
+
+internal fun Annotation.isRepeatableContainerForNonInheritedAnnotation(): Boolean =
+    isJavaRepeatableContainer(annotationClass) && !getRepeatableContainerComponentType(annotationClass).hasInherited()
+
+internal val Annotation.unwrappedAnnotationClass: KClass<out Annotation>
+    get() {
+        val annotationOrContainerClass = annotationClass
+        if (isJavaRepeatableContainer(annotationOrContainerClass))
+            return getRepeatableContainerComponentType(annotationOrContainerClass)
+        else
+            return annotationOrContainerClass
+    }
+
+private fun isKotlinRepeatableContainer(klass: KClass<out Annotation>): Boolean {
+    val jClass = klass.java
+    return jClass.simpleName == JvmAbi.REPEATABLE_ANNOTATION_CONTAINER_NAME &&
+            jClass.getAnnotation(RepeatableContainer::class.java) != null
+}
+
+private fun isJavaRepeatableContainer(klass: KClass<out Annotation>): Boolean {
+    val jClass = klass.java
+    val valueMethod = jClass.getDeclaredMethodOrNull("value") ?: return false
+    val returnComponentType = valueMethod.returnType.componentType ?: return false
+    if (!returnComponentType.isAnnotation) return false
+
+    // we cannot directly use Java Repeatable class because it is missing on Android based on JDK 6
+    val javaRepeatable: Annotation =
+        returnComponentType.annotations.find { it.annotationClass.java.name == JvmAnnotationNames.REPEATABLE_ANNOTATION.asString() }
+            ?: return false
+    val repeatableContainerClass = javaRepeatable.annotationClass.java.getMethod("value").invoke(javaRepeatable) ?: return false
+
+    return jClass == repeatableContainerClass
+}
+
+fun List<Annotation>.unwrapKotlinRepeatableAnnotations(): List<Annotation> =
+    if (any { it.annotationClass.java.simpleName == JvmAbi.REPEATABLE_ANNOTATION_CONTAINER_NAME })
+        flatMap {
+            val klass = it.annotationClass
+            if (isKotlinRepeatableContainer(klass))
+                @Suppress("UNCHECKED_CAST")
+                (klass.java.getDeclaredMethod("value").invoke(it) as Array<out Annotation>).asList()
+            else
+                listOf(it)
+        }
+    else
+        this
+
+private fun AnnotationDescriptor.toAnnotationInstance(): Annotation? {
+    @Suppress("UNCHECKED_CAST")
+    val annotationClass = annotationClass?.toJavaClass() as? Class<out Annotation> ?: return null
+
+    return createAnnotationInstance(
+        annotationClass,
+        allValueArguments.entries
+            .mapNotNull { (name, value) -> value.toRuntimeValue(annotationClass.safeClassLoader)?.let(name.asString()::to) }
+            .toMap()
+    )
+}
+
+// TODO: consider throwing exceptions such as AnnotationFormatError/AnnotationTypeMismatchException if a value of unexpected type is found
+private fun ConstantValue<*>.toRuntimeValue(classLoader: ClassLoader): Any? = when (this) {
+    is AnnotationValue -> value.toAnnotationInstance()
+    is ArrayValue -> arrayToRuntimeValue(classLoader)
+    is EnumValue -> {
+        val (enumClassId, entryName) = value
+        classLoader.loadClass(enumClassId)?.let { enumClass ->
+            @Suppress("UNCHECKED_CAST")
+            Util.getEnumConstantByName(enumClass as Class<out Enum<*>>, entryName.asString())
+        }
+    }
+    is KClassValue -> when (val classValue = value) {
+        is KClassValue.Value.NormalClass ->
+            classLoader.loadClass(classValue.classId, classValue.arrayDimensions)
+        is KClassValue.Value.LocalClass -> {
+            // TODO: this doesn't work because of KT-30013
+            (classValue.type.constructor.declarationDescriptor as? ClassDescriptor)?.toJavaClass()
+        }
+    }
+    is ErrorValue, is NullValue -> null
+    else -> value  // Primitives and strings
+}
+
+private fun ArrayValue.arrayToRuntimeValue(classLoader: ClassLoader): Any? {
+    val type = (this as? TypedArrayValue)?.type ?: return null
+    val values = value.map { it.toRuntimeValue(classLoader) }
+
+    return when (KotlinBuiltIns.getPrimitiveArrayElementType(type)) {
+        PrimitiveType.BOOLEAN -> BooleanArray(value.size) { values[it] as Boolean }
+        PrimitiveType.CHAR -> CharArray(value.size) { values[it] as Char }
+        PrimitiveType.BYTE -> ByteArray(value.size) { values[it] as Byte }
+        PrimitiveType.SHORT -> ShortArray(value.size) { values[it] as Short }
+        PrimitiveType.INT -> IntArray(value.size) { values[it] as Int }
+        PrimitiveType.FLOAT -> FloatArray(value.size) { values[it] as Float }
+        PrimitiveType.LONG -> LongArray(value.size) { values[it] as Long }
+        PrimitiveType.DOUBLE -> DoubleArray(value.size) { values[it] as Double }
+        null -> {
+            check(KotlinBuiltIns.isArray(type)) { "Not an array type: $type" }
+            val argType = type.arguments.single().type
+            val classifier = argType.constructor.declarationDescriptor as? ClassDescriptor ?: error("Not a class type: $argType")
+            when {
+                KotlinBuiltIns.isString(argType) -> Array(value.size) { values[it] as String }
+                KotlinBuiltIns.isKClass(classifier) -> Array(value.size) { values[it] as Class<*> }
+                else -> {
+                    val argClass = classifier.classId?.let(classLoader::loadClass) ?: return null
+
+                    @Suppress("UNCHECKED_CAST")
+                    val array = java.lang.reflect.Array.newInstance(argClass, value.size) as Array<in Any?>
+                    repeat(values.size) { array[it] = values[it] }
+                    array
+                }
             }
         }
+    }
+}
 
 // TODO: wrap other exceptions
 internal inline fun <R> reflectionCall(block: () -> R): R =
-        try {
-            block()
-        }
-        catch (e: IllegalAccessException) {
-            throw IllegalCallableAccessException(e)
-        }
+    try {
+        block()
+    } catch (e: IllegalAccessException) {
+        throw IllegalCallableAccessException(e)
+    }
 
-internal fun Any?.asKFunctionImpl(): KFunctionImpl? =
-        this as? KFunctionImpl ?:
-        (this as? FunctionReference)?.compute() as? KFunctionImpl
+internal fun Any?.asReflectFunction(): ReflectKFunction? = when (this) {
+    is ReflectKFunction -> this
+    is FunctionReference -> compute() as? ReflectKFunction
+    else -> null
+}
 
-internal fun Any?.asKPropertyImpl(): KPropertyImpl<*>? =
-        this as? KPropertyImpl<*> ?:
-        (this as? PropertyReference)?.compute() as? KPropertyImpl
+internal fun Any?.asReflectProperty(): ReflectKProperty<*>? = when (this) {
+    is LazyKProperty<*, *> -> delegate.asReflectProperty()
+    is ReflectKProperty<*> -> this
+    is PropertyReference -> compute().takeUnless { it === this }?.asReflectProperty()
+    else -> null
+}
 
-internal fun Any?.asKCallableImpl(): KCallableImpl<*>? =
-        this as? KCallableImpl<*> ?: asKFunctionImpl() ?: asKPropertyImpl()
+internal fun Any?.asReflectCallable(): ReflectKCallable<*>? = when (this) {
+    is LazyKProperty<*, *> -> delegate.asReflectCallable()
+    is ReflectKCallable<*> -> this
+    is CallableReference -> compute().takeUnless { it === this }?.asReflectCallable()
+    else -> null
+}
 
-internal val ReflectKotlinClass.packageModuleName: String?
+internal val DescriptorKCallable<*>.instanceReceiverParameter: ReceiverParameterDescriptor?
     get() {
-        val header = classHeader
-        if (!header.metadataVersion.isCompatible()) return null
-
-        return when (header.kind) {
-            KotlinClassHeader.Kind.FILE_FACADE, KotlinClassHeader.Kind.MULTIFILE_CLASS_PART -> {
-                // TODO: avoid reading and parsing metadata twice (here and later in KPackageImpl#descriptor)
-                val (nameResolver, proto) = JvmProtoBufUtil.readPackageDataFrom(header.data!!, header.strings!!)
-                // If no packageModuleName extension is written, the name is assumed to be JvmAbi.DEFAULT_MODULE_NAME
-                // (see JvmSerializerExtension.serializePackage)
-                if (proto.hasExtension(JvmProtoBuf.packageModuleName))
-                    nameResolver.getString(proto.getExtension(JvmProtoBuf.packageModuleName))
-                else JvmAbi.DEFAULT_MODULE_NAME
-            }
-            KotlinClassHeader.Kind.MULTIFILE_CLASS -> {
-                val partName = header.multifilePartNames.firstOrNull() ?: return null
-                ReflectKotlinClass.create(klass.classLoader.loadClass(partName.replace('/', '.')))?.packageModuleName
-            }
+        val descriptor = descriptor
+        val propertyIfAccessor = propertyIfAccessor
+        return when {
+            propertyIfAccessor.overriddenStorage.isFakeOverride ->
+                if (propertyIfAccessor.isStatic) null
+                else (this.container as? KClassImpl<*>)?.descriptor?.thisAsReceiverParameter
+            descriptor is ConstructorDescriptor -> descriptor.dispatchReceiverParameter
+            descriptor.dispatchReceiverParameter != null -> (descriptor.containingDeclaration as ClassDescriptor).thisAsReceiverParameter
             else -> null
         }
     }
 
+internal fun <M : MessageLite, D : CallableDescriptor> deserializeToDescriptor(
+    moduleAnchor: Class<*>,
+    containerSource: DeserializedContainerSource?,
+    proto: M,
+    nameResolver: NameResolver,
+    typeTable: TypeTable,
+    metadataVersion: BinaryVersion,
+    createDescriptor: MemberDeserializer.(M) -> D
+): D {
+    val moduleData = moduleAnchor.getOrCreateModule()
+
+    val typeParameters = when (proto) {
+        is ProtoBuf.Function -> proto.typeParameterList
+        is ProtoBuf.Property -> proto.typeParameterList
+        else -> error("Unsupported message: $proto")
+    }
+
+    val context = DeserializationContext(
+        moduleData.deserialization, nameResolver, moduleData.module, typeTable, VersionRequirementTable.EMPTY, metadataVersion,
+        containerSource, parentTypeDeserializer = null, typeParameters,
+    )
+    return MemberDeserializer(context).createDescriptor(proto)
+}
+
+internal class LocalDelegatedPropertyFakeContainerSource(val container: KDeclarationContainerImpl) : DeserializedContainerSource {
+    override val incompatibility: IncompatibleVersionErrorData<*>? get() = null
+    override val preReleaseInfo: PreReleaseInfo get() = PreReleaseInfo.DEFAULT_VISIBLE
+    override val abiStability: DeserializedContainerAbiStability get() = DeserializedContainerAbiStability.STABLE
+    override val presentableString: String get() = "${this::class.java.simpleName}: $container"
+    override fun getContainingFile(): SourceFile = SourceFile.NO_SOURCE_FILE
+}
+
+internal val KType.isInlineClassType: Boolean
+    get() = (classifier as? KClassImpl<*>)?.isJvmInlineValue == true
+
+internal fun defaultPrimitiveValue(type: Type): Any? =
+    if (type is Class<*> && type.isPrimitive) {
+        when (type) {
+            Boolean::class.java -> false
+            Char::class.java -> 0.toChar()
+            Byte::class.java -> 0.toByte()
+            Short::class.java -> 0.toShort()
+            Int::class.java -> 0
+            Float::class.java -> 0f
+            Long::class.java -> 0L
+            Double::class.java -> 0.0
+            Void.TYPE -> throw IllegalStateException("Parameter with void type is illegal")
+            else -> throw UnsupportedOperationException("Unknown primitive: $type")
+        }
+    } else null
+
+internal class CreateNonConstructorKCallableVisitor(container: KDeclarationContainerImpl) : CreateKCallableVisitor(container) {
+    override fun visitConstructorDescriptor(descriptor: ConstructorDescriptor, data: Unit): DescriptorKCallable<*> =
+        throw IllegalStateException("No constructors should appear here: $descriptor")
+}
+
+internal open class CreateKCallableVisitor(private val container: KDeclarationContainerImpl) : CreateKFunctionVisitor(container) {
+    override fun visitPropertyDescriptor(descriptor: PropertyDescriptor, data: Unit): DescriptorKCallable<*> {
+        val receiverCount =
+            if (descriptor.contextReceiverParameters.isNotEmpty())
+                -1
+            else
+                (descriptor.dispatchReceiverParameter?.let { 1 } ?: 0) + (descriptor.extensionReceiverParameter?.let { 1 } ?: 0)
+
+        val boundReceiver = CallableReference.NO_RECEIVER
+        val overriddenStorage = KCallableOverriddenStorage.EMPTY
+        when {
+            descriptor.isVar -> when (receiverCount) {
+                -1 -> return DescriptorKMutablePropertyN<Any?>(container, descriptor, boundReceiver, overriddenStorage)
+                0 -> return DescriptorKMutableProperty0<Any?>(container, descriptor, boundReceiver, overriddenStorage)
+                1 -> return DescriptorKMutableProperty1<Any?, Any?>(container, descriptor, boundReceiver, overriddenStorage)
+                2 -> return DescriptorKMutableProperty2<Any?, Any?, Any?>(container, descriptor, boundReceiver, overriddenStorage)
+            }
+            else -> when (receiverCount) {
+                -1 -> return DescriptorKPropertyN<Any?>(container, descriptor, boundReceiver, overriddenStorage)
+                0 -> return DescriptorKProperty0<Any?>(container, descriptor, boundReceiver, overriddenStorage)
+                1 -> return DescriptorKProperty1<Any?, Any?>(container, descriptor, boundReceiver, overriddenStorage)
+                2 -> return DescriptorKProperty2<Any?, Any?, Any?>(container, descriptor, boundReceiver, overriddenStorage)
+            }
+        }
+
+        throw KotlinReflectionInternalError("Unsupported property: $descriptor")
+    }
+}
+
+internal open class CreateKFunctionVisitor(private val container: KDeclarationContainerImpl) :
+    DeclarationDescriptorVisitorEmptyBodies<DescriptorKCallable<*>, Unit>() {
+    override fun visitFunctionDescriptor(descriptor: FunctionDescriptor, data: Unit): DescriptorKCallable<*> =
+        DescriptorKFunction(container, descriptor)
+}
+
+internal fun Class<*>.getDeclaredMethodOrNull(name: String, vararg parameterTypes: Class<*>): Method? =
+    try {
+        getDeclaredMethod(name, *parameterTypes)
+    } catch (e: NoSuchMethodException) {
+        null
+    }
+
+internal fun Class<*>.getDeclaredFieldOrNull(name: String, isStatic: Boolean): Field? {
+    fun Class<*>.lookup(name: String): Field? =
+        try {
+            getDeclaredField(name)
+        } catch (e: NoSuchFieldException) {
+            null
+        }
+
+    lookup(name)?.let { return it }
+    if (isInterface && isStatic) {
+        val classLoader = safeClassLoader
+        classLoader.tryLoadClass(this.name + "$" + JvmAbi.INTERFACE_PRIVATE_FIELDS1_CLASS_NAME)
+            ?.lookup(name)?.let { return it }
+        classLoader.tryLoadClass(this.name + "$" + JvmAbi.INTERFACE_PRIVATE_FIELDS2_CLASS_NAME)
+            ?.lookup(name)?.let { return it }
+    }
+    return null
+}
+
+/**
+ * Returns `true` if this type allows `null` values. Based on `TypeUtils.isNullableType` (K1), `ConeKotlinType.canBeNull` (K2).
+ */
+internal fun KType.isNullableType(): Boolean {
+    if (isMarkedNullable) return true
+
+    val upperBound = (this as AbstractKType).upperBoundIfFlexible()
+    if (upperBound != null && upperBound.isNullableType()) return true
+
+    if (isDefinitelyNotNullType) return false
+
+    val classifier = classifier
+    return classifier is KTypeParameter && classifier.upperBounds.any { it.isNullableType() }
+}
+
+internal class FunctionJvmDescriptor(val parameters: List<String>, val returnType: String)
+
+internal fun parseJvmDescriptor(desc: String): FunctionJvmDescriptor {
+    val parameterTypes = arrayListOf<String>()
+
+    var begin = 1
+    while (desc[begin] != ')') {
+        var end = begin
+        while (desc[end] == '[') end++
+        @Suppress("SpellCheckingInspection")
+        when (desc[end]) {
+            in "VZCBSIFJD" -> end++
+            'L' -> end = desc.indexOf(';', begin) + 1
+            else -> throw KotlinReflectionInternalError("Unknown type prefix in the method signature: $desc")
+        }
+
+        parameterTypes.add(desc.substring(begin, end))
+        begin = end
+    }
+
+    val returnType = desc.substring(begin + 1)
+
+    return FunctionJvmDescriptor(parameterTypes, returnType)
+}
+
+/**
+ * Returns JVM descriptor, assuming that given KClass is not primitive or array
+ */
+internal fun KClass<*>.toJvmDescriptor(): String = "L${jvmName.replace('.', '/')};"
+
+internal val KParameter.isAlwaysBoxedByCompiler: Boolean
+    get() {
+        return this is ReflectKParameter && declaresDefaultValue && type.isInlineClassType &&
+                generateSequence(type) { it.unsubstitutedUnderlyingType() }.drop(1).any { it.isNullableType() }
+    }
+
+internal fun KType.unsubstitutedUnderlyingType(): KType? =
+    (classifier as? KClassImpl<*>)?.inlineClassUnderlyingType
+
+internal class FunctionJvmDescriptorLoaded(val parameters: List<Class<*>>, val returnType: Class<*>?)
+
+internal fun ClassLoader.parseAndLoadDescriptor(desc: String, loadReturnType: Boolean): FunctionJvmDescriptorLoaded {
+    val descriptor = parseJvmDescriptor(desc)
+
+    return FunctionJvmDescriptorLoaded(
+        descriptor.parameters.map { parseAndLoadType(it) },
+        if (loadReturnType) parseAndLoadType(descriptor.returnType) else null
+    )
+}
+
+private fun ClassLoader.parseAndLoadType(desc: String, begin: Int = 0, end: Int = desc.length): Class<*> =
+    when (desc[begin]) {
+        'L' -> {
+            val fqName = desc.substring(begin + 1, end - 1).replace('/', '.')
+            tryLoadClassOrFallbackToStdlib(fqName) ?: throw ClassNotFoundException(fqName)
+        }
+        '[' -> parseAndLoadType(desc, begin + 1, end).createArrayType()
+        'V' -> Void.TYPE
+        'Z' -> Boolean::class.java
+        'C' -> Char::class.java
+        'B' -> Byte::class.java
+        'S' -> Short::class.java
+        'I' -> Int::class.java
+        'F' -> Float::class.java
+        'J' -> Long::class.java
+        'D' -> Double::class.java
+        else -> throw KotlinReflectionInternalError("Unknown type prefix in the method signature: $desc")
+    }
+
+internal val Int.isPackagePrivate: Boolean
+    get() = !Modifier.isPublic(this) && !Modifier.isProtected(this) && !Modifier.isPrivate(this)

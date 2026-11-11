@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: test/JavaClass.java
 
 package test;
@@ -18,3 +19,5 @@ fun test() {
     JavaClass.field
     JavaClass.method()
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaProperty */

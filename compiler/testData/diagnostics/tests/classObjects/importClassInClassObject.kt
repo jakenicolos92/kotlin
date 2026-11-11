@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package f
 
 import f.A.Companion.B
@@ -9,3 +10,5 @@ class A {
 }
 
 fun test() = B()
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, nestedClass, objectDeclaration */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class My(var x: String) {
 
     var y: String
@@ -15,12 +16,15 @@ class My(var x: String) {
     val z1: String
 
     init {
-        <!DEBUG_INFO_LEAKING_THIS!>d<!> = "d"
-        if (<!DEBUG_INFO_LEAKING_THIS!>d<!> != "") z1 = this.<!DEBUG_INFO_LEAKING_THIS!>d<!> else z1 = <!DEBUG_INFO_LEAKING_THIS!>d<!>
+        d = "d"
+        if (d != "") z1 = this.d else z1 = d
 
         // Dangerous: setter!
-        <!DEBUG_INFO_LEAKING_THIS!>y<!> = "x"
+        y = "x"
         // Dangerous: getter!
-        if (<!DEBUG_INFO_LEAKING_THIS!>y<!> != "") z = this.<!DEBUG_INFO_LEAKING_THIS!>y<!> else z = <!DEBUG_INFO_LEAKING_THIS!>y<!>
+        if (y != "") z = this.y else z = y
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, equalityExpression, getter, ifExpression, init, primaryConstructor,
+propertyDeclaration, setter, stringLiteral, thisExpression */

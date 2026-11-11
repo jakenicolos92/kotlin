@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 496
 // MODULE: lib
 // FILE: lib.kt
 
@@ -17,8 +16,6 @@ public fun log(s: String): String {
 // FILE: main.kt
 
 import utils.*
-
-// CHECK_CONTAINS_NO_CALLS: test
 
 internal fun test(s: String): String = log(s + ";")
 

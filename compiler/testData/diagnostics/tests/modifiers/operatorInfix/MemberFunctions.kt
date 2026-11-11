@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER, -EXTENSION_SHADOWED_BY_MEMBER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER, -EXTENSION_SHADOWED_BY_MEMBER
 
 class Example {
     operator infix fun plus(other: Example) = 0
@@ -21,25 +22,29 @@ fun a() {
     a + b
     a - b
     a * b
-    a <!OPERATOR_MODIFIER_REQUIRED!>/<!> b
+    a <!NONE_APPLICABLE!>/<!> b
 
     a plus b
     a minus b
     a times b
-    a <!INFIX_MODIFIER_REQUIRED!>div<!> b
+    a <!NONE_APPLICABLE!>div<!> b
 
     with (Example()) {
         consumeInt(this + a)
         consumeString(this - b)
         consumeInt(this * a)
-        consumeInt(this <!OPERATOR_MODIFIER_REQUIRED!>/<!> b)
+        consumeInt(this <!NONE_APPLICABLE!>/<!> b)
 
         consumeInt(this plus a)
         consumeString(this minus b)
         consumeInt(this times a)
-        consumeInt(this <!INFIX_MODIFIER_REQUIRED!>div<!> b)
+        consumeInt(this <!NONE_APPLICABLE!>div<!> b)
     }
 }
 
 fun consumeInt(i: Int) {}
 fun consumeString(s: String) {}
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, funWithExtensionReceiver, functionDeclaration, infix,
+integerLiteral, lambdaLiteral, localProperty, multiplicativeExpression, operator, propertyDeclaration, stringLiteral,
+thisExpression */

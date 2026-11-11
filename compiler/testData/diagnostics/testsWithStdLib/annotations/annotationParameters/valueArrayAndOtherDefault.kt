@@ -1,3 +1,6 @@
+// RUN_PIPELINE_TILL: FRONTEND
+// LATEST_LV_DIFFERENCE
+
 // FILE: A.java
 public @interface A {
     String[] value();
@@ -22,6 +25,8 @@ public @interface A {
 
 @A fun test8() {}
 
-@A(x = Any::class, <!MIXING_NAMED_AND_POSITIONED_ARGUMENTS!>*arrayOf("5", "6")<!>, <!MIXING_NAMED_AND_POSITIONED_ARGUMENTS!>"7"<!>, y = 3) fun test9() {}
-@A(x = Any::class, value = *arrayOf("5", "6"), <!MIXING_NAMED_AND_POSITIONED_ARGUMENTS!>"7"<!>, y = 3) fun test10() {}
-@A(x = Any::class, value = *arrayOf("5", "6", "7"), y = 3) fun test11() {}
+@A(x = Any::class, <!MIXING_NAMED_AND_POSITIONAL_ARGUMENTS!>*arrayOf("5", "6")<!>, <!MIXING_NAMED_AND_POSITIONAL_ARGUMENTS!>"7"<!>, y = 3) fun test9() {}
+@A(x = Any::class, value = ["5", "6"], <!MIXING_NAMED_AND_POSITIONAL_ARGUMENTS, POSITIONED_VALUE_ARGUMENT_FOR_JAVA_ANNOTATION!>"7"<!>, y = 3) fun test10() {}
+@A(x = Any::class, value = ["5", "6", "7"], y = 3) fun test11() {}
+
+/* GENERATED_FIR_TAGS: classReference, collectionLiteral, functionDeclaration, integerLiteral, javaType, stringLiteral */

@@ -1,0 +1,134 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.analysis.api.fir.types.qualifiers
+
+import org.jetbrains.kotlin.analysis.api.fir.KaSymbolByFirBuilder
+import org.jetbrains.kotlin.analysis.api.fir.types.KaFirResolvedClassTypeQualifier
+import org.jetbrains.kotlin.analysis.api.types.KaResolvedClassTypeQualifier
+import org.jetbrains.kotlin.analysis.api.types.KaTypeProjection
+import org.jetbrains.kotlin.analysis.low.level.api.fir.util.errorWithFirSpecificEntries
+import org.jetbrains.kotlin.fir.containingClassForLocal
+import org.jetbrains.kotlin.fir.declarations.*
+import org.jetbrains.kotlin.fir.declarations.utils.isInner
+import org.jetbrains.kotlin.fir.resolve.getContainingClassSymbol
+import org.jetbrains.kotlin.fir.resolve.toRegularClassSymbol
+import org.jetbrains.kotlin.fir.resolve.toSymbol
+import org.jetbrains.kotlin.fir.types.ConeClassLikeTypeImpl
+import org.jetbrains.kotlin.fir.utils.exceptions.withFirEntry
+import org.jetbrains.kotlin.utils.exceptions.checkWithAttachment
+
+internal object UsualClassTypeQualifierBuilder {
+    fun buildQualifiers(
+        coneType: ConeClassLikeTypeImpl,
+        builder: KaSymbolByFirBuilder
+    ): List<KaResolvedClassTypeQualifier> {
+        val coneTypeClassSymbol = coneType.lookupTag.toSymbol(builder.rootSession)
+            ?: errorWithFirSpecificEntries("ConeClassLikeTypeImpl is not resolved to symbol for on-error type", coneType = coneType) {
+                withEntry("useSiteSession", builder.rootSession) { it.toString() }
+            }
+
+        val designation = coneTypeClassSymbol.fir.let {
+            if (it.isLocal) collectDesignationPathForLocal(it) else collectDesignationPathForNonLocal(it)
+        }
+
+        /**
+         * Returns a number of own type parameters for [this].
+         * In general, it should only count [FirTypeParameter], i.e., type parameters that are declared right on this class.
+         * [FirOuterClassTypeParameterRef] and [FirConstructedClassTypeParameterRef] should be ignored.
+         */
+        fun FirClassLikeDeclaration.numberOfOwnParameters() = typeParameters.count { it is FirTypeParameter }
+
+        /**
+         * Type arguments are only rendered for the type's own class and for the chain of its `inner` containers,
+         * as only those may have type arguments in a qualified type reference.
+         */
+        val firstDesignationToRegisterTypeArguments = designation.indexOfLast { !it.isInner }
+
+        val ownTypeParametersCountsByDesignation = designation.mapIndexed { index, designationClass ->
+            if (index >= firstDesignationToRegisterTypeArguments) designationClass.numberOfOwnParameters() else 0
+        }
+
+        /**
+         * A local or inner class owns the type parameters of its containers on top of its own ones,
+         * see [org.jetbrains.kotlin.fir.builder.Context.appendOuterTypeParameters].
+         * The cone type has an argument for each of them, ordered from the innermost declaration outwards.
+         * The arguments the designation accounts for are the leading ones, defined by [ownTypeParametersCountsByDesignation];
+         * the rest are arguments of designation parts that do not render arguments, plus parameters captured from containing *functions*,
+         * so they are cut off right away.
+         *
+         * Note that type parameters of outer functions are always properly ignored for local declarations.
+         * That's because `ownTypeParametersCountsByDesignation.sum()` is a number of type parameters from the end class itself
+         * as well as from the `inner` class containers, see [firstDesignationToRegisterTypeArguments].
+         * For local declarations, designation calculation stops at the first class that doesn't have a direct class parent:
+         * ```kotlin
+         * class A<AA> {
+         *     fun <FOO> foo() {
+         *         class B<BB> {
+         *             inner class C<CC> {
+         *                 val r<caret>ef: C<Int>? = null
+         *             }
+         *         }
+         *     }
+         * }
+         * ```
+         *
+         * In this case, `coneType.typeArguments` is `[Int, BB, FOO, AA]`, and there are designations `[B, C]`
+         * Each of these designation classes has a single own type parameter, so [restTypeArguments] is `[Int, BB]`
+         */
+        var restTypeArguments = coneType.typeArguments.asList().take(ownTypeParametersCountsByDesignation.sum())
+
+        // The designation is ordered outermost-first and the arguments innermost-first, so every part takes its own
+        // ones from the back of what is left.
+        fun takeTypeArguments(count: Int): List<KaTypeProjection> {
+            if (count == 0 || restTypeArguments.isEmpty()) return emptyList()
+            val taken = restTypeArguments.takeLast(count)
+            restTypeArguments = restTypeArguments.dropLast(count)
+            return taken.map { builder.typeBuilder.buildTypeProjection(it) }
+        }
+
+        return designation.mapIndexed { index, currentClass ->
+            KaFirResolvedClassTypeQualifier(
+                builder.classifierBuilder.buildClassifierSymbol(currentClass.symbol),
+                takeTypeArguments(ownTypeParametersCountsByDesignation[index]),
+            )
+        }
+    }
+
+    /**
+     * Returns the chain of containing classes of the non-local [declaration] ordered outermost-first, [declaration] included.
+     */
+    private fun collectDesignationPathForNonLocal(declaration: FirClassLikeDeclaration): List<FirClassLikeDeclaration> =
+        generateSequence(declaration.symbol) { it.getContainingClassSymbol() }.map { it.fir }.toList().asReversed()
+
+    private fun FirClassLikeDeclaration.collectForLocal(): List<FirClassLikeDeclaration> {
+        require(isLocal)
+        var containingClassLookUp = containingClassForLocal()
+        val designation = mutableListOf(this)
+        var currentClass = containingClassLookUp?.toRegularClassSymbol(moduleData.session)?.fir
+
+        while (containingClassLookUp != null && currentClass?.isLocal == true) {
+            designation.add(currentClass)
+            containingClassLookUp = currentClass.containingClassForLocal()
+            currentClass = containingClassLookUp?.toRegularClassSymbol(moduleData.session)?.fir
+        }
+        return designation.asReversed()
+    }
+
+    private fun collectDesignationPathForLocal(declaration: FirClassLikeDeclaration): List<FirClassLikeDeclaration> {
+        checkWithAttachment(
+            declaration.isLocal,
+            message = { "${declaration::class} is not local" }
+        ) {
+            withFirEntry("firDeclaration", declaration)
+        }
+        return when (declaration) {
+            is FirAnonymousObject -> listOf(declaration)
+            is FirRegularClass,
+            is FirTypeAlias
+                -> declaration.collectForLocal()
+        }
+    }
+}

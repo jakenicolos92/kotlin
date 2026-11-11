@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 import kotlin.jvm.*
 
 interface Base {
@@ -7,3 +8,5 @@ interface Base {
 class Derived : Base {
     override external fun foo()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, external, functionDeclaration, interfaceDeclaration, override */

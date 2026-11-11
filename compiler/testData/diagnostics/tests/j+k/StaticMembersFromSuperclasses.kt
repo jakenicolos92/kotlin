@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Aaa.java
 // http://youtrack.jetbrains.com/issue/KT-1880
 
@@ -14,3 +15,5 @@ public class Bbb extends Aaa {
 // FILE: b.kt
 
 fun foo() = Bbb.i
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaProperty */

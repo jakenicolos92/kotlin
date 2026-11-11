@@ -1,3 +1,6 @@
+// IGNORE_BACKEND: ANY
+// FIR status: KT-46419, ILT conversions to Byte and Short are not supported by design
+
 val test1: Long = 42
 val test2: Short = 42
 val test3: Byte = 42

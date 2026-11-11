@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface T1 {
     fun foo()
 }
@@ -6,7 +7,7 @@ enum class EnumImplementingTraitWithFun: T1 {
     E1 {
         override fun foo() {}
     },
-    <!ABSTRACT_MEMBER_NOT_IMPLEMENTED!>E2<!>
+    <!ABSTRACT_MEMBER_NOT_IMPLEMENTED_BY_ENUM_ENTRY!>E2<!>
 }
 
 interface T2 {
@@ -17,5 +18,7 @@ enum class EnumImplementingTraitWithVal: T2 {
     E1 {
         override val bar = 1
     },
-    <!ABSTRACT_MEMBER_NOT_IMPLEMENTED!>E2<!>
+    <!ABSTRACT_MEMBER_NOT_IMPLEMENTED_BY_ENUM_ENTRY!>E2<!>
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, functionDeclaration, interfaceDeclaration, propertyDeclaration */

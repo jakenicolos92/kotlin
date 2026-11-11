@@ -1,10 +1,10 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
-suspend fun foo(value: String): String = suspendCoroutineOrReturn { x ->
+suspend fun foo(value: String): String = suspendCoroutineUninterceptedOrReturn { x ->
     x.resume(value)
     COROUTINE_SUSPENDED
 }

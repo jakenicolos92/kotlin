@@ -1,14 +1,14 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 suspend fun foo(x: Any): Int {
     return if (x == "56") suspendHere() else 13
 }
 
-suspend fun suspendHere(): Int = suspendCoroutineOrReturn { x ->
+suspend fun suspendHere(): Int = suspendCoroutineUninterceptedOrReturn { x ->
     x.resume(56)
     COROUTINE_SUSPENDED
 }

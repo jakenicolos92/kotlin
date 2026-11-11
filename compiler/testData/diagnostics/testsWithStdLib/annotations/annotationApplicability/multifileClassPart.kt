@@ -1,7 +1,8 @@
+// RUN_PIPELINE_TILL: CODEGEN
 @file:JvmName("MultifileClass")
 @file:JvmMultifileClass
-<!ANNOTATION_IS_NOT_APPLICABLE_TO_MULTIFILE_CLASSES!>@file:FileAnn<!>
-<!ANNOTATION_IS_NOT_APPLICABLE_TO_MULTIFILE_CLASSES!>@file:FileBinaryAnn<!>
+@file:FileAnn
+@file:FileBinaryAnn
 @file:FileSourceAnn
 
 @Target(AnnotationTarget.FILE)
@@ -16,4 +17,4 @@ public annotation class FileBinaryAnn
 @Retention(AnnotationRetention.SOURCE)
 public annotation class FileSourceAnn
 
-
+/* GENERATED_FIR_TAGS: annotationDeclaration, annotationUseSiteTargetFile, stringLiteral */

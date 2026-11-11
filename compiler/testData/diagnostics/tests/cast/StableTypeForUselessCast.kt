@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 interface I1
 interface I2
@@ -12,3 +13,6 @@ fun bar(i: I1) {
         foo(i as I2)
     }
 }
+
+/* GENERATED_FIR_TAGS: asExpression, functionDeclaration, ifExpression, interfaceDeclaration, intersectionType,
+isExpression, smartcast */

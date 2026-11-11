@@ -1,6 +1,8 @@
+// WITH_KOTLIN_JVM_ANNOTATIONS
+// TARGET_BACKEND: JVM
 package test
 
-import org.jetbrains.annotations.*
+import kotlin.annotations.jvm.*
 
 public interface LoadIterableWithNullability<T> {
     @Mutable

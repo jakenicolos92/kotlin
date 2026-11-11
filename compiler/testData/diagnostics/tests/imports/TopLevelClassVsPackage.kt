@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // MODULE: m1
 // FILE: a.kt
 package a
@@ -66,3 +67,5 @@ fun test3(_a: a) {
 
     _fun()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, localProperty, nestedClass, propertyDeclaration */

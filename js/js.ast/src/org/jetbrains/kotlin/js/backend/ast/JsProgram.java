@@ -4,20 +4,13 @@
 
 package org.jetbrains.kotlin.js.backend.ast;
 
-import gnu.trove.TDoubleObjectHashMap;
-import gnu.trove.THashMap;
-import gnu.trove.TIntObjectHashMap;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.kotlin.js.backend.ast.JsNumberLiteral.JsDoubleLiteral;
-import org.jetbrains.kotlin.js.backend.ast.JsNumberLiteral.JsIntLiteral;
-
-import java.util.Map;
 
 /**
  * A JavaScript program.
  */
 public final class JsProgram extends SourceInfoAwareJsNode {
-    private final JsGlobalBlock globalBlock = new JsGlobalBlock();
+    private final JsCompositeBlock globalBlock = new JsCompositeBlock();
 
     private final JsRootScope rootScope;
     private final JsObjectScope topScope;
@@ -27,16 +20,8 @@ public final class JsProgram extends SourceInfoAwareJsNode {
         topScope = new JsObjectScope(rootScope, "Global");
     }
 
-    public JsGlobalBlock getGlobalBlock() {
+    public JsCompositeBlock getGlobalBlock() {
         return globalBlock;
-    }
-
-    public JsNumberLiteral getNumberLiteral(double value) {
-        return new JsDoubleLiteral(value);
-    }
-
-    public JsNumberLiteral getNumberLiteral(int value) {
-        return new JsIntLiteral(value);
     }
 
     /**
@@ -54,14 +39,6 @@ public final class JsProgram extends SourceInfoAwareJsNode {
      */
     public JsObjectScope getScope() {
         return topScope;
-    }
-
-    /**
-     * Creates or retrieves a JsStringLiteral from an interned object pool.
-     */
-    @NotNull
-    public JsStringLiteral getStringLiteral(String value) {
-        return new JsStringLiteral(value);
     }
 
     @Override

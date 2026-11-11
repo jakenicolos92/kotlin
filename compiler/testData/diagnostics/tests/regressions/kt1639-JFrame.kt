@@ -1,9 +1,15 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// FULL_JDK
+
 package test
 
 import javax.swing.JFrame
 
 class KFrame() : JFrame() {
     init {
-        val <!UNUSED_VARIABLE!>x<!> = this.rootPaneCheckingEnabled // make sure field is visible
+        val x = this.rootPaneCheckingEnabled // make sure field is visible
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, init, javaProperty, localProperty, primaryConstructor, propertyDeclaration,
+thisExpression */

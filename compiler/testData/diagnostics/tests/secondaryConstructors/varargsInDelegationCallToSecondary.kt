@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 fun <T> array(vararg x: T): Array<T> = null!!
 
 open class B(x: Int) {
@@ -15,3 +16,7 @@ val b1 = B()
 val b2 = B("1", "2", "3")
 val b3 = B("1", *array("2", "3"), "4")
 val b4 = B(1)
+
+/* GENERATED_FIR_TAGS: capturedType, checkNotNullCall, classDeclaration, functionDeclaration, integerLiteral,
+nullableType, outProjection, primaryConstructor, propertyDeclaration, secondaryConstructor, stringLiteral, typeParameter,
+vararg */

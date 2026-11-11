@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 abstract class Base {
     final override fun equals(other: Any?) = false
     final override fun hashCode() = 42
@@ -14,3 +15,6 @@ interface AbstractAnyMembers {
 }
 
 data class Data2(val field: String): Base(), AbstractAnyMembers
+
+/* GENERATED_FIR_TAGS: classDeclaration, data, functionDeclaration, integerLiteral, interfaceDeclaration, nullableType,
+operator, override, primaryConstructor, propertyDeclaration, stringLiteral */

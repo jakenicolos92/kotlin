@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/MultiMap.java
 
 package p;
@@ -22,3 +23,6 @@ fun test() {
     val set1 = map.entrySet()!!
     set1.iterator()
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, flexibleType, functionDeclaration, javaFunction, javaType, localProperty,
+propertyDeclaration */

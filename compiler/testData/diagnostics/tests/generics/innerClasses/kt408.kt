@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 interface T<E> {
     fun f() : E = null!!
 }
@@ -10,3 +11,6 @@ fun test() {
     val a = A<Int>()
     val b : A<Int>.B = a.B()
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, functionDeclaration, inner, interfaceDeclaration,
+localProperty, nullableType, primaryConstructor, propertyDeclaration, typeParameter */

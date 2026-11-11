@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // KT-557 Wrong type inference near sure extension function
 
 fun <T : Any> T?.sure() : T = this!!
@@ -7,5 +8,8 @@ fun Array<String>.length() : Int {
 }
 
 fun test(array : Array<String?>?) {
-    <!TYPE_MISMATCH!>array?.sure<Array<String?>>()<!>.length()
+    array?.sure<Array<String?>>().<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>length<!>()
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, funWithExtensionReceiver, functionDeclaration, integerLiteral, nullableType,
+safeCall, thisExpression, typeConstraint, typeParameter */

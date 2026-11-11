@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun test() {
     <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
     <!CONFLICTING_OVERLOADS!>fun test1()<!> {}
@@ -211,3 +212,7 @@ val obj = object {
         return 0
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+getter, init, integerLiteral, localClass, localFunction, objectDeclaration, primaryConstructor, propertyDeclaration,
+secondaryConstructor, stringLiteral */

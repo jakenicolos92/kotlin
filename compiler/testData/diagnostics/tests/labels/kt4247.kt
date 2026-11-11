@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-4247 LABEL_NAME_CLASH
 
 fun foo(bar1: (String.() -> Int) -> Int) {
@@ -9,3 +10,5 @@ fun foo(bar1: (String.() -> Int) -> Int) {
         this@bar1.length
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, lambdaLiteral, thisExpression, typeWithExtension */

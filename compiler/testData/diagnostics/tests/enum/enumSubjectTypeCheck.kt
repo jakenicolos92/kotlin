@@ -1,25 +1,26 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // See KT-14705
 
-enum class En { A, B, С }
+enum class En { A, B, C }
 
 fun foo() {
     // nullable variable
     val en2: Any? = En.A
     if (en2 is En) {
-        when (<!DEBUG_INFO_SMARTCAST!>en2<!>) {
+        when (en2) {
             En.A -> {}
             En.B -> {}
-            En.С -> {}
+            En.C -> {}
         }
     }
 
     // not nullable variable
     val en1: Any = En.A
     if (en1 is En) {
-        when (<!DEBUG_INFO_SMARTCAST!>en1<!>) {
+        when (en1) {
             En.A -> {}
             En.B -> {}
-            En.С -> {}
+            En.C -> {}
         }
     }
 }
@@ -30,11 +31,15 @@ fun useEn(x: En) = x
 fun useEn2(x: En2) = x
 
 fun bar(x: Any) {
-    if (x is En && x is En2) {
-        when (<!DEBUG_INFO_SMARTCAST!>x<!>) {
-            En.A -> useEn(<!DEBUG_INFO_SMARTCAST!>x<!>)
-            En2.D -> useEn2(<!DEBUG_INFO_SMARTCAST!>x<!>)
+    if (x is En && <!IMPOSSIBLE_IS_CHECK_WARNING!>x is En2<!>) {
+        when (x) {
+            En.A -> useEn(x)
+            En2.D -> useEn2(x)
             else -> {}
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: andExpression, enumDeclaration, enumEntry, equalityExpression, functionDeclaration, ifExpression,
+intersectionType, isExpression, localProperty, nullableType, propertyDeclaration, smartcast, whenExpression,
+whenWithSubject */

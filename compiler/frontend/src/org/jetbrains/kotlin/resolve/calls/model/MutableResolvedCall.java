@@ -16,6 +16,8 @@
 
 package org.jetbrains.kotlin.resolve.calls.model;
 
+import kotlin.Unit;
+import kotlin.jvm.functions.Function0;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.descriptors.CallableDescriptor;
@@ -42,6 +44,10 @@ public interface MutableResolvedCall<D extends CallableDescriptor> extends Resol
 
     void markCallAsCompleted();
 
+    void addRemainingTasks(Function0<Unit> task);
+
+    void performRemainingTasks();
+
     boolean isCompleted();
 
 
@@ -58,7 +64,7 @@ public interface MutableResolvedCall<D extends CallableDescriptor> extends Resol
 
     void setConstraintSystem(@NotNull ConstraintSystem constraintSystem);
 
-    void setResultingSubstitutor(@NotNull TypeSubstitutor substitutor);
+    void setSubstitutor(@NotNull TypeSubstitutor substitutor);
 
     @Nullable
     TypeSubstitutor getKnownTypeParametersSubstitutor();
@@ -67,4 +73,6 @@ public interface MutableResolvedCall<D extends CallableDescriptor> extends Resol
     boolean hasInferredReturnType();
 
     void setSmartCastDispatchReceiverType(@NotNull KotlinType smartCastDispatchReceiverType);
+
+    void updateExtensionReceiverWithSmartCastIfNeeded(@NotNull KotlinType smartCastExtensionReceiverType);
 }

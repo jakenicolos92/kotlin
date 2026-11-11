@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface Foo<T>
 interface Bar<T>
 
@@ -11,3 +12,6 @@ fun box(): String {
     val baz = Baz<String>()
     return baz.bip()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, interfaceDeclaration,
+localProperty, nullableType, propertyDeclaration, stringLiteral, typeConstraint, typeParameter */

@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: CharBuffer.java
 
 public class CharBuffer implements CharSequence {
@@ -20,3 +22,5 @@ fun test(cb: CharBuffer) {
     cb.get(0)
     (cb as CharSequence).get(0)
 }
+
+/* GENERATED_FIR_TAGS: asExpression, functionDeclaration, integerLiteral, javaFunction, javaType */

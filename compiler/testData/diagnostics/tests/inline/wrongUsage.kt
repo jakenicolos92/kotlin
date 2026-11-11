@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE -NOTHING_TO_INLINE -USELESS_ELVIS
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE -NOTHING_TO_INLINE -USELESS_ELVIS
 
 inline fun inlineFunWrongUsage(s: (p: Int) -> Unit) {
     <!USAGE_IS_NOT_INLINABLE!>s<!>
@@ -49,3 +50,6 @@ inline fun inlineFunNoInline(noinline ext: Int.(p: Int) -> Unit) {
 
     ext ?: ext
 }
+
+/* GENERATED_FIR_TAGS: elvisExpression, functionDeclaration, functionalType, ifExpression, inline, integerLiteral,
+lambdaLiteral, noinline, smartcast, typeWithExtension */

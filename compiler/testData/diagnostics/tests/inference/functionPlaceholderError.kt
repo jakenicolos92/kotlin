@@ -1,6 +1,9 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 package a
+
+import checkSubtype
 
 fun <T> emptyList(): List<T> = throw Exception()
 
@@ -10,5 +13,8 @@ fun test() {
     val q = foo(fun Int.() {}, emptyList()) //type inference no information for parameter error
     checkSubtype<Int>(q)
 
-    <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!>({}, <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>emptyList<!>())
+    <!CANNOT_INFER_PARAMETER_TYPE!>foo<!>(<!CANNOT_INFER_PARAMETER_TYPE!>{}<!>, <!CANNOT_INFER_PARAMETER_TYPE!>emptyList<!>())
 }
+
+/* GENERATED_FIR_TAGS: anonymousFunction, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, lambdaLiteral, localProperty, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

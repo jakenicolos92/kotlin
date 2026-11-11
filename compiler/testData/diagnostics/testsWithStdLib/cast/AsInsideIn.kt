@@ -1,9 +1,10 @@
-// See also KT-10386 
+// RUN_PIPELINE_TILL: FRONTEND
+// See also KT-10386
 interface A
 class B : A
 fun foo1(list: List<A>, arg: B?): Boolean {
     // Type mismatch
-    return arg <!TYPE_INFERENCE_ONLY_INPUT_TYPES!>in<!> list // resolved to extension
+    return arg <!TYPE_INFERENCE_ONLY_INPUT_TYPES_ERROR!>in<!> list // resolved to extension
 }
 fun foo2(list: List<A>, arg: B?): Boolean {
     // FAKE: no cast needed
@@ -18,3 +19,6 @@ fun foo4(list: List<A>, arg: B): Boolean {
     // Ok
     return arg in list
 }
+
+/* GENERATED_FIR_TAGS: asExpression, checkNotNullCall, classDeclaration, functionDeclaration, interfaceDeclaration,
+nullableType */

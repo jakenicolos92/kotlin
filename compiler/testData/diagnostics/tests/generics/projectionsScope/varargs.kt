@@ -1,12 +1,16 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 class A<T> {
     fun foo(vararg x: T) {}
 }
 
 fun test(a: A<out CharSequence>, y: Array<out CharSequence>) {
-    a.<!MEMBER_PROJECTED_OUT!>foo<!>("", "", "")
-    a.foo(*<!TYPE_MISMATCH_DUE_TO_TYPE_PROJECTIONS!>y<!>)
+    a.foo(<!MEMBER_PROJECTED_OUT!>""<!>, <!MEMBER_PROJECTED_OUT!>""<!>, <!MEMBER_PROJECTED_OUT!>""<!>)
+    a.foo(*<!ARGUMENT_TYPE_MISMATCH!>y<!>)
     // TODO: TYPE_MISMATCH_DUE_TO_TYPE_PROJECTIONS probably redundant
-    a.<!MEMBER_PROJECTED_OUT!>foo<!>(*<!TYPE_MISMATCH_DUE_TO_TYPE_PROJECTIONS!>y<!>, "")
+    a.foo(*<!ARGUMENT_TYPE_MISMATCH!>y<!>, <!MEMBER_PROJECTED_OUT!>""<!>)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, nullableType, outProjection, stringLiteral, typeParameter,
+vararg */

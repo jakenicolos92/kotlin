@@ -1,0 +1,950 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.scripting.test.repl
+
+import kotlinx.coroutines.runBlocking
+import org.jetbrains.kotlin.codegen.forTestCompile.ForTestCompileRuntime
+import org.jetbrains.kotlin.scripting.test.CapturedHostProperties
+import org.jetbrains.kotlin.scripting.test.SCRIPT_TEST_BASE_COMPILER_ARGUMENTS_PROPERTY
+import org.jetbrains.kotlin.scripting.test.TestTemplateHostConfiguration
+import org.jetbrains.kotlin.scripting.test.captureHostConfigurationOnRefinement
+import org.jetbrains.kotlin.scripting.test.overriddenHostProperty
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.K2ReplCompiler
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.SCRIPT_BASE_COMPILER_ARGUMENTS_PROPERTY
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.convertToFirViaLightTree
+import org.jetbrains.kotlin.scripting.compiler.plugin.impl.withMessageCollectorAndDisposable
+import org.jetbrains.kotlin.scripting.compiler.plugin.services.FirReplHistoryProviderImpl
+import org.jetbrains.kotlin.scripting.compiler.plugin.services.firReplHistoryProvider
+import org.jetbrains.kotlin.scripting.compiler.plugin.services.isReplSnippetSource
+import org.jetbrains.kotlin.scripting.compiler.test.ReplReceiver1
+import org.jetbrains.kotlin.scripting.test.definitions.testScriptDefinitionClasspath
+import org.junit.jupiter.api.Assumptions.abort
+import org.junit.jupiter.api.Test
+import java.io.File
+import kotlin.reflect.KMutableProperty1
+import kotlin.reflect.full.declaredMemberFunctions
+import kotlin.reflect.full.declaredMemberProperties
+import kotlin.script.experimental.api.*
+import kotlin.script.experimental.dependencies.CompoundDependenciesResolver
+import kotlin.script.experimental.dependencies.DependsOn
+import kotlin.script.experimental.dependencies.maven.MavenDependenciesResolver
+import kotlin.script.experimental.host.ScriptingHostConfiguration
+import kotlin.script.experimental.host.configurationDependencies
+import kotlin.script.experimental.host.toScriptSource
+import kotlin.script.experimental.impl.internalScriptingRunSuspend
+import kotlin.script.experimental.jvm.*
+import kotlin.script.experimental.jvm.impl.KJvmCompiledScript
+import kotlin.script.experimental.util.LinkedSnippet
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
+
+val dependenciesResolver = CompoundDependenciesResolver(MavenDependenciesResolver())
+
+class CustomK2ReplTest {
+
+    private val isK2 = System.getProperty(SCRIPT_BASE_COMPILER_ARGUMENTS_PROPERTY)?.contains("-language-version 1.9") != true &&
+            System.getProperty(SCRIPT_TEST_BASE_COMPILER_ARGUMENTS_PROPERTY)?.contains("-language-version 1.9") != true
+
+    @Test
+    fun testExplicitHostConfigurationWinsDuringRefinement() {
+        if (!isK2) return
+        val captured = CapturedHostProperties()
+        val compilationConfiguration = baseCompilationConfiguration.with {
+            hostConfiguration(TestTemplateHostConfiguration())
+            captureHostConfigurationOnRefinement(captured)
+        }
+        val source = "42".toScriptSource("host-configuration.repl.kts")
+        val explicitHostConfiguration = ScriptingHostConfiguration(defaultJvmScriptingHostConfiguration) {
+            repl {
+                firReplHistoryProvider(FirReplHistoryProviderImpl())
+                isReplSnippetSource { _, _ -> true }
+            }
+            overriddenHostProperty("explicit")
+        }
+
+        withMessageCollectorAndDisposable { messageCollector, disposable ->
+            val compiler = K2ReplCompiler(
+                K2ReplCompiler.createCompilationState(messageCollector, disposable, compilationConfiguration, explicitHostConfiguration)
+            )
+            @Suppress("DEPRECATION_ERROR")
+            internalScriptingRunSuspend { compiler.compile(source) }
+        }.valueOrThrow()
+
+        assertEquals("explicit", captured.overriddenHostProperty)
+        assertEquals("template-only", captured.templateOnlyHostProperty)
+    }
+
+    @Test
+    fun testSnippetJvmTargetFromRefinementReachesSession() {
+        if (System.getProperty("java.specification.version").substringAfter("1.").toInt() < 16) {
+            abort<Nothing>("Records need java.lang.Record from the JDK the tests run on")
+        }
+        evalAndCheckSnippetsResultVals(
+            sequenceOf(
+                "@JvmRecord data class R(val x: Int)\nR(1).x",
+                "R(2).x",
+            ),
+            sequenceOf(1, 2),
+            baseCompilationConfiguration.with {
+                refineConfiguration {
+                    beforeCompiling { ctx ->
+                        if (!ctx.script.text.contains("@JvmRecord")) ctx.compilationConfiguration.asSuccess()
+                        else ctx.compilationConfiguration.with { compilerOptions.append("-jvm-target", "17") }.asSuccess()
+                    }
+                }
+            }
+        )
+    }
+
+    @Test
+    fun testSimple() {
+        evalAndCheckSnippetsResultVals(
+            sequenceOf(
+                "val x = 3",
+                "x + 4",
+                "x"
+            ),
+            sequenceOf(
+                null,
+                7,
+                3
+            )
+        )
+    }
+
+    @Test
+    fun testWithImplicitReceiver() {
+        evalAndCheckSnippetsWithReplReceiver1(
+            sequenceOf("val x = ok", "ok", "x"),
+            sequenceOf(null, "OK", "OK"),
+        )
+    }
+
+    @Test
+    fun testWithImplicitReceiverWithShadowing() {
+        evalAndCheckSnippetsWithReplReceiver1(
+            sequenceOf("val ok = 42", "ok"),
+            sequenceOf(null, 42),
+        )
+    }
+
+    @Test
+    fun testWithImplicitReceiverIntExtension() {
+        evalAndCheckSnippetsWithReplReceiver1(
+            sequenceOf(
+                "fun org.jetbrains.kotlin.scripting.compiler.test.ReplReceiver1.foo() = ok.length",
+                "foo()",
+            ),
+            sequenceOf(null, 2),
+        )
+    }
+
+    @Test
+    fun testWithImplicitReceiverExtExtension() {
+        evalAndCheckSnippetsWithReplReceiver1(
+            sequenceOf(
+                "val obj = org.jetbrains.kotlin.scripting.compiler.test.TestReplReceiver1()",
+                "obj.checkReceiver { ok }",
+            ),
+            sequenceOf(null, "OK"),
+        )
+    }
+
+    @Test
+    fun testWithReceiverExtension() {
+        evalAndCheckSnippetsResultVals(
+            sequenceOf(
+                "val obj = org.jetbrains.kotlin.scripting.compiler.test.TestReplReceiver1()",
+                "obj.checkReceiver { ok }",
+            ),
+            sequenceOf(null, "OK"),
+        )
+    }
+
+    @Test
+    fun testWithUpdatingDefaultImports() {
+        evalAndCheckSnippetsResultVals(
+            sequenceOf(
+                "kotlin.random.Random.nextInt(10)/10",
+                "Random.nextInt(10)/10",
+            ),
+            sequenceOf(0, 0),
+            baseCompilationConfiguration.with {
+                refineConfiguration {
+                    beforeCompiling { (val script, val config = compilationConfiguration, val _ = collectedData) ->
+                        config.with {
+                            if (!script.text.contains("kotlin.random.Random")) {
+                                defaultImports("kotlin.random.Random")
+                            }
+                        }.asSuccess()
+                    }
+                }
+            }
+        )
+    }
+
+    @Test
+    fun testWithUpdatingDependeciesAndImportKotlinDeclarations() {
+        evalAndCheckSnippetsResultVals(
+            sequenceOf(
+                "println(\"firstLine\")",
+                "import org.jetbrains.kotlinx.dataframe.jupyter.KotlinNotebookPluginUtils",
+                "KotlinNotebookPluginUtils.getKotlinNotebookIDEBuildNumber().toString()",
+                "import org.jetbrains.kotlinx.dataframe.jupyter.importDataSchema",
+                "importDataSchema(\"ftp://xx\").url.toString()",
+            ),
+            sequenceOf(null, null, "null", null, "ftp://xx"),
+            baseCompilationConfiguration.with {
+                refineConfiguration {
+                    beforeCompiling { (val script, val config = compilationConfiguration, val _ = collectedData) ->
+                        if (!script.text.contains("firstLine")) {
+                            val resolveResults = runBlocking {
+                                dependenciesResolver.resolve("org.jetbrains.kotlinx:dataframe-core:0.15.0")
+                            }
+                            if (resolveResults is ResultWithDiagnostics.Failure)
+                                resolveResults
+                            else
+                                config.with {
+                                    updateClasspath(resolveResults.valueOrThrow())
+                                    defaultImports("kotlin.random.Random")
+                                }.asSuccess()
+                        } else config.asSuccess()
+                    }
+                }
+            }
+        )
+    }
+
+    @Test
+    fun testBasicReflection() {
+        evalAndCheckSnippets(
+            sequenceOf(
+                "var x = 3",
+                "fun f() = x"
+            ),
+            baseCompilationConfiguration,
+            baseEvaluationConfiguration,
+            { result ->
+                result.onSuccess { s ->
+                    s.get().result.let { r ->
+                        @Suppress("UNCHECKED_CAST") val propx =
+                            r.scriptClass!!.declaredMemberProperties.first { it.name == "x" } as KMutableProperty1<Any, Int>
+                        val x = propx.get(r.scriptInstance!!)
+                        assertEquals(3, x)
+                        propx.set(r.scriptInstance!!, 5)
+                    }
+                    result
+                }
+            },
+            { result ->
+                result.onSuccess { s ->
+                    s.get().result.let { r ->
+                        val funf = r.scriptClass!!.declaredMemberFunctions.first { it.name == "f" }
+                        val fret = funf.call(r.scriptInstance!!) as Int
+                        assertEquals(5, fret)
+                    }
+                    result
+                }
+            }
+        )
+    }
+
+    @Test
+    fun testKotlinxSerialization() {
+        if (!isK2) return
+        val serializationPluginClasspath = System.getProperty("kotlin.script.test.kotlinx.serialization.plugin.classpath")!!
+        evalAndCheckSnippetsResultVals(
+            sequenceOf(
+                """
+                    import kotlinx.serialization.*
+                    import kotlinx.serialization.json.*
+
+                    @Serializable
+                    data class User(val firstName: String, val lastName: String)
+                """,
+                """
+                    val jsonData = Json.encodeToString(User("James", "Bond"))
+                    jsonData
+                """,
+                """
+                    val obj = Json.decodeFromString<User>("{\"firstName\":\"James\", \"lastName\":\"Bond\"}")
+                    obj.firstName + " " + obj.lastName
+                """,
+                """
+                    val obj2 = Json.decodeFromString<User>(jsonData)
+                    obj2.lastName + ", " + obj2.firstName + " " + obj2.lastName
+                """.trimIndent()
+            ),
+            sequenceOf(
+                null,
+                """{"firstName":"James","lastName":"Bond"}""",
+                "James Bond",
+                "Bond, James Bond",
+            ),
+            baseCompilationConfiguration.with {
+                updateClasspath(
+                    runBlocking {
+                        dependenciesResolver.resolve("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+                    }.valueOrThrow()
+                )
+                compilerOptions(
+                    "-Xplugin=$serializationPluginClasspath"
+                )
+            },
+            baseEvaluationConfiguration.with {
+                jvm {
+                    baseClassLoader(null)
+                }
+            }
+        )
+    }
+
+    @Test
+    fun testDataFrame() {
+        if (!isK2) return
+        val dataFramePluginClasspath = System.getProperty("kotlin.script.test.kotlin.dataframe.plugin.classpath")!!
+        val dataframe = runBlocking {
+            dependenciesResolver.resolve("org.jetbrains.kotlinx:dataframe-core:1.0.0-Beta2")
+        }.valueOrThrow()
+        evalAndCheckSnippetsResultVals(
+            sequenceOf(
+                """
+                    import org.jetbrains.kotlinx.dataframe.api.*
+                    import org.jetbrains.kotlinx.dataframe.*
+
+                    val df = dataFrameOf("a" to columnOf(42))
+                    df.a[0]
+                """,
+            ),
+            sequenceOf(
+                42
+            ),
+            baseCompilationConfiguration.with {
+                // override to make sure that the classloader uses kotlin-reflect from dataframe.
+                // dependency in baseCompilationConfiguration causes "(Kotlin reflection is not available)"
+                set(ScriptCompilationConfiguration.dependencies, listOf(JvmDependency(dataframe)))
+                compilerOptions(
+                    "-Xplugin=$dataFramePluginClasspath"
+                )
+            },
+            baseEvaluationConfiguration.with {
+                jvm {
+                    baseClassLoader(null)
+                }
+            }
+        )
+    }
+
+    fun doTestKotlinCoroutinesWithProvidedClasspath(coroutinesCoreClasspath: List<File>) {
+        evalAndCheckSnippetsResultVals(
+            sequenceOf(
+                """
+            import kotlin.coroutines.*
+            import kotlinx.coroutines.*
+
+            runBlocking { async {}.join() }
+            "After runBlocking"
+        """,
+            ),
+            sequenceOf(
+                "After runBlocking",
+            ),
+            baseCompilationConfiguration.with {
+                updateClasspath(
+                    coroutinesCoreClasspath
+                )
+            },
+            baseEvaluationConfiguration.with {
+                jvm {
+                    baseClassLoader(null)
+                }
+            }
+        )
+    }
+
+    @Test
+    fun testKotlinCoroutines() {
+        if (!isK2) return
+        val coroutinesCoreClasspath = System.getProperty("kotlin.script.test.kotlinx.coroutines.core.classpath")!!
+            .split(File.pathSeparator).map(::File)
+        doTestKotlinCoroutinesWithProvidedClasspath(coroutinesCoreClasspath)
+    }
+
+    @Test
+    fun testKotlinCoroutinesWithRelativeClasspath() {
+        if (!isK2) return
+        val currentDir = File(".").absoluteFile
+        val coroutinesCoreClasspath = System.getProperty("kotlin.script.test.kotlinx.coroutines.core.classpath")!!
+            .split(File.pathSeparator).map { File(it).relativeToOrNull(currentDir) ?: abort("Cannot relativize $it to $currentDir") }
+        doTestKotlinCoroutinesWithProvidedClasspath(coroutinesCoreClasspath)
+    }
+
+    @Test
+    fun testPropertyTypesCanBeRedeclared() {
+        evalAndCheckSnippetsWithReplReceiver1(
+            sequenceOf(
+                "val x = 42",
+                "x",
+                "val x = true",
+                "x"
+            ),
+            sequenceOf(null, 42, null, true),
+        )
+    }
+
+    @Test
+    fun testFunctionWithTheSameSignatureCanBeRedeclared() {
+        evalAndCheckSnippetsWithReplReceiver1(
+            sequenceOf(
+                "fun x() = 42",
+                "x()",
+                "fun x() = true",
+                "x()"
+            ),
+            sequenceOf(null, 42, null, true),
+        )
+    }
+
+    @Test
+    fun testNestedClassMetadata() {
+        val results = withMessageCollectorAndDisposable { messageCollector, disposable ->
+            val compiler = K2ReplCompiler(K2ReplCompiler.createCompilationState(messageCollector, disposable, baseCompilationConfiguration))
+            val evaluator = K2ReplEvaluator()
+
+            @Suppress("DEPRECATION_ERROR")
+            internalScriptingRunSuspend {
+                var i = 1
+                listOf(
+                    """
+                        class A
+                        
+                        interface B {
+                          interface C
+                          
+                          interface D {
+                            class E
+                          }
+                        }
+                    """.trimIndent()
+                ).mapSuccess { snippet ->
+                    compiler.compile(snippet.toScriptSource("s${i++}.repl.kts")).onSuccess {
+                        evaluator.eval(it, baseEvaluationConfiguration)
+                    }
+                }
+            }
+        }.valueOrThrow()
+
+        val snippetClass = results.last().get().result.scriptClass!!
+
+        val layer1 = snippetClass.nestedClasses.toList()
+        assertEquals(listOf("A", "B"), layer1.map { it.simpleName })
+        val [_, bClass] = layer1
+
+        val layer2 = bClass.nestedClasses.toList()
+        assertEquals(listOf("C", "D"), layer2.map { it.simpleName })
+        val [_, dClass] = layer2
+
+        val layer3 = dClass.nestedClasses.toList()
+        assertEquals(listOf("E"), layer3.map { it.simpleName })
+    }
+
+    /**
+     * As in the K1 REPL, a snippet that fails at any compilation stage (here in the checkers, after its resolution has already
+     * registered it in the frontend history) is dropped from the history: its declarations are not visible to the later snippets.
+     * Unlike the K1 compiler (but like the JSR-223 engines), it still consumes a snippet number.
+     */
+    @Test
+    fun testFailedSnippetsDoNotAffectLaterSnippets() {
+        if (!isK2) return
+        val compiled = mutableListOf<KJvmCompiledScript>()
+        val results = withMessageCollectorAndDisposable { messageCollector, disposable ->
+            val compiler = K2ReplCompiler(K2ReplCompiler.createCompilationState(messageCollector, disposable, baseCompilationConfiguration))
+            val evaluator = K2ReplEvaluator()
+            @Suppress("DEPRECATION_ERROR")
+            internalScriptingRunSuspend {
+                var i = 0
+                suspend fun assertFails(text: String, expectedMessage: String) {
+                    val res = compiler.compile(text.toScriptSource("s${i++}.repl.kts"))
+                    if (res !is ResultWithDiagnostics.Failure) fail("Compilation of '$text' should fail: $res")
+                    if (res.reports.none { it.message.contains(expectedMessage) }) fail("Unexpected failure of '$text': ${res.reports}")
+                    messageCollector.clear()
+                }
+                assertFails("val a: String", "Property must be initialized")
+                assertFails("a", "Unresolved reference 'a'")
+                assertFails("val s: String = s", "Variable 's' must be initialized")
+                assertFails("s", "Unresolved reference 's'")
+                listOf("val s = \"ok\"", "s").map { text ->
+                    compiler.compile(text.toScriptSource("s${i++}.repl.kts")).valueOr { return@internalScriptingRunSuspend it }
+                        .also { compiled.add(it.get() as KJvmCompiledScript) }
+                }.mapSuccess { evaluator.eval(it, baseEvaluationConfiguration) }
+            }
+        }
+
+        checkEvaluatedSnippetsResultVals(sequenceOf(null, "ok"), results)
+        assertEquals(listOf(null, "res5"), compiled.map { it.resultField?.first })
+    }
+
+    @Test
+    fun testConvertToFirSeamAndResultFieldNumbering() {
+        val convertedSources = mutableListOf<String>()
+        val compiledSnippets = withMessageCollectorAndDisposable { messageCollector, disposable ->
+            val compiler = K2ReplCompiler(
+                K2ReplCompiler.createCompilationState(messageCollector, disposable, baseCompilationConfiguration),
+                convertToFir = { session, diagnosticsReporter ->
+                    convertedSources.add(name!!)
+                    convertToFirViaLightTree(session, diagnosticsReporter)
+                }
+            )
+            @Suppress("DEPRECATION_ERROR")
+            internalScriptingRunSuspend {
+                listOf("val x = 3", "x + 4", "fun f() = x", "f()").mapIndexed { i, text ->
+                    compiler.compile(text.toScriptSource("s$i.repl.kts")).valueOr { return@internalScriptingRunSuspend it }.get()
+                }.asSuccess()
+            }
+        }.valueOrThrow()
+
+        assertEquals(listOf("s0.repl.kts", "s1.repl.kts", "s2.repl.kts", "s3.repl.kts"), convertedSources)
+        assertEquals(listOf(null, "res1", null, "res3"), compiledSnippets.map { (it as KJvmCompiledScript).resultField?.first })
+    }
+
+    /**
+     * The imported scripts (`importScripts`) are compiled together with the importing snippet as the snippets preceding it
+     * they see each other in the import order, are evaluated before the importing snippet (each once),
+     * do not consume the snippet numbers, and stay accessible from the later snippets.
+     */
+    @Test
+    fun testImportedScriptsAsPrecedingSnippets() {
+        if (!isK2) return
+        val importsDir = kotlin.io.path.createTempDirectory("replImports").toFile()
+        try {
+            File(importsDir, "common.kts").writeText("var sharedVar = 4\nfun greet() = \"Hi from common\"\nprintln(\"common evaluated\")")
+            File(importsDir, "middle.kts").writeText("// IMPORT common.kts\nsharedVar = sharedVar + 1\nval fromMiddle = (::greet)() + \" via middle\"")
+            File(importsDir, "later.kts").writeText("val zFromLater = 1")
+            File(importsDir, "usesLater.kts").writeText("val y = zFromLater")
+
+            val compilationConfiguration = baseCompilationConfiguration.with {
+                refineConfiguration {
+                    beforeCompiling { (val script, val config = compilationConfiguration, val _ = collectedData) ->
+                        val imports = script.text.lines().filter { it.startsWith("// IMPORT ") }.map { line ->
+                            File(importsDir, line.removePrefix("// IMPORT ").trim()).toScriptSource()
+                        }
+                        if (imports.isEmpty()) config.asSuccess()
+                        else config.with { importScripts(imports) }.asSuccess()
+                    }
+                }
+            }
+
+            val compiled = mutableListOf<KJvmCompiledScript>()
+            val capturedOut = java.io.ByteArrayOutputStream()
+            val originalOut = System.out
+            System.setOut(java.io.PrintStream(capturedOut, true))
+            val results = try {
+                withMessageCollectorAndDisposable { messageCollector, disposable ->
+                    val compiler =
+                        K2ReplCompiler(K2ReplCompiler.createCompilationState(messageCollector, disposable, compilationConfiguration))
+                    val evaluator = K2ReplEvaluator()
+                    @Suppress("DEPRECATION_ERROR")
+                    internalScriptingRunSuspend {
+                        // The import order is strict: `usesLater.kts` does not see the declarations of `later.kts` imported after it
+                        val failed = compiler.compile(
+                            "// IMPORT usesLater.kts\n// IMPORT later.kts\nzFromLater".toScriptSource("s0.repl.kts")
+                        )
+                        if (failed !is ResultWithDiagnostics.Failure) fail("The import of a later imported script should fail: $failed")
+                        if (failed.reports.none { it.message.contains("zFromLater") }) fail("Unexpected failure: ${failed.reports}")
+                        messageCollector.clear()
+
+                        listOf(
+                            "// IMPORT middle.kts\n// IMPORT common.kts\nsharedVar + (::sharedVar).get() + 5",
+                            "fromMiddle + \" \" + sharedVar",
+                        ).mapIndexed { i, text ->
+                            compiler.compile(text.toScriptSource("s$i.repl.kts")).valueOr { return@internalScriptingRunSuspend it }
+                                .also { compiled.add(it.get() as KJvmCompiledScript) }
+                        }.mapSuccess { evaluator.eval(it, baseEvaluationConfiguration) }
+                    }
+                }
+            } finally {
+                System.setOut(originalOut)
+            }
+
+            checkEvaluatedSnippetsResultVals(sequenceOf(15, "Hi from common via middle 5"), results)
+            // the imported snippets do not consume the snippet numbers; the failed snippet `s0` consumed `res0`, but it is not visible
+            assertEquals(listOf("res1", "res2"), compiled.map { it.resultField?.first })
+            // `common.kts` is imported both directly and via `middle.kts`, but evaluated once
+            assertEquals(1, capturedOut.toString().lines().count { it == "common evaluated" })
+        } finally {
+            importsDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testKotlinxSerializationWithSeparateConfiguration() {
+        if (!isK2) return
+        val results = withMessageCollectorAndDisposable { messageCollector, disposable ->
+            val serializationPluginClasspath = System.getProperty("kotlin.script.test.kotlinx.serialization.plugin.classpath")!!
+            val baseCompilationConfiguration = baseCompilationConfiguration.with {
+                compilerOptions("-Xplugin=$serializationPluginClasspath")
+            }
+
+            val compiler = K2ReplCompiler(K2ReplCompiler.createCompilationState(messageCollector, disposable, baseCompilationConfiguration))
+            val evaluator = K2ReplEvaluator()
+
+            val snippetCompilationConfiguration = baseCompilationConfiguration.with {
+                updateClasspath(
+                    runBlocking {
+                        dependenciesResolver.resolve("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+                    }.valueOrThrow()
+                )
+            }
+
+            @Suppress("DEPRECATION_ERROR")
+            internalScriptingRunSuspend {
+                var i = 1
+                listOf(
+                    """
+                    import kotlinx.serialization.*
+                    import kotlinx.serialization.json.*
+                    
+                    @Serializable class Test(val x: Int)
+                """
+                ).mapSuccess { snippet ->
+                    compiler.compile(snippet.toScriptSource("s${i++}.repl.kts"), snippetCompilationConfiguration).onSuccess {
+                        evaluator.eval(it, baseEvaluationConfiguration)
+                    }
+                }
+            }
+        }
+
+        checkEvaluatedSnippetsResultVals(sequenceOf(null), results)
+    }
+
+    @Test
+    fun testSnippetMemoryConsumption() {
+        if (!isK2) return
+
+        val results = withMessageCollectorAndDisposable { messageCollector, disposable ->
+            val compiler = K2ReplCompiler(K2ReplCompiler.createCompilationState(messageCollector, disposable, baseCompilationConfiguration))
+            val evaluator = K2ReplEvaluator()
+
+            val snippetCompilationConfiguration = baseCompilationConfiguration.with {
+                updateClasspath(
+                    runBlocking {
+                        dependenciesResolver.resolve("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+                    }.valueOrThrow()
+                )
+            }
+
+            @Suppress("DEPRECATION_ERROR")
+            internalScriptingRunSuspend {
+                val snippets = buildList {
+                    add(
+                        """
+                        import kotlinx.serialization.*
+                        import kotlinx.serialization.json.*
+                        """
+                    )
+                    repeat(50) { add("@Serializable class Test(val x: Int)") }
+                }
+
+                var i = 1
+                snippets.mapSuccess { snippet ->
+                    compiler.compile(snippet.toScriptSource("s${i++}.repl.kts"), snippetCompilationConfiguration)
+                        .onSuccess { evaluator.eval(it, baseEvaluationConfiguration) }
+                }
+            }
+        }
+
+        // Checking snippets results is bounded be the shortest sequence between expected and actual.
+        // So generate an infinite sequence of `null`s, so we always have enough expected values.
+        val expected = sequence { while (true) yield(null) }
+
+        checkEvaluatedSnippetsResultVals(expected, results)
+    }
+
+    @Test
+    fun testSuspendWrapper() {
+        if (!isK2) return
+        val coroutinesCoreClasspath = System.getProperty("kotlin.script.test.kotlinx.coroutines.core.classpath")!!
+            .split(File.pathSeparator).map(::File)
+
+        evalAndCheckSnippetsResultVals(
+            sequenceOf(
+                """
+                    import kotlinx.coroutines.*
+                    
+                    suspend fun request(): String {
+                        yield()
+                        return "OK"
+                    }
+                    
+                    launch {
+                    }
+                    
+                    val response = request()
+                """.trimIndent(),
+                """
+                    response
+                """.trimIndent()
+            ),
+            sequenceOf(
+                null,
+                "OK",
+            ),
+            baseCompilationConfiguration.with {
+                updateClasspath(coroutinesCoreClasspath)
+                repl {
+                    internalWrapper("kotlinx.coroutines.runBlocking")
+                }
+            },
+            baseEvaluationConfiguration.with {
+                jvm {
+                    baseClassLoader(null)
+                }
+            }
+        )
+    }
+
+    /**
+     * With `onAnnotations` refinement handlers, the snippet is converted already during the configuration refinement, which fails
+     * on syntax errors; an unfinished snippet should still be reported as incomplete code, so the REPL hosts could continue the input.
+     */
+    @Test
+    fun testIncompleteSnippetWithAnnotationsRefinement() {
+        if (!isK2) return
+        val compilationConfiguration = baseCompilationConfiguration.with {
+            refineConfiguration {
+                onAnnotations(DependsOn::class) { it.compilationConfiguration.asSuccess() }
+            }
+        }
+        withMessageCollectorAndDisposable { messageCollector, disposable ->
+            val compiler = K2ReplCompiler(K2ReplCompiler.createCompilationState(messageCollector, disposable, compilationConfiguration))
+            @Suppress("DEPRECATION_ERROR")
+            internalScriptingRunSuspend {
+                var i = 0
+                suspend fun assertFails(text: String, expectIncomplete: Boolean) {
+                    val res = compiler.compile(text.toScriptSource("s${i++}.repl.kts"))
+                    if (res !is ResultWithDiagnostics.Failure) fail("Compilation of '$text' should fail: $res")
+                    assertEquals(
+                        expectIncomplete, res.reports.any { it.code == ScriptDiagnostic.incompleteCode },
+                        "Unexpected incomplete code classification of '$text': ${res.reports}"
+                    )
+                    messageCollector.clear()
+                }
+                assertFails("val x = listOf(1,", expectIncomplete = true)
+                assertFails("val x = )\nval y = 1", expectIncomplete = false)
+                compiler.compile("val x = listOf(1, 2)\nx.size".toScriptSource("s${i++}.repl.kts"))
+            }
+        }.valueOrThrow()
+    }
+
+    /**
+     * The definition's own configuration dependencies are needed to load its annotation classes; an unrelated
+     * dependencies list of the explicit host configuration should not replace them.
+     */
+    @Test
+    fun testDefinitionConfigurationDependenciesAreNotReplacedByExplicitHost() {
+        if (!isK2) return
+        val explicitHostConfiguration = replHostConfiguration(defaultJvmScriptingHostConfiguration) {
+            configurationDependencies(JvmDependency(ForTestCompileRuntime.runtimeJarForTests()))
+        }
+        compileSnippet(
+            configurationRefinedOnDefinitionAnnotation(testScriptDefinitionClasspath),
+            explicitHostConfiguration,
+            SNIPPET_WITH_DEFINITION_ANNOTATION,
+        ).valueOrThrow()
+    }
+
+    /**
+     * The hosts derived from the same base share its stateful [JvmGetScriptingClass], which should not be used for the definitions
+     * with different configuration dependencies.
+     */
+    @Test
+    fun testDefinitionsWithDifferentConfigurationDependenciesInHostsWithSharedBase() {
+        if (!isK2) return
+        val sharedBaseHostConfiguration = defaultJvmScriptingHostConfiguration
+        compileSnippet(
+            configurationRefinedOnDefinitionAnnotation(testScriptDefinitionClasspath),
+            replHostConfiguration(sharedBaseHostConfiguration),
+            SNIPPET_WITH_DEFINITION_ANNOTATION,
+        ).valueOrThrow()
+        compileSnippet(
+            configurationRefinedOnDefinitionAnnotation(testScriptDefinitionClasspath + ForTestCompileRuntime.runtimeJarForTests()),
+            replHostConfiguration(sharedBaseHostConfiguration),
+            SNIPPET_WITH_DEFINITION_ANNOTATION,
+        ).valueOrThrow()
+    }
+
+    /**
+     * The configuration of a snippet compiled by another REPL carries its host configuration; a new REPL created with it
+     * should not see the declarations of the previous REPL session.
+     */
+    @Test
+    fun testNewReplDoesNotInheritHistoryOfPreviousRepl() {
+        if (!isK2) return
+        val previousSnippet = compileSnippet(
+            baseCompilationConfiguration, replHostConfiguration(defaultJvmScriptingHostConfiguration), "val previousReplValue = 42"
+        ).valueOrThrow().get()
+
+        val hostConfigurationWithoutHistory = ScriptingHostConfiguration(defaultJvmScriptingHostConfiguration) {
+            repl {
+                isReplSnippetSource { _, _ -> true }
+            }
+        }
+        val res = compileSnippet(previousSnippet.compilationConfiguration, hostConfigurationWithoutHistory, "previousReplValue")
+        if (res !is ResultWithDiagnostics.Failure) {
+            fail("The declaration of the previous REPL session should not be visible in the new one")
+        }
+        assertTrue(res.reports.any { it.message.contains("previousReplValue") }, "Unexpected failure: ${res.reports}")
+    }
+}
+
+private const val DEFINITION_ANNOTATION = "org.jetbrains.kotlin.scripting.test.definition.AddTestImport"
+
+private const val SNIPPET_WITH_DEFINITION_ANNOTATION = "@file:$DEFINITION_ANNOTATION(\"unused\")\nAtomicInteger(42).get()"
+
+/**
+ * The annotation class is available only in the [configurationDependencies], as with the definitions loaded from a separate classpath.
+ */
+private fun configurationRefinedOnDefinitionAnnotation(configurationDependencies: List<File>): ScriptCompilationConfiguration =
+    baseCompilationConfiguration.with {
+        updateClasspath(testScriptDefinitionClasspath)
+        hostConfiguration(
+            ScriptingHostConfiguration(defaultJvmScriptingHostConfiguration) {
+                configurationDependencies(JvmDependency(configurationDependencies))
+                jvm {
+                    baseClassLoader(CustomK2ReplTest::class.java.classLoader)
+                }
+            }
+        )
+        refineConfiguration {
+            onAnnotations(KotlinType(DEFINITION_ANNOTATION)) {
+                it.compilationConfiguration.with { defaultImports("java.util.concurrent.atomic.AtomicInteger") }.asSuccess()
+            }
+        }
+    }
+
+private fun replHostConfiguration(
+    baseHostConfiguration: ScriptingHostConfiguration,
+    body: ScriptingHostConfiguration.Builder.() -> Unit = {},
+): ScriptingHostConfiguration =
+    ScriptingHostConfiguration(baseHostConfiguration) {
+        repl {
+            firReplHistoryProvider(FirReplHistoryProviderImpl())
+            isReplSnippetSource { _, _ -> true }
+        }
+        body()
+    }
+
+private fun compileSnippet(
+    compilationConfiguration: ScriptCompilationConfiguration,
+    hostConfiguration: ScriptingHostConfiguration,
+    snippet: String,
+): ResultWithDiagnostics<LinkedSnippet<CompiledSnippet>> =
+    withMessageCollectorAndDisposable { messageCollector, disposable ->
+        val compiler = K2ReplCompiler(
+            K2ReplCompiler.createCompilationState(messageCollector, disposable, compilationConfiguration, hostConfiguration)
+        )
+        @Suppress("DEPRECATION_ERROR")
+        internalScriptingRunSuspend { compiler.compile(snippet.toScriptSource("snippet.repl.kts")) }
+    }
+
+private val baseCompilationConfiguration: ScriptCompilationConfiguration =
+    ScriptCompilationConfiguration {
+        val classpath = System.getProperty("kotlin.test.script.classpath")?.split(File.pathSeparator)
+            ?.mapNotNull { File(it).takeIf { file -> file.exists() } }.orEmpty()
+        updateClasspath(classpath + ForTestCompileRuntime.runtimeJarForTests() + ForTestCompileRuntime.scriptingTestsRuntimeClasspathForTests())
+        compilerOptions("-Xrender-internal-diagnostic-names=true")
+    }
+
+private val baseEvaluationConfiguration: ScriptEvaluationConfiguration = ScriptEvaluationConfiguration {}
+
+private fun compileEvalAndCheckSnippetsSequence(
+    snippets: Sequence<String>,
+    compilationConfiguration: ScriptCompilationConfiguration,
+    evaluationConfiguration: ScriptEvaluationConfiguration,
+    expectedResultCheckers: Sequence<(ResultWithDiagnostics<LinkedSnippet<KJvmEvaluatedSnippet>>) -> ResultWithDiagnostics<LinkedSnippet<KJvmEvaluatedSnippet>>>
+): ResultWithDiagnostics<List<LinkedSnippet<KJvmEvaluatedSnippet>>> =
+    withMessageCollectorAndDisposable { messageCollector, disposable ->
+        val compiler = K2ReplCompiler(K2ReplCompiler.createCompilationState(messageCollector, disposable, compilationConfiguration))
+        val evaluator = K2ReplEvaluator()
+        val filenameExtension = compilationConfiguration[ScriptCompilationConfiguration.fileExtension] ?: "repl.kts"
+        var snippetNo = 1
+        val checkersIterator = expectedResultCheckers.iterator()
+        @Suppress("DEPRECATION_ERROR")
+        internalScriptingRunSuspend {
+            snippets.asIterable().mapSuccess { snippet ->
+                val checker = if (checkersIterator.hasNext()) checkersIterator.next() else null
+                compiler.compile(snippet.toScriptSource("s${snippetNo++}.$filenameExtension")).onSuccess { snippet ->
+                    evaluator.eval(snippet, evaluationConfiguration).let { checker?.invoke(it) ?: it }
+                }
+            }
+        }
+    }
+
+private fun checkEvaluatedSnippetsResultVals(
+    expectedResultVals: Sequence<Any?>,
+    evaluationResults: ResultWithDiagnostics<List<LinkedSnippet<KJvmEvaluatedSnippet>>>
+) {
+    val expectedIter = expectedResultVals.iterator()
+    val successResults = evaluationResults.valueOrThrow()
+    for (res in successResults) {
+        if (!expectedIter.hasNext()) break
+        val expectedVal = expectedIter.next()
+        when (val resVal = res.get().result) {
+            is ResultValue.Unit -> assertNull(expectedVal, "Unexpected evaluation result: Unit")
+            is ResultValue.Error -> fail("Unexpected evaluation result: runtime error: ${resVal.error.message}")
+            is ResultValue.Value -> assertEquals(expectedVal, resVal.value, "Unexpected evaluation result: ${resVal.value}")
+            is ResultValue.NotEvaluated -> fail("Unexpected evaluation result: NotEvaluated")
+        }
+    }
+}
+
+private fun evalAndCheckSnippetsResultVals(
+    snippets: Sequence<String>,
+    expectedResultVals: Sequence<Any?>,
+    compilationConfiguration: ScriptCompilationConfiguration = baseCompilationConfiguration,
+    evaluationConfiguration: ScriptEvaluationConfiguration = baseEvaluationConfiguration
+) {
+    // this is K2-only tests
+    if (System.getProperty(SCRIPT_TEST_BASE_COMPILER_ARGUMENTS_PROPERTY)?.contains("-language-version 1.9") == true) return
+
+    val evaluationResults =
+        compileEvalAndCheckSnippetsSequence(snippets, compilationConfiguration, evaluationConfiguration, emptySequence())
+    checkEvaluatedSnippetsResultVals(expectedResultVals, evaluationResults)
+}
+
+private fun evalAndCheckSnippets(
+    snippets: Sequence<String>,
+    compilationConfiguration: ScriptCompilationConfiguration,
+    evaluationConfiguration: ScriptEvaluationConfiguration,
+    vararg resultCheckers: (ResultWithDiagnostics<LinkedSnippet<KJvmEvaluatedSnippet>>) -> ResultWithDiagnostics<LinkedSnippet<KJvmEvaluatedSnippet>>
+) {
+    // this is K2-only tests
+    if (System.getProperty(SCRIPT_TEST_BASE_COMPILER_ARGUMENTS_PROPERTY)?.contains("-language-version 1.9") == true) return
+
+    val results =
+        compileEvalAndCheckSnippetsSequence(snippets, compilationConfiguration, evaluationConfiguration, resultCheckers.asSequence())
+    checkEvaluatedSnippetsResultVals(emptySequence(), results)
+}
+
+private fun evalAndCheckSnippetsWithReplReceiver1(
+    snippets: Sequence<String>,
+    expectedResultVals: Sequence<Any?>,
+    compilationConfiguration: ScriptCompilationConfiguration = baseCompilationConfiguration,
+    evaluationConfiguration: ScriptEvaluationConfiguration = baseEvaluationConfiguration
+) {
+    evalAndCheckSnippetsResultVals(
+        snippets, expectedResultVals,
+        compilationConfiguration.with {
+            implicitReceivers(ReplReceiver1::class)
+        },
+        evaluationConfiguration.with {
+            implicitReceivers(ReplReceiver1())
+        }
+    )
+
+}

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
 // KT-7440 Cannot complete type inference if two extension functions for interface hierarchy
 
 package inferenceagain
@@ -15,3 +16,6 @@ fun <T> x(l: Derived<T>) {
     derivedOf(1, 2, 3).maxBy<Int, Int> { it  } // works
     derivedOf(1, 2, 3).maxBy { it } // should work
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, funWithExtensionReceiver, functionDeclaration, functionalType, integerLiteral,
+interfaceDeclaration, lambdaLiteral, nullableType, typeConstraint, typeParameter, vararg */

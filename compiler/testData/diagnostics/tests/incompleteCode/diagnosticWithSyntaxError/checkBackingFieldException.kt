@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: FRONTEND
+// COMPARE_WITH_LIGHT_TREE
 package h
 
 class Square() {
@@ -10,8 +12,11 @@ class Square() {
   private set
 }
 
-fun main(args : Array<String>) {
+fun main() {
   val s = Square()
 
   s.size = 2.0
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, functionDeclaration, lambdaLiteral, localProperty,
+primaryConstructor, propertyDeclaration */

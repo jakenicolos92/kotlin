@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VALUE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VALUE
 
 fun foo(): Int {
     val i: Int
@@ -9,3 +10,6 @@ fun foo(): Int {
     } 
     return i
 }
+
+/* GENERATED_FIR_TAGS: assignment, break, comparisonExpression, functionDeclaration, ifExpression,
+incrementDecrementExpression, integerLiteral, localProperty, propertyDeclaration, whileLoop */

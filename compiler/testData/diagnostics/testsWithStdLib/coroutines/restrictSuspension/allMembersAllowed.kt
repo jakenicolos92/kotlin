@@ -1,11 +1,11 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -SUSPENSION_CALL_MUST_BE_USED_AS_RETURN_VALUE
-
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER -SUSPENSION_CALL_MUST_BE_USED_AS_RETURN_VALUE
 interface SuperInterface {
     suspend fun superFun() {}
     suspend fun String.superExtFun() {}
 }
 
-@kotlin.coroutines.experimental.RestrictsSuspension
+@kotlin.coroutines.RestrictsSuspension
 open class RestrictedController : SuperInterface {
     suspend fun memberFun() {}
     suspend fun String.memberExtFun() {}
@@ -58,7 +58,7 @@ fun String.test() {
         }
     }
 
-    <!WRONG_MODIFIER_TARGET!>suspend<!> fun SuperInterface.fun1() {
+    suspend fun SuperInterface.fun1() {
         superFun()
         superExtFun()
         with("") {
@@ -66,7 +66,7 @@ fun String.test() {
             superExtFun()
         }
     }
-    <!WRONG_MODIFIER_TARGET!>suspend<!> fun RestrictedController.fun2() {
+    suspend fun RestrictedController.fun2() {
         superFun()
         superExtFun()
         memberFun()
@@ -78,7 +78,7 @@ fun String.test() {
             memberExtFun()
         }
     }
-    <!WRONG_MODIFIER_TARGET!>suspend<!> fun SubClass.fun3() {
+    suspend fun SubClass.fun3() {
         superFun()
         superExtFun()
         memberFun()
@@ -97,3 +97,5 @@ fun String.test() {
 
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+interfaceDeclaration, lambdaLiteral, localFunction, stringLiteral, suspend, typeWithExtension */

@@ -1,1 +1,0 @@
-impl val bar = "Hello"

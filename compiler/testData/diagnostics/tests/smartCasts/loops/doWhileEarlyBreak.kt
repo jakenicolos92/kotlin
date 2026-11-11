@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun x(): Boolean { return true }
 
 fun y(): Boolean { return false }
@@ -11,3 +12,5 @@ public fun foo(p: String?): Int {
     // Here we have do while loop but p is still nullable due to break before
     return p<!UNSAFE_CALL!>.<!>length
 }
+
+/* GENERATED_FIR_TAGS: break, checkNotNullCall, doWhileLoop, functionDeclaration, ifExpression, nullableType */

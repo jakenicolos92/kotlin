@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 val flag = true
 
 val a /*: (Int) -> String */ = l@ {
@@ -15,3 +16,6 @@ val b /*:String */ = foo {
 
     "Ok"
 }
+
+/* GENERATED_FIR_TAGS: equalityExpression, functionDeclaration, functionalType, ifExpression, integerLiteral,
+lambdaLiteral, nullableType, propertyDeclaration, stringLiteral, typeParameter */

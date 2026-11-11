@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 sealed class Sealed(val x: Int) {
     object First: Sealed(12)
     open class NonFirst(x: Int, val y: Int): Sealed(x) {
@@ -13,3 +14,5 @@ fun foo(s: Sealed): Int {
     }
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, isExpression, nestedClass,
+objectDeclaration, primaryConstructor, propertyDeclaration, sealed, whenExpression, whenWithSubject */

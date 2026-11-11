@@ -1,3 +1,6 @@
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -CAN_BE_REPLACED_WITH_OPERATOR_ASSIGNMENT
+
 open class Base {
     open protected fun foo() {}
     open protected fun bar() {}
@@ -11,20 +14,57 @@ class Derived : Base() {
     override fun bar() { }
 
     protected fun baz(x: Base) {
-        x.<!INVISIBLE_MEMBER!>foo<!>()
-        x.<!INVISIBLE_MEMBER!>bar<!>()
+        x.<!INVISIBLE_REFERENCE!>foo<!>()
+        x.<!INVISIBLE_REFERENCE!>bar<!>()
 
-        x.<!INVISIBLE_MEMBER!>x<!> = x.<!INVISIBLE_MEMBER!>x<!> + 1
-        <!INVISIBLE_SETTER!>x.y<!> = x.y + 1
+        x.<!INVISIBLE_REFERENCE!>x<!> = x.<!INVISIBLE_REFERENCE!>x<!> + 1
+        x.<!INVISIBLE_REFERENCE!>x<!>++
+        x.<!INVISIBLE_REFERENCE!>x<!> += 1
+        x.<!INVISIBLE_SETTER!>y<!> = x.y + 1
+        x.<!INVISIBLE_SETTER!>y<!>++
+        x.<!INVISIBLE_SETTER!>y<!> += 1
 
         if (x is Derived) {
-            <!DEBUG_INFO_SMARTCAST!>x<!>.foo()
-            <!DEBUG_INFO_SMARTCAST!>x<!>.bar()
-            <!DEBUG_INFO_SMARTCAST!>x<!>.baz(x)
+            x.foo()
+            x.bar()
+            x.baz(x)
 
-            <!DEBUG_INFO_SMARTCAST!>x<!>.x = <!DEBUG_INFO_SMARTCAST!>x<!>.x + 1
+            x.x = x.x + 1
+            x.x++
+            x.x += 1
             // TODO: Should be smart cast
-            <!INVISIBLE_SETTER!>x.y<!> = x.y + 1
+            x.<!INVISIBLE_SETTER!>y<!> = x.y + 1
+            x.<!INVISIBLE_SETTER!>y<!>++
+            x.<!INVISIBLE_SETTER!>y<!> += 1
+        }
+    }
+
+    protected fun baz2(x: Base?) {
+        x.<!INVISIBLE_REFERENCE!>foo<!>()
+        x.<!INVISIBLE_REFERENCE!>bar<!>()
+
+        x.<!INVISIBLE_REFERENCE!>x<!> = x.<!INVISIBLE_REFERENCE!>x<!> + 1
+        x.<!INVISIBLE_REFERENCE!>x<!>++
+        x.<!INVISIBLE_REFERENCE!>x<!> += 1
+        x<!UNSAFE_CALL!>.<!><!INVISIBLE_SETTER!>y<!> = x<!UNSAFE_CALL!>.<!>y + 1
+        x<!UNSAFE_CALL!>.<!><!INVISIBLE_SETTER!>y<!>++
+        x<!UNSAFE_CALL!>.<!><!INVISIBLE_SETTER!>y<!> += 1
+
+        if (x is Derived) {
+            x.foo()
+            x.bar()
+            x.baz(x)
+
+            x.x = x.x + 1
+            x.x++
+            x.x += 1
+            x.y = x.y + 1
+            x.y++
+            x.y += 1
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, classDeclaration, functionDeclaration, ifExpression,
+incrementDecrementExpression, integerLiteral, isExpression, localProperty, nullableType, override, propertyDeclaration,
+smartcast */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 inline fun<T> foo(block: () -> T):T = block()
 
@@ -7,6 +8,9 @@ fun baz() {
         val task: String? = null
         if (task == null) {
             return
-        } else <!DEBUG_INFO_SMARTCAST!>task<!>
+        } else task
     }
 }
+
+/* GENERATED_FIR_TAGS: equalityExpression, functionDeclaration, functionalType, ifExpression, inline, lambdaLiteral,
+localProperty, nullableType, propertyDeclaration, smartcast, typeParameter */

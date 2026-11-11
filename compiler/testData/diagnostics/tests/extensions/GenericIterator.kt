@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 import java.util.Enumeration
 
 fun <T> java.util.Enumeration<T>.iterator() = object: Iterator<T> {
@@ -27,10 +28,14 @@ operator fun <T : Any> T?.iterator() = object : MyIterator<T> {
     }
 }
 
-fun main(args : Array<String>) {
+fun main() {
   val i : Int? = 1
   for (x in i) {
     System.out.println(x)
   }
 }
 
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, assignment, checkNotNullCall, equalityExpression, flexibleType,
+forLoop, funWithExtensionReceiver, functionDeclaration, ifExpression, integerLiteral, interfaceDeclaration, javaFunction,
+javaProperty, localProperty, nullableType, operator, override, propertyDeclaration, thisExpression, typeConstraint,
+typeParameter */

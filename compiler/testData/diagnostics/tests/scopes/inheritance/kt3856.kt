@@ -1,4 +1,5 @@
-fun foo(<!UNUSED_PARAMETER!>init<!>: A.() -> Unit) { }
+// RUN_PIPELINE_TILL: CODEGEN
+fun foo(init: A.() -> Unit) { }
 
 class A {
     var x: Int = 0
@@ -31,3 +32,7 @@ class E: C() {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, classDeclaration, companionObject, funWithExtensionReceiver,
+functionDeclaration, functionalType, init, integerLiteral, lambdaLiteral, nestedClass, objectDeclaration,
+primaryConstructor, propertyDeclaration, thisExpression, typeWithExtension */

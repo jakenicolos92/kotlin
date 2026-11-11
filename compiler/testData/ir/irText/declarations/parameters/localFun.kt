@@ -1,3 +1,4 @@
+
 fun <TT> outer() {
     fun <T> test1(i: Int, j: T) {}
 

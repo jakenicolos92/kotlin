@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 
 public @interface A {
@@ -10,3 +11,5 @@ public @interface A {
 
 @A(x = 1, y = "2")
 fun test() {}
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, javaType, stringLiteral */

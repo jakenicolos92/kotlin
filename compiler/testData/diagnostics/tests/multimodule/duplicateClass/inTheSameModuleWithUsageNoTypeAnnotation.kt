@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// ISSUE: KT-63066
 // MODULE: m1
 // FILE: a.kt
 
@@ -19,5 +21,7 @@ class A {
 
 fun test() {
     val a = B().a
-    a.<!UNRESOLVED_REFERENCE!>foo<!>()
+    a.foo()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, localProperty, propertyDeclaration */

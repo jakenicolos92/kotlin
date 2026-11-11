@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE
 
 inline fun <R> inlineFunOnlyLocal(crossinline p: () -> R) {
     val s = object {
@@ -46,3 +47,6 @@ inline fun <R> inlineFun(p: () -> R) {
 inline fun <R> doCall(p: () -> R) {
     p()
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, crossinline, functionDeclaration, functionalType, init, inline,
+lambdaLiteral, localProperty, nullableType, propertyDeclaration, typeParameter */

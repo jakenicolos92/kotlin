@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 open class X(s : String) {
     public var n: String = s
         private set
@@ -15,3 +16,6 @@ class Z : X("subclass") {
 fun box() : String {
     return Z().print() //error
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, functionDeclaration, primaryConstructor, propertyDeclaration,
+stringLiteral */

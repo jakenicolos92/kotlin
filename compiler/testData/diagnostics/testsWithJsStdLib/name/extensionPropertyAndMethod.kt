@@ -1,8 +1,10 @@
+// RUN_PIPELINE_TILL: CODEGEN
+
 package foo
 
 class A
 
-<!JS_NAME_CLASH!>fun A.get_bar()<!> = 23
+fun A.get_bar() = 23
 
 val A.bar: Int
-  <!JS_NAME_CLASH!>get()<!> = 42
+  get() = 42

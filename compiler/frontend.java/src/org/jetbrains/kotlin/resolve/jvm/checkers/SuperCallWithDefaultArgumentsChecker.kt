@@ -17,13 +17,15 @@
 package org.jetbrains.kotlin.resolve.jvm.checkers
 
 import com.intellij.psi.PsiElement
-import org.jetbrains.kotlin.resolve.calls.callResolverUtil.getSuperCallExpression
-import org.jetbrains.kotlin.resolve.calls.callUtil.usesDefaultArguments
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.resolve.calls.util.getSuperCallExpression
+import org.jetbrains.kotlin.resolve.calls.util.usesDefaultArguments
 import org.jetbrains.kotlin.resolve.calls.checkers.CallChecker
 import org.jetbrains.kotlin.resolve.calls.checkers.CallCheckerContext
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.jvm.diagnostics.ErrorsJvm
 
+@K1Deprecation
 class SuperCallWithDefaultArgumentsChecker : CallChecker {
     override fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext) {
         val superCallExpression = getSuperCallExpression(resolvedCall.call)

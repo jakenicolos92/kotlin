@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 enum class E {
     <!WRONG_MODIFIER_TARGET!>public<!> <!WRONG_MODIFIER_TARGET!>final<!> SUBCLASS {
         fun foo() {}
@@ -21,3 +22,5 @@ enum class E {
     <!WRONG_MODIFIER_TARGET!>vararg<!> VARARG,
     <!WRONG_MODIFIER_TARGET!>reified<!> REIFIED
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry */

@@ -1,6 +1,8 @@
-val test1 = { when (true) { true -> <!IMPLICIT_CAST_TO_ANY!>1<!>; else -> <!IMPLICIT_CAST_TO_ANY!>""<!> } }
+// RUN_PIPELINE_TILL: CODEGEN
 
-val test2 = { { when (true) { true -> <!IMPLICIT_CAST_TO_ANY!>1<!>; else -> <!IMPLICIT_CAST_TO_ANY!>""<!> } } }
+val test1 = { when (true) { true -> 1; else -> "" } }
+
+val test2 = { { when (true) { true -> 1; else -> "" } } }
 
 val test3: (Boolean) -> Any = { when (true) { true -> 1; else -> "" } }
 
@@ -14,3 +16,6 @@ val test5 = {
         else -> println()
     }
 }
+
+/* GENERATED_FIR_TAGS: equalityExpression, functionDeclaration, functionalType, integerLiteral, intersectionType,
+lambdaLiteral, nullableType, propertyDeclaration, stringLiteral, whenExpression, whenWithSubject */

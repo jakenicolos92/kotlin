@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 import java.util.*;
 public interface A<T> {
@@ -39,3 +40,6 @@ class E : D(), B {
 
 
 class F : D()
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaType, nullableType, override, starProjection,
+stringLiteral */

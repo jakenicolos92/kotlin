@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // Should work already in M11
 
 open class A(val s : String)
@@ -10,3 +11,6 @@ fun test(a : A): String? {
     }
     return null
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, isExpression, nullableType,
+primaryConstructor, propertyDeclaration */

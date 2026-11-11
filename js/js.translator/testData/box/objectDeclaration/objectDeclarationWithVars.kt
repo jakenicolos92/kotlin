@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 524
 package foo
 
 object State {

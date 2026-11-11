@@ -1,9 +1,9 @@
-// EXPECTED_REACHABLE_NODES: 500
 package foo
 
 class Counter {
     var count: Int = 0
 
+    @JsName("inc")
     public fun inc() {
         count++
     }

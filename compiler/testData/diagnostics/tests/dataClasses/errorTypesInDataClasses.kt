@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
 data class A(val i: Int, val j: <!UNRESOLVED_REFERENCE!>G<!>)
 data class B(val i: <!UNRESOLVED_REFERENCE!>G<!>, val j: <!UNRESOLVED_REFERENCE!>G<!>)
 
@@ -14,3 +15,6 @@ fun fb(b: B) {
     val i2 = b.component1()
     val j2 = b.component2()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, data, destructuringDeclaration, functionDeclaration, localProperty,
+primaryConstructor, propertyDeclaration */

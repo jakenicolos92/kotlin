@@ -1,6 +1,7 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
-import java.util.*
+import java.util.*;
 
 // FILE: A.java
 @kotlin.jvm.PurelyImplements("kotlin.collections.MutableList")
@@ -37,3 +38,6 @@ fun foo() {
     val b4: Collection<String?> = x
     val b6: MutableCollection<String?> = x
 }
+
+/* GENERATED_FIR_TAGS: assignment, flexibleType, functionDeclaration, integerLiteral, javaFunction, javaType,
+localProperty, nullableType, propertyDeclaration, stringLiteral */

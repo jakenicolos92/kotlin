@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: KotlinFile.kt
 
 fun <T: B> foo(t: T) {
@@ -14,3 +15,6 @@ public interface A {
 public interface B extends A {
     void setSomething(int value);
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, functionDeclaration, incrementDecrementExpression, integerLiteral,
+javaFunction, javaType, typeConstraint, typeParameter */

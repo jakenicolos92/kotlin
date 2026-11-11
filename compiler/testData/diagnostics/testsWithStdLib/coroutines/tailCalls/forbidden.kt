@@ -1,19 +1,22 @@
-// !DIAGNOSTICS: -UNUSED_ANONYMOUS_PARAMETER
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_ANONYMOUS_PARAMETER
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 fun nonSuspend() {}
 
 suspend fun foo() {
-    suspendCoroutineOrReturn { x: Continuation<Int> -> }
+    suspendCoroutineUninterceptedOrReturn { x: Continuation<Int> -> }
 
     nonSuspend()
 }
 
 suspend fun unitSuspend() {
-    suspendCoroutineOrReturn { x: Continuation<Int> -> }
+    suspendCoroutineUninterceptedOrReturn { x: Continuation<Int> -> }
 }
 
 suspend fun baz(): Int = run {
-    suspendCoroutineOrReturn { x: Continuation<Int> -> }
+    suspendCoroutineUninterceptedOrReturn { x: Continuation<Int> -> }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, lambdaLiteral, suspend */

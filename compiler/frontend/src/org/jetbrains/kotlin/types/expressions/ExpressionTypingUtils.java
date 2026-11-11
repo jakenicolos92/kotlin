@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,6 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.descriptors.impl.AnonymousFunctionDescriptor;
 import org.jetbrains.kotlin.descriptors.impl.FunctionExpressionDescriptor;
-import org.jetbrains.kotlin.descriptors.impl.SimpleFunctionDescriptorImpl;
 import org.jetbrains.kotlin.diagnostics.Diagnostic;
 import org.jetbrains.kotlin.diagnostics.DiagnosticFactory;
 import org.jetbrains.kotlin.diagnostics.Errors;
@@ -43,9 +42,6 @@ import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver;
 import org.jetbrains.kotlin.resolve.scopes.utils.ScopeUtilsKt;
 import org.jetbrains.kotlin.types.KotlinType;
 import org.jetbrains.kotlin.types.expressions.typeInfoFactory.TypeInfoFactoryKt;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.jetbrains.kotlin.diagnostics.Errors.TYPE_INFERENCE_ERRORS;
 import static org.jetbrains.kotlin.resolve.BindingContext.PROCESSED;
@@ -96,30 +92,44 @@ public class ExpressionTypingUtils {
             @NotNull String argumentName,
             @NotNull KotlinType argumentType
     ) {
-        KtExpression fakeExpression = KtPsiFactoryKt.KtPsiFactory(project, false).createExpression(argumentName);
+        KtExpression fakeExpression = new KtPsiFactory(project, false).createExpression(argumentName);
         trace.recordType(fakeExpression, argumentType);
         trace.record(PROCESSED, fakeExpression);
         return fakeExpression;
     }
 
+    @SuppressWarnings("deprecation")
     public static void checkVariableShadowing(
             @NotNull LexicalScope scope,
             @NotNull BindingTrace trace,
             @NotNull VariableDescriptor variableDescriptor
     ) {
         VariableDescriptor oldDescriptor = ScopeUtilsKt.findLocalVariable(scope, variableDescriptor.getName());
+        if (oldDescriptor == null) return;
 
-        if (oldDescriptor != null && isLocal(variableDescriptor.getContainingDeclaration(), oldDescriptor)) {
-            PsiElement declaration = DescriptorToSourceUtils.descriptorToDeclaration(variableDescriptor);
-            if (declaration != null) {
-                if (declaration instanceof KtDestructuringDeclarationEntry && declaration.getParent().getParent() instanceof KtParameter) {
-                    // foo { a, (a, b) -> } -- do not report NAME_SHADOWING on the second 'a', because REDECLARATION must be reported here
-                    PsiElement oldElement = DescriptorToSourceUtils.descriptorToDeclaration(oldDescriptor);
+        DeclarationDescriptor variableContainingDeclaration = variableDescriptor.getContainingDeclaration();
+        if (!isLocal(variableContainingDeclaration, oldDescriptor)) return;
 
-                    if (oldElement != null && oldElement.getParent().equals(declaration.getParent().getParent().getParent())) return;
-                }
-                trace.report(Errors.NAME_SHADOWING.on(declaration, variableDescriptor.getName().asString()));
+        if (variableDescriptor instanceof ParameterDescriptor) {
+            if (!isFunctionLiteral(variableContainingDeclaration)) {
+                return;
             }
+
+            // parameter of lambda
+            if (variableContainingDeclaration.getContainingDeclaration() != oldDescriptor.getContainingDeclaration()) {
+                return;
+            }
+        }
+
+        PsiElement declaration = DescriptorToSourceUtils.descriptorToDeclaration(variableDescriptor);
+        if (declaration != null) {
+            if (declaration instanceof KtDestructuringDeclarationEntry && declaration.getParent().getParent() instanceof KtParameter) {
+                // foo { a, (a, b) -> } -- do not report NAME_SHADOWING on the second 'a', because REDECLARATION must be reported here
+                PsiElement oldElement = DescriptorToSourceUtils.descriptorToDeclaration(oldDescriptor);
+
+                if (oldElement != null && oldElement.getParent().equals(declaration.getParent().getParent().getParent())) return;
+            }
+            trace.report(Errors.NAME_SHADOWING.on(declaration, variableDescriptor.getName().asString()));
         }
     }
 
@@ -170,15 +180,6 @@ public class ExpressionTypingUtils {
     public static boolean isExclExclExpression(@Nullable KtExpression expression) {
         return expression instanceof KtUnaryExpression
                && ((KtUnaryExpression) expression).getOperationReference().getReferencedNameElementType() == KtTokens.EXCLEXCL;
-    }
-
-    @NotNull
-    public static List<KotlinType> getValueParametersTypes(@NotNull List<ValueParameterDescriptor> valueParameters) {
-        List<KotlinType> parameterTypes = new ArrayList<>(valueParameters.size());
-        for (ValueParameterDescriptor parameter : valueParameters) {
-            parameterTypes.add(parameter.getType());
-        }
-        return parameterTypes;
     }
 
     /**
@@ -233,13 +234,6 @@ public class ExpressionTypingUtils {
 
     public static boolean isFunctionLiteral(@Nullable DeclarationDescriptor descriptor) {
         return descriptor instanceof AnonymousFunctionDescriptor;
-    }
-
-    public static boolean isLocalFunction(@Nullable DeclarationDescriptor descriptor) {
-        if (descriptor != null && descriptor.getClass() == SimpleFunctionDescriptorImpl.class) {
-            return ((SimpleFunctionDescriptorImpl) descriptor).getVisibility() == Visibilities.LOCAL;
-        }
-        return false;
     }
 
     public static boolean isFunctionExpression(@Nullable DeclarationDescriptor descriptor) {

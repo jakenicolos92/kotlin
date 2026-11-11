@@ -1,7 +1,9 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
+// NO_CHECK_LAMBDA_INLINING
+// FILE: lib.kt
 import helpers.*
-import kotlin.coroutines.experimental.startCoroutine
+import kotlin.coroutines.startCoroutine
 
 class Controller {
     suspend inline fun suspendInlineThrow(v: String): String = throw RuntimeException(v)
@@ -14,12 +16,16 @@ fun builder(c: suspend Controller.() -> Unit) {
 
 class OK
 
+// FILE: main.kt
+import helpers.*
+import kotlin.coroutines.startCoroutine
+
 fun box(): String {
     var result = ""
 
     builder {
-        result = try { suspendInlineThrow("OK") } catch (e: RuntimeException) { e.message!! }
-//        result = suspendInline("OK")
+        result = try { suspendInlineThrow("O") } catch (e: RuntimeException) { e.message!! }
+        result += suspendInline("K")
     }
 
     return result

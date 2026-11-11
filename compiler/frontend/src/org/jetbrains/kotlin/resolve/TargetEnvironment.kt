@@ -16,10 +16,26 @@
 
 package org.jetbrains.kotlin.resolve
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.container.StorageComponentContainer
+import org.jetbrains.kotlin.container.useImpl
+import org.jetbrains.kotlin.container.useInstance
+import org.jetbrains.kotlin.idea.MainFunctionDetector
+import org.jetbrains.kotlin.resolve.lazy.BasicAbsentDescriptorHandler
+import org.jetbrains.kotlin.resolve.lazy.CompilerLocalDescriptorResolver
 
+@K1Deprecation
 abstract class TargetEnvironment(private val name: String) {
     abstract fun configure(container: StorageComponentContainer)
 
     override fun toString() = name
+
+    companion object {
+        fun configureCompilerEnvironment(container: StorageComponentContainer) {
+            container.useInstance(BodyResolveCache.ThrowException)
+            container.useImpl<CompilerLocalDescriptorResolver>()
+            container.useImpl<BasicAbsentDescriptorHandler>()
+            container.useImpl<MainFunctionDetector.Factory.Ordinary>()
+        }
+    }
 }

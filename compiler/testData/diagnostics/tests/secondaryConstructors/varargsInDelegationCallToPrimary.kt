@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 fun <T> array(vararg x: T): Array<T> = null!!
 
 open class B(vararg y: String) {
@@ -10,3 +11,6 @@ class A : B {
     constructor(x: String): super(x)
     constructor(): super()
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, functionDeclaration, nullableType, primaryConstructor,
+secondaryConstructor, stringLiteral, typeParameter, vararg */

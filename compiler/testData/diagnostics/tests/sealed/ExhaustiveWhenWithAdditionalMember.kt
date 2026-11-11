@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 sealed class Sealed(val x: Int) {
     data class Tuple(val x: Int, val y: Int)
     object First: Sealed(12)
@@ -16,3 +17,5 @@ fun foo(s: Sealed): Int {
     }
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, data, functionDeclaration, integerLiteral, isExpression, nestedClass,
+objectDeclaration, primaryConstructor, propertyDeclaration, sealed, smartcast, whenExpression, whenWithSubject */

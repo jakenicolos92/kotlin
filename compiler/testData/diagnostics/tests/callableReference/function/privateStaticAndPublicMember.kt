@@ -1,4 +1,5 @@
-// SKIP_TXT
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 class A {
     private static void foo() {}
@@ -8,3 +9,5 @@ class A {
 fun main() {
     (A::foo)(A(), 1)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, javaCallableReference, javaFunction, javaType */

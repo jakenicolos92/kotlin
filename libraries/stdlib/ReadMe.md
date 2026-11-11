@@ -1,17 +1,18 @@
-## The Kotlin Standard Library
+## The Kotlin standard library
 
-This module creates the [standard library for kotlin](http://kotlinlang.org/api/latest/jvm/stdlib/index.html).
+This module creates the [standard library for Kotlin](https://kotlinlang.org/api/latest/jvm/stdlib/index.html).
 
-### Notes for contributors
+### Code generation
 
-We use some code generation to generate the various utility extension function for the various collection-like types like arrays, strings, `Collection<T>`, `Sequence<T>`, `Map<K, V>` etc.
+We use code generation to generate some repetitive utility extension functions, e.g. for collection-like types: arrays, strings, `Collection<T>`, `Sequence<T>`, `Map<K, V>` etc.
+Those are defined in [templates](../tools/kotlin-stdlib-gen/src/templates) written in a special Kotlin-based DSL.
 
-These sources are placed into `generated` folder and their names are prefixed with the underscore, for example `generated/_Collections.kt`
+Generated sources are placed into the `generated` folder and their names are prefixed with an underscore, for example, `generated/_Collections.kt`
 
-To run the code generator from the `libraries` directory of a kotlin checkout, use the following command:
+To run the code generator, use the following task:
 
-    ./gradlew :tools:kotlin-stdlib-gen:run
+`./gradlew :tools:kotlin-stdlib-gen:run`
 
-> Note: on Windows type `gradlew` without the leading `./`
+### Usage samples
 
-This then runs the script which generates a significant part of stdlib sources from the [templates](https://github.com/JetBrains/kotlin/tree/master/libraries/tools/kotlin-stdlib-gen/src/templates) authored with a special kotlin based DSL.
+If you want to author samples for the standard library, please head to [the samples readme](samples/ReadMe.md).

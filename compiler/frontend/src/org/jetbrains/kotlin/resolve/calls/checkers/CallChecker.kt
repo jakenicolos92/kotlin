@@ -17,15 +17,23 @@
 package org.jetbrains.kotlin.resolve.calls.checkers
 
 import com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.config.LanguageVersionSettings
+import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.resolve.BindingTrace
+import org.jetbrains.kotlin.resolve.MissingSupertypesResolver
 import org.jetbrains.kotlin.resolve.calls.context.ResolutionContext
+import org.jetbrains.kotlin.resolve.calls.model.KotlinCallComponents
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowInfo
+import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowValueFactory
+import org.jetbrains.kotlin.resolve.checkers.CheckerContext
+import org.jetbrains.kotlin.resolve.deprecation.DeprecationResolver
 import org.jetbrains.kotlin.resolve.scopes.LexicalScope
 import org.jetbrains.kotlin.types.DeferredType
 import org.jetbrains.kotlin.types.KotlinType
 
+@K1Deprecation
 interface CallChecker {
     /**
      * Note that [reportOn] should only be used as a target element for diagnostics reported by checkers.
@@ -34,11 +42,15 @@ interface CallChecker {
     fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext)
 }
 
-class CallCheckerContext(
-        val resolutionContext: ResolutionContext<*>,
-        val trace: BindingTrace,
-        val languageVersionSettings: LanguageVersionSettings
-) {
+@K1Deprecation
+class CallCheckerContext @JvmOverloads constructor(
+    val resolutionContext: ResolutionContext<*>,
+    override val deprecationResolver: DeprecationResolver,
+    override val moduleDescriptor: ModuleDescriptor,
+    val missingSupertypesResolver: MissingSupertypesResolver,
+    val callComponents: KotlinCallComponents,
+    override val trace: BindingTrace = resolutionContext.trace
+) : CheckerContext {
     val scope: LexicalScope
         get() = resolutionContext.scope
 
@@ -48,12 +60,17 @@ class CallCheckerContext(
     val isAnnotationContext: Boolean
         get() = resolutionContext.isAnnotationContext
 
-    constructor(c: ResolutionContext<*>, languageVersionSettings: LanguageVersionSettings) : this(c, c.trace, languageVersionSettings)
+    val dataFlowValueFactory: DataFlowValueFactory
+        get() = resolutionContext.dataFlowValueFactory
+
+    override val languageVersionSettings: LanguageVersionSettings
+        get() = resolutionContext.languageVersionSettings
 }
 
 // Use this utility to avoid premature computation of deferred return type of a resolved callable descriptor.
 // Computing it in CallChecker#check is not feasible since it would trigger "type checking has run into a recursive problem" errors.
 // Receiver parameter is present to emphasize that this function should ideally be only used from call checkers.
 @Suppress("unused")
+@K1Deprecation
 fun CallChecker.isComputingDeferredType(type: KotlinType) =
-        type is DeferredType && type.isComputing
+    type is DeferredType && type.isComputing

@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 501
 // KT-2388
 package foo
 

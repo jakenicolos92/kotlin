@@ -1,4 +1,7 @@
-fun main(args: Array<String>) {
-    <!NOT_YET_SUPPORTED_IN_INLINE!>inline fun a(){
-    }<!>
+// RUN_PIPELINE_TILL: FRONTEND
+fun main() {
+    <!NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION!>inline<!> fun a(){
+    }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, inline, localFunction */

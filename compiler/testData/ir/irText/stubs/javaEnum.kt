@@ -1,4 +1,7 @@
-// !DUMP_DEPENDENCIES
+// IGNORE_BACKEND: JKLIB
+// TARGET_BACKEND: JVM
+// DUMP_EXTERNAL_CLASS: JEnum
+
 // FILE: JEnum.java
 
 public enum JEnum {

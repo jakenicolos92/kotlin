@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: a.kt
 package test
 
@@ -16,4 +17,6 @@ package test.p; class G2<E> : <!SUPERTYPE_NOT_INITIALIZED!>G<E><!> { fun g() : E
 package test.p; fun foo() {}
 
 // FILE: f.kt
-package test.p; fun foo(<!UNUSED_PARAMETER!>a<!>: C) {}
+package test.p; fun foo(a: C) {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, nullableType, override, typeParameter */

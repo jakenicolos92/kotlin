@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 @Deprecated("text")
 annotation class obsolete()
 
@@ -7,3 +8,5 @@ annotation class obsoleteWithParam(val text: String)
 @<!DEPRECATION!>obsolete<!> class Obsolete
 
 @<!DEPRECATION!>obsoleteWithParam<!>("text") class Obsolete2
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration, primaryConstructor, propertyDeclaration, stringLiteral */

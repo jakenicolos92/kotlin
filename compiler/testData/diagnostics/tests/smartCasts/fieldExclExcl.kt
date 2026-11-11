@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNNECESSARY_NOT_NULL_ASSERTION
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNNECESSARY_NOT_NULL_ASSERTION
 // See KT-9126: Variable change does not affect data flow info for its fields
 
 class My(val x: Int?)
@@ -10,3 +11,6 @@ fun foo() {
         y!!.x<!UNSAFE_CALL!>.<!>hashCode()
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, checkNotNullCall, classDeclaration, equalityExpression, functionDeclaration,
+ifExpression, integerLiteral, localProperty, nullableType, primaryConstructor, propertyDeclaration, smartcast */

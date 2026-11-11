@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class RedefinePropertyInFunction() {
 
     var i = 17
@@ -8,3 +9,6 @@ class RedefinePropertyInFunction() {
     }
 
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, localProperty, primaryConstructor,
+propertyDeclaration */

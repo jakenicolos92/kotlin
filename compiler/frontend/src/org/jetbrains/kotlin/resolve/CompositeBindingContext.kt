@@ -16,9 +16,11 @@
 
 package org.jetbrains.kotlin.resolve
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.util.slicedMap.ReadOnlySlice
 import org.jetbrains.kotlin.util.slicedMap.WritableSlice
 import com.google.common.collect.ImmutableMap
+import com.intellij.openapi.project.Project
 import org.jetbrains.kotlin.diagnostics.Diagnostic
 import com.intellij.psi.PsiElement
 import com.intellij.openapi.util.ModificationTracker
@@ -27,8 +29,9 @@ import org.jetbrains.kotlin.resolve.diagnostics.Diagnostics
 import org.jetbrains.kotlin.types.KotlinType
 import java.util.*
 
+@K1Deprecation
 class CompositeBindingContext private constructor(
-        private val delegates: LinkedHashSet<BindingContext>
+    private val delegates: LinkedHashSet<BindingContext>
 ) : BindingContext {
     override fun getType(expression: KtExpression): KotlinType? {
         return delegates.asSequence().map { it.getType(expression) }.firstOrNull { it != null }
@@ -66,8 +69,12 @@ class CompositeBindingContext private constructor(
         // Do nothing
     }
 
+    override fun getProject(): Project? {
+        return delegates.firstOrNull()?.project
+    }
+
     private class CompositeDiagnostics(
-            private val delegates: List<Diagnostics>
+        private val delegates: List<Diagnostics>
     ) : Diagnostics {
 
         override fun iterator(): Iterator<Diagnostic> {

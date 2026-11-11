@@ -15,12 +15,16 @@
  */
 package com.example.dagger.kotlin.ui
 
+import android.content.Context
+import android.content.Intent
 import android.location.LocationManager
 import android.os.Bundle
+import android.os.Parcelable
+import android.widget.TextView
 import com.example.dagger.kotlin.DemoActivity
 import com.example.dagger.kotlin.DemoApplication
 import com.example.dagger.kotlin.R
-import kotlinx.android.synthetic.main.activity_main.locationInfo
+import kotlinx.parcelize.Parcelize
 import javax.inject.Inject
 
 class HomeActivity : DemoActivity() {
@@ -33,6 +37,16 @@ class HomeActivity : DemoActivity() {
         (application as DemoApplication).component.inject(this)
 
         // TODO do something with the injected dependencies here!
-        locationInfo.text = "Injected LocationManager:\n$locationManager"
+        (findViewById(R.id.locationInfo) as TextView).text = "Injected LocationManager:\n$locationManager"
     }
+}
+
+class Foo {
+    @Inject
+    lateinit var c: Context
+
+    private lateinit var bars: List<Bar>
+
+    @Parcelize
+    data class Bar(val intent: Intent): Parcelable
 }

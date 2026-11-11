@@ -1,6 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 493
-// ONLY_THIS_QUALIFIED_REFERENCES: foo_0
-
 package foo
 
 object A {

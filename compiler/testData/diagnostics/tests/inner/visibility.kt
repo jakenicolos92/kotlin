@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 open class Outer {
     private class PrivateNested
     private inner class PrivateInner
@@ -11,8 +12,8 @@ open class Outer {
 
 class Derived : Outer() {
     fun foo() {
-        Outer.<!INVISIBLE_MEMBER!>PrivateNested<!>()
-        super.<!INVISIBLE_MEMBER!>PrivateInner<!>()
+        Outer.<!INVISIBLE_REFERENCE!>PrivateNested<!>()
+        super.<!INVISIBLE_REFERENCE!>PrivateInner<!>()
 
         Outer.ProtectedNested()
         super.ProtectedInner()
@@ -23,12 +24,14 @@ class Derived : Outer() {
 }
 
 fun foo() {
-    Outer.<!INVISIBLE_MEMBER!>PrivateNested<!>()
-    Outer().<!INVISIBLE_MEMBER!>PrivateInner<!>()
+    Outer.<!INVISIBLE_REFERENCE!>PrivateNested<!>()
+    Outer().<!INVISIBLE_REFERENCE!>PrivateInner<!>()
 
-    Outer.<!INVISIBLE_MEMBER!>ProtectedNested<!>()
-    Outer().<!INVISIBLE_MEMBER!>ProtectedInner<!>()
+    Outer.<!INVISIBLE_REFERENCE!>ProtectedNested<!>()
+    Outer().<!INVISIBLE_REFERENCE!>ProtectedInner<!>()
 
     Outer.PublicNested()
     Outer().PublicInner()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, inner, nestedClass, superExpression */

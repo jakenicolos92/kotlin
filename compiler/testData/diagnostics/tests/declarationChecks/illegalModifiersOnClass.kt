@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -MANY_COMPANION_OBJECTS -REDECLARATION -DUPLICATE_CLASS_NAMES
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -MANY_COMPANION_OBJECTS -REDECLARATION -DUPLICATE_CLASS_NAMES
 
 // KT-3464 Front-end shouldn't allow override modifier in class declaration
 
@@ -17,3 +18,6 @@ final object B4 {}
 <!WRONG_MODIFIER_TARGET!>override<!> enum class C {}
 <!WRONG_MODIFIER_TARGET!>override<!> interface D {}
 <!WRONG_MODIFIER_TARGET!>override<!> annotation class E
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration, companionObject, enumDeclaration, interfaceDeclaration,
+objectDeclaration */

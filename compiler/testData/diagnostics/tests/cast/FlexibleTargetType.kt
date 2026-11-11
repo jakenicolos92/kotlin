@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Foo.java
 
 import org.jetbrains.annotations.NotNull;
@@ -22,5 +23,7 @@ fun test() {
 
     Foo.create() <!USELESS_CAST!>as Foo?<!>
     Foo.createN() <!USELESS_CAST!>as Foo?<!>
-    Foo.createNN() <!USELESS_CAST!>as Foo?<!>
+    Foo.createNN() as Foo?
 }
+
+/* GENERATED_FIR_TAGS: asExpression, flexibleType, functionDeclaration, javaFunction, javaType, nullableType */

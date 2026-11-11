@@ -17,15 +17,18 @@
 package org.jetbrains.kotlin.codegen.optimization.boxing
 
 import com.google.common.collect.ImmutableSet
+import org.jetbrains.kotlin.codegen.state.GenerationState
+import org.jetbrains.kotlin.config.LanguageFeature
+import org.jetbrains.kotlin.config.languageVersionSettings
 import org.jetbrains.org.objectweb.asm.Opcodes
 import org.jetbrains.org.objectweb.asm.Type
-import org.jetbrains.org.objectweb.asm.tree.AbstractInsnNode
-import org.jetbrains.org.objectweb.asm.tree.InsnList
-import org.jetbrains.org.objectweb.asm.tree.TypeInsnNode
-import org.jetbrains.org.objectweb.asm.tree.VarInsnNode
+import org.jetbrains.org.objectweb.asm.tree.*
 import org.jetbrains.org.objectweb.asm.tree.analysis.BasicValue
 
-internal class RedundantBoxingInterpreter(insnList: InsnList) : BoxingInterpreter(insnList) {
+internal class RedundantBoxingInterpreter(
+    methodNode: MethodNode,
+    private val generationState: GenerationState
+) : BoxingInterpreter(methodNode.instructions, generationState) {
 
     val candidatesBoxedValues = RedundantBoxedValuesCollection()
 
@@ -33,7 +36,10 @@ internal class RedundantBoxingInterpreter(insnList: InsnList) : BoxingInterprete
         if ((insn.opcode == Opcodes.CHECKCAST || insn.opcode == Opcodes.INSTANCEOF) && value is BoxedBasicValue) {
             val typeInsn = insn as TypeInsnNode
 
-            if (!isSafeCast(value, typeInsn.desc)) {
+            val avoidWrongOptimization = generationState.configuration.languageVersionSettings
+                .supportsFeature(LanguageFeature.AvoidWrongOptimizationOfTypeOperatorsOnValueClasses)
+
+            if (!isSafeCast(value, typeInsn.desc, avoidWrongOptimization)) {
                 markValueAsDirty(value)
             }
         }
@@ -116,8 +122,7 @@ internal class RedundantBoxingInterpreter(insnList: InsnList) : BoxingInterprete
 
             if (!PERMITTED_OPERATIONS_OPCODES.contains(insnNode.opcode)) {
                 markValueAsDirty(value)
-            }
-            else {
+            } else {
                 addAssociatedInsn(value, insnNode)
             }
         }
@@ -129,22 +134,25 @@ internal class RedundantBoxingInterpreter(insnList: InsnList) : BoxingInterprete
 
     companion object {
         private val PERMITTED_OPERATIONS_OPCODES =
-                ImmutableSet.of(Opcodes.ASTORE, Opcodes.ALOAD, Opcodes.POP, Opcodes.DUP, Opcodes.CHECKCAST, Opcodes.INSTANCEOF)
+            ImmutableSet.of(Opcodes.ASTORE, Opcodes.ALOAD, Opcodes.POP, Opcodes.DUP, Opcodes.CHECKCAST, Opcodes.INSTANCEOF)
 
         private val PRIMITIVE_TYPES_SORTS_WITH_WRAPPER_EXTENDS_NUMBER =
-                ImmutableSet.of(Type.BYTE, Type.SHORT, Type.INT, Type.FLOAT, Type.LONG, Type.DOUBLE)
+            ImmutableSet.of(Type.BYTE, Type.SHORT, Type.INT, Type.FLOAT, Type.LONG, Type.DOUBLE)
 
-        private fun isSafeCast(value: BoxedBasicValue, targetInternalName: String) =
-                when (targetInternalName) {
-                    Type.getInternalName(Any::class.java) ->
-                        true
-                    Type.getInternalName(Number::class.java) ->
-                        PRIMITIVE_TYPES_SORTS_WITH_WRAPPER_EXTENDS_NUMBER.contains(value.descriptor.unboxedType.sort)
-                    "java/lang/Comparable" ->
-                        true
-                    else ->
-                        value.type.internalName == targetInternalName
+        private fun isSafeCast(value: BoxedBasicValue, targetInternalName: String, avoidWrongOptimization: Boolean) =
+            when (targetInternalName) {
+                Type.getInternalName(Any::class.java) -> true
+                Type.getInternalName(Number::class.java) -> {
+                    if (value.descriptor.isValueClassValue && avoidWrongOptimization) {
+                        false
+                    } else {
+                        val unboxedType = value.descriptor.unboxedType
+                        PRIMITIVE_TYPES_SORTS_WITH_WRAPPER_EXTENDS_NUMBER.contains(unboxedType.sort)
+                    }
                 }
+                "java/lang/Comparable" -> !(value.descriptor.isValueClassValue && avoidWrongOptimization)
+                else -> value.type.internalName == targetInternalName
+            }
 
         private fun addAssociatedInsn(value: BoxedBasicValue, insn: AbstractInsnNode) {
             value.descriptor.run {

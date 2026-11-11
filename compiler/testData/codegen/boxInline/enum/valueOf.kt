@@ -1,9 +1,9 @@
+// WITH_STDLIB
 // FILE: 1.kt
-// WITH_RUNTIME
 package test
 
-inline fun <reified T : Enum<T>> myValueOf(): String {
-    return enumValueOf<T>("OK").name
+inline fun <reified X : Enum<X>> myValueOf(): String {
+    return enumValueOf<X>("OK").name
 }
 
 enum class Z {

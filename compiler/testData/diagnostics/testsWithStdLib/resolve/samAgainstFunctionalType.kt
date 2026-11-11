@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 // FILE: StaticOverrides.java
 
@@ -27,3 +28,6 @@ fun test() {
     StaticOverrides.B.foo {} checkType { _<String>() }
     StaticOverrides.C.foo {} checkType { _<Boolean>() }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, javaFunction, lambdaLiteral, nullableType, samConversion, typeParameter, typeWithExtension */

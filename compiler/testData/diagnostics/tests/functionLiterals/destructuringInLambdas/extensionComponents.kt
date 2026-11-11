@@ -1,5 +1,7 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_PARAMETER
 class A
 
 operator fun A.component1() = 1
@@ -20,25 +22,25 @@ fun foobaz(block: D.(B) -> Unit) { }
 fun foobar(block: D.(A) -> Unit) { }
 
 fun bar() {
-    foo { (a, b) ->
+    foo { [a, b] ->
         a checkType { _<Int>() }
         b checkType { _<String>() }
     }
 
-    foo { (a: Int, b: String) ->
+    foo { [a: Int, b: String] ->
         a checkType { _<Int>() }
         b checkType { _<String>() }
     }
 
     // From KEEP: Component-functions are resolved in the same scope as the first statement of the lambda
-    foobaz { (a, b) ->
+    foobaz { [a, b] ->
         a checkType { _<Double>() }
         b checkType { _<Char>() }
     }
 
     // From KEEP: Component-functions are resolved in the same scope as the first statement of the lambda
     // So `component1`/`component2` for lambda parameters were resolved to member extensions
-    foobar { (a, b) ->
+    foobar { [a, b] ->
         a checkType { _<Double>() }
         b checkType { _<Char>() }
     }
@@ -51,3 +53,7 @@ fun bar() {
 //
 //    }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, infix,
+integerLiteral, lambdaLiteral, localProperty, nullableType, operator, propertyDeclaration, stringLiteral, typeParameter,
+typeWithExtension */

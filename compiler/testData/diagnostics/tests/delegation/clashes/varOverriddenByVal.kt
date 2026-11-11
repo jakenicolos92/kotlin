@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface IVar {
     var foo: Int
 }
@@ -27,3 +28,6 @@ abstract <!VAR_OVERRIDDEN_BY_VAL_BY_DELEGATION!>class Test2<!> : IVar, IValT<Int
 abstract <!VAR_OVERRIDDEN_BY_VAL_BY_DELEGATION!>class Test3<!> : IDerived, IVal by CVal()
 
 abstract <!VAR_OVERRIDDEN_BY_VAL_BY_DELEGATION!>class Test4<!> : IDerived, IValT<Int> by CValT<Int>()
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, getter, inheritanceDelegation, integerLiteral,
+interfaceDeclaration, nullableType, override, propertyDeclaration, typeParameter */

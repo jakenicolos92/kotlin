@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //FILE:a.kt
 //KT-1580 Can't access nested class/interface from other package
 package lib
@@ -11,5 +12,7 @@ package user
 
 import lib.WithInner
 
-fun main(<!UNUSED_PARAMETER!>a<!> : WithInner, <!UNUSED_PARAMETER!>b<!> : WithInner.Inner) {
+fun main(a : WithInner, b : WithInner.Inner) {
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, nestedClass */

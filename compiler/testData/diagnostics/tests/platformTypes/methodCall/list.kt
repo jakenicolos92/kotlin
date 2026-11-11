@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/J.java
 
 package p;
@@ -16,3 +17,5 @@ fun test(ls: List<String>, mls: MutableList<String>, lsn: List<String?>, mlsn: M
     J().list(lsn)
     J().list(mlsn)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaType, nullableType */

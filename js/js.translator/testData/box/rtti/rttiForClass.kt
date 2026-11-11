@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 503
 package foo
 
 class D

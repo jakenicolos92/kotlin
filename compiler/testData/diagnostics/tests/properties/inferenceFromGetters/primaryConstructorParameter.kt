@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 object Delegate {
     operator fun getValue(x: Any?, y: Any?): String = ""
@@ -19,5 +20,11 @@ class C(p: Any, val v: Any) {
 
     <!PROPERTY_WITH_NO_TYPE_NO_INITIALIZER!>var test5<!>
         get() { return <!UNRESOLVED_REFERENCE!>p<!> }
-        set(nv) { <!UNRESOLVED_REFERENCE!>p<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>let<!> {} }
+        set(nv) { <!UNRESOLVED_REFERENCE!>p<!>.<!CANNOT_INFER_PARAMETER_TYPE, CANNOT_INFER_PARAMETER_TYPE!>let<!> <!CANNOT_INFER_PARAMETER_TYPE!>{}<!> }
+
+    lateinit <!LATEINIT_PROPERTY_WITHOUT_TYPE!>var test6<!>
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, getter, lambdaLiteral, lateinit, nullableType,
+objectDeclaration, operator, primaryConstructor, propertyDeclaration, propertyDelegate, propertyWithExtensionReceiver,
+setter, stringLiteral, typeParameter */

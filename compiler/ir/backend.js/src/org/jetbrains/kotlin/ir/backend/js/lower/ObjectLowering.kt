@@ -1,0 +1,149 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.ir.backend.js.lower
+
+import org.jetbrains.kotlin.backend.common.BodyLoweringPass
+import org.jetbrains.kotlin.backend.common.DeclarationTransformer
+import org.jetbrains.kotlin.backend.common.lower.createIrBuilder
+import org.jetbrains.kotlin.backend.common.lower.irBlockBody
+import org.jetbrains.kotlin.backend.common.phaser.PhasePrerequisites
+import org.jetbrains.kotlin.descriptors.ClassKind
+import org.jetbrains.kotlin.ir.IrStatement
+import org.jetbrains.kotlin.ir.UNDEFINED_OFFSET
+import org.jetbrains.kotlin.ir.backend.js.*
+import org.jetbrains.kotlin.ir.backend.js.ir.JsIrBuilder
+import org.jetbrains.kotlin.ir.builders.declarations.buildField
+import org.jetbrains.kotlin.ir.builders.declarations.buildFun
+import org.jetbrains.kotlin.ir.builders.irGetField
+import org.jetbrains.kotlin.ir.builders.irReturn
+import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.expressions.*
+import org.jetbrains.kotlin.ir.expressions.impl.IrConstructorCallImpl
+import org.jetbrains.kotlin.ir.expressions.impl.fromSymbolOwner
+import org.jetbrains.kotlin.ir.types.makeNullable
+import org.jetbrains.kotlin.ir.util.*
+import org.jetbrains.kotlin.ir.visitors.IrElementTransformerVoid
+import org.jetbrains.kotlin.ir.visitors.transformChildrenVoid
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.utils.addToStdlib.getOrSetIfNull
+
+/**
+ * Creates lazy object instance generator functions.
+ */
+class ObjectDeclarationLowering(val context: JsCommonBackendContext) : DeclarationTransformer {
+    companion object {
+        internal val INSTANCE_FIELD_NAME: Name = Name.identifier("instance")
+        internal val GET_INSTANCE_METHOD_NAME: Name = Name.identifier("getInstance")
+
+        internal fun createObjectConstructorCall(objectDeclaration: IrClass): IrExpression {
+            val primaryConstructor = objectDeclaration.primaryConstructor ?: objectDeclaration.syntheticPrimaryConstructor!!
+            return IrConstructorCallImpl.fromSymbolOwner(primaryConstructor.returnType, primaryConstructor.symbol)
+        }
+    }
+
+    override fun transformFlat(declaration: IrDeclaration): List<IrDeclaration>? {
+        if (declaration !is IrClass || declaration.kind != ClassKind.OBJECT || declaration.isEffectivelyExternal())
+            return null
+
+        val getInstanceFun = getOrCreateGetInstanceFunction(declaration)
+        val instanceField = getOrCreateInstanceField(declaration)
+        val shouldBeEagerlyInitialized = declaration.isInitializersFreeObject()
+        if (shouldBeEagerlyInitialized) {
+            instanceField.initializer = context.irFactory.createExpressionBody(createObjectConstructorCall(declaration))
+        }
+        declaration.declarations.addAll(0, listOf(instanceField, getInstanceFun))
+
+        getInstanceFun.body = context.irFactory.createBlockBody(UNDEFINED_OFFSET, UNDEFINED_OFFSET) {
+            statements += context.createIrBuilder(getInstanceFun.symbol).irBlockBody(getInstanceFun) {
+                // The call to the object's static initializer (if there is one) will be inserted later in
+                // the WebStaticInitializersUsageLowering.
+                +irReturn(irGetField(null, instanceField))
+            }.statements
+        }
+
+        return null
+    }
+}
+
+/**
+ * Transforms [IrGetObjectValue] into an instance generator call.
+ */
+@PhasePrerequisites(PrimaryConstructorLowering::class)
+class ObjectUsageLowering(val context: JsCommonBackendContext) : BodyLoweringPass {
+    override fun lower(irBody: IrBody, container: IrDeclaration) {
+        val functionContainer = container.takeIf { it is IrConstructor && it.isPrimary }
+        val irClass = functionContainer?.parentAsClass
+
+        val instanceField = irClass?.objectInstanceField
+        if (instanceField != null && instanceField.initializer == null && (!context.es6mode || irClass.superClass != null)) {
+            val thisReceiver = irClass.thisReceiver!!
+            val objectThisValue = if (context.es6mode && context is JsIrBackendContext) {
+                JsIrBuilder.buildNull(thisReceiver.type)
+            } else {
+                JsIrBuilder.buildGetValue(thisReceiver.symbol)
+            }
+            val initInstanceField = generateInitInstanceField(instanceField, objectThisValue)
+
+            // Initialize instance field in the beginning of the constructor because it can be used inside the constructor later
+            (irBody as IrBlockBody).statements.add(0, initInstanceField)
+        }
+
+        irBody.transformChildrenVoid(object : IrElementTransformerVoid() {
+            override fun visitGetObjectValue(expression: IrGetObjectValue): IrExpression {
+                val obj: IrClass = expression.symbol.owner
+                if (obj.isEffectivelyExternal()) return expression
+                return JsIrBuilder.buildCall(getOrCreateGetInstanceFunction(obj).symbol)
+            }
+
+            override fun visitDelegatingConstructorCall(expression: IrDelegatingConstructorCall): IrExpression {
+                return if (!context.es6mode || instanceField == null || instanceField.initializer != null) {
+                    super.visitDelegatingConstructorCall(expression)
+                } else {
+                    JsIrBuilder.buildComposite(
+                        context.irBuiltIns.unitType,
+                        listOf(
+                            super.visitDelegatingConstructorCall(expression),
+                            generateInitInstanceField(instanceField, JsIrBuilder.buildGetValue(irClass.thisReceiver!!.symbol))
+                        )
+                    )
+                }
+            }
+        })
+    }
+
+    private fun generateInitInstanceField(instanceField: IrField, value: IrExpression): IrStatement {
+        return JsIrBuilder.buildSetField(instanceField.symbol, null, value, context.irBuiltIns.unitType)
+    }
+}
+
+private fun getOrCreateInstanceField(obj: IrClass): IrField =
+    obj::objectInstanceField.getOrSetIfNull {
+        obj.factory.buildField {
+            name = ObjectDeclarationLowering.INSTANCE_FIELD_NAME
+            type = obj.defaultType.makeNullable()
+            isStatic = true
+            origin = IrDeclarationOrigin.FIELD_FOR_OBJECT_INSTANCE
+        }.apply {
+            parent = obj
+            initializer = null  // Initialized with 'undefined'
+        }
+    }
+
+
+private fun getOrCreateGetInstanceFunction(obj: IrClass): IrSimpleFunction =
+    obj::objectGetInstanceFunction.getOrSetIfNull {
+        // There is need to initialize _instance field together with _getInstance, so the outer restrictTo call would properly assign
+        // signature and tags for JS namer. It prevents name clashes during the JS namer phase.
+        getOrCreateInstanceField(obj)
+        obj.factory.buildFun {
+            name = ObjectDeclarationLowering.GET_INSTANCE_METHOD_NAME
+            returnType = obj.defaultType
+            origin = JsLoweredDeclarationOrigin.OBJECT_GET_INSTANCE_FUNCTION
+            visibility = obj.visibility
+        }.apply {
+            parent = obj
+        }
+    }

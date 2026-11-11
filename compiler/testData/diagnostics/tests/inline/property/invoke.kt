@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -INFIX_MODIFIER_REQUIRED
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE -INFIX_MODIFIER_REQUIRED
 
 inline var value: (p: Int) -> String
     get() = {"123" }
@@ -18,3 +19,6 @@ inline var value2: Int.(p: Int) -> String
 
         val p = <!USAGE_IS_NOT_INLINABLE!>ext<!>
     }
+
+/* GENERATED_FIR_TAGS: functionalType, getter, integerLiteral, lambdaLiteral, localProperty, propertyDeclaration, setter,
+stringLiteral, typeWithExtension */

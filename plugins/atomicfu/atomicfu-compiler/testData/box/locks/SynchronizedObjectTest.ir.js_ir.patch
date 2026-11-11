@@ -1,0 +1,16 @@
+--- a/SynchronizedObjectTest.ir.txt
++++ b/SynchronizedObjectTest.ir.js_ir.txt
+@@ -43,10 +43,10 @@
+                   RETURN type=kotlin.Nothing from='local final fun <anonymous> (): kotlin.String declared in <root>.SynchronizedObjectTest.testSync'
+                     CALL 'private final fun bar (): kotlin.String declared in <root>.SynchronizedObjectTest' type=kotlin.String origin=null
+                       ARG <this>: GET_VAR '<this>: <root>.SynchronizedObjectTest declared in <root>.SynchronizedObjectTest.testSync' type=<root>.SynchronizedObjectTest origin=IMPLICIT_ARGUMENT
+-        CALL 'public final fun assertEquals <T> (expected: T of kotlin.test.assertEquals, actual: T of kotlin.test.assertEquals, message: kotlin.String?): kotlin.Unit declared in kotlin.test' type=kotlin.Unit origin=null
++        CALL 'public final fun assertEquals <T> (a: T of kotlin.test.assertEquals, b: T of kotlin.test.assertEquals): kotlin.Unit declared in kotlin.test' type=kotlin.Unit origin=null
+           TYPE_ARG T: kotlin.String
+-          ARG expected: CONST String type=kotlin.String value="OK"
+-          ARG actual: GET_VAR 'val result: kotlin.String declared in <root>.SynchronizedObjectTest.testSync' type=kotlin.String origin=null
++          ARG a: CONST String type=kotlin.String value="OK"
++          ARG b: GET_VAR 'val result: kotlin.String declared in <root>.SynchronizedObjectTest.testSync' type=kotlin.String origin=null
+   FUN name:box visibility:public modality:FINAL returnType:kotlin.String
+     BLOCK_BODY
+       VAR name:testClass type:<root>.SynchronizedObjectTest [val]

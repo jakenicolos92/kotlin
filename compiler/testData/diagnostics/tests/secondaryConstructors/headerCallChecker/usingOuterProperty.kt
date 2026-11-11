@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 class Outer {
     val prop = 1
     inner class Inner {
@@ -6,3 +7,6 @@ class Outer {
         constructor(x: Int, y: Int, z: Int = x + prop + this@Outer.prop) : this(x + prop + this@Outer.prop)
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, inner, integerLiteral, propertyDeclaration,
+secondaryConstructor, thisExpression */

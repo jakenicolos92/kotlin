@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -NOTHING_TO_INLINE -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -VARIABLE_EXPECTED
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -NOTHING_TO_INLINE -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -VARIABLE_EXPECTED
 
 inline fun inlineFun(s: (p: Int) -> Unit) {
     <!RECURSION_IN_INLINE!>inlineFun<!>(s)
@@ -22,3 +23,7 @@ inline operator fun <T, V> Function1<T, V>.not() : Boolean {
 inline operator fun <T, V> Function1<T, V>.inc() : Function1<T, V> {
     return this<!RECURSION_IN_INLINE!>++<!>
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+incrementDecrementExpression, infix, inline, integerLiteral, lambdaLiteral, nullableType, operator, thisExpression,
+typeParameter, typeWithExtension */

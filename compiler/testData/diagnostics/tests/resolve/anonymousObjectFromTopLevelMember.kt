@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface IFoo {
     fun foo()
 }
@@ -22,3 +23,6 @@ fun useAnonObject() {
     propOfAnonObject.foo()
     propOfAnonObject.qux()
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, functionDeclaration, interfaceDeclaration, override,
+propertyDeclaration */

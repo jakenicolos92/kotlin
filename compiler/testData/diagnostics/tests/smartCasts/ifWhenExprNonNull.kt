@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun baz(s: String?): String {
     val t = if (s == null) {
         ""
@@ -6,8 +7,11 @@ fun baz(s: String?): String {
         val u: String? = null
         when (u) {
             null -> ""
-            else -> <!DEBUG_INFO_SMARTCAST!>u<!>
+            else -> u
         }
     }
     return t
 }
+
+/* GENERATED_FIR_TAGS: equalityExpression, functionDeclaration, ifExpression, localProperty, nullableType,
+propertyDeclaration, smartcast, stringLiteral, whenExpression, whenWithSubject */

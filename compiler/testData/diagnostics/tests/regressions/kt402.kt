@@ -1,8 +1,11 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package kt402
 
 fun getTypeChecker() : (Any)->Boolean {
-  <!UNUSED_LAMBDA_EXPRESSION!>{ a : Any -> a is <!UNRESOLVED_REFERENCE!>T<!> }<!> // reports unsupported
+  { a : Any -> a is <!UNRESOLVED_REFERENCE!>T<!> } // reports unsupported
 <!NO_RETURN_IN_FUNCTION_WITH_BLOCK_BODY!>}<!>
 fun f() : (Any) -> Boolean {
   return { a : Any -> a is String }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, isExpression, lambdaLiteral */

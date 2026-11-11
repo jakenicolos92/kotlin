@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // See KT-774
 fun box() : Int {
     var a : Int? = 1
@@ -6,6 +7,9 @@ fun box() : Int {
     if (a == null) {
         return 2
     } else {
-        return <!DEBUG_INFO_SMARTCAST!>a<!> + d
+        return a + d
     }
-} 
+}
+
+/* GENERATED_FIR_TAGS: additiveExpression, equalityExpression, functionDeclaration, ifExpression, integerLiteral,
+localProperty, nullableType, propertyDeclaration, smartcast */

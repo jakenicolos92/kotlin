@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: CODEGEN
+
 // FILE: KotlinFile.kt
 fun foo(javaClass: JavaClass): String {
     return javaClass.doSomething("") { it }
@@ -8,6 +10,10 @@ public class JavaClass {
     public <T> T doSomething(T t, I<T> i) { return i.run(t); }
 }
 
+// FILE: I.java
 interface I<T> {
     T run(T t);
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaType, lambdaLiteral, samConversion,
+stringLiteral */

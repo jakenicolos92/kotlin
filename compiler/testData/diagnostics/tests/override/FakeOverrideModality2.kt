@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface A {
     fun foo() {}
 }
@@ -16,3 +17,5 @@ interface D : A {
 
 // Fake override Z#foo should be open
 <!MANY_INTERFACES_MEMBER_NOT_IMPLEMENTED!>class Z<!> : B, C, D
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, override, superExpression */

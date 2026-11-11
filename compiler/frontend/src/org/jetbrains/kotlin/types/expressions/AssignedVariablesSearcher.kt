@@ -18,16 +18,20 @@ package org.jetbrains.kotlin.types.expressions
 
 import com.google.common.collect.LinkedHashMultimap
 import com.google.common.collect.SetMultimap
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.VariableDescriptor
 import org.jetbrains.kotlin.lexer.KtTokens
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.psi.*
 
-abstract class AssignedVariablesSearcher: KtTreeVisitorVoid() {
+@K1Deprecation
+abstract class AssignedVariablesSearcher : KtTreeVisitorVoid() {
 
-    private val assignedNames: SetMultimap<Name, KtDeclaration?> = LinkedHashMultimap.create()
+    data class Writer(val assignment: KtBinaryExpression, val declaration: KtDeclaration?)
 
-    open fun writers(variableDescriptor: VariableDescriptor): MutableSet<KtDeclaration?> = assignedNames[variableDescriptor.name]
+    private val assignedNames: SetMultimap<Name, Writer> = LinkedHashMultimap.create()
+
+    open fun writers(variableDescriptor: VariableDescriptor): MutableSet<Writer> = assignedNames[variableDescriptor.name]
 
     fun hasWriters(variableDescriptor: VariableDescriptor) = writers(variableDescriptor).isNotEmpty()
 
@@ -53,7 +57,7 @@ abstract class AssignedVariablesSearcher: KtTreeVisitorVoid() {
         if (binaryExpression.operationToken === KtTokens.EQ) {
             val left = KtPsiUtil.deparenthesize(binaryExpression.left)
             if (left is KtNameReferenceExpression) {
-                assignedNames.put(left.getReferencedNameAsName(), currentDeclaration)
+                assignedNames.put(left.getReferencedNameAsName(), Writer(binaryExpression, currentDeclaration))
             }
         }
         super.visitBinaryExpression(binaryExpression)

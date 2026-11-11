@@ -1,9 +1,0 @@
-package
-
-package a {
-    public fun SamConstructor(/*0*/ a: () -> kotlin.Unit): kotlin.Unit
-}
-
-package b {
-    public fun test(): kotlin.Unit
-}

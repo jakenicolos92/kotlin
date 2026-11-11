@@ -1,49 +1,40 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2000-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.resolve.jvm
 
 import com.intellij.openapi.util.text.StringUtil
+import com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.load.java.typeEnhancement.hasEnhancedNullability
-import org.jetbrains.kotlin.psi.KtExpression
+import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.resolve.calls.checkers.AdditionalTypeChecker
+import org.jetbrains.kotlin.resolve.calls.checkers.CallChecker
+import org.jetbrains.kotlin.resolve.calls.checkers.CallCheckerContext
 import org.jetbrains.kotlin.resolve.calls.context.ResolutionContext
-import org.jetbrains.kotlin.resolve.calls.smartcasts.DataFlowValueFactory
-import org.jetbrains.kotlin.types.KotlinType
-import org.jetbrains.kotlin.types.TypeUtils
-import org.jetbrains.kotlin.types.isError
+import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
+import org.jetbrains.kotlin.resolve.calls.util.isSafeCall
+import org.jetbrains.kotlin.resolve.isNullableUnderlyingType
+import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
+import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValue
+import org.jetbrains.kotlin.types.*
 
+@K1Deprecation
 class RuntimeAssertionInfo(val needNotNullAssertion: Boolean, val message: String) {
     interface DataFlowExtras {
-        class OnlyMessage(message: String) : DataFlowExtras {
-            override val canBeNull: Boolean get() = true
-            override val possibleTypes: Set<KotlinType> get() = setOf()
-            override val presentableText: String = message
-        }
-
         val canBeNull: Boolean
-        val possibleTypes: Set<KotlinType>
         val presentableText: String
     }
 
     companion object {
-        @JvmStatic fun create(
-                expectedType: KotlinType,
-                expressionType: KotlinType,
-                dataFlowExtras: DataFlowExtras
+        @JvmStatic
+        fun create(
+            expectedType: KotlinType,
+            expressionType: KotlinType,
+            dataFlowExtras: DataFlowExtras
         ): RuntimeAssertionInfo? {
             fun assertNotNull(): Boolean {
                 if (expectedType.isError || expressionType.isError) return false
@@ -53,7 +44,12 @@ class RuntimeAssertionInfo(val needNotNullAssertion: Boolean, val message: Strin
                 // Cases when nullability assertion needed: T! -> T, T$ -> T
 
                 // Expected type either T?, T! or T$
-                if (TypeUtils.isNullableType(expectedType) || expectedType.hasEnhancedNullability()) return false
+                if (TypeUtils.isNullableType(expectedType) ||
+                    expectedType.hasEnhancedNullability() ||
+                    expectedType.isNullableUnderlyingType()
+                ) {
+                    return false
+                }
 
                 // Expression type is not nullable and not enhanced (neither T?, T! or T$)
                 val isExpressionTypeNullable = TypeUtils.isNullableType(expressionType)
@@ -73,27 +69,71 @@ class RuntimeAssertionInfo(val needNotNullAssertion: Boolean, val message: Strin
     }
 }
 
+private val KtExpression.textForRuntimeAssertionInfo
+    get() = StringUtil.trimMiddle(text, 50)
+
+@K1Deprecation
+class RuntimeAssertionsDataFlowExtras(
+    private val c: ResolutionContext<*>,
+    private val expressionType: KotlinType,
+    private val expression: KtExpression
+) : RuntimeAssertionInfo.DataFlowExtras {
+    private val dataFlowValue by lazy(LazyThreadSafetyMode.PUBLICATION) {
+        c.dataFlowValueFactory.createDataFlowValue(expression, expressionType, c)
+    }
+
+    override val canBeNull: Boolean
+        get() = c.dataFlowInfo.getStableNullability(dataFlowValue).canBeNull()
+    override val presentableText: String
+        get() = expression.textForRuntimeAssertionInfo
+}
+
+@K1Deprecation
 object RuntimeAssertionsTypeChecker : AdditionalTypeChecker {
-    override fun checkType(expression: KtExpression, expressionType: KotlinType, expressionTypeWithSmartCast: KotlinType, c: ResolutionContext<*>) {
-        if (TypeUtils.noExpectedType(c.expectedType)) return
+    override fun checkType(
+        expression: KtExpression,
+        expressionType: KotlinType,
+        expressionTypeWithSmartCast: KotlinType,
+        c: ResolutionContext<*>
+    ) {
+        if (TypeUtils.noExpectedType(c.expectedType) || c.expectedType is StubTypeForBuilderInference) return
 
         val assertionInfo = RuntimeAssertionInfo.create(
-                c.expectedType,
-                expressionType,
-                object : RuntimeAssertionInfo.DataFlowExtras {
-                    override val canBeNull: Boolean
-                        get() = c.dataFlowInfo.getStableNullability(dataFlowValue).canBeNull()
-                    override val possibleTypes: Set<KotlinType>
-                        get() = c.dataFlowInfo.getCollectedTypes(dataFlowValue)
-                    override val presentableText: String
-                        get() = StringUtil.trimMiddle(expression.text, 50)
-
-                    private val dataFlowValue = DataFlowValueFactory.createDataFlowValue(expression, expressionType, c)
-                }
+            c.expectedType,
+            expressionType,
+            RuntimeAssertionsDataFlowExtras(c, expressionType, expression)
         )
 
         if (assertionInfo != null) {
             c.trace.record(JvmBindingContextSlices.RUNTIME_ASSERTION_INFO, expression, assertionInfo)
+        }
+    }
+
+}
+
+@K1Deprecation
+object RuntimeAssertionsOnExtensionReceiverCallChecker : CallChecker {
+    override fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext) {
+        if (resolvedCall.call.isSafeCall()) return
+
+        val callee = resolvedCall.resultingDescriptor
+        checkReceiver(callee.extensionReceiverParameter, resolvedCall.extensionReceiver, context)
+    }
+
+    private fun checkReceiver(receiverParameter: ReceiverParameterDescriptor?, receiverValue: ReceiverValue?, context: CallCheckerContext) {
+        if (receiverParameter == null || receiverValue == null) return
+        val expressionReceiverValue = receiverValue as? ExpressionReceiver ?: return
+        val receiverExpression = expressionReceiverValue.expression
+        val c = context.resolutionContext
+
+        val assertionInfo = RuntimeAssertionInfo.create(
+            receiverParameter.type,
+            receiverValue.type,
+            RuntimeAssertionsDataFlowExtras(c, receiverValue.type, receiverExpression)
+        )
+
+        if (assertionInfo != null) {
+            c.trace.record(JvmBindingContextSlices.RECEIVER_RUNTIME_ASSERTION_INFO, expressionReceiverValue, assertionInfo)
         }
     }
 }

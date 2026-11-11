@@ -1,0 +1,232 @@
+/*
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.backend.jvm.codegen
+
+import org.jetbrains.kotlin.backend.common.linkage.issues.SignatureClashDetector
+import org.jetbrains.kotlin.backend.common.lower.ANNOTATION_IMPLEMENTATION
+import org.jetbrains.kotlin.backend.jvm.JvmBackendErrors
+import org.jetbrains.kotlin.backend.jvm.JvmLoweredDeclarationOrigin
+import org.jetbrains.kotlin.backend.jvm.overrides.IrJavaIncompatibilityRulesOverridabilityCondition
+import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+import org.jetbrains.kotlin.descriptors.DescriptorVisibilities
+import org.jetbrains.kotlin.diagnostics.KtDiagnosticFactory1
+import org.jetbrains.kotlin.diagnostics.rendering.CommonRenderers
+import org.jetbrains.kotlin.diagnostics.rendering.DiagnosticParameterRenderer
+import org.jetbrains.kotlin.diagnostics.rendering.RenderingContext
+import org.jetbrains.kotlin.ir.IrDiagnosticReporter
+import org.jetbrains.kotlin.ir.declarations.IrDeclaration
+import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
+import org.jetbrains.kotlin.ir.declarations.IrFunction
+import org.jetbrains.kotlin.ir.declarations.IrOverridableMember
+import org.jetbrains.kotlin.ir.declarations.IrSimpleFunction
+import org.jetbrains.kotlin.ir.descriptors.toIrBasedDescriptor
+import org.jetbrains.kotlin.ir.overrides.IrOverrideChecker
+import org.jetbrains.kotlin.ir.overrides.MemberWithOriginal
+import org.jetbrains.kotlin.ir.util.isFakeOverride
+import org.jetbrains.kotlin.ir.util.isFromJava
+import org.jetbrains.kotlin.ir.util.resolveFakeOverride
+import org.jetbrains.kotlin.metadata.jvm.deserialization.JvmMemberSignature
+import org.jetbrains.kotlin.renderer.DescriptorRenderer
+import org.jetbrains.kotlin.resolve.MemberComparator
+
+class JvmMethodSignatureClashDetector(
+    private val classCodegen: ClassCodegen
+) : SignatureClashDetector<JvmMemberSignature.Method, IrFunction>() {
+
+    fun trackFakeOverrideMethod(irFunction: IrFunction) {
+        if (irFunction.dispatchReceiverParameter != null) {
+            for (overriddenFunction in getOverriddenFunctions(irFunction as IrSimpleFunction)) {
+                if (!overriddenFunction.isFakeOverride) trackDeclaration(irFunction, mapRawSignature(overriddenFunction))
+            }
+        } else {
+            trackDeclaration(irFunction, mapRawSignature(irFunction))
+        }
+    }
+
+    private fun mapRawSignature(irFunction: IrFunction): JvmMemberSignature.Method {
+        val jvmSignature = classCodegen.methodSignatureMapper.mapFakeOverrideSignatureSkipGeneric(irFunction)
+        return JvmMemberSignature.Method(jvmSignature.asmMethod.name, jvmSignature.asmMethod.descriptor)
+    }
+
+    private fun getOverriddenFunctions(irFunction: IrSimpleFunction): Set<IrFunction> {
+        val result = LinkedHashSet<IrFunction>()
+        collectOverridesOf(irFunction, result)
+        return result
+    }
+
+    private fun collectOverridesOf(irFunction: IrSimpleFunction, result: MutableSet<IrFunction>) {
+        for (overriddenSymbol in irFunction.overriddenSymbols) {
+            collectOverridesTree(overriddenSymbol.owner, result)
+        }
+    }
+
+    private fun collectOverridesTree(irFunction: IrSimpleFunction, visited: MutableSet<IrFunction>) {
+        if (!visited.add(irFunction)) return
+        collectOverridesOf(irFunction, visited)
+    }
+
+    private fun IrFunction.isSpecialOverride(): Boolean =
+        origin in SPECIAL_BRIDGES_AND_OVERRIDES
+
+    override fun reportErrorsTo(diagnosticReporter: IrDiagnosticReporter) {
+        super.reportErrorsTo(diagnosticReporter)
+        reportPredefinedMethodSignatureConflicts(diagnosticReporter)
+    }
+
+    override fun reportSignatureConflict(
+        signature: JvmMemberSignature.Method,
+        declarations: Collection<IrFunction>,
+        diagnosticReporter: IrDiagnosticReporter
+    ) {
+        val overrideChecker =
+            IrOverrideChecker(classCodegen.context.typeSystem, listOf(IrJavaIncompatibilityRulesOverridabilityCondition()))
+        val declarations =
+            declarations
+                .filter { a -> !declarations.all { b -> overrideChecker.canIgnoreConflict(a, b) } }
+        if (declarations.isEmpty()) return
+
+        val fakeOverridesCount = declarations.count { it.isFakeOverride }
+        val specialOverridesCount = declarations.count { it.isSpecialOverride() }
+        val realMethodsCount = declarations.size - fakeOverridesCount - specialOverridesCount
+
+        val conflictingJvmDeclarationsData = JvmIrConflictingDeclarationsData(signature, declarations)
+
+        if (classCodegen.irClass.origin == JvmLoweredDeclarationOrigin.DEFAULT_IMPLS) {
+            // In IFoo$DefaultImpls we should report errors only if there are private methods among conflicting ones
+            // (otherwise such errors would be reported twice: once for IFoo and once for IFoo$DefaultImpls).
+            if (fakeOverridesCount == 0 && specialOverridesCount == 0 && declarations.any { DescriptorVisibilities.isPrivate(it.visibility) }) {
+                reportJvmSignatureClash(
+                    diagnosticReporter,
+                    JvmBackendErrors.CONFLICTING_JVM_DECLARATIONS,
+                    declarations,
+                    conflictingJvmDeclarationsData
+                )
+            }
+            return
+        }
+
+        when {
+            realMethodsCount == 0 && (fakeOverridesCount > 1 || specialOverridesCount > 1) ->
+                reportJvmSignatureClash(
+                    diagnosticReporter,
+                    JvmBackendErrors.CONFLICTING_INHERITED_JVM_DECLARATIONS,
+                    listOf(classCodegen.irClass),
+                    conflictingJvmDeclarationsData
+                )
+
+            fakeOverridesCount == 0 && specialOverridesCount == 0 -> {
+                reportJvmSignatureClash(
+                    diagnosticReporter,
+                    JvmBackendErrors.CONFLICTING_JVM_DECLARATIONS,
+                    declarations,
+                    conflictingJvmDeclarationsData
+                )
+            }
+
+            else -> {
+                reportJvmSignatureClash(
+                    diagnosticReporter,
+                    JvmBackendErrors.ACCIDENTAL_OVERRIDE,
+                    declarations.filter { !it.isFakeOverride && !it.isSpecialOverride() },
+                    conflictingJvmDeclarationsData
+                )
+            }
+        }
+    }
+
+    private fun reportPredefinedMethodSignatureConflicts(diagnosticReporter: IrDiagnosticReporter) {
+        for (predefinedSignature in PREDEFINED_SIGNATURES) {
+            val methods = declarationsWithSignature(predefinedSignature).filter { !it.isFakeOverride && !it.isSpecialOverride() }
+            if (methods.isEmpty()) continue
+            reportJvmSignatureClash(
+                diagnosticReporter, JvmBackendErrors.ACCIDENTAL_OVERRIDE, methods,
+                JvmIrConflictingDeclarationsData(predefinedSignature, methods),
+            )
+        }
+    }
+
+    private fun reportJvmSignatureClash(
+        diagnosticReporter: IrDiagnosticReporter,
+        diagnosticFactory1: KtDiagnosticFactory1<String>,
+        irDeclarations: Collection<IrDeclaration>,
+        conflictingJvmDeclarationsData: JvmIrConflictingDeclarationsData
+    ) {
+        reportSignatureClashTo(
+            diagnosticReporter,
+            diagnosticFactory1,
+            irDeclarations,
+            conflictingJvmDeclarationsData.render(),
+            // Offset can be negative (SYNTHETIC_OFFSET) for delegated members; report an error on the class in that case.
+            reportOnIfSynthetic = { classCodegen.irClass },
+        )
+    }
+
+    companion object {
+        val SPECIAL_BRIDGES_AND_OVERRIDES = setOf(
+            IrDeclarationOrigin.BRIDGE,
+            IrDeclarationOrigin.BRIDGE_SPECIAL,
+            IrDeclarationOrigin.IR_BUILTINS_STUB,
+            JvmLoweredDeclarationOrigin.TO_ARRAY,
+            JvmLoweredDeclarationOrigin.SUPER_INTERFACE_METHOD_BRIDGE,
+            ANNOTATION_IMPLEMENTATION
+        )
+
+        val PREDEFINED_SIGNATURES = listOf(
+            JvmMemberSignature.Method("getClass", "()Ljava/lang/Class;"),
+            JvmMemberSignature.Method("notify", "()V"),
+            JvmMemberSignature.Method("notifyAll", "()V"),
+            JvmMemberSignature.Method("wait", "()V"),
+            JvmMemberSignature.Method("wait", "(J)V"),
+            JvmMemberSignature.Method("wait", "(JI)V"),
+        )
+    }
+}
+
+internal class JvmIrConflictingDeclarationsData(
+    val signature: JvmMemberSignature,
+    val declarations: Collection<IrDeclaration>,
+) {
+    fun render(): String = renderer.render(this)
+
+    companion object {
+        private val renderer = CommonRenderers.renderConflictingSignatureData(
+            signatureKind = "JVM",
+            sortUsing = { a, b -> MemberComparator.INSTANCE.compare(a, b) },
+            declarationRenderer = object : DiagnosticParameterRenderer<DeclarationDescriptor> {
+                override fun render(obj: DeclarationDescriptor, renderingContext: RenderingContext): String =
+                    DescriptorRenderer.WITHOUT_MODIFIERS.withOptions {
+                        classifierNamePolicy = renderingContext.adaptiveClassifierPolicy
+                    }.render(obj)
+            },
+            renderSignature = {
+                append(it.signature.name)
+                append(it.signature.desc)
+            },
+            declarations = fun JvmIrConflictingDeclarationsData.() = declarations.map(IrDeclaration::toIrBasedDescriptor),
+        )
+    }
+}
+
+private val IrFunction.isStaticFakeOverrideForKotlin: Boolean
+    get() = isFakeOverride && isStatic && this is IrSimpleFunction && resolveFakeOverride()?.isFromJava() != true
+
+private fun IrOverrideChecker.canIgnoreConflict(a: IrFunction, b: IrFunction): Boolean {
+    if (a === b) return true
+
+    // Allow "accidental overrides" between two declarations if:
+    // 1. One of them is a static fake override created for method from Kotlin.
+    // 2. The other one is an instance member.
+    // 3. They "override"/hide each other.
+    //
+    //    Note: This is overly restrictive but needed for preserving behavior of JvmStatic/JvmOverloads-generated
+    //          methods before companion blocks where introduced, such as
+    //          compiler/testData/diagnostics/tests/jvm/duplicateJvmSignature/jvmStatic/jvmStaticInCompanionObject.kt
+
+    return (a.isStaticFakeOverrideForKotlin != b.isStaticFakeOverrideForKotlin) &&
+            (a.isStatic != b.isStatic) &&
+            (a is IrOverridableMember && b is IrOverridableMember) &&
+            getBothWaysOverridability(MemberWithOriginal(a, null), MemberWithOriginal(b, null)).overridable
+}

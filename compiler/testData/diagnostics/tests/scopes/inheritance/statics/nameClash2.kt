@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 public interface A {
@@ -64,3 +65,5 @@ fun test() {
 
     OO.field
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaProperty */

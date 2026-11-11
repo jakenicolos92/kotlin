@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface A
 
 fun foo(invoke: A.()->Unit, a: A) {
@@ -7,3 +8,5 @@ fun foo(invoke: A.()->Unit, a: A) {
 fun bar(invoke: Any.()->Any, a: Any) {
     a.invoke()
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, interfaceDeclaration, typeWithExtension */

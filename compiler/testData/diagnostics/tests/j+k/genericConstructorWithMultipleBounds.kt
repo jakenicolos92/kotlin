@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: J.java
 
 import java.io.Serializable;
@@ -10,8 +11,10 @@ public class J {
 
 import java.io.Serializable
 
-fun cloneable(c: Cloneable) = <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>J<!>(c)
+fun cloneable(c: Cloneable) = <!CANNOT_INFER_PARAMETER_TYPE!>J<!>(<!ARGUMENT_TYPE_MISMATCH!>c<!>)
 
-fun serializable(s: Serializable) = <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>J<!>(s)
+fun serializable(s: Serializable) = <!CANNOT_INFER_PARAMETER_TYPE!>J<!>(<!ARGUMENT_TYPE_MISMATCH!>s<!>)
 
 fun <T> both(t: T) where T : Cloneable, T : Serializable = J(t)
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaType, typeConstraint, typeParameter */

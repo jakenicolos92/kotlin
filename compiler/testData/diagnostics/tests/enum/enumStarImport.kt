@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: enum.kt
 
 package enum
@@ -13,8 +14,11 @@ import enum.HappyEnum
 import enum.HappyEnum.*
 
 fun f(e: HappyEnum) {
-    <!DEBUG_INFO_IMPLICIT_EXHAUSTIVE!>when (e) {
+    when (e) {
         CASE1 -> throw UnsupportedOperationException() // unresolved reference
         CASE2 -> throw UnsupportedOperationException() // unresolved references
-    }<!>
+    }
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, equalityExpression, functionDeclaration, smartcast, whenExpression,
+whenWithSubject */

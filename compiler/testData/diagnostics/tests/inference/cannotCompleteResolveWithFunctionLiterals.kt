@@ -1,10 +1,21 @@
-// !DIAGNOSTICS: -CONFLICTING_JVM_DECLARATIONS
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -CONFLICTING_JVM_DECLARATIONS
 package f
 
-fun <R> h(<!UNUSED_PARAMETER!>f<!>: (Boolean) -> R) = 1
-fun <R> h(<!UNUSED_PARAMETER!>f<!>: (String) -> R) = 2
+class In<in K>
 
-fun test() = <!CANNOT_COMPLETE_RESOLVE!>h<!>{ <!CANNOT_INFER_PARAMETER_TYPE, UNUSED_ANONYMOUS_PARAMETER!>i<!> -> getAnswer() }
+fun <R> h(f: (Boolean) -> R) = 1
+fun <R> h(f: (String) -> R) = 2
+
+fun <R, K> f(f: (Boolean) -> R, vararg x: In<K>) = 1
+fun <R, K> f(f: (String) -> R, vararg x: In<K>) = 2
+
+fun test() {
+    <!OVERLOAD_RESOLUTION_AMBIGUITY!>h<!>{ <!CANNOT_INFER_VALUE_PARAMETER_TYPE!>i<!> -> getAnswer() }
+    <!OVERLOAD_RESOLUTION_AMBIGUITY!>f<!>({ <!CANNOT_INFER_VALUE_PARAMETER_TYPE!>i<!> -> getAnswer() }, In<String>(), In<Int>())
+}
 
 fun getAnswer() = 42
 
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, functionalType, in, integerLiteral, lambdaLiteral,
+nullableType, typeParameter, vararg */

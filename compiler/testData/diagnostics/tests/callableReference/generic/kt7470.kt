@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 
 fun <T> shuffle(x: List<T>): List<T> = x
@@ -6,3 +7,6 @@ fun <T> shuffle(x: List<T>): List<T> = x
 fun bar() {
     val s: (List<String>) -> List<String> = ::shuffle
 }
+
+/* GENERATED_FIR_TAGS: callableReference, functionDeclaration, functionalType, localProperty, nullableType,
+propertyDeclaration, typeParameter */

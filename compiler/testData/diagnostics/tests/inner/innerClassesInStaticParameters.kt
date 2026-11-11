@@ -1,11 +1,15 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Test {
     companion object {
-        fun test(<!UNUSED_PARAMETER!>t<!>: TestInner) = 42
+        fun test(t: TestInner) = 42
     }
 
     class TestStatic {
-        fun test(<!UNUSED_PARAMETER!>t<!>: TestInner) = 42
+        fun test(t: TestInner) = 42
     }
 
     inner class TestInner
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, inner, integerLiteral, nestedClass,
+objectDeclaration */

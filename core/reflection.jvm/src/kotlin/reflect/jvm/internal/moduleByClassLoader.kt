@@ -16,8 +16,8 @@
 
 package kotlin.reflect.jvm.internal
 
-import org.jetbrains.kotlin.load.java.structure.reflect.safeClassLoader
-import org.jetbrains.kotlin.load.kotlin.reflect.RuntimeModuleData
+import org.jetbrains.kotlin.descriptors.runtime.components.RuntimeModuleData
+import org.jetbrains.kotlin.descriptors.runtime.structure.safeClassLoader
 import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ConcurrentMap
@@ -35,13 +35,13 @@ private class WeakClassLoaderBox(classLoader: ClassLoader) {
     var temporaryStrongRef: ClassLoader? = classLoader
 
     override fun equals(other: Any?) =
-            other is WeakClassLoaderBox && ref.get() === other.ref.get()
+        other is WeakClassLoaderBox && ref.get() === other.ref.get()
 
     override fun hashCode() =
-            identityHashCode
+        identityHashCode
 
     override fun toString() =
-            ref.get()?.toString() ?: "<null>"
+        ref.get()?.toString() ?: "<null>"
 }
 
 internal fun Class<*>.getOrCreateModule(): RuntimeModuleData {
@@ -58,15 +58,13 @@ internal fun Class<*>.getOrCreateModule(): RuntimeModuleData {
     val module = RuntimeModuleData.create(classLoader)
     try {
         while (true) {
-            val ref = moduleByClassLoader.putIfAbsent(key, WeakReference(module))
-            if (ref == null) return module
+            val ref = moduleByClassLoader.putIfAbsent(key, WeakReference(module)) ?: return module
 
             val result = ref.get()
             if (result != null) return result
             moduleByClassLoader.remove(key, ref)
         }
-    }
-    finally {
+    } finally {
         key.temporaryStrongRef = null
     }
 }

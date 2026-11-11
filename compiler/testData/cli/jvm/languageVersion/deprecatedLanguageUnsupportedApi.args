@@ -1,0 +1,7 @@
+$TESTDATA_DIR$/deprecatedLanguageUnsupportedApi.kt
+-d
+$TEMP_DIR$
+-language-version
+2.2
+-api-version
+2.1

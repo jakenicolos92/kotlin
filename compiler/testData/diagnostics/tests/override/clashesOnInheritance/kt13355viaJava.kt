@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: K.kt
 abstract class ATest1 : TestNN.JNullVsNotNull()
 
@@ -45,3 +46,4 @@ public class TestNN {
     }
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, javaType */

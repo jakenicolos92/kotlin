@@ -1,3 +1,6 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun foo(f : () -> Unit) {
-    val <!UNUSED_VARIABLE!>x<!> : Unit = f()
+    val x : Unit = f()
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, localProperty, propertyDeclaration */

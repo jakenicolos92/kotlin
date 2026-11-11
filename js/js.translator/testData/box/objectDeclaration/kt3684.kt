@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 499
 // copied from JVM backend tests
 package foo
 

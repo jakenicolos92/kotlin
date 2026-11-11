@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: AnnotationRetentions.java
 
 import java.lang.annotation.*;
@@ -33,3 +34,5 @@ public class AnnotationRetentions {
 @AnnotationRetentions.BinaryAnnotation class BinaryClass
 
 @AnnotationRetentions.RuntimeAnnotation class RuntimeClass
+
+/* GENERATED_FIR_TAGS: classDeclaration, javaType */

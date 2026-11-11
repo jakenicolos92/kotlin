@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: a/Statics.java
 
 package a;
@@ -15,3 +16,5 @@ import a.Statics.foo
 fun test() {
     foo {}
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, lambdaLiteral, samConversion */

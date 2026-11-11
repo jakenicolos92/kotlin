@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 public class A extends B {
@@ -25,3 +26,5 @@ class C1 : A() {
 class C2 : F() {
     <!OVERRIDING_FINAL_MEMBER!>override<!> var isFoo: Int = 3
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, integerLiteral, javaType, override, propertyDeclaration */

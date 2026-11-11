@@ -1,4 +1,6 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// ISSUE: KT-63072
+// CHECK_TYPE
 
 interface A<R, T: A<R, T>> {
     fun r(): R
@@ -16,9 +18,12 @@ interface B<R, T: B<List<R>, <!UPPER_BOUND_VIOLATED!>T<!>>> {
 }
 
 fun testB(b: B<*, *>) {
-    <!TYPE_MISMATCH(B<out Any?, out B<List<*>, *>>; B<*, *>)!>b<!>.r().checkType { _<Any?>() }
-    <!TYPE_MISMATCH(B<out Any?, out B<List<*>, *>>; B<*, *>)!>b<!>.t().checkType { _<B<List<*>, *>>() }
+    b.r().checkType { _<Any?>() }
+    b.t().checkType { <!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>_<!><B<List<*>, *>>() }
 
-    <!TYPE_MISMATCH(B<List<Any?>, out B<List<*>, *>>; B<List<*>, *>)!><!TYPE_MISMATCH(B<out Any?, out B<List<*>, *>>; B<*, *>)!>b<!>.t()<!>.r().size
+    b.t().r().size
 }
 
+/* GENERATED_FIR_TAGS: capturedType, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, interfaceDeclaration, lambdaLiteral, nullableType, outProjection, starProjection, typeConstraint, typeParameter,
+typeWithExtension */

@@ -16,27 +16,30 @@
 
 package org.jetbrains.kotlin.storage
 
+import com.intellij.openapi.project.Project
 import org.jetbrains.annotations.TestOnly
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.diagnostics.Diagnostic
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.BindingTrace
 import org.jetbrains.kotlin.util.slicedMap.ReadOnlySlice
 import org.jetbrains.kotlin.util.slicedMap.WritableSlice
-import org.jetbrains.kotlin.resolve.TraceEntryFilter
 import org.jetbrains.kotlin.resolve.diagnostics.Diagnostics
 import com.intellij.util.containers.ContainerUtil
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.types.KotlinType
 
-class LockBasedLazyResolveStorageManager(private val storageManager: StorageManager): StorageManager by storageManager, LazyResolveStorageManager {
-    override fun <K, V : Any> createSoftlyRetainedMemoizedFunction(compute: Function1<K, V>) =
-        storageManager.createMemoizedFunction<K, V>(compute, ContainerUtil.createConcurrentSoftValueMap<K, Any>())
+@K1Deprecation
+class LockBasedLazyResolveStorageManager(private val storageManager: StorageManager) : StorageManager by storageManager,
+    LazyResolveStorageManager {
+    override fun <K : Any, V : Any> createSoftlyRetainedMemoizedFunction(compute: Function1<K, V>) =
+        storageManager.createMemoizedFunction(compute, ContainerUtil.createConcurrentSoftValueMap<K, Any>())
 
-    override fun <K, V : Any> createSoftlyRetainedMemoizedFunctionWithNullableValues(compute: Function1<K, V>) =
-        storageManager.createMemoizedFunctionWithNullableValues<K, V>(compute, ContainerUtil.createConcurrentSoftValueMap<K, Any>())
+    override fun <K : Any, V : Any> createSoftlyRetainedMemoizedFunctionWithNullableValues(compute: Function1<K, V>) =
+        storageManager.createMemoizedFunctionWithNullableValues(compute, ContainerUtil.createConcurrentSoftValueMap<K, Any>())
 
     override fun createSafeTrace(originalTrace: BindingTrace): BindingTrace =
-            LockProtectedTrace(storageManager, originalTrace)
+        LockProtectedTrace(storageManager, originalTrace)
 
     private class LockProtectedContext(private val storageManager: StorageManager, private val context: BindingContext) : BindingContext {
         override fun getType(expression: KtExpression): KotlinType? = storageManager.compute { context.getType(expression) }
@@ -53,6 +56,10 @@ class LockBasedLazyResolveStorageManager(private val storageManager: StorageMana
 
         @TestOnly
         override fun <K, V> getSliceContents(slice: ReadOnlySlice<K, V>) = storageManager.compute { context.getSliceContents<K, V>(slice) }
+
+        override fun getProject(): Project? {
+            return context.project
+        }
     }
 
     private class LockProtectedTrace(private val storageManager: StorageManager, private val trace: BindingTrace) : BindingTrace {
@@ -83,5 +90,13 @@ class LockBasedLazyResolveStorageManager(private val storageManager: StorageMana
         }
 
         override fun wantsDiagnostics() = trace.wantsDiagnostics()
+
+        override fun toString(): String {
+            return "Lock-protected trace of LockBasedLazyResolveStorageManager $storageManager"
+        }
+
+        override fun getProject(): Project? {
+            return trace.project
+        }
     }
 }

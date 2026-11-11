@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface A {
     fun f(): String
 }
@@ -9,3 +10,6 @@ open class B {
 <!RETURN_TYPE_MISMATCH_ON_INHERITANCE!>class C<!> : B(), A
 
 val d: A = <!RETURN_TYPE_MISMATCH_ON_INHERITANCE!>object<!> : B(), A {}
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, interfaceDeclaration,
+propertyDeclaration, stringLiteral */

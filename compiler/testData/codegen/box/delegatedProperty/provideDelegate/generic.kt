@@ -1,8 +1,15 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 
-import kotlin.test.*
+// FILE: lib.kt
+inline fun <L> runLogged(entry: String, action: () -> L): L {
+    log += entry
+    return action()
+}
 
 var log: String = ""
+
+// FILE: main.kt
+import kotlin.test.*
 
 open class MyClass(val value: String) {
     override fun toString(): String {
@@ -10,15 +17,10 @@ open class MyClass(val value: String) {
     }
 }
 
-inline fun <T> runLogged(entry: String, action: () -> T): T {
-    log += entry
-    return action()
-}
-
-operator fun <T: MyClass> T.provideDelegate(host: Any?, p: Any): T =
+operator fun <P: MyClass> P.provideDelegate(host: Any?, p: Any): P =
         runLogged("tdf(${this.value});") { this }
 
-operator fun <T> T.getValue(receiver: Any?, p: Any): T =
+operator fun <V> V.getValue(receiver: Any?, p: Any): V =
         runLogged("get($this);") { this }
 
 val testO by runLogged("O;") { MyClass("O") }

@@ -1,10 +1,11 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-338 Support.smartcasts in nested declarations
 
 fun f(a: Any?) {
   if (a is B) {
-    class C : X(<!DEBUG_INFO_SMARTCAST!>a<!>) {
+    class C : X(a) {
       init {
-        <!DEBUG_INFO_SMARTCAST!>a<!>.foo()
+        a.foo()
       }
     }
   }
@@ -13,4 +14,7 @@ fun f(a: Any?) {
 interface B {
   fun foo() {}
 }
-open class X(<!UNUSED_PARAMETER!>b<!>: B)
+open class X(b: B)
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, init, interfaceDeclaration, isExpression,
+localClass, nullableType, primaryConstructor, smartcast */

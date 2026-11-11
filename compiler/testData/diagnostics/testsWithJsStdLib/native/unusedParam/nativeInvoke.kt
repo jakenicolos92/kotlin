@@ -1,5 +1,6 @@
-// !DIAGNOSTICS: -DEPRECATION
-@nativeInvoke
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -DEPRECATION
+<!NATIVE_ANNOTATIONS_ALLOWED_ONLY_ON_MEMBER_FUN!>@nativeInvoke<!>
 fun Int.foo(a: String): Int = definedExternally
 
 external class Bar(b: Int, c: Char) {

@@ -1,9 +1,10 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package test
 
 fun use() {
     Default.create()
 
-    Explicit.<!INVISIBLE_MEMBER!>create<!>()
+    Explicit.<!INVISIBLE_REFERENCE!>create<!>()
 }
 
 private class Default {
@@ -17,3 +18,5 @@ private class Explicit {
         fun create() = Explicit()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, objectDeclaration */

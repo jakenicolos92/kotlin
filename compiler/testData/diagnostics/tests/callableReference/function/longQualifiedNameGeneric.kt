@@ -1,10 +1,11 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 // FILE: a.kt
 
 package a.b.c
 
 class D<E, F> {
-    fun foo(<!UNUSED_PARAMETER!>e<!>: E, <!UNUSED_PARAMETER!>f<!>: F) = this
+    fun foo(e: E, f: F) = this
 }
 
 // FILE: b.kt
@@ -16,3 +17,7 @@ fun main() {
 
     checkSubtype<KFunction3<a.b.c.D<String, Int>, String, Int, a.b.c.D<String, Int>>>(x)
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, localProperty, nullableType, propertyDeclaration, thisExpression, typeParameter,
+typeWithExtension */

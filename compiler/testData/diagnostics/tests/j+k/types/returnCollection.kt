@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: k.kt
 
 interface K {
@@ -11,3 +12,5 @@ import java.util.*;
 interface J extends K {
     List<String> foo();
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration */

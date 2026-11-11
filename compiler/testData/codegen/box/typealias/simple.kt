@@ -1,7 +1,8 @@
-typealias S = String
+typealias StringAlias = String
 
-typealias SF<T> = (T) -> S
+typealias SF<T> = (T) -> StringAlias
 
-val f: SF<S> = { it }
+val f: SF<StringAlias> = { it }
 
-fun box(): S = f("OK")
+// To detect box() function in WasmWasi testinfra, its declaration must textually match to Regex in WasmWasiBoxTestHelperSourceProvider.produceAdditionalFiles()
+fun box(): StringAlias = f("OK")

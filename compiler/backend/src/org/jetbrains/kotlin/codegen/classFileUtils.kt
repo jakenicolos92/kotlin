@@ -1,71 +1,50 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2025 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.codegen
 
-import com.intellij.util.io.DataOutputStream
 import org.jetbrains.kotlin.backend.common.output.OutputFile
 import org.jetbrains.kotlin.codegen.state.GenerationState
-import org.jetbrains.kotlin.load.kotlin.JvmMetadataVersion
-import org.jetbrains.kotlin.load.kotlin.ModuleMapping
-import org.jetbrains.kotlin.load.kotlin.PackageParts
-import org.jetbrains.kotlin.serialization.jvm.JvmPackageTable
-import java.io.ByteArrayOutputStream
+import org.jetbrains.kotlin.load.kotlin.loadModuleMapping
+import org.jetbrains.kotlin.metadata.jvm.deserialization.ModuleMapping
+import org.jetbrains.kotlin.metadata.jvm.deserialization.PackageParts
+import org.jetbrains.kotlin.resolve.CommonCompilerDeserializationConfiguration
+import org.jetbrains.kotlin.resolve.jvm.JvmClassName
 
 fun ClassFileFactory.getClassFiles(): Iterable<OutputFile> {
     return asList().filterClassFiles()
 }
 
-fun List<OutputFile>.filterClassFiles(): Iterable<OutputFile> {
+fun List<OutputFile>.filterClassFiles(): List<OutputFile> {
     return filter { it.relativePath.endsWith(".class") }
 }
 
 fun Iterable<PackageParts>.addCompiledPartsAndSort(state: GenerationState): List<PackageParts> =
-        addCompiledParts(state).sortedBy { it.packageFqName }
+    addCompiledParts(state).sortedBy { it.packageFqName }
 
 private fun Iterable<PackageParts>.addCompiledParts(state: GenerationState): List<PackageParts> {
-    val incrementalCache = state.incrementalCacheForThisTarget ?: return this.toList()
-    val moduleMappingData = incrementalCache.getModuleMappingData() ?: return this.toList()
+    val mapping = state.loadCompiledModule() ?: return this.toList()
 
-    val mapping = ModuleMapping.create(moduleMappingData, "<incremental>", state.deserializationConfiguration)
-
-    incrementalCache.getObsoletePackageParts().forEach { internalName ->
-        val qualifier = internalName.substringBeforeLast('/', "").replace('/', '.')
-        val name = internalName.substringAfterLast('/')
-        mapping.findPackageParts(qualifier)?.removePart(name)
+    state.incrementalCacheForThisTarget?.getObsoletePackageParts()?.forEach { internalName ->
+        val qualifier = JvmClassName.byInternalName(internalName).packageFqName.asString()
+        mapping.findPackageParts(qualifier)?.removePart(internalName)
     }
 
     return (this + mapping.packageFqName2Parts.values)
-            .groupBy { it.packageFqName }
-            .map { (packageFqName, allOldPackageParts) ->
-                PackageParts(packageFqName).apply {
-                    allOldPackageParts.forEach { packageParts -> this += packageParts }
-                }
+        .groupBy { it.packageFqName }
+        .map { [packageFqName, allOldPackageParts] ->
+            PackageParts(packageFqName).apply {
+                allOldPackageParts.forEach { packageParts -> this += packageParts }
             }
+        }
 }
 
-fun JvmPackageTable.PackageTable.Builder.serializeToByteArray(): ByteArray {
-    val moduleMapping = ByteArrayOutputStream(4096)
-    val out = DataOutputStream(moduleMapping)
-    val version = JvmMetadataVersion.INSTANCE.toArray()
-    out.writeInt(version.size)
-    for (number in version) {
-        out.writeInt(number)
+fun GenerationState.loadCompiledModule(): ModuleMapping? {
+    val moduleMappingData = incrementalCacheForThisTarget?.getModuleMappingData() ?: return null
+    val deserializationConfiguration = CommonCompilerDeserializationConfiguration(config.languageVersionSettings)
+    return ModuleMapping.loadModuleMapping(moduleMappingData, "<incremental>", deserializationConfiguration) { version ->
+        throw IllegalStateException("Version of the generated module cannot be incompatible: $version")
     }
-    build().writeTo(out)
-    out.flush()
-    return moduleMapping.toByteArray()
 }

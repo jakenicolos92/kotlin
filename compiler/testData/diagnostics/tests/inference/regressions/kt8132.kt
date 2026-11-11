@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_ANONYMOUS_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_ANONYMOUS_PARAMETER
 // KT-8132 Can't omit lambda parameter types
 
 fun <T> test(foo: List<T>): T {
@@ -9,3 +10,6 @@ fun <T> test(foo: List<T>): T {
 }
 
 fun <S, T: S> Iterable<T>.reduce(operation: (S, T) -> S): S = throw Exception()
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, ifExpression, lambdaLiteral,
+nullableType, typeConstraint, typeParameter */

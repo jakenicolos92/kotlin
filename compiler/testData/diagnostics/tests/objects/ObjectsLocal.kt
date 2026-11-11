@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: FRONTEND
+
 package localObjects
 
 object A {
@@ -20,4 +22,7 @@ fun test() {
     B.foo()
 }
 
-val bb = <!UNRESOLVED_REFERENCE!>B<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>foo<!>()
+val bb = <!UNRESOLVED_REFERENCE!>B<!>.foo()
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, integerLiteral, localClass,
+localProperty, objectDeclaration, propertyDeclaration */

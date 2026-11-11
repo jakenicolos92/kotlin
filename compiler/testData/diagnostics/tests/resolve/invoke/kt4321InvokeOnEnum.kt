@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-4321 invoke() on enum doesn't work
 
 import DOMElementTestClasses.cls2
@@ -19,7 +20,7 @@ enum class TestClasses : EnumStyleClass {
 }
 
 // example
-fun main(args: Array<String>) {
+fun main() {
     // Kotlin: Expression 'cls1' of type 'DOMElementTestClasses' cannot be invoked as a function
     DOMElementTestClasses.cls1()
 
@@ -33,3 +34,6 @@ fun main(args: Array<String>) {
     val cls = DOMElementTestClasses.cls2
     cls()
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, functionDeclaration, interfaceDeclaration, localProperty, operator,
+propertyDeclaration */

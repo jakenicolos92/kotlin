@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
 // FILE: s/SamConstructor.java
 package s;
 
@@ -28,3 +29,6 @@ fun test() {
 
     SamConstructor.foo(null)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, javaFunction, javaType, lambdaLiteral, localProperty,
+nullableType, propertyDeclaration, samConversion */

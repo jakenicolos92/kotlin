@@ -4,9 +4,9 @@
 
 package org.jetbrains.kotlin.js.backend.ast;
 
-import org.jetbrains.kotlin.js.util.AstUtil;
 import com.intellij.util.SmartList;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.kotlin.js.util.AstUtil;
 
 import java.util.List;
 
@@ -20,6 +20,10 @@ public final class JsNew extends JsExpression.JsExpressionHasArguments {
     public JsNew(JsExpression constructorExpression, List<? extends JsExpression> arguments) {
         super(new SmartList<JsExpression>(arguments));
         this.constructorExpression = constructorExpression;
+    }
+
+    public JsNew(JsExpression constructorExpression, JsExpression... arguments) {
+        this(constructorExpression, new SmartList<JsExpression>(arguments));
     }
 
     public JsExpression getConstructorExpression() {
@@ -55,6 +59,6 @@ public final class JsNew extends JsExpression.JsExpressionHasArguments {
     public JsNew deepCopy() {
         JsExpression constructorCopy = AstUtil.deepCopy(constructorExpression);
         List<JsExpression> argumentsCopy = AstUtil.deepCopy(arguments);
-        return new JsNew(constructorCopy, argumentsCopy).withMetadataFrom(this);
+        return AbstractNodeKt.withMetadataFrom(new JsNew(constructorCopy, argumentsCopy), this);
     }
 }

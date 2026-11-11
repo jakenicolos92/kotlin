@@ -1,24 +1,27 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun test1() {
     if (<!UNRESOLVED_REFERENCE!>rr<!>) {
         if (<!UNRESOLVED_REFERENCE!>l<!>) {
-            <!UNRESOLVED_REFERENCE!>a<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>q<!>()
+            <!UNRESOLVED_REFERENCE!>a<!>.q()
         }
         else {
-            <!UNRESOLVED_REFERENCE!>a<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>w<!>()
+            <!UNRESOLVED_REFERENCE!>a<!>.w()
         }
     }
     else {
         if (<!UNRESOLVED_REFERENCE!>n<!>) {
-            <!UNRESOLVED_REFERENCE!>a<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>t<!>()
+            <!UNRESOLVED_REFERENCE!>a<!>.t()
         }
         else {
-            <!UNRESOLVED_REFERENCE!>a<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>u<!>()
+            <!UNRESOLVED_REFERENCE!>a<!>.u()
         }
     }
 }
 
 fun test2(l: List<<!UNRESOLVED_REFERENCE!>AA<!>>) {
-    <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>l<!>.<!UNRESOLVED_REFERENCE!>map<!> {
+    l.<!UNRESOLVED_REFERENCE!>map<!> {
         <!UNRESOLVED_REFERENCE!>it<!>!!
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, functionDeclaration, ifExpression, lambdaLiteral */

@@ -1,11 +1,7 @@
-// IGNORE_BACKEND: JS, NATIVE
-
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_REFLECT
-
+// FILE: lib.kt
 import kotlin.test.assertEquals
-
-fun <T, R> foo(x: T): R = TODO()
 
 inline fun <reified T, reified R> bar(x: T, y: R, f: (T) -> R, tType: String, rType: String): Pair<T, R?> {
     assertEquals(tType, T::class.simpleName)
@@ -14,6 +10,12 @@ inline fun <reified T, reified R> bar(x: T, y: R, f: (T) -> R, tType: String, rT
 }
 
 data class Pair<A, B>(val a: A, val b: B)
+
+// FILE: main.kt
+
+import kotlin.test.assertEquals
+
+fun <T, R> foo(x: T): R = TODO()
 
 fun box(): String {
     bar(1, "", ::foo, "Int", "String")

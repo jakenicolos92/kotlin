@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-1191 Wrong detection of unused parameters
 package kt1191
 
@@ -19,3 +20,6 @@ fun <T> FunctionalList<T>.plus(element: T) : FunctionalList<T> = object: Functio
 fun foo(unused: Int) = object {
     val a : Int get() = unused
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, anonymousObjectExpression, funWithExtensionReceiver, functionDeclaration,
+getter, integerLiteral, interfaceDeclaration, nullableType, override, propertyDeclaration, thisExpression, typeParameter */

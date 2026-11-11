@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-2330 Check visibility of getters and setters correspondingly
 package a
 
@@ -23,31 +24,34 @@ class P {
 
 fun foo() {
     val p = P()
-    <!INVISIBLE_SETTER!>p.x<!> = 34 //should be an error here
+    p.<!INVISIBLE_SETTER!>x<!> = 34 //should be an error here
     p.y = 23
 
     fun inner() {
-        <!INVISIBLE_SETTER!>p.x<!> = 44
+        p.<!INVISIBLE_SETTER!>x<!> = 44
     }
 }
 
 class R {
     val p = P();
     init {
-        <!INVISIBLE_SETTER!>p.x<!> = 42
+        p.<!INVISIBLE_SETTER!>x<!> = 42
     }
 
     val testInGetterInOtherClass : Int
         get() {
-            <!INVISIBLE_SETTER!>p.x<!> = 33
+            p.<!INVISIBLE_SETTER!>x<!> = 33
             return 3
         }
 }
 
 fun test() {
-    val <!UNUSED_VARIABLE!>o<!> = object {
+    val o = object {
         fun run() {
-            <!UNRESOLVED_REFERENCE!>p<!>.<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>x<!> = 43
+            <!UNRESOLVED_REFERENCE!>p<!>.x = 43
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, assignment, classDeclaration, functionDeclaration, getter, init,
+integerLiteral, localFunction, localProperty, propertyDeclaration */

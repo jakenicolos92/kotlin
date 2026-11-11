@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-2960 Perform control flow checks for package property initializers
 
 package b
@@ -8,11 +9,11 @@ class P {
 }
 
 val p = P()
-var f = { -> <!INVISIBLE_SETTER!>p.x<!> = 32 }
+var f = { -> p.<!INVISIBLE_SETTER!>x<!> = 32 }
 
 val o = object {
     fun run() {
-        <!INVISIBLE_SETTER!>p.x<!> = 4
+        p.<!INVISIBLE_SETTER!>x<!> = 4
 
         val z : Int
         doSmth(<!UNINITIALIZED_VARIABLE!>z<!>)
@@ -34,3 +35,6 @@ class A {
 }
 
 fun doSmth(i: Int) = i
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, assignment, classDeclaration, functionDeclaration, getter,
+integerLiteral, lambdaLiteral, localProperty, propertyDeclaration */

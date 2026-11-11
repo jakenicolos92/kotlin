@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // NB: should work after KT-5907 / KT-4450 fix
 
 val currentTimeMillis = 1234L
@@ -9,8 +10,11 @@ public class Foo(protected val maxParsingTimeInMillis: Long?) {
     protected fun checkForParsingTimeout(): Boolean {
         if (maxParsingTimeInMillis == null)
             return true
-        if (currentTimeMillis - parsingStartTimeStamp > <!DEBUG_INFO_SMARTCAST!>maxParsingTimeInMillis<!>)
+        if (currentTimeMillis - parsingStartTimeStamp > maxParsingTimeInMillis)
             return false
         return true
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, comparisonExpression, equalityExpression,
+functionDeclaration, ifExpression, nullableType, primaryConstructor, propertyDeclaration, smartcast */

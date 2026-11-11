@@ -1,5 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
+// CHECK_TYPE
 // FILE: p/J.java
 
 package p;
@@ -19,3 +20,7 @@ fun foo(j: J<String>) {
 //    v checkType { it : _<J<String>>}
 //    v checkType { it : _<J<String?>>}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration, functionalType,
+ifExpression, infix, javaFunction, javaType, localProperty, nullableType, propertyDeclaration, typeParameter,
+typeWithExtension */

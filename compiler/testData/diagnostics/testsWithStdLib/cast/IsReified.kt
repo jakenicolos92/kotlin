@@ -1,1 +1,4 @@
-fun ff(a: Any) = a is Array<*> && <!DEBUG_INFO_SMARTCAST!>a<!>.isArrayOf<String>()
+// RUN_PIPELINE_TILL: CODEGEN
+fun ff(a: Any) = a is Array<*> && a.isArrayOf<String>()
+
+/* GENERATED_FIR_TAGS: andExpression, functionDeclaration, isExpression, smartcast, starProjection */

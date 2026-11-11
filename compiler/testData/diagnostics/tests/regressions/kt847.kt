@@ -1,4 +1,8 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 fun <T> T.mustBe(t : T) {
     "$this must be$<!SYNTAX!>as<!>$t"
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, nullableType, stringLiteral, thisExpression,
+typeParameter */

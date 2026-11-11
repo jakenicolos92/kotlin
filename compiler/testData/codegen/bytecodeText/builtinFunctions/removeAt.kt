@@ -90,18 +90,34 @@ fun box(
 }
 
 /*
-16 INVOKEVIRTUAL A[0-9]+.removeAt \(I\) -> calls in bridges with signature `public final bridge remove\(I\)` + 7 calls from `public synthetic bridge remove\(I\)Ljava/lang/Object;`
-9 INVOKEVIRTUAL A[0-9]+\.remove \(I\) -> calls to A1-A9.removeAt
 1 INVOKEINTERFACE A9\.remove \(I\) -> call A9.removeAt
 1 INVOKEINTERFACE A9\.remove \(Ljava/lang/Object;\) -> call A9.remove
-1 INVOKEVIRTUAL A10\.remove \(I\) -> one call in 'box' function
+
+10 INVOKEVIRTUAL A[0-9]+.removeAt \(I\) -> calls in bridges with signature `public final bridge remove(I)`
+15 INVOKEVIRTUAL A[0-9]+\.remove \(I\) -> calls to A1-A9.removeAt + calls in synthetic bridges with signature `public synthetic bridge remove(I)Ljava/lang/Object;`
+2 INVOKEVIRTUAL A10\.remove \(I\) -> one call in 'box' function + call from synthetic `remove(I)` bridge
 */
 
-// 16 INVOKEVIRTUAL A[0-9]+.removeAt \(I\)
-// 9 INVOKEVIRTUAL A[0-9]+\.remove \(I\)
 // 1 INVOKEINTERFACE A9\.remove \(I\)
 // 1 INVOKEINTERFACE A9\.remove \(Ljava/lang/Object;\)
-// 1 INVOKEVIRTUAL A10\.remove \(I\)
 // 2 INVOKEINTERFACE java\/util\/List.remove \(I\)
 // 2 INVOKEINTERFACE java\/util\/List.remove \(Ljava/lang/Object;\)
 
+// 1 INVOKEVIRTUAL A1\.removeAt \(I\)
+// 1 INVOKEVIRTUAL A2\.removeAt \(I\)
+// 1 INVOKEVIRTUAL A3\.removeAt \(I\)
+// 1 INVOKEVIRTUAL A4\.removeAt \(I\)
+// 1 INVOKEVIRTUAL A5\.removeAt \(I\)
+// 1 INVOKEVIRTUAL A6\.removeAt \(I\)
+// 1 INVOKEVIRTUAL A8\.removeAt \(I\)
+// 1 INVOKEVIRTUAL A10\.removeAt \(I\)
+
+// 2 INVOKEVIRTUAL A7\.removeAt \(I\)
+//  ^ in:
+//      public final bridge remove(I)Ljava/lang/String;
+//      public synthetic bridge remove(I)Ljava/lang/Object;
+
+// 10 INVOKEVIRTUAL A[0-9]+\.removeAt \(I\)
+
+// 15 INVOKEVIRTUAL A[0-9]+\.remove \(I\)
+// 2 INVOKEVIRTUAL A10\.remove \(I\)

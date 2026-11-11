@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun foo(x: String) = x
 
 fun test1() {
@@ -8,7 +9,7 @@ fun test1() {
     if (newC != null) {
         c = newC
     }
-    foo(<!DEBUG_INFO_SMARTCAST!>c<!>)
+    foo(c)
 }
 
 fun test2() {
@@ -19,7 +20,7 @@ fun test2() {
     if (newC is String) {
         c = newC
     }
-    foo(<!DEBUG_INFO_SMARTCAST!>c<!>)
+    foo(c)
 }
 
 fun test3() {
@@ -30,6 +31,8 @@ fun test3() {
     if (newC == null) return
     c = newC
 
-    foo(<!DEBUG_INFO_SMARTCAST!>c<!>)
+    foo(c)
 }
 
+/* GENERATED_FIR_TAGS: assignment, equalityExpression, functionDeclaration, ifExpression, isExpression, localProperty,
+nullableType, propertyDeclaration, smartcast, stringLiteral */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: bar/JavaClass.java
 
 package bar;
@@ -14,7 +15,7 @@ public class JavaClass {
 }
 
 // FILE: foo/JavaClassSamePackage.java
-package foo
+package foo;
 
 public class JavaClassSamePackage extends bar.JavaClass {
     protected static void bar2() {}
@@ -35,24 +36,27 @@ class KotlinClass : JavaClass() {
 class KotlinClass2 : JavaClass() {
     override fun foo() {}
 
-    val field: String = "abc"
+    val <!PROPERTY_HIDES_JAVA_FIELD!>field<!>: String = "abc"
 }
 
 fun test(a: KotlinClass, b: KotlinClass2) {
-    a.<!INVISIBLE_MEMBER!>foo<!>() // Error, protected_and_package declared in different package
-    b.<!INVISIBLE_MEMBER!>foo<!>() // Error, protected visibility in same package (but could be protected_and_package)
+    a.<!INVISIBLE_REFERENCE!>foo<!>() // Error, protected_and_package declared in different package
+    b.<!INVISIBLE_REFERENCE!>foo<!>() // Error, protected visibility in same package (but could be protected_and_package)
 
-    a.<!INVISIBLE_MEMBER!>field<!>
+    a.<!INVISIBLE_REFERENCE!>field<!>
 
-    JavaClass.<!INVISIBLE_MEMBER!>bar1<!>()
-    JavaClass.<!INVISIBLE_MEMBER!>CONST1<!>
+    JavaClass.<!INVISIBLE_REFERENCE!>bar1<!>()
+    JavaClass.<!INVISIBLE_REFERENCE!>CONST1<!>
 
     KotlinClass.<!UNRESOLVED_REFERENCE!>bar1<!>() // Currently it's unresolved, but it should be prohibited even in case it would be resolved
     KotlinClass.<!UNRESOLVED_REFERENCE!>CONST1<!>
 
-    JavaClassSamePackage.<!INVISIBLE_MEMBER!>bar1<!>()
+    JavaClassSamePackage.<!INVISIBLE_REFERENCE!>bar1<!>()
     JavaClassSamePackage.bar2()
 
-    JavaClassSamePackage.<!INVISIBLE_MEMBER!>CONST1<!>
+    JavaClassSamePackage.<!INVISIBLE_REFERENCE!>CONST1<!>
     JavaClassSamePackage.CONST2
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, functionDeclaration, javaFunction, javaProperty, javaType,
+override, propertyDeclaration, stringLiteral */

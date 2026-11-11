@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: J.java
 
 import org.jetbrains.annotations.*;
@@ -20,3 +21,6 @@ fun list(j: J): Any {
     a.get(0)
     return a
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, equalityExpression, flexibleType, functionDeclaration, ifExpression,
+integerLiteral, javaFunction, javaType, localProperty, nullableType, propertyDeclaration, safeCall */

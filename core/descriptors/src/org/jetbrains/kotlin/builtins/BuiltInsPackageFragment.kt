@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,29 +16,16 @@
 
 package org.jetbrains.kotlin.builtins
 
-import org.jetbrains.kotlin.descriptors.ModuleDescriptor
-import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.serialization.ProtoBuf
-import org.jetbrains.kotlin.serialization.deserialization.DeserializedPackageFragmentImpl
-import org.jetbrains.kotlin.storage.StorageManager
-import java.io.InputStream
+import org.jetbrains.kotlin.descriptors.PackageFragmentDescriptor
 
-class BuiltInsPackageFragment(
-        fqName: FqName,
-        storageManager: StorageManager,
-        module: ModuleDescriptor,
-        inputStream: InputStream
-) : DeserializedPackageFragmentImpl(fqName, storageManager, module, inputStream.use { stream ->
-    val version = BuiltInsBinaryVersion.readFrom(stream)
-
-    if (!version.isCompatible()) {
-        // TODO: report a proper diagnostic
-        throw UnsupportedOperationException(
-                "Kotlin built-in definition format version is not supported: " +
-                "expected ${BuiltInsBinaryVersion.INSTANCE}, actual $version. " +
-                "Please update Kotlin"
-        )
-    }
-
-    ProtoBuf.PackageFragment.parseFrom(stream, BuiltInSerializerProtocol.extensionRegistry)
-}, containerSource = null)
+interface BuiltInsPackageFragment : PackageFragmentDescriptor {
+    /**
+     * `true` if this package fragment is loaded during compilation from the current compiler's class loader.
+     * This fallback package fragment is useful because standard types like kotlin.String, kotlin.Unit will be resolved to something
+     * even in the case of absence of kotlin-stdlib in the module dependencies. So, the code in the compiler that relies on these types
+     * to be always there, will not crash.
+     * However, if anything in the source code references anything from the fallback package, this is a compilation error because it means
+     * that there's no kotlin-stdlib in the dependencies and the build is compiler version-specific, which could lead to weird issues.
+     */
+    val isFallback: Boolean
+}

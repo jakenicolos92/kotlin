@@ -1,0 +1,68 @@
+import org.jetbrains.kotlin.build.foreign.registerForeignClassUsageTasks
+import org.jetbrains.kotlin.gradle.dsl.abi.ExperimentalAbiValidation
+
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("jvm")
+    id("kotlin-git.gradle-build-conventions.foreign-class-usage-checker")
+    id("java-test-fixtures")
+    id("test-inputs-check")
+}
+
+dependencies {
+    api(project(":core:names"))
+    api(project(":core:language.model"))
+    implementation(project(":core:error.handling"))
+    api(project(":core:deserialization.common"))
+
+    compileOnly(project(":kotlin-util-klib"))
+    compileOnly(intellijCore())
+    compileOnly(libs.org.jetbrains.annotations)
+
+    testFixturesApi(platform(libs.junit.bom))
+    testFixturesImplementation(libs.junit.jupiter.api)
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+
+    testFixturesImplementation(testFixtures(project(":compiler:tests-common")))
+    testImplementation(testFixtures(project(":compiler:tests-common")))
+    testFixturesCompileOnly(intellijCore())
+    testCompileOnly(intellijCore())
+}
+
+sourceSets {
+    "main" { projectDefault() }
+    "test" { projectDefault() }
+    "testFixtures" { projectDefault() }
+}
+
+private val stableNonPublicMarkers = listOf(
+    "org.jetbrains.kotlin.psi.KtImplementationDetail",
+    "org.jetbrains.kotlin.psi.KtNonPublicApi",
+    "org.jetbrains.kotlin.psi.KtIdeApi",
+    "org.jetbrains.kotlin.psi.KtExperimentalApi",
+    "org.jetbrains.kotlin.psi.KtPlatformInterface",
+)
+
+kotlin {
+    @OptIn(ExperimentalAbiValidation::class)
+    abiValidation {
+        filters {
+            exclude.annotatedWith.addAll(stableNonPublicMarkers)
+        }
+    }
+}
+
+
+projectTests {
+    testTask()
+
+    testCodebaseTask()
+}
+
+registerForeignClassUsageTasks {
+    outputFile = file("api/psi-api.foreign")
+    nonPublicMarkers.addAll(stableNonPublicMarkers)
+}

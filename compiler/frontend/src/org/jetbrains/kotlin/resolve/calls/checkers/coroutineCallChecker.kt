@@ -1,34 +1,28 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.resolve.calls.checkers
 
 import com.intellij.psi.PsiElement
-import org.jetbrains.kotlin.config.LanguageFeature
-import org.jetbrains.kotlin.config.LanguageVersionSettings
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.builtins.StandardNames
+import org.jetbrains.kotlin.config.*
 import org.jetbrains.kotlin.coroutines.hasSuspendFunctionType
-import org.jetbrains.kotlin.descriptors.CallableDescriptor
-import org.jetbrains.kotlin.descriptors.FunctionDescriptor
+import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.diagnostics.DiagnosticSink
 import org.jetbrains.kotlin.diagnostics.Errors
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.psi.KtCodeFragment
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.KtThisExpression
+import org.jetbrains.kotlin.psi.psiUtil.getParentOfType
 import org.jetbrains.kotlin.resolve.BindingContext
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
-import org.jetbrains.kotlin.resolve.descriptorUtil.hasRestrictsSuspensionAnnotation
+import org.jetbrains.kotlin.resolve.calls.util.isCallableReference
+import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
 import org.jetbrains.kotlin.resolve.inline.InlineUtil
 import org.jetbrains.kotlin.resolve.scopes.HierarchicalScope
 import org.jetbrains.kotlin.resolve.scopes.LexicalScope
@@ -36,49 +30,98 @@ import org.jetbrains.kotlin.resolve.scopes.LexicalScopeKind
 import org.jetbrains.kotlin.resolve.scopes.receivers.ExpressionReceiver
 import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValue
 import org.jetbrains.kotlin.resolve.scopes.utils.parentsWithSelf
+import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.typeUtil.supertypes
-import org.jetbrains.kotlin.utils.addToStdlib.cast
-import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 
+@K1Deprecation
+val COROUTINE_CONTEXT_FQ_NAME =
+    StandardNames.COROUTINES_PACKAGE_FQ_NAME.child(Name.identifier("coroutineContext"))
+
+@K1Deprecation
+fun FqName.isBuiltInCoroutineContext(): Boolean =
+    this == StandardNames.COROUTINES_PACKAGE_FQ_NAME.child(Name.identifier("coroutineContext"))
+
+@K1Deprecation
+fun FunctionDescriptor.isBuiltInCoroutineContext() =
+    (this as? PropertyGetterDescriptor)?.correspondingProperty?.fqNameSafe?.isBuiltInCoroutineContext() == true
+
+@K1Deprecation
+fun PropertyDescriptor.isBuiltInCoroutineContext() =
+    fqNameSafe.isBuiltInCoroutineContext()
+
+private val ALLOWED_SCOPE_KINDS = setOf(LexicalScopeKind.FUNCTION_INNER_SCOPE, LexicalScopeKind.FUNCTION_HEADER_FOR_DESTRUCTURING)
+
+@K1Deprecation
+fun findEnclosingSuspendFunction(context: CallCheckerContext): FunctionDescriptor? {
+    val scope = context.scope.parentsWithSelf.firstOrNull {
+        it is LexicalScope && it.kind in ALLOWED_SCOPE_KINDS && (it.ownerDescriptor as? FunctionDescriptor)?.isSuspend == true
+    } as LexicalScope?
+    return scope?.ownerDescriptor as FunctionDescriptor?
+}
+
+@K1Deprecation
 object CoroutineSuspendCallChecker : CallChecker {
-    private val ALLOWED_SCOPE_KINDS = setOf(LexicalScopeKind.FUNCTION_INNER_SCOPE, LexicalScopeKind.FUNCTION_HEADER_FOR_DESTRUCTURING)
-
     override fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext) {
-        val descriptor = resolvedCall.candidateDescriptor as? FunctionDescriptor ?: return
-        if (!descriptor.isSuspend) return
+        val descriptor = resolvedCall.candidateDescriptor
+        when (descriptor) {
+            is FunctionDescriptor -> if (!descriptor.isSuspend) return
+            is PropertyDescriptor -> if (descriptor.fqNameSafe != COROUTINE_CONTEXT_FQ_NAME) return
+            else -> return
+        }
 
-        val enclosingSuspendFunction =
-                context.scope
-                        .parentsWithSelf.firstOrNull {
-                                it is LexicalScope && it.kind in ALLOWED_SCOPE_KINDS &&
-                                    it.ownerDescriptor.safeAs<FunctionDescriptor>()?.isSuspend == true
-                        }?.cast<LexicalScope>()?.ownerDescriptor?.cast<FunctionDescriptor>()
+        val callElement = resolvedCall.call.callElement as KtExpression
+        val enclosingSuspendFunction = findEnclosingSuspendFunction(context)
 
         when {
             enclosingSuspendFunction != null -> {
-                val callElement = resolvedCall.call.callElement as KtExpression
-
                 if (!InlineUtil.checkNonLocalReturnUsage(enclosingSuspendFunction, callElement, context.resolutionContext)) {
-                    context.trace.report(Errors.NON_LOCAL_SUSPENSION_POINT.on(reportOn))
-                }
-                else if (context.scope.parentsWithSelf.any { it.isScopeForDefaultParameterValuesOf(enclosingSuspendFunction) }) {
+                    var shouldReport = true
+
+                    // Do not report for KtCodeFragment in a suspend function context
+                    val containingFile = callElement.containingFile
+                    if (containingFile is KtCodeFragment) {
+                        val c = containingFile.context?.getParentOfType<KtExpression>(false)
+                        if (c != null && InlineUtil.checkNonLocalReturnUsage(enclosingSuspendFunction, c, context.resolutionContext)) {
+                            shouldReport = false
+                        }
+                    }
+
+                    if (shouldReport) {
+                        context.trace.report(Errors.NON_LOCAL_SUSPENSION_POINT.on(reportOn))
+                    }
+                } else if (context.scope.parentsWithSelf.any { it.isScopeForDefaultParameterValuesOf(enclosingSuspendFunction) }) {
                     context.trace.report(Errors.UNSUPPORTED.on(reportOn, "suspend function calls in a context of default parameter value"))
                 }
 
-                context.trace.record(BindingContext.ENCLOSING_SUSPEND_FUNCTION_FOR_SUSPEND_FUNCTION_CALL, resolvedCall.call, enclosingSuspendFunction)
-
                 checkRestrictsSuspension(enclosingSuspendFunction, resolvedCall, reportOn, context)
             }
+            resolvedCall.call.isCallableReference() -> {
+                // do nothing: we can get callable reference to suspend function outside suspend context
+            }
             else -> {
-                context.trace.report(Errors.ILLEGAL_SUSPEND_FUNCTION_CALL.on(reportOn, resolvedCall.candidateDescriptor))
+                when (descriptor) {
+                    is FunctionDescriptor -> context.trace.report(
+                        Errors.ILLEGAL_SUSPEND_FUNCTION_CALL.on(
+                            reportOn,
+                            resolvedCall.candidateDescriptor
+                        )
+                    )
+                    is PropertyDescriptor -> context.trace.report(
+                        Errors.ILLEGAL_SUSPEND_PROPERTY_ACCESS.on(
+                            reportOn,
+                            resolvedCall.candidateDescriptor
+                        )
+                    )
+                }
             }
         }
     }
 }
 
 private fun HierarchicalScope.isScopeForDefaultParameterValuesOf(enclosingSuspendFunction: FunctionDescriptor) =
-        this is LexicalScope && this.kind == LexicalScopeKind.DEFAULT_VALUE && this.ownerDescriptor == enclosingSuspendFunction
+    this is LexicalScope && this.kind == LexicalScopeKind.DEFAULT_VALUE && this.ownerDescriptor == enclosingSuspendFunction
 
+@K1Deprecation
 object BuilderFunctionsCallChecker : CallChecker {
     override fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext) {
         val descriptor = resolvedCall.candidateDescriptor as? FunctionDescriptor ?: return
@@ -88,54 +131,79 @@ object BuilderFunctionsCallChecker : CallChecker {
     }
 }
 
+@K1Deprecation
 fun checkCoroutinesFeature(languageVersionSettings: LanguageVersionSettings, diagnosticHolder: DiagnosticSink, reportOn: PsiElement) {
-    val diagnosticData = LanguageFeature.Coroutines to languageVersionSettings
-    when (languageVersionSettings.getFeatureSupport(LanguageFeature.Coroutines)) {
-        LanguageFeature.State.ENABLED -> {
+    if (languageVersionSettings.supportsFeature(LanguageFeature.ReleaseCoroutines)) {
+        if (languageVersionSettings.apiVersion < ApiVersion.KOTLIN_1_3) {
+            diagnosticHolder.report(Errors.UNSUPPORTED.on(reportOn, "cannot use release coroutines with api version less than 1.3"))
         }
-        LanguageFeature.State.ENABLED_WITH_WARNING -> {
-            diagnosticHolder.report(Errors.EXPERIMENTAL_FEATURE_WARNING.on(reportOn, diagnosticData))
-        }
-        LanguageFeature.State.ENABLED_WITH_ERROR -> {
-            diagnosticHolder.report(Errors.EXPERIMENTAL_FEATURE_ERROR.on(reportOn, diagnosticData))
-        }
-        LanguageFeature.State.DISABLED -> {
-            diagnosticHolder.report(Errors.UNSUPPORTED_FEATURE.on(reportOn, diagnosticData))
-        }
+        return
     }
 }
 
-private fun checkRestrictsSuspension(
-        enclosingCallableDescriptor: CallableDescriptor,
-        resolvedCall: ResolvedCall<*>,
-        reportOn: PsiElement,
-        context: CallCheckerContext
-) {
-    val enclosingSuspendReceiverValue = enclosingCallableDescriptor.extensionReceiverParameter?.value ?: return
+@K1Deprecation
+fun KotlinType.isRestrictsSuspensionReceiver() = (listOf(this) + this.supertypes()).any {
+    it.constructor.declarationDescriptor?.annotations?.hasAnnotation(
+        StandardNames.COROUTINES_PACKAGE_FQ_NAME.child(Name.identifier("RestrictsSuspension"))
+    ) == true
+}
 
-    fun ReceiverValue.isRestrictsSuspensionReceiver() = (type.supertypes() + type).any {
-        it.constructor.declarationDescriptor?.hasRestrictsSuspensionAnnotation() == true
-    }
+@K1Deprecation
+fun FunctionDescriptor.isRestrictedSuspendFunction(): Boolean =
+    extensionReceiverParameter?.type?.isRestrictsSuspensionReceiver() == true
+
+private fun checkRestrictsSuspension(
+    enclosingSuspendCallableDescriptor: CallableDescriptor,
+    resolvedCall: ResolvedCall<*>,
+    reportOn: PsiElement,
+    context: CallCheckerContext
+) {
+    fun ReceiverValue.isRestrictsSuspensionReceiver() = type.isRestrictsSuspensionReceiver()
 
     infix fun ReceiverValue.sameInstance(other: ReceiverValue?): Boolean {
         if (other == null) return false
-        if (this === other) return true
+        // Implicit receiver should be reference equal
+        if (this.original === other.original) return true
 
         val referenceExpression = ((other as? ExpressionReceiver)?.expression as? KtThisExpression)?.instanceReference
         val referenceTarget = referenceExpression?.let {
             context.trace.get(BindingContext.REFERENCE_TARGET, referenceExpression)
         }
 
-        return this === (referenceTarget as? CallableDescriptor)?.extensionReceiverParameter?.value
+        val referenceReceiverValue = when (referenceTarget) {
+            is CallableDescriptor -> referenceTarget.extensionReceiverParameter?.value
+            is ClassDescriptor -> referenceTarget.thisAsReceiverParameter.value
+            else -> null
+        }
+
+        return this === referenceReceiverValue
     }
 
-    if (!enclosingSuspendReceiverValue.isRestrictsSuspensionReceiver()) return
+    fun reportError() {
+        context.trace.report(Errors.ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL.on(reportOn))
+    }
+
+    val enclosingSuspendExtensionReceiverValue = enclosingSuspendCallableDescriptor.extensionReceiverParameter?.value
+    val enclosingSuspendDispatchReceiverValue = enclosingSuspendCallableDescriptor.dispatchReceiverParameter?.value
+
+    val receivers = listOfNotNull(resolvedCall.dispatchReceiver, resolvedCall.extensionReceiver)
+    for (receiverValue in receivers) {
+        if (!receiverValue.isRestrictsSuspensionReceiver()) continue
+        if (enclosingSuspendExtensionReceiverValue?.sameInstance(receiverValue) == true) continue
+        if (enclosingSuspendDispatchReceiverValue?.sameInstance(receiverValue) == true) continue
+
+        reportError()
+        return
+    }
+
+    if (enclosingSuspendExtensionReceiverValue?.isRestrictsSuspensionReceiver() != true) return
 
     // member of suspend receiver
-    if (enclosingSuspendReceiverValue sameInstance resolvedCall.dispatchReceiver) return
+    if (enclosingSuspendExtensionReceiverValue sameInstance resolvedCall.dispatchReceiver) return
 
-    if (enclosingSuspendReceiverValue sameInstance resolvedCall.extensionReceiver &&
-        resolvedCall.candidateDescriptor.extensionReceiverParameter!!.value.isRestrictsSuspensionReceiver()) return
+    if (enclosingSuspendExtensionReceiverValue sameInstance resolvedCall.extensionReceiver &&
+        resolvedCall.candidateDescriptor.extensionReceiverParameter!!.value.isRestrictsSuspensionReceiver()
+    ) return
 
-    context.trace.report(Errors.ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL.on(reportOn))
+    reportError()
 }

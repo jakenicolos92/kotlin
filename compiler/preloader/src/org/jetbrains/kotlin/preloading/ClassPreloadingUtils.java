@@ -31,10 +31,10 @@ public class ClassPreloadingUtils {
     /**
      * Creates a class loader that loads all classes from {@code jarFiles} into memory to make loading faster (avoid skipping through zip archives).
      *
-     * @param jarFiles jars to load all classes from
-     * @param classCountEstimation an estimated number of classes in a the jars
-     * @param parentClassLoader parent class loader
-     * @param handler handler to be notified on class definitions done by this class loader, or null
+     * @param jarFiles              jars to load all classes from
+     * @param classCountEstimation  an estimated number of classes in a the jars
+     * @param parentClassLoader     parent class loader
+     * @param handler               handler to be notified on class definitions done by this class loader, or null
      * @param classesToLoadByParent condition to load some classes via parent class loader
      * @return a class loader that reads classes from memory
      * @throws IOException on from reading the jar
@@ -49,6 +49,7 @@ public class ClassPreloadingUtils {
         Map<String, Object> entries = loadAllClassesFromJars(jarFiles, classCountEstimation, handler);
 
         Collection<File> classpath = mergeClasspathFromManifests(entries);
+        classpath.removeAll(jarFiles);
         if (!classpath.isEmpty()) {
             parentClassLoader = preloadClasses(classpath, classCountEstimation, parentClassLoader, null, handler);
         }

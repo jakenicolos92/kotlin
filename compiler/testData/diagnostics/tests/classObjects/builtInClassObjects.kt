@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE, -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE, -UNUSED_PARAMETER
 
 fun box(): String {
     try {
@@ -40,4 +41,5 @@ fun box(): String {
 
 fun test(a: Any) {}
 
-
+/* GENERATED_FIR_TAGS: additiveExpression, functionDeclaration, localProperty, propertyDeclaration, stringLiteral,
+tryExpression */

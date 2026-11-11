@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
 
 fun <T> parameter() = fun (t: T) = t
 fun <T> receiver() = fun T.() = this
@@ -29,3 +30,7 @@ class Outer<O> {
         devNull(fun (): O = null!!)
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousFunction, checkNotNullCall, classDeclaration, functionDeclaration, functionalType,
+getter, init, localFunction, nullableType, propertyDeclaration, propertyWithExtensionReceiver, thisExpression,
+typeParameter */

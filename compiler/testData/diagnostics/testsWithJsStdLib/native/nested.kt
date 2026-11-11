@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 object O
 
 class TopLevel {
@@ -39,4 +40,3 @@ fun topLevelFun() {
 
     <!NESTED_EXTERNAL_DECLARATION!>external fun bar(): Int<!>
 }
-

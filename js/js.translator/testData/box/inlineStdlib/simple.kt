@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 493
 package foo
 
 // CHECK_CONTAINS_NO_CALLS: test

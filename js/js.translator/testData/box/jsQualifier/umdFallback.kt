@@ -1,14 +1,15 @@
-// EXPECTED_REACHABLE_NODES: 491
-// MODULE: lib
-// FILE: lib.kt
-// MODULE_KIND: UMD
+// DONT_TARGET_EXACT_BACKEND: WASM_JS
+// WASM_MUTE_REASON: MODULE_KIND
+
 // NO_JS_MODULE_SYSTEM
+// MODULE: lib
+// JS_MODULE_KIND: UMD
+// FILE: lib.kt
 @file:JsQualifier("foo")
 
 external fun bar(): String
 
 // MODULE: main(lib)
+// JS_MODULE_KIND: UMD
 // FILE: main.kt
-// MODULE_KIND: UMD
-// NO_JS_MODULE_SYSTEM
 fun box() = bar()

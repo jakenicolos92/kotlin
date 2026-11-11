@@ -1,3 +1,7 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: +UNUSED_EXPRESSION
+// WITH_EXTRA_CHECKERS
+
 fun unusedExpressions() {
     if (1 == 1)
         <!UNUSED_EXPRESSION!>fun(): Int {return 1}<!>
@@ -19,3 +23,6 @@ fun unusedExpressions() {
 
     <!UNUSED_EXPRESSION!>fun() = 1<!>
 }
+
+/* GENERATED_FIR_TAGS: anonymousFunction, equalityExpression, functionDeclaration, ifExpression, integerLiteral,
+whenExpression, whenWithSubject */

@@ -1,0 +1,250 @@
+/*
+ * Copyright 2010-2023 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.gradle
+
+import org.gradle.util.GradleVersion
+import org.jetbrains.kotlin.gradle.testbase.*
+import org.jetbrains.kotlin.gradle.uklibs.applyMultiplatform
+import org.jetbrains.kotlin.test.TestMetadata
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.condition.OS
+import java.io.File
+import kotlin.io.path.appendText
+import kotlin.io.path.readText
+import kotlin.io.path.writeText
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+@DisplayName("Incremental compilation tests for Kotlin JS IR backend")
+@JsGradlePluginTests
+@MustRunOnChangesInJsIrCompiler
+class Kotlin2JsIrBeIncrementalCompilationIT : KGPBaseTest() {
+    override val defaultBuildOptions = BuildOptions(
+        jsOptions = BuildOptions.JsOptions(
+            incrementalJsKlib = true,
+            incrementalJsIr = true
+        ),
+    ).disableIsolatedProjectsBecauseOfJsAndWasmKT75899()
+
+    @TestMetadata("kotlin2JsIrICProject")
+    @DisplayName("Test cache invalidation after modifying compiler args")
+    @GradleTest
+    fun testCacheInvalidationAfterCompilerArgModifying(gradleVersion: GradleVersion) {
+        project("kotlin2JsIrICProject", gradleVersion) {
+            val buildConfig = buildGradleKts.readText()
+
+            fun setLazyInitializationArg(value: Boolean) {
+                buildGradleKts.writeText(buildConfig)
+                buildGradleKts.appendText(
+                    """
+                    |
+                    |tasks.named<org.jetbrains.kotlin.gradle.targets.js.ir.KotlinJsIrLink>("compileDevelopmentExecutableKotlinJs") {
+                    |    compilerOptions {
+                    |        freeCompilerArgs.add("-Xir-property-lazy-initialization=$value")
+                    |   }
+                    |}
+                    """.trimMargin()
+                )
+            }
+
+            fun String.testScriptOutLines() = this.lines().mapNotNull {
+                val trimmed = it.removePrefix(">>> TEST OUT: ")
+                if (trimmed == it) null else trimmed
+            }
+
+            // -Xir-property-lazy-initialization default is true
+            build("jsNodeDevelopmentRun") {
+                assertTasksExecuted(":compileDevelopmentExecutableKotlinJs")
+                assertEquals(listOf("Hello, Gradle."), output.testScriptOutLines())
+            }
+
+            setLazyInitializationArg(false)
+            build("jsNodeDevelopmentRun") {
+                assertTasksExecuted(":compileDevelopmentExecutableKotlinJs")
+                assertEquals(listOf("TOP LEVEL!", "Hello, Gradle."), output.testScriptOutLines())
+            }
+
+            setLazyInitializationArg(true)
+            build("jsNodeDevelopmentRun") {
+                assertTasksExecuted(":compileDevelopmentExecutableKotlinJs")
+                assertEquals(listOf("Hello, Gradle."), output.testScriptOutLines())
+            }
+        }
+    }
+
+    @TestMetadata("kotlin-js-ir-ic-multiple-artifacts")
+    @DisplayName("Test multiple artifacts in one project")
+    @GradleTest
+    fun testMultipleArtifacts(gradleVersion: GradleVersion) {
+        project("kotlin-js-ir-ic-multiple-artifacts", gradleVersion) {
+            build("compileDevelopmentExecutableKotlinJs") {
+                val cacheDir = projectPath.resolve("app/build/klib/cache/js/developmentExecutable").toFile()
+                val cacheRootDirName = cacheDir.list()?.singleOrNull()
+                assertTrue("Lib cache root dir should contain 1 element 'version.hash'") {
+                    cacheRootDirName?.startsWith("version.") ?: false
+                }
+                val cacheRootDir = cacheDir.resolve(cacheRootDirName!!)
+                val klibCacheDirs = cacheRootDir.list()
+                // 2 for lib.klib + 1 for stdlib + 1 for dom-api-compat + 1 for main
+                assertEquals(5, klibCacheDirs?.size, "cache should contain 5 dirs")
+
+                val libKlibCacheDirs = klibCacheDirs?.filter { dir -> dir.startsWith("lib.klib.") }
+                assertEquals(1, libKlibCacheDirs?.size, "cache should contain 1 dirs for lib.klib")
+                val mainKlibCacheDirs = klibCacheDirs?.filter { dir -> dir.startsWith("main") }
+                assertEquals(
+                    2,
+                    mainKlibCacheDirs?.size,
+                    "cache should contain 2 dirs starting from main (1 for main of lib + 1 main of app)"
+                )
+
+                var lib = false
+                var libOther = false
+
+                cacheRootDir.listFiles()!!
+                    .forEach {
+                        it.listFiles()!!
+                            .filter { it.isFile }
+                            .forEach {
+                                val text = it.readText()
+                                // cache keeps the js code of compiled module, this substring from that js code
+                                if (text.contains("globalThis['kotlin-js-ir-ic-multiple-artifacts-lib'] = ")) {
+                                    if (lib) {
+                                        error("lib should be only once in cache")
+                                    }
+                                    lib = true
+                                }
+                                // cache keeps the js code of compiled module, this substring from that js code
+                                if (text.contains("globalThis['kotlin-js-ir-ic-multiple-artifacts-lib-other'] = ")) {
+                                    if (libOther) {
+                                        error("libOther should be only once in cache")
+                                    }
+                                    libOther = true
+                                }
+                            }
+
+                    }
+
+                assertTrue("lib and libOther should be once in cache") {
+                    lib && libOther
+                }
+                assertTasksExecuted(":app:compileDevelopmentExecutableKotlinJs")
+            }
+        }
+    }
+
+    @TestMetadata("kotlin-js-ir-ic-remove-unused-dep")
+    @DisplayName("KT-50503: Test removing unused dependency from klib")
+    @GradleTest
+    fun testRemoveUnusedDependency(gradleVersion: GradleVersion) {
+        project("kotlin-js-ir-ic-remove-unused-dep", gradleVersion) {
+            val enableDependencyProperty = "enableDependency"
+            subProject("app").buildScriptInjection {
+                if (project.hasProperty(enableDependencyProperty)) {
+                    project.applyMultiplatform {
+                        sourceSets.jsMain.dependencies {
+                            implementation(project(":lib"))
+                        }
+                    }
+                }
+            }
+
+            build("compileDevelopmentExecutableKotlinJs", "-P${enableDependencyProperty}") {
+                assertTasksExecuted(":app:compileDevelopmentExecutableKotlinJs")
+            }
+
+            build("compileDevelopmentExecutableKotlinJs") {
+                // Check the dependency was there and has been removed
+                val regexPathSeparator = if (OS.WINDOWS.isCurrentOs) {
+                    "\\\\"
+                } else {
+                    "/"
+                }
+                assertOutputContains("lib${regexPathSeparator}.*bodies\\.knb has been removed".toRegex())
+                assertTasksExecuted(":app:compileDevelopmentExecutableKotlinJs")
+            }
+        }
+    }
+
+
+    @TestMetadata("kotlin2JsIrICProject")
+    @DisplayName("Test cache invalidation after detecting guard file")
+    @GradleTest
+    fun testCacheGuardInvalidation(gradleVersion: GradleVersion) {
+        project("kotlin2JsIrICProject", gradleVersion) {
+            build("jsNodeDevelopmentRun", "--debug") {
+                assertTasksExecuted(":compileDevelopmentExecutableKotlinJs")
+                assertOutputContains("module [main] was built clean")
+                assertOutputContains(">>> TEST OUT: Hello, Gradle.")
+            }
+
+            val cacheGuard = projectPath.resolve("build/klib/cache/js/developmentExecutable/cache.guard").toFile()
+            assertFalse(cacheGuard.exists(), "Cache guard file should be removed after successful build")
+
+            val srcFile = projectPath.resolve("src/jsMain/kotlin/Main.kt").toFile()
+            srcFile.writeText(srcFile.readText().replace("greeting(\"Gradle\")", "greeting(\"Kotlin\")"))
+
+            cacheGuard.createNewFile()
+            build("jsNodeDevelopmentRun", "--debug") {
+                assertTasksExecuted(":compileDevelopmentExecutableKotlinJs")
+                assertOutputContains(Regex("Cache guard file detected, cache directory '.+' cleared"))
+                assertOutputContains("module [main] was built clean")
+                assertOutputContains(">>> TEST OUT: Hello, Kotlin.")
+            }
+
+            assertFalse(cacheGuard.exists(), "Cache guard file should be removed after successful build")
+        }
+    }
+
+    @TestMetadata("kotlin-js-ir-ic-multiple-artifacts")
+    @DisplayName("Separate caches for different binaries")
+    @GradleTest
+    fun testSeparateCachesForDifferentBinaries(gradleVersion: GradleVersion) {
+        project("kotlin-js-ir-ic-multiple-artifacts", gradleVersion) {
+            val filesToModified = mutableMapOf<File, Long>()
+
+            build("compileDevelopmentExecutableKotlinJs") {
+                val cacheDir = projectPath.resolve("app/build/klib/cache/js/developmentExecutable").toFile()
+                val cacheRootDirName = cacheDir.list()?.singleOrNull()
+                val cacheRootDir = cacheDir.resolve(cacheRootDirName!!)
+
+                cacheRootDir.listFiles()!!
+                    .forEach {
+                        it.listFiles()!!
+                            .filter { it.isFile }
+                            .filter { it.name == "module.js" }
+                            .forEach {
+                                filesToModified[it] = it.lastModified()
+                            }
+
+                    }
+
+                assertTasksExecuted(":app:compileDevelopmentExecutableKotlinJs")
+            }
+
+            build("compileTestDevelopmentExecutableKotlinJs") {
+                val cacheDir = projectPath.resolve("app/build/klib/cache/js/developmentExecutable").toFile()
+                val cacheRootDirName = cacheDir.list()?.singleOrNull()
+                val cacheRootDir = cacheDir.resolve(cacheRootDirName!!)
+
+                val allUpToDate = cacheRootDir.listFiles()!!
+                    .all {
+                        it.listFiles()!!
+                            .filter { it.isFile }
+                            .filter { it.name == "module.js" }
+                            .all {
+                                filesToModified[it] == it.lastModified()
+                            }
+
+                    }
+
+                assertTrue { allUpToDate }
+
+                assertTasksExecuted(":app:compileTestDevelopmentExecutableKotlinJs")
+            }
+        }
+    }
+}

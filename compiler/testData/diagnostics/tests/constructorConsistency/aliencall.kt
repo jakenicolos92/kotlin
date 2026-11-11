@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun foo() = 42
 
 class Your {
@@ -15,9 +16,9 @@ class My {
 
     // This extension function also can use our properties,
     // so the call is also dangerous
-    val w = your.<!DEBUG_INFO_LEAKING_THIS!>gav<!>()
+    val w = your.gav()
 
-    val v = Your().<!DEBUG_INFO_LEAKING_THIS!>gav<!>()
+    val v = Your().gav()
 
     val t = your.other()
 
@@ -27,3 +28,6 @@ class My {
 }
 
 fun Your.other() = "3"
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, funWithExtensionReceiver, functionDeclaration, ifExpression,
+integerLiteral, propertyDeclaration, stringLiteral */

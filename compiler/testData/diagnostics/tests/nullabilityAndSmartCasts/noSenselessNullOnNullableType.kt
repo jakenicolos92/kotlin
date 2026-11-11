@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 
 class A {
@@ -10,7 +11,7 @@ class A {
 
 fun bar() = when (A.foo()) {
     null -> "null"
-    else -> "else"
+    <!REDUNDANT_ELSE_IN_WHEN!>else<!> -> "else"
 }
 
 fun <T : Number?> baz(t: T) = when (t) {
@@ -19,3 +20,6 @@ fun <T : Number?> baz(t: T) = when (t) {
     null -> "null"
     else -> "else"
 }
+
+/* GENERATED_FIR_TAGS: equalityExpression, functionDeclaration, isExpression, nullableType, smartcast, stringLiteral,
+typeConstraint, typeParameter, whenExpression, whenWithSubject */

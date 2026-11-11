@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //  Type inference failed after smart cast
 
 interface A<T>
@@ -13,3 +14,6 @@ fun <T> test(a: A<T>) {
     }   
     foo(a) // ok
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, ifExpression, interfaceDeclaration, isExpression, nullableType,
+typeParameter */

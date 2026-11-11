@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 872
+// KJS_WITH_FULL_RUNTIME
 package foo
 
 class A {

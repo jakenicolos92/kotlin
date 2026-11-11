@@ -1,39 +1,40 @@
-description 'Kotlin Script Runtime'
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+}
+
+description = 'Kotlin Script Runtime'
 
 apply plugin: 'kotlin'
 
-configureJvmProject(project)
-configurePublishing(project)
+jvmToolchains {
+    targetBytecodeVersion.set(JdkMajorVersion.JDK_1_8)
+}
+
+RepoArtifacts.publish(project)
 
 dependencies {
-    compileOnly project(':kotlin-stdlib')
+    compileOnly RepoDependencies.kotlinStdlib(project)
 }
 
 sourceSets {
     main {
         kotlin {
-            srcDir "${rootDir}/../core/script.runtime/src"
+            srcDir "${rootDir}/core/script.runtime/src"
         }
     }
 }
 
 jar {
-    manifestAttributes(manifest, project, 'Main')
+    LibrariesCommon.manifestAttributes(project, manifest, 'Main')
 }
 
-artifacts {
-    archives sourcesJar
-    archives javadocJar
-}
-
-
-dist {
-    from (jar, sourcesJar)
-}
+RepoArtifacts.sourcesJar(project)
+RepoArtifacts.javadocJar(project)
 
 compileKotlin {
-    kotlinOptions.freeCompilerArgs = [
-            "-Xallow-kotlin-package",
-            "-module-name", project.name
+    compilerOptions.freeCompilerArgs = [
+        "-Xallow-kotlin-package",
     ]
+    compilerOptions.moduleName = project.name
 }

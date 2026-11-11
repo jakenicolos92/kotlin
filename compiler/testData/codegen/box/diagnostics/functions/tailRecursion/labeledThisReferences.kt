@@ -1,7 +1,4 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
-
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND_WITHOUT_CHECK: JS
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 class B {
     inner class C {
@@ -11,7 +8,7 @@ class B {
             }
         }
 
-        <!NO_TAIL_CALLS_FOUND!>tailrec fun h2(x : Any)<!> {
+        <!NO_TAIL_CALLS_FOUND!>tailrec<!> fun h2(x : Any) {
             this@B.h2("no recursion") // keep vigilance
         }
 

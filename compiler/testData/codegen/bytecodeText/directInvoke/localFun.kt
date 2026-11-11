@@ -5,4 +5,4 @@ fun test() {
     local(1)
 }
 
-// 2 invoke \(I\)V
+// 1 INVOKESTATIC LocalFunKt\.test\$local \(I\)V

@@ -1,1 +1,14 @@
-apply plugin: 'kotlin'
+plugins {
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}

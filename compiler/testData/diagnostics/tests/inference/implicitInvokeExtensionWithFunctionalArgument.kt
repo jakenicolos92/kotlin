@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_PARAMETER, -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_PARAMETER, -UNUSED_VARIABLE
 
 class AbstractSelector<S, I>
 class SelectorFor<S>
@@ -24,5 +25,9 @@ fun test(s: SelectorFor<State>): Double {
     val e = s { return p1 }
     e checkType { _<AbstractSelector<State, Nothing>>() }
 
-    <!UNREACHABLE_CODE!>return<!> null!!
+    return null!!
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, inline, lambdaLiteral, localProperty, nullableType, operator, primaryConstructor, propertyDeclaration,
+typeParameter, typeWithExtension */

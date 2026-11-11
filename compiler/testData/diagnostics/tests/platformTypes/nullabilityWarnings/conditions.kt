@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 // FILE: J.java
 
 import org.jetbrains.annotations.*;
@@ -22,26 +23,29 @@ fun test() {
     val platformJ = J.staticJ
 
     if (platformNN) {}
-    if (<!TYPE_MISMATCH, TYPE_MISMATCH!>platformN<!>) {}
+    if (<!CONDITION_TYPE_MISMATCH!>platformN<!>) {}
     if (platformJ) {}
 
     while (platformNN) {}
-    while (<!TYPE_MISMATCH, TYPE_MISMATCH!>platformN<!>) {}
+    while (<!CONDITION_TYPE_MISMATCH!>platformN<!>) {}
     while (platformJ) {}
 
     do {} while (platformNN)
-    do {} while (<!TYPE_MISMATCH, TYPE_MISMATCH!>platformN<!>)
+    do {} while (<!CONDITION_TYPE_MISMATCH!>platformN<!>)
     do {} while (platformJ)
 
     platformNN && false
-    <!TYPE_MISMATCH!>platformN<!> && false
+    <!CONDITION_TYPE_MISMATCH!>platformN<!> && false
     platformJ && false
 
     platformNN || false
-    <!TYPE_MISMATCH!>platformN<!> || false
+    <!CONDITION_TYPE_MISMATCH!>platformN<!> || false
     platformJ || false
 
     !platformNN
     <!UNSAFE_CALL!>!<!>platformN
     !platformJ
 }
+
+/* GENERATED_FIR_TAGS: andExpression, disjunctionExpression, doWhileLoop, flexibleType, functionDeclaration,
+ifExpression, javaProperty, localProperty, nullableType, propertyDeclaration, whileLoop */

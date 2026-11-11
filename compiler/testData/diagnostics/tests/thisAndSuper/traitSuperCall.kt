@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: test.kt
 
 public interface Test {
@@ -22,3 +23,4 @@ class A : KTrait {
     }
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, stringLiteral, superExpression */

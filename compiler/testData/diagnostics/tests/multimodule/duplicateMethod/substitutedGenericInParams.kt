@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // MODULE: m1
 // FILE: a.kt
 package p
@@ -32,3 +33,6 @@ fun test(b: B?) {
         b<!UNNECESSARY_SAFE_CALL!>?.<!>foo("")
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, ifExpression, interfaceDeclaration, intersectionType, isExpression,
+nullableType, override, safeCall, smartcast, stringLiteral, typeParameter */

@@ -1,0 +1,66 @@
+/*
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.plugin.sandbox.fir.generators
+
+import org.jetbrains.kotlin.GeneratedDeclarationKey
+import org.jetbrains.kotlin.descriptors.Visibilities
+import org.jetbrains.kotlin.fir.FirSession
+import org.jetbrains.kotlin.fir.StandardTypes
+import org.jetbrains.kotlin.fir.extensions.*
+import org.jetbrains.kotlin.fir.extensions.predicate.DeclarationType
+import org.jetbrains.kotlin.fir.extensions.predicate.LookupPredicate
+import org.jetbrains.kotlin.fir.plugin.createTopLevelFunction
+import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
+import org.jetbrains.kotlin.name.CallableId
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.plugin.sandbox.fir.fqn
+
+/*
+ * Generates `private suspend fun testFun_generated() {}` function
+ * for each package containing a top-level function annotated with `org.jetbrains.kotlin.plugin.sandbox.TestTopLevelPrivateSuspendFun`.
+ */
+@OptIn(ExperimentalTopLevelDeclarationsGenerationApi::class)
+internal class TopLevelPrivateSuspendFunctionGenerator(session: FirSession) : FirDeclarationGenerationExtension(session) {
+    private companion object {
+        private val TEST_FUN_NAME = Name.identifier("testFun_generated")
+        private val PREDICATE = LookupPredicate.create {
+            annotated("TestTopLevelPrivateSuspendFun".fqn()).matching(DeclarationType.TOP_LEVEL_FUNCTION)
+        }
+    }
+
+    private val predicateBasedProvider = session.predicateBasedProvider
+    private val matchedPackageNames by lazy {
+        // This could be done more elegantly if TestTopLevelPrivateSuspendFun was file-level annotation,
+        // but it's currently not possible to find all annotated files using FirPredicateBasedProvider (see KT-66151).
+        predicateBasedProvider.getSymbolsByPredicate(PREDICATE)
+            .filterIsInstance<FirNamedFunctionSymbol>()
+            .map { it.callableId.packageName }
+            .toSet()
+    }
+
+    override fun generateFunctions(callableId: CallableId, context: MemberGenerationContext?): List<FirNamedFunctionSymbol> {
+        if (context != null) return emptyList()
+        if (callableId.callableName != TEST_FUN_NAME) return emptyList()
+        val function = createTopLevelFunction(
+            TopLevelPrivateSuspendFunctionGeneratorKey, callableId, StandardTypes.Unit,
+        ) {
+            visibility = Visibilities.Private
+            status { isSuspend = true }
+            withGeneratedDefaultBody()
+        }
+        return listOf(function.symbol)
+    }
+
+    override fun getTopLevelCallableIds(): Set<CallableId> {
+        return matchedPackageNames.map { CallableId(it, TEST_FUN_NAME) }.toSet()
+    }
+
+    data object TopLevelPrivateSuspendFunctionGeneratorKey : GeneratedDeclarationKey()
+
+    override fun FirDeclarationPredicateRegistrar.registerPredicates() {
+        register(PREDICATE)
+    }
+}

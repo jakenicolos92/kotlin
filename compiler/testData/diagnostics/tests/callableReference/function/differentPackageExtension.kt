@@ -1,8 +1,11 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 // FILE: a.kt
 
 package first
+
+import checkSubtype
 
 class A
 
@@ -18,6 +21,7 @@ import kotlin.reflect.KFunction1
 
 import first.A
 import first.foo
+import checkSubtype
 
 fun main() {
     val x = first.A::foo
@@ -26,3 +30,6 @@ fun main() {
 
     checkSubtype<KFunction1<A, Unit>>(x)
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, localProperty, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

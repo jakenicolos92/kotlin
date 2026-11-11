@@ -1,0 +1,606 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.gradle.android
+
+import org.gradle.api.logging.configuration.WarningMode
+import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.util.GradleVersion
+import org.jetbrains.kotlin.gradle.plugin.diagnostics.KotlinToolingDiagnostics
+import org.jetbrains.kotlin.gradle.testbase.*
+import org.jetbrains.kotlin.gradle.testbase.TestVersions.AgpCompatibilityMatrix
+import org.jetbrains.kotlin.gradle.util.replaceText
+import org.jetbrains.kotlin.test.TestMetadata
+import org.jetbrains.kotlin.testFederation.MustRunOnChangesInGradle
+import org.jetbrains.kotlin.testFederation.NightlyTest
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.DynamicContainer
+import org.junit.jupiter.api.DynamicContainer.dynamicContainer
+import org.junit.jupiter.api.DynamicTest.dynamicTest
+import org.junit.jupiter.api.TestFactory
+import org.junit.jupiter.api.io.TempDir
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.io.path.appendText
+import kotlin.io.path.deleteRecursively
+import kotlin.io.path.extension
+import kotlin.io.path.readText
+import kotlin.test.assertContains
+import kotlin.test.assertTrue
+import kotlin.test.fail
+
+@DisplayName("KMP/Android: publication")
+@AndroidGradlePluginTests
+@MustRunOnChangesInGradle
+class KotlinAndroidMppPublicationIT : KGPBaseTest() {
+
+    @TestMetadata("new-mpp-android")
+    @DisplayName("android mpp lib flavors publication can be configured")
+    @GradleAndroidTest
+    @AndroidTestVersions(maxVersion = TestVersions.AGP.AGP_813)
+    fun testMppAndroidLibFlavorsPublication(
+        gradleVersion: GradleVersion,
+        agpVersion: String,
+        jdkVersion: JdkVersions.ProvidedJdk,
+    ) {
+        val androidSourcesElementsAttributes = arrayOf(
+            "org.gradle.category" to "documentation",
+            "org.gradle.dependency.bundling" to "external",
+            "org.gradle.docstype" to "sources",
+            "org.gradle.libraryelements" to "jar",
+            "org.gradle.jvm.environment" to "android",
+            "org.gradle.usage" to "java-runtime",
+            "org.jetbrains.kotlin.platform.type" to "androidJvm",
+
+            // user-specific attributes that added manually in build script
+            "com.example.compilation" to "release",
+            "com.example.target" to "androidLib",
+        )
+
+        project(
+            "new-mpp-android",
+            gradleVersion,
+            buildOptions = defaultBuildOptions
+                .copy(androidVersion = agpVersion)
+                // KT-75899 Support Gradle Project Isolation in KGP JS & Wasm
+                .disableIsolatedProjectsBecauseOfJsAndWasmKT75899(),
+            buildJdk = jdkVersion.location
+        ) {
+            val groupDir = subProject("lib").projectPath.resolve("build/repo/com/example")
+            build("publish") {
+                assertDirectoryExists(groupDir.resolve("lib-jvmlib"))
+                assertDirectoryExists(groupDir.resolve("lib-jslib"))
+                assertDirectoryExists(groupDir.resolve("lib-androidlib"))
+                assertDirectoryExists(groupDir.resolve("lib-androidlib-debug"))
+            }
+            groupDir.deleteRecursively()
+
+            // Choose a single variant to publish, check that it's there:
+            subProject("lib").buildGradleKts.appendText(
+                """
+                    
+                kotlin.androidTarget("androidLib").publishLibraryVariants("release")
+                """.trimIndent()
+            )
+            build("publish") {
+                assertFileExists(groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0.aar"))
+                assertFileExists(groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0-sources.jar"))
+                assertGradleVariant(
+                    groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0.module"),
+                    "releaseSourcesElements-published"
+                ) {
+                    assertAttributesEquals(*androidSourcesElementsAttributes)
+                }
+                assertFileInProjectNotExists("$groupDir/lib-androidlib-debug")
+            }
+            groupDir.deleteRecursively()
+
+            // Enable publishing for all Android variants:
+            subProject("lib").buildGradleKts.appendText(
+                """
+
+                kotlin.androidTarget("androidLib") { publishAllLibraryVariants() }
+                """.trimIndent()
+            )
+            build("publish") {
+                assertFileExists(groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0.aar"))
+                assertFileExists(groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0-sources.jar"))
+                assertGradleVariant(
+                    groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0.module"),
+                    "releaseSourcesElements-published"
+                ) {
+                    assertAttributesEquals(*androidSourcesElementsAttributes)
+                }
+                assertFileExists(groupDir.resolve("lib-androidlib-debug/1.0/lib-androidlib-debug-1.0.aar"))
+                assertFileExists(groupDir.resolve("lib-androidlib-debug/1.0/lib-androidlib-debug-1.0-sources.jar"))
+                assertGradleVariant(
+                    groupDir.resolve("lib-androidlib-debug/1.0/lib-androidlib-debug-1.0.module"),
+                    "debugSourcesElements-published"
+                ) {
+                    assertAttributesEquals(
+                        *androidSourcesElementsAttributes,
+                        "com.example.compilation" to "debug",
+                        "com.android.build.api.attributes.BuildTypeAttr" to "debug"
+                    )
+                }
+            }
+            groupDir.deleteRecursively()
+
+            // Then group the variants by flavor and check that only one publication is created:
+            subProject("lib").buildGradleKts.appendText(
+                """
+
+                kotlin.androidTarget("androidLib").publishLibraryVariantsGroupedByFlavor = true
+                """.trimIndent()
+            )
+            build("publish") {
+                assertFileExists(groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0.aar"))
+                assertFileExists(groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0-sources.jar"))
+                assertFileExists(groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0-debug.aar"))
+                assertFileExists(groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0-debug-sources.jar"))
+                assertGradleVariant(
+                    groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0.module"),
+                    "releaseSourcesElements-published"
+                ) {
+                    assertAttributesEquals(*androidSourcesElementsAttributes)
+                }
+                assertGradleVariant(
+                    groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0.module"),
+                    "debugSourcesElements-published"
+                ) {
+                    assertAttributesEquals(
+                        *androidSourcesElementsAttributes,
+                        "com.example.compilation" to "debug",
+                        "com.android.build.api.attributes.BuildTypeAttr" to "debug"
+                    )
+                }
+            }
+            groupDir.deleteRecursively()
+
+            // Add one flavor dimension with two flavors, check that the flavors produce grouped publications:
+            subProject("lib").buildGradleKts.appendText(
+                """
+
+                android { 
+                    flavorDimensions("foo") 
+                    productFlavors {
+                        create("fooBar") {
+                            dimension = "foo"
+                        }
+
+                        create("fooBaz") {
+                            dimension = "foo"
+                        }
+                    }
+                }                    
+                """.trimIndent()
+            )
+            build("publish") {
+                listOf("fooBar", "fooBaz").forEach { flavorName ->
+                    val flavor = flavorName.lowercase()
+                    val flavorAttributes = arrayOf(
+                        "foo" to flavorName,
+                        "com.android.build.api.attributes.ProductFlavor:foo" to flavorName
+                    )
+
+                    assertFileExists(groupDir.resolve("lib-androidlib-$flavor/1.0/lib-androidlib-$flavor-1.0.aar"))
+                    assertFileExists(groupDir.resolve("lib-androidlib-$flavor/1.0/lib-androidlib-$flavor-1.0-sources.jar"))
+                    assertFileExists(groupDir.resolve("lib-androidlib-$flavor/1.0/lib-androidlib-$flavor-1.0-debug.aar"))
+                    assertFileExists(groupDir.resolve("lib-androidlib-$flavor/1.0/lib-androidlib-$flavor-1.0-debug-sources.jar"))
+                    assertGradleVariant(
+                        groupDir.resolve("lib-androidlib-$flavor/1.0/lib-androidlib-$flavor-1.0.module"),
+                        "${flavorName}ReleaseSourcesElements-published"
+                    ) {
+                        assertAttributesEquals(
+                            *androidSourcesElementsAttributes,
+                            *flavorAttributes,
+                            "com.example.compilation" to "${flavorName}Release",
+                        )
+                    }
+                    assertGradleVariant(
+                        groupDir.resolve("lib-androidlib-$flavor/1.0/lib-androidlib-$flavor-1.0.module"),
+                        "${flavorName}DebugSourcesElements-published"
+                    ) {
+                        assertAttributesEquals(
+                            *androidSourcesElementsAttributes,
+                            *flavorAttributes,
+                            "com.example.compilation" to "${flavorName}Debug",
+                            "com.android.build.api.attributes.BuildTypeAttr" to "debug"
+                        )
+                    }
+                }
+            }
+            groupDir.deleteRecursively()
+
+            // Disable the grouping and check that all the variants are published under separate artifactIds:
+            subProject("lib").buildGradleKts.appendText(
+                """
+                    
+                kotlin.androidTarget("androidLib") { publishLibraryVariantsGroupedByFlavor = false }    
+                """.trimIndent()
+            )
+            build("publish") {
+                listOf("fooBar", "fooBaz").forEach { flavorName ->
+                    val flavor = flavorName.lowercase()
+
+                    val flavorAttributes = arrayOf(
+                        "foo" to flavorName,
+                        "com.android.build.api.attributes.ProductFlavor:foo" to flavorName
+                    )
+
+                    listOf("-debug", "").forEach { buildType ->
+                        assertFileExists(groupDir.resolve("lib-androidlib-$flavor$buildType/1.0/lib-androidlib-$flavor$buildType-1.0.aar"))
+                        assertFileExists(groupDir.resolve("lib-androidlib-$flavor$buildType/1.0/lib-androidlib-$flavor$buildType-1.0-sources.jar"))
+                    }
+
+                    assertGradleVariant(
+                        groupDir.resolve("lib-androidlib-$flavor/1.0/lib-androidlib-$flavor-1.0.module"),
+                        "${flavorName}ReleaseSourcesElements-published"
+                    ) {
+                        assertAttributesEquals(
+                            *androidSourcesElementsAttributes,
+                            *flavorAttributes,
+                            "com.example.compilation" to "${flavorName}Release",
+                        )
+                    }
+
+                    assertGradleVariant(
+                        groupDir.resolve("lib-androidlib-$flavor-debug/1.0/lib-androidlib-$flavor-debug-1.0.module"),
+                        "${flavorName}DebugSourcesElements-published"
+                    ) {
+                        assertAttributesEquals(
+                            *androidSourcesElementsAttributes,
+                            *flavorAttributes,
+                            "com.example.compilation" to "${flavorName}Debug",
+                            "com.android.build.api.attributes.BuildTypeAttr" to "debug"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @TestMetadata("new-mpp-android")
+    @DisplayName("Sources publication can be disabled")
+    @GradleAndroidTest
+    @AndroidTestVersions(maxVersion = TestVersions.AGP.AGP_813)
+    fun testDisableSourcesPublication(
+        gradleVersion: GradleVersion,
+        agpVersion: String,
+        jdkVersion: JdkVersions.ProvidedJdk,
+    ) {
+        project(
+            "new-mpp-android",
+            gradleVersion,
+            buildOptions = defaultBuildOptions
+                .copy(androidVersion = agpVersion)
+                // KT-75899 Support Gradle Project Isolation in KGP JS & Wasm
+                .disableIsolatedProjectsBecauseOfJsAndWasmKT75899(),
+            buildJdk = jdkVersion.location
+        ) {
+            subProject("lib").buildGradleKts.appendText(
+                """
+                    
+                    kotlin.androidTarget("androidLib") {
+                        withSourcesJar(publish = false)
+                        publishLibraryVariants("release")
+                    }
+                """.trimIndent()
+            )
+
+            val groupDir = subProject("lib").projectPath.resolve("build/repo/com/example")
+            build("publish") {
+                val sourcesJarFile = groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0-sources.jar").toFile()
+                if (sourcesJarFile.exists()) fail("Release sources jar should not be published")
+
+                val gradleMetadataFileContent = groupDir.resolve("lib-androidlib/1.0/lib-androidlib-1.0.module").readText()
+                if (gradleMetadataFileContent.contains("releaseSourcesElements-published")) {
+                    fail("'releaseSourcesElements-published' variant should not be published")
+                }
+            }
+        }
+    }
+
+    @TestMetadata("new-mpp-android")
+    @DisplayName("android mpp lib dependencies are properly rewritten")
+    @GradleAndroidTest
+    @AndroidTestVersions(maxVersion = TestVersions.AGP.AGP_813)
+    fun testMppAndroidLibDependenciesRewriting(
+        gradleVersion: GradleVersion,
+        agpVersion: String,
+        jdkVersion: JdkVersions.ProvidedJdk,
+    ) {
+        project(
+            "new-mpp-android",
+            gradleVersion,
+            buildOptions = defaultBuildOptions
+                .copy(androidVersion = agpVersion)
+                // KT-75899 Support Gradle Project Isolation in KGP JS & Wasm
+                .disableIsolatedProjectsBecauseOfJsAndWasmKT75899(),
+            buildJdk = jdkVersion.location
+        ) {
+            // Convert the 'app' project to a library, publish two flavors without metadata,
+            // check that the dependencies in the POMs are correctly rewritten:
+            val appGroupDir = subProject("app").projectPath.resolve("build/repo/com/example")
+
+            subProject("lib").buildGradleKts.appendText(
+                """
+                
+                android { 
+                    flavorDimensions("foo") 
+                    productFlavors {
+                        create("fooBar") {
+                            dimension = "foo"
+                        }
+
+                        create("fooBaz") {
+                            dimension = "foo"
+                        }
+                    }
+                }
+                """.trimIndent()
+            )
+
+            subProject("app").buildGradleKts.modify {
+                it.replace("com.android.application", "com.android.library")
+                    .replace("applicationId", "//")
+                    .replace("versionCode", "//")
+                    .replace("versionName", "//")
+                    .replace("plugins {\n", "plugins {\n `maven-publish`\n") +
+                        """
+
+                        publishing {
+                            repositories {
+                                maven {
+                                    url = uri("${'$'}buildDir/repo")
+                                }
+                            }
+                        }
+                        kotlin.androidTarget("androidApp") { publishAllLibraryVariants() }
+                        android { 
+                            flavorDimensions("foo") 
+                            productFlavors {
+                                create("fooBar") {
+                                    dimension = "foo"
+                                }
+            
+                                create("fooBaz") {
+                                    dimension = "foo"
+                                }
+                            }
+                        }                        
+                        """.trimIndent()
+            }
+            build("publish") {
+                listOf("foobar", "foobaz").forEach { flavor ->
+                    listOf("-debug", "").forEach { buildType ->
+                        assertFileExists(appGroupDir.resolve("app-androidapp-$flavor$buildType/1.0/app-androidapp-$flavor$buildType-1.0.aar"))
+                        assertFileExists(appGroupDir.resolve("app-androidapp-$flavor$buildType/1.0/app-androidapp-$flavor$buildType-1.0-sources.jar"))
+                        val pomText =
+                            appGroupDir.resolve("app-androidapp-$flavor$buildType/1.0/app-androidapp-$flavor$buildType-1.0.pom").readText()
+                                .replace("\\s+".toRegex(), "")
+                        assertContains(
+                            pomText,
+                            "<artifactId>lib-androidlib-$flavor$buildType</artifactId><version>1.0</version><scope>runtime</scope>"
+                        )
+                    }
+                }
+            }
+            appGroupDir.deleteRecursively()
+
+            // Also check that api and runtimeOnly MPP dependencies get correctly published with the appropriate scope, KT-29476:
+            subProject("app").buildGradleKts.modify {
+                it.replace("implementation(project(\":lib\")", "api(project(\":lib\")") +
+                        """
+
+                        kotlin.sourceSets.getByName("commonMain").dependencies {
+                            runtimeOnly(kotlin("reflect"))
+                        }
+                        """.trimIndent()
+            }
+            build("publish") {
+                listOf("foobar", "foobaz").forEach { flavor ->
+                    listOf("-debug", "").forEach { buildType ->
+                        val pomText =
+                            appGroupDir.resolve("app-androidapp-$flavor$buildType/1.0/app-androidapp-$flavor$buildType-1.0.pom").readText()
+                                .replace("\\s+".toRegex(), "")
+                        assertContains(
+                            pomText,
+                            "<artifactId>lib-androidlib-$flavor$buildType</artifactId><version>1.0</version><scope>compile</scope>"
+                        )
+                        assertContains(
+                            pomText,
+                            "<artifactId>kotlin-reflect</artifactId><scope>runtime</scope>"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @TestMetadata("new-mpp-android")
+    @DisplayName("KT-69585: kmp + android depends on another kmp + android project via included build should not fail on pom rewrite action")
+    @GradleAndroidTest
+    @AndroidTestVersions(maxVersion = TestVersions.AGP.AGP_813)
+    fun kt69585PublishWithDependencyOnIncludedBuildsDoesntFail(
+        gradleVersion: GradleVersion,
+        agpVersion: String,
+        jdkVersion: JdkVersions.ProvidedJdk,
+    ) {
+        project(
+            "new-mpp-android",
+            gradleVersion,
+            buildOptions = defaultBuildOptions
+                .copy(androidVersion = agpVersion),
+            buildJdk = jdkVersion.location
+        ) {
+            settingsGradle.replaceText("include ':app', ':lib'", "include ':lib'")
+            includeOtherProjectAsIncludedBuild("lib", "new-mpp-android", "libFromIncluded")
+            subProject("lib").buildGradleKts.appendText(
+                """
+                
+                kotlin { 
+                  sourceSets.getByName("androidLibMain").dependencies {
+                    implementation("com.example:libFromIncluded:1.0")
+                  }
+                }
+                """.trimIndent()
+            )
+            build(":lib:generatePomFileForAndroidLibReleasePublication") {
+                val pomText = projectPath
+                    .resolve("lib/build/publications/androidLibRelease/pom-default.xml")
+                    .readText()
+                    .replace("""\s+""".toRegex(), "")
+
+                assertContains(
+                    pomText,
+                    """<groupId>com.example</groupId><artifactId>libFromIncluded-androidlib</artifactId><version>1.0</version>"""
+                )
+            }
+        }
+    }
+
+    /**
+     * Starting from AGP version 7.1.0-alpha13, a new attribute com.android.build.api.attributes.AgpVersionAttr was added.
+     * This attribute is *not intended* to be published.
+     */
+    @TestMetadata("new-mpp-android")
+    @DisplayName("KT-49798: com.android.build.api.attributes.AgpVersionAttr is not published")
+    @GradleAndroidTest
+    @AndroidTestVersions(maxVersion = TestVersions.AGP.AGP_813)
+    fun testKT49798AgpVersionAttrNotPublished(
+        gradleVersion: GradleVersion,
+        agpVersion: String,
+        jdkVersion: JdkVersions.ProvidedJdk,
+    ) {
+        project(
+            "new-mpp-android",
+            gradleVersion,
+            buildOptions = defaultBuildOptions
+                .copy(androidVersion = agpVersion)
+                // KT-75899 Support Gradle Project Isolation in KGP JS & Wasm
+                .disableIsolatedProjectsBecauseOfJsAndWasmKT75899(),
+            buildJdk = jdkVersion.location
+        ) {
+            build("publish") {
+                val libProject = subProject("lib")
+                val debugPublicationDirectory = libProject.projectPath.resolve("build/repo/com/example/lib-androidlib-debug")
+                val releasePublicationDirectory = libProject.projectPath.resolve("build/repo/com/example/lib-androidlib")
+
+                listOf(debugPublicationDirectory, releasePublicationDirectory).forEach { publicationDirectory ->
+                    assertDirectoryExists(publicationDirectory)
+                    val moduleFiles = Files.walk(publicationDirectory).use { it.filter { file -> file.extension == "module" }.toList() }
+                    assertTrue(moduleFiles.isNotEmpty(), "Missing .module file in $publicationDirectory")
+                    assertTrue(moduleFiles.size == 1, "Multiple .module files in $publicationDirectory: $moduleFiles")
+
+                    val moduleFile = moduleFiles.single()
+                    val moduleFileText = moduleFile.readText()
+                    assertTrue("AgpVersionAttr" !in moduleFileText, ".module file $moduleFile leaks AgpVersionAttr")
+                }
+            }
+        }
+    }
+
+    /**
+     * Publishes with the min and max supported AGP versions and consumes the publication with older AGP versions.
+     */
+    @TestMetadata("new-mpp-android-agp-compatibility")
+    @DisplayName("produced artifacts are consumable by projects with various AGP versions")
+    @TestFactory
+    @NightlyTest
+    fun testAndroidMultiplatformPublicationAGPCompatibility(
+        @TempDir tempDir: Path,
+    ): List<DynamicContainer> {
+        val producerVersions = listOf(TestVersions.AGP.MIN_SUPPORTED, TestVersions.AGP.MAX_SUPPORTED)
+            .filter { agp ->
+                gradleTestVersionFilter == null || AgpCompatibilityMatrix.fromVersion(agp).minSupportedGradleVersion == gradleTestVersionFilter
+            }
+
+        val checkedConsumerAGPVersions = AgpCompatibilityMatrix.entries
+            .filter { agp ->
+                AgpCompatibilityMatrix.fromVersion(agp.version) < AgpCompatibilityMatrix.fromVersion(TestVersions.AGP.MAX_SUPPORTED)
+            }
+
+        return producerVersions.map { agpVersion ->
+            val producerAgpVersion = AgpCompatibilityMatrix.fromVersion(agpVersion)
+            val gradleVersion = producerAgpVersion.minSupportedGradleVersion
+            val localRepoDir = tempDir.resolve(agpVersion)
+            project(
+                "new-mpp-android-agp-compatibility",
+                gradleVersion,
+                buildOptions = defaultBuildOptions
+                    .copy(androidVersion = agpVersion),
+                buildJdk = File(System.getProperty("jdk${producerAgpVersion.requiredJdkVersion.majorVersion}Home")),
+                localRepoDir = localRepoDir
+            ) {
+                /* Publish a producer library with the current version of AGP */
+                build(
+                    ":producer:publishAllPublicationsToBuildDirRepository",
+                ) {
+                    /* Check expected publication layout */
+                    assertDirectoryExists(localRepoDir.resolve("com/example/producer-android"))
+                    assertDirectoryExists(localRepoDir.resolve("com/example/producer-android-debug"))
+                    assertDirectoryExists(localRepoDir.resolve("com/example/producer-jvm"))
+                }
+            }
+
+            dynamicContainer("Producer AGP $agpVersion with $gradleVersion", checkedConsumerAGPVersions.map { consumerAgpVersion ->
+                dynamicTest("Consumer AGP ${consumerAgpVersion.version} with ${consumerAgpVersion.minSupportedGradleVersion}") {
+                    project(
+                        "new-mpp-android-agp-compatibility",
+                        consumerAgpVersion.minSupportedGradleVersion,
+                        buildOptions = defaultBuildOptions
+                            .copy(androidVersion = consumerAgpVersion.version)
+                            // is property deprecation warning is only produced on the first run, which is hard to detect in this particular test
+                            .copy(warningMode = WarningMode.None),
+                        buildJdk = File(System.getProperty("jdk${consumerAgpVersion.requiredJdkVersion.majorVersion}Home")),
+                        localRepoDir = localRepoDir
+                    ) {
+                        /*
+                        Project: multiplatformAndroidConsumer is a mpp project with jvm and android targets.
+                        This project depends on the previous publication as 'commonMainImplementation' dependency
+                        */
+                        build(":multiplatformAndroidConsumer:assemble")
+
+                        /*
+                        Project: plainAndroidConsumer only uses the 'kotlin("android")' plugin
+                        This project depends on the previous publication as 'implementation' dependency
+                         */
+                        build(":plainAndroidConsumer:assemble")
+                    }
+                }
+            })
+        }
+    }
+
+    @TestMetadata("base-kotlin-android-library")
+    @DisplayName("KT-70380: KMM App failed to consume android binary lib when published incorrectly")
+    @GradleAndroidTest
+    fun kotlinAndroidHasBuildTypeAttribute(
+        gradleVersion: GradleVersion,
+        agpVersion: String,
+        jdkVersion: JdkVersions.ProvidedJdk,
+    ) {
+        kotlinAndroidLibraryProject(gradleVersion, agpVersion, jdkVersion).apply {
+            buildScriptInjection {
+                applyMavenPublishPlugin()
+                publishing.publications.create("default", MavenPublication::class.java) { publication ->
+                    publication.groupId = "com.example"
+                    publication.artifactId = "lib"
+                    publication.version = "1.0"
+
+                    project.afterEvaluate {
+                        publication.from(project.components.getByName("release"))
+                    }
+                }
+            }
+
+            build("publish") {
+                assertHasDiagnostic(KotlinToolingDiagnostics.AndroidPublicationNotConfigured)
+            }
+        }
+    }
+}

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 public interface A {
@@ -30,3 +31,5 @@ fun test() {
     E.<!OVERLOAD_RESOLUTION_AMBIGUITY!>field<!>
     O.field
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaProperty */

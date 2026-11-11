@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-559 Forbid abstract method call through super
 
 package kt559
@@ -25,6 +26,9 @@ abstract class D(): A() {
         super.<!ABSTRACT_SUPER_CALL!>i<!>
 
         super.fff() //everything is ok
-        return super.<!ABSTRACT_SUPER_CALL!>foo<!>()  //no error!!
+        return super.<!ABSTRACT_SUPER_CALL!>foo<!>()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, override, primaryConstructor,
+propertyDeclaration, superExpression */

@@ -1,0 +1,19 @@
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    `java-library`
+}
+
+dependencies {
+    CompilerModules.kotlinJpsPluginMavenDependencies
+        .forEach { implementation(project(it)) }
+
+    implementation(commonDependency("org.jetbrains.kotlin:kotlin-reflect")) { isTransitive = false }
+    implementation(libs.guava)
+}
+
+val embeddedDependencies = CompilerModules.kotlinJpsPluginEmbeddedDependencies
+publishProjectJars(
+    embeddedDependencies + listOf(":jps:jps-plugin", ":jps:jps-common"),
+    libraryDependencies = listOf(protobufFull())
+)

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class A {
     val x: Int
     val y: Int
@@ -13,3 +14,6 @@ class A {
 class A1(val x: Int, val y: Int) {
     constructor(other: A1): this(other.x, other.y)
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, primaryConstructor, propertyDeclaration, secondaryConstructor,
+thisExpression */

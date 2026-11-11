@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 class A {
     val x get() = 1
     val y get() = id(1)
@@ -9,7 +10,7 @@ class A {
     val <T> T.u get() = id(this)
 }
 fun <E> id(x: E) = x
-fun <E> l(<!UNUSED_PARAMETER!>x<!>: E): List<E> = null!!
+fun <E> l(x: E): List<E> = null!!
 
 fun foo(a: A) {
     a.x checkType { _<Int>() }
@@ -22,3 +23,7 @@ fun foo(a: A) {
         1.u checkType { _<Int>() }
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+getter, infix, integerLiteral, lambdaLiteral, nullableType, propertyDeclaration, propertyWithExtensionReceiver,
+stringLiteral, thisExpression, typeParameter, typeWithExtension */

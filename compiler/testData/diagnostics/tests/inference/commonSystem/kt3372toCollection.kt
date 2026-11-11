@@ -1,5 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
+// CHECK_TYPE
 // KT-3372 Use upper bound in type argument inference
 
 import java.util.HashSet
@@ -10,3 +11,7 @@ fun test(list: List<Int>) {
     val set = list.toCollection(HashSet())
     set checkType { _<HashSet<Int>>() }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, infix,
+javaFunction, lambdaLiteral, localProperty, nullableType, propertyDeclaration, typeConstraint, typeParameter,
+typeWithExtension */

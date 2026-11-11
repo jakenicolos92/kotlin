@@ -1,4 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
 
 fun println(x: String) {
 }
@@ -46,5 +48,9 @@ fun foo() {
     propertyWithType: Int
 
     val
-    (a, b) = <!COMPONENT_FUNCTION_MISSING, COMPONENT_FUNCTION_MISSING!>1<!>
+    [a, b] = <!COMPONENT_FUNCTION_MISSING, COMPONENT_FUNCTION_MISSING!>1<!>
 }
+
+/* GENERATED_FIR_TAGS: destructuringDeclaration, equalityExpression, functionDeclaration, functionalType, ifExpression,
+integerLiteral, lambdaLiteral, localProperty, nullableType, propertyDeclaration, propertyDelegate, starProjection,
+stringLiteral */

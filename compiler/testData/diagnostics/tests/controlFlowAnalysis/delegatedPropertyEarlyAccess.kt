@@ -1,4 +1,5 @@
-// See also KT-10869: Accessing lazy properties from init causes IllegalArgumentException
+// RUN_PIPELINE_TILL: FRONTEND
+// ISSUE: KT-10869, KT-56682
 
 import kotlin.reflect.KProperty
 
@@ -9,16 +10,16 @@ class CustomDelegate {
 class Kaboom() {
     // Here and below we should have errors for simple AND delegated
     init {
-        <!UNINITIALIZED_VARIABLE, DEBUG_INFO_LEAKING_THIS!>delegated<!>.hashCode()
+        <!UNINITIALIZED_VARIABLE!>delegated<!>.hashCode()
         <!UNINITIALIZED_VARIABLE!>simple<!>.hashCode()
-        <!DEBUG_INFO_LEAKING_THIS!>withGetter<!>.hashCode()
+        withGetter.hashCode()
     }
 
-    val other = <!UNINITIALIZED_VARIABLE, DEBUG_INFO_LEAKING_THIS!>delegated<!>
+    val other = <!UNINITIALIZED_VARIABLE!>delegated<!>
 
     val another = <!UNINITIALIZED_VARIABLE!>simple<!>
 
-    val something = <!DEBUG_INFO_LEAKING_THIS!>withGetter<!>
+    val something = withGetter
     
     val delegated: String by CustomDelegate()
 
@@ -28,5 +29,8 @@ class Kaboom() {
         get() = "abc"
 
     // No error should be here
-    val after = <!DEBUG_INFO_LEAKING_THIS!>delegated<!>
+    val after = delegated
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, getter, init, nullableType, operator, primaryConstructor,
+propertyDeclaration, propertyDelegate, starProjection, stringLiteral */

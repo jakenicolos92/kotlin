@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 
 import java.util.*;
@@ -17,3 +19,5 @@ fun test(a: A<out CharSequence>) {
     a.bar()<!UNNECESSARY_SAFE_CALL!>?.<!>length
     a.bar()<!UNNECESSARY_SAFE_CALL!>?.<!>length
 }
+
+/* GENERATED_FIR_TAGS: dnnType, functionDeclaration, javaType, nullableType, outProjection, safeCall */

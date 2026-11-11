@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-2109 Nullability inference fails in extension function
 package kt2109
 
@@ -9,7 +10,7 @@ fun A?.bar() {
     if (this == null) {
         return
     }
-    <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>foo<!>()
+    foo()
 }
 
 fun A.baz() {
@@ -18,3 +19,6 @@ fun A.baz() {
     }
     foo()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, funWithExtensionReceiver, functionDeclaration, ifExpression,
+nullableType, smartcast, thisExpression */

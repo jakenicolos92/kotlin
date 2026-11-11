@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -REDECLARATION -DUPLICATE_CLASS_NAMES
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -REDECLARATION -DUPLICATE_CLASS_NAMES
 
 class C {
     <!FUNCTION_DECLARATION_WITH_NO_NAME!>fun ()<!> {
@@ -15,3 +16,6 @@ class C {
 class C1<<!SYNTAX!>in<!>> {}
 
 class C2(val<!SYNTAX!><!>) {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, enumDeclaration, functionDeclaration, integerLiteral, nestedClass, nullableType,
+primaryConstructor, propertyDeclaration, typeParameter */

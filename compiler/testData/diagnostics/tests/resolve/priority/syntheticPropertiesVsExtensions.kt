@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
 
 // FILE: A.java
 public class A {
@@ -27,3 +28,7 @@ class B {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration, functionalType,
+getter, infix, integerLiteral, javaProperty, javaType, lambdaLiteral, nullableType, propertyDeclaration,
+propertyWithExtensionReceiver, thisExpression, typeParameter, typeWithExtension */

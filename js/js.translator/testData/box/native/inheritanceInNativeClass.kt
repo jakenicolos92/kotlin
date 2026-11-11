@@ -1,16 +1,21 @@
-// SKIP_MINIFICATION
-// Contains calls from external JS code
-package foo
+// DONT_TARGET_EXACT_BACKEND: WASM_JS
+// WASM_MUTE_REASON: CLASS_EXPORT
 
+@JsExport
 open class A {
+    @JsName("foo")
     open protected fun foo(n: Int) = 23
 
+    @JsName("bar")
     fun bar(n: Int) = foo(n) + 100
 }
 
+@JsExport
 open class B {
+    @JsName("foo")
     protected fun foo(n: Int) = 42
 
+    @JsName("bar")
     open fun bar(n: Int) = 142
 }
 

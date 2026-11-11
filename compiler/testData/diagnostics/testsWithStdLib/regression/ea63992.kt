@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun add(a: Int, b: Int) = a + b
 interface A {
     fun <T> shuffle(x: List<T>): List<T>
@@ -5,3 +6,6 @@ interface A {
 
 fun f() : (Int, Int) -> Int = ::add
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, callableReference, functionDeclaration, functionalType, interfaceDeclaration,
+nullableType, typeParameter */

@@ -1,14 +1,15 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class A() {
     var x: Int = 0
-        get() = <!TYPE_MISMATCH!>"s"<!>
+        get() = <!RETURN_TYPE_MISMATCH!>"s"<!>
         set(value: <!WRONG_SETTER_PARAMETER_TYPE!>String<!>) {
-            field = <!TYPE_MISMATCH!>value<!>
+            field = <!ASSIGNMENT_TYPE_MISMATCH!>value<!>
         }
     val y: Int
-        get(): <!WRONG_GETTER_RETURN_TYPE(Int; String)!>String<!> = "s"
+        get(): <!WRONG_GETTER_RETURN_TYPE("Int; String")!>String<!> = "s"
     val z: Int
         get() {
-            return <!TYPE_MISMATCH!>"s"<!>
+            return <!RETURN_TYPE_MISMATCH!>"s"<!>
         }
 
     var a: Any = 1
@@ -27,7 +28,10 @@ class A() {
         }
     val e = 1
         get(): <!WRONG_GETTER_RETURN_TYPE!>String<!> {
-            return <!TYPE_MISMATCH!>field<!>
+            return <!RETURN_TYPE_MISMATCH!>field<!>
         }
 
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, getter, integerLiteral, primaryConstructor, propertyDeclaration,
+setter, stringLiteral */

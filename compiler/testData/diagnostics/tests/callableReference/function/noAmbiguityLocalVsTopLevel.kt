@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 fun bar() = 42
 
 fun main() {
@@ -6,3 +7,5 @@ fun main() {
 
     ::bar
 }
+
+/* GENERATED_FIR_TAGS: callableReference, functionDeclaration, integerLiteral, localFunction */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 package kt7351
 
@@ -17,3 +18,6 @@ fun crashMe(node : Node) {
         woo()
     }
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, interfaceDeclaration,
+lambdaLiteral, nullableType, thisExpression, typeConstraint, typeParameter, typeWithExtension */

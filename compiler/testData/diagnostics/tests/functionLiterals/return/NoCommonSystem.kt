@@ -1,14 +1,15 @@
-fun <T, R> Iterable<T>.map(<!UNUSED_PARAMETER!>transform<!>: (T) -> R): List<R> = null!!
+// RUN_PIPELINE_TILL: CODEGEN
+fun <T, R> Iterable<T>.map(transform: (T) -> R): List<R> = null!!
 fun <T> listOf(): List<T> = null!!
-fun <T> listOf(vararg <!UNUSED_PARAMETER!>values<!>: T): List<T> = null!!
+fun <T> listOf(vararg values: T): List<T> = null!!
 
 fun commonSystemFailed(a: List<Int>) {
     a.map {
         if (it == 0) return@map listOf(it)
-        <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>listOf<!>()
+        listOf()
     }
     a.map {
-        if (it == 0) return@map <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>listOf<!>()
+        if (it == 0) return@map listOf()
         listOf(it)
     }
     a.map {
@@ -16,3 +17,6 @@ fun commonSystemFailed(a: List<Int>) {
         else listOf(it)
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, equalityExpression, funWithExtensionReceiver, functionDeclaration,
+functionalType, ifExpression, integerLiteral, lambdaLiteral, nullableType, typeParameter, vararg */

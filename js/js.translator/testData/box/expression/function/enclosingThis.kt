@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 493
 package foo
 
 class Point(val x: Int, val y: Int) {

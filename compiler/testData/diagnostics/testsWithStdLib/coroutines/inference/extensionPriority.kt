@@ -1,4 +1,10 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// OPT_IN: kotlin.RequiresOptIn
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
+
+@file:OptIn(ExperimentalTypeInference::class)
+
+import kotlin.experimental.ExperimentalTypeInference
 
 class GenericController<T>
 
@@ -19,3 +25,7 @@ val test2 = generate {
 fun <X> setOf(vararg x: X): Set<X> = TODO()
 fun <X> listOf(vararg x: X): List<X> = TODO()
 class Pair<T, S>
+
+/* GENERATED_FIR_TAGS: annotationUseSiteTargetFile, classDeclaration, classReference, funWithExtensionReceiver,
+functionDeclaration, functionalType, integerLiteral, lambdaLiteral, nullableType, propertyDeclaration, stringLiteral,
+suspend, typeParameter, typeWithExtension, vararg */

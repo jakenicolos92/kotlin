@@ -1,6 +1,7 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-128 Support passing only the last closure if all the other parameters have default values
 
-fun div(<!UNUSED_PARAMETER!>c<!> : String = "", <!UNUSED_PARAMETER!>f<!> : () -> Unit) {}
+fun div(c : String = "", f : () -> Unit) {}
 fun f() {
     div { // Nothing passed, but could have been...
       // ...
@@ -10,3 +11,5 @@ fun f() {
       // ...
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, lambdaLiteral, stringLiteral */

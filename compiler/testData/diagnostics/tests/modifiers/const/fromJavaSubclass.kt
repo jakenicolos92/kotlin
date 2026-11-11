@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 
 public class A {
@@ -13,3 +14,5 @@ public class B extends A {
 
 const val K1 = B.FOO
 const val K2 = A.FOO
+
+/* GENERATED_FIR_TAGS: const, javaProperty, propertyDeclaration */

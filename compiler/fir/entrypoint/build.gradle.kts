@@ -1,0 +1,50 @@
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("jvm")
+    id("require-explicit-types")
+}
+
+dependencies {
+    implementation(project(":core:compiler.common.wasm"))
+    api(project(":compiler:fir:fir-jvm"))
+    api(project(":compiler:frontend.common.jvm"))
+    api(project(":compiler:fir:fir-native"))
+    api(project(":compiler:fir:raw-fir:psi2fir"))
+    api(project(":compiler:fir:raw-fir:light-tree2fir"))
+    api(project(":compiler:fir:raw-fir:mp-parsing2fir"))
+    api(project(":compiler:fir:fir2ir"))
+    api(project(":compiler:fir:checkers:checkers.common"))
+    api(project(":compiler:fir:checkers:checkers.jvm"))
+    api(project(":compiler:fir:checkers:checkers.js"))
+    api(project(":compiler:fir:checkers:checkers.native"))
+    api(project(":compiler:fir:checkers:checkers.wasm"))
+    api(project(":compiler:fir:fir-deserialization"))
+    api(project(":compiler:fir:plugin.api"))
+    api(project(":compiler:ir.actualization"))
+
+    implementation(project(":core:language.targets.jvm"))
+    implementation(project(":wasm:wasm.frontend"))
+    implementation(project(":native:frontend.native"))
+    implementation(project(":core:compiler.common.native"))
+    implementation(project(":compiler:config.jvm"))
+    implementation(project(":compiler:fir:resolve"))
+    implementation(project(":compiler:fir:fir-serialization"))
+    implementation(project(":compiler:frontend.common-psi"))
+    implementation(project(":compiler:ir.backend.common"))
+    implementation(project(":compiler:ir.serialization.common"))
+    implementation(project(":compiler:ir.tree"))
+    implementation(project(":compiler:resolution.common.jvm"))
+    implementation(project(":compiler:resolution.common.js"))
+    implementation(project(":core:descriptors"))
+    implementation(project(":js:js.config"))
+    implementation(project(":kotlin-util-klib-metadata"))
+
+    compileOnly(intellijCore())
+}
+
+sourceSets {
+    "main" { projectDefault() }
+    "test" { none() }
+}
+

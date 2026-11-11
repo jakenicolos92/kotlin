@@ -39,7 +39,7 @@ object LibraryUtils {
         if (manifestProperties != null) {
             try {
                 val properties = Properties()
-                properties.load(manifestProperties)
+                manifestProperties.use { properties.load(it) }
                 jsStdLib = properties.getPropertyOrFail("manifest.impl.title.kotlin.javascript.stdlib")
             }
             catch (e: IOException) {
@@ -57,9 +57,6 @@ object LibraryUtils {
     @JvmStatic fun getJarFile(classesRoots: List<VirtualFile>, jarName: String): VirtualFile? {
         return classesRoots.firstOrNull { it.name == jarName }
     }
-
-    @Suppress("unused") // used in K2JSCompilerMojo
-    @JvmStatic fun isKotlinJavascriptLibrary(library: File): Boolean = KotlinJavascriptMetadataUtils.loadMetadata(library).isNotEmpty()
 
     @JvmStatic fun isKotlinJavascriptStdLibrary(library: File): Boolean {
         return checkAttributeValue(library, TITLE_KOTLIN_JAVASCRIPT_STDLIB, Attributes.Name.IMPLEMENTATION_TITLE)

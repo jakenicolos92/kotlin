@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
 
 // KT-8596 Rewrite at slice LEXICAL_SCOPE for nested class constructor reference in an argument position
 
@@ -23,3 +24,6 @@ fun test2() {
         Foo::b
     }
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, functionDeclaration, functionalType, ifExpression,
+localProperty, nestedClass, primaryConstructor, propertyDeclaration, typeWithExtension */

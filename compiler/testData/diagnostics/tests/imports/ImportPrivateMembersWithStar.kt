@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package test
 
 import test.TopLevelClass.NestedClass.*
@@ -26,7 +27,10 @@ private enum class TopLevelEnum(private val e: NestedEnum) {
 
 fun testAccess() {
     E1
-    <!INVISIBLE_MEMBER!>NestedEntry<!>
-    <!INVISIBLE_MEMBER!>A1<!>()
-    <!INVISIBLE_MEMBER!>A2<!>
+    <!INVISIBLE_REFERENCE!>NestedEntry<!>
+    <!INVISIBLE_REFERENCE!>A1<!>()
+    <!INVISIBLE_REFERENCE!>A2<!>
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, enumDeclaration, enumEntry, functionDeclaration, nestedClass, objectDeclaration,
+primaryConstructor, propertyDeclaration */

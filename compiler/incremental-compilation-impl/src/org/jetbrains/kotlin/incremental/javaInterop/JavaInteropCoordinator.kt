@@ -1,0 +1,153 @@
+/*
+ * Copyright 2010-2025 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.incremental.javaInterop
+
+import com.intellij.lang.java.JavaLanguage
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.util.Disposer
+import com.intellij.psi.PsiClass
+import com.intellij.psi.PsiFile
+import com.intellij.psi.PsiFileFactory
+import com.intellij.psi.PsiJavaFile
+import org.jetbrains.kotlin.CoreEnvironmentDeprecation
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.build.report.BuildReporter
+import org.jetbrains.kotlin.build.report.events.ScopeExpansionReason
+import org.jetbrains.kotlin.build.report.info
+import org.jetbrains.kotlin.build.report.metrics.BuildAttribute
+import org.jetbrains.kotlin.build.report.metrics.BuildPerformanceMetric
+import org.jetbrains.kotlin.build.report.metrics.BuildTimeMetric
+import org.jetbrains.kotlin.cli.common.disposeRootInWriteAction
+import org.jetbrains.kotlin.cli.common.messages.FilteringMessageCollector
+import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.cli.create
+import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
+import org.jetbrains.kotlin.cli.jvm.config.configureJdkClasspathRoots
+import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.config.MessageCollectorAccess
+import org.jetbrains.kotlin.config.languageVersionSettings
+import org.jetbrains.kotlin.config.messageCollector
+import org.jetbrains.kotlin.incremental.*
+import org.jetbrains.kotlin.incremental.ChangedFiles.DeterminableFiles
+import org.jetbrains.kotlin.incremental.IncrementalCompilerRunner.CompilationMode
+import org.jetbrains.kotlin.incremental.dirtyFiles.DirtyFilesContainer
+import org.jetbrains.kotlin.load.java.JavaClassesTracker
+import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
+import java.io.File
+
+private class CoarseJavaInteropCoordinator(
+    reporter: BuildReporter<BuildTimeMetric, BuildPerformanceMetric>,
+    messageCollector: MessageCollector,
+) : JavaInteropCoordinator(messageCollector) {
+    private val javaFilesProcessor = ChangedJavaFilesProcessor(reporter)
+
+    override fun doAnalyzeChangesInJavaSources(
+        caches: IncrementalJvmCachesManager,
+        changedFiles: DeterminableFiles.Known,
+        mutableDirtyFiles: DirtyFilesContainer,
+        psiFilesHolder: PsiFilesHolder
+    ): CompilationMode.Rebuild? {
+        val javaFilesChanges = javaFilesProcessor.process(changedFiles) { psiFilesHolder.get(it) }
+        val affectedJavaSymbols = when (javaFilesChanges) {
+            is ChangesEither.Known -> javaFilesChanges.lookupSymbols
+            is ChangesEither.Unknown -> return CompilationMode.Rebuild(javaFilesChanges.reason)
+        }
+        mutableDirtyFiles.addByDirtySymbols(affectedJavaSymbols, ScopeExpansionReason.JAVA_DECLARATION_USED)
+        return null
+    }
+
+    override fun getAdditionalDirtyLookupSymbols(): Iterable<LookupSymbol> {
+        return javaFilesProcessor.allChangedSymbols
+    }
+}
+
+/**
+ * Common logic of IncrementalCompilerRunner related to kotlin+java interop
+ */
+internal sealed class JavaInteropCoordinator(
+    messageCollector: MessageCollector,
+) {
+    protected val compilerConfiguration: CompilerConfiguration by lazy {
+        val filterMessageCollector = FilteringMessageCollector(messageCollector) { !it.isError }
+        CompilerConfiguration.create().apply {
+            @OptIn(MessageCollectorAccess::class) // write access
+            this.messageCollector = filterMessageCollector
+            configureJdkClasspathRoots()
+        }
+    }
+
+    /**
+     * Unfortunately different JavaInterop implementations interface with ICRunner differently,
+     * so some APIs are valid for PreciseJavaTracking and others are valid for the non-precise one.
+     * Still, it's useful to have a defined api boundary, even if it's more like two boundaries.
+     */
+
+    open fun hasChangedUntrackedJavaClasses(): Boolean = false
+
+    open fun getAdditionalDirtyLookupSymbols(): Iterable<LookupSymbol> = emptyList()
+
+    @OptIn(K1Deprecation::class)
+    open fun makeJavaClassesTracker(platformCache: IncrementalJvmCache): JavaClassesTracker? = null
+
+    internal fun analyzeChangesInJavaSources(
+        caches: IncrementalJvmCachesManager,
+        changedFiles: DeterminableFiles.Known,
+        mutableDirtyFiles: DirtyFilesContainer
+    ): CompilationMode.Rebuild? {
+        val psiFilesHolder = PsiFilesHolder(compilerConfiguration)
+        return try {
+            doAnalyzeChangesInJavaSources(caches, changedFiles, mutableDirtyFiles, psiFilesHolder)
+        } finally {
+            psiFilesHolder.dispose()
+        }
+    }
+
+    internal abstract fun doAnalyzeChangesInJavaSources(
+        caches: IncrementalJvmCachesManager,
+        changedFiles: DeterminableFiles.Known,
+        mutableDirtyFiles: DirtyFilesContainer,
+        psiFilesHolder: PsiFilesHolder,
+    ): CompilationMode.Rebuild?
+
+    companion object {
+        fun getImplementation(
+            reporter: BuildReporter<BuildTimeMetric, BuildPerformanceMetric>,
+            messageCollector: MessageCollector,
+        ): JavaInteropCoordinator {
+            return CoarseJavaInteropCoordinator(reporter, messageCollector)
+        }
+    }
+}
+
+/**
+ * Properly disposes the root disposable for the PSI file factory.
+ */
+internal class PsiFilesHolder(private val compilerConfiguration: CompilerConfiguration) {
+    private var rootDisposableForPsiFileFactory: Disposable? = null
+
+    @OptIn(CoreEnvironmentDeprecation::class)
+    private val psiFileFactory: PsiFileFactory by lazy {
+        val rootDisposable =
+            Disposer.newDisposable("Disposable for PSI file factory of ${IncrementalJvmCompilerRunner::class.simpleName}")
+                .also { this.rootDisposableForPsiFileFactory = it }
+        val configuration = compilerConfiguration
+        val environment =
+            KotlinCoreEnvironment.createForProduction(rootDisposable, configuration, EnvironmentConfigFiles.JVM_CONFIG_FILES)
+        val project = environment.project
+        PsiFileFactory.getInstance(project)
+    }
+
+    fun get(file: File): PsiFile? = psiFileFactory.createFileFromText(
+        file.nameWithoutExtension, JavaLanguage.INSTANCE, file.readText()
+    )
+
+    fun dispose() {
+        rootDisposableForPsiFileFactory?.let(::disposeRootInWriteAction)
+    }
+}

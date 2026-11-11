@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION
 import A.Inner
 
 class A {
@@ -8,3 +9,5 @@ class A {
 fun main() {
     ::<!UNRESOLVED_REFERENCE!>Inner<!>
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, inner */

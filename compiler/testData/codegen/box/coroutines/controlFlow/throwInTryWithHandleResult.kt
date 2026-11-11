@@ -1,14 +1,14 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 
 class Controller {
     var result = ""
 
-    suspend fun <T> suspendAndLog(value: T): T = suspendCoroutineOrReturn { c ->
+    suspend fun <T> suspendAndLog(value: T): T = suspendCoroutineUninterceptedOrReturn { c ->
         result += "suspend($value);"
         c.resume(value)
         COROUTINE_SUSPENDED
@@ -20,9 +20,8 @@ fun builder(c: suspend Controller.() -> Unit): String {
     c.startCoroutine(controller, object : Continuation<Unit> {
         override val context = EmptyCoroutineContext
 
-        override fun resume(data: Unit) {}
-
-        override fun resumeWithException(exception: Throwable) {
+        override fun resumeWith(data: Result<Unit>) {
+            val exception = data.exceptionOrNull() ?: return
             controller.result += "ignoreCaught(${exception.message});"
         }
     })

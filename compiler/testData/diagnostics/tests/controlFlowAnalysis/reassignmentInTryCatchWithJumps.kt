@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun exc(flag: Boolean) {
     if (flag) throw Exception()
 }
@@ -6,7 +7,7 @@ fun f1(flag: Boolean) {
     val n: Int
     try {
         if (flag) {
-            <!UNUSED_VALUE!>n =<!> 1
+            n = 1
             exc(flag)
             return
         }
@@ -23,7 +24,7 @@ fun f2(flag: Boolean) {
         val n: Int
         try {
             if (flag) {
-                <!UNUSED_VALUE!>n =<!> 1
+                n = 1
                 exc(flag)
                 break
             }
@@ -41,7 +42,7 @@ fun f3(flag: Boolean) {
         val n: Int
         try {
             if (flag) {
-                <!UNUSED_VALUE!>n =<!> 1
+                n = 1
                 exc(flag)
                 continue
             }
@@ -53,3 +54,6 @@ fun f3(flag: Boolean) {
         <!UNINITIALIZED_VARIABLE!>n<!>.hashCode()
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, break, continue, functionDeclaration, ifExpression, integerLiteral, localProperty,
+propertyDeclaration, tryExpression, whileLoop */

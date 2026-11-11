@@ -1,5 +1,5 @@
+// WITH_STDLIB
 // FILE: 1.kt
-// WITH_RUNTIME
 package test
 
 class A
@@ -41,9 +41,6 @@ fun box(): String {
 inline fun failClassCast(s: () -> Unit) {
     try {
         s()
-    }
-    catch (e: TypeCastException) {
-        throw e
     }
     catch (e: ClassCastException) {
 

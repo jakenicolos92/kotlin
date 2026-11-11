@@ -1,5 +1,3 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS
 
 enum class IssueState {
 
@@ -8,7 +6,7 @@ enum class IssueState {
 
         fun s()  = "OK"
 
-        class D {
+        inner class D {
             val k = s()
         }
     };

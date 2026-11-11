@@ -23,11 +23,13 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
 import org.jetbrains.kotlin.descriptors.ClassifierDescriptor;
 import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor;
-import org.jetbrains.kotlin.descriptors.annotations.Annotations;
 import org.jetbrains.kotlin.resolve.calls.inference.CallHandle;
 import org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystem;
 import org.jetbrains.kotlin.resolve.calls.inference.ConstraintSystemBuilderImpl;
 import org.jetbrains.kotlin.types.checker.KotlinTypeChecker;
+import org.jetbrains.kotlin.types.error.ErrorTypeKind;
+import org.jetbrains.kotlin.types.error.ErrorUtils;
+import org.jetbrains.kotlin.types.typeUtil.TypeUtilsKt;
 
 import java.util.*;
 
@@ -37,11 +39,11 @@ import static org.jetbrains.kotlin.resolve.descriptorUtil.DescriptorUtilsKt.getB
 public class TypeIntersector {
 
     public static boolean isIntersectionEmpty(@NotNull KotlinType typeA, @NotNull KotlinType typeB) {
-        return intersectTypes(KotlinTypeChecker.DEFAULT, new LinkedHashSet<>(Arrays.asList(typeA, typeB))) == null;
+        return intersectTypes(new LinkedHashSet<>(Arrays.asList(typeA, typeB))) == null;
     }
 
     @Nullable
-    public static KotlinType intersectTypes(@NotNull KotlinTypeChecker typeChecker, @NotNull Collection<KotlinType> types) {
+    public static KotlinType intersectTypes(@NotNull Collection<KotlinType> types) {
         assert !types.isEmpty() : "Attempting to intersect empty collection of types, this case should be dealt with on the call site.";
 
         if (types.size() == 1) {
@@ -69,9 +71,10 @@ public class TypeIntersector {
 
         if (nullabilityStripped.isEmpty()) {
             // All types were errors
-            return ErrorUtils.createErrorType("Intersection of error types: " + types);
+            return ErrorUtils.createErrorType(ErrorTypeKind.INTERSECTION_OF_ERROR_TYPES, types.toString());
         }
 
+        KotlinTypeChecker typeChecker = KotlinTypeChecker.DEFAULT;
         // Now we remove types that have subtypes in the list
         List<KotlinType> resultingTypes = new ArrayList<>();
         outer:
@@ -122,7 +125,7 @@ public class TypeIntersector {
             }
 
             if (bestRepresentative == null) {
-                throw new AssertionError("Empty intersection for types " + types);
+                return null;
             }
             return TypeUtils.makeNullableAsSpecified(bestRepresentative, allNullable);
         }
@@ -131,15 +134,7 @@ public class TypeIntersector {
             return TypeUtils.makeNullableAsSpecified(resultingTypes.get(0), allNullable);
         }
 
-        IntersectionTypeConstructor constructor = new IntersectionTypeConstructor(resultingTypes);
-
-        return KotlinTypeFactory.simpleType(
-                Annotations.Companion.getEMPTY(),
-                constructor,
-                Collections.emptyList(),
-                allNullable,
-                constructor.createScopeForKotlinType()
-        );
+        return new IntersectionTypeConstructor(resultingTypes).createType();
     }
 
     /**
@@ -149,9 +144,12 @@ public class TypeIntersector {
      */
     @NotNull
     public static KotlinType getUpperBoundsAsType(@NotNull TypeParameterDescriptor descriptor) {
-        List<KotlinType> upperBounds = descriptor.getUpperBounds();
+        return intersectUpperBounds(descriptor, descriptor.getUpperBounds());
+    }
+
+    public static KotlinType intersectUpperBounds(@NotNull TypeParameterDescriptor descriptor, @NotNull List<KotlinType> upperBounds) {
         assert !upperBounds.isEmpty() : "Upper bound list is empty: " + descriptor;
-        KotlinType upperBoundsAsType = intersectTypes(KotlinTypeChecker.DEFAULT, upperBounds);
+        KotlinType upperBoundsAsType = intersectTypes(upperBounds);
         return upperBoundsAsType != null ? upperBoundsAsType : getBuiltIns(descriptor).getNothingType();
     }
 

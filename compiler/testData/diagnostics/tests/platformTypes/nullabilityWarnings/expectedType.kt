@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 // FILE: J.java
 
@@ -23,10 +24,13 @@ fun test() {
     val platformJ = J.staticJ
 
     checkSubtype<J>(platformNN)
-    checkSubtype<J>(<!TYPE_MISMATCH!>platformN<!>)
+    checkSubtype<J>(<!ARGUMENT_TYPE_MISMATCH!>platformN<!>)
     checkSubtype<J>(platformJ)
 
     checkSubtype<J?>(platformNN)
     checkSubtype<J?>(platformN)
     checkSubtype<J?>(platformJ)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, javaProperty, javaType, localProperty, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

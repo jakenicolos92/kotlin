@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun <!IMPLICIT_NOTHING_RETURN_TYPE!>foo<!>() = throw Exception()
 
 fun <!IMPLICIT_NOTHING_RETURN_TYPE!>bar<!>() = null!!
@@ -14,10 +15,10 @@ fun check() {
     // Error: KT-10449
     fun <!IMPLICIT_NOTHING_RETURN_TYPE!>local<!>() = bar()
     // Unreachable / unused, but not implicit Nothing
-    <!UNREACHABLE_CODE!>val <!UNUSED_VARIABLE!>x<!> =<!> null!!
+    val x = null!!
 }
 
-fun <!IMPLICIT_NOTHING_RETURN_TYPE!>nonLocalReturn<!>() = run { <!RETURN_TYPE_MISMATCH!>return<!> }
+fun <!IMPLICIT_NOTHING_RETURN_TYPE!>nonLocalReturn<!>() = run { <!RETURN_IN_FUNCTION_WITH_EXPRESSION_BODY_AND_IMPLICIT_TYPE, RETURN_TYPE_MISMATCH!>return<!> }
 
 class Klass {
     fun <!IMPLICIT_NOTHING_RETURN_TYPE!>bar<!>() = null!!
@@ -33,7 +34,7 @@ class Klass {
     fun foo() {
         fun <!IMPLICIT_NOTHING_RETURN_TYPE!>local<!>() = bar()
 
-        <!UNREACHABLE_CODE!>val <!UNUSED_VARIABLE!>x<!> =<!> y
+        val x = y
     }
 }
 
@@ -45,8 +46,11 @@ interface Base {
 
 class Derived : Base {
     // Ok for override
-    
+
     override val x = null!!
 
     override fun foo() = null!!
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, functionDeclaration, init, interfaceDeclaration,
+lambdaLiteral, localFunction, localProperty, override, propertyDeclaration */

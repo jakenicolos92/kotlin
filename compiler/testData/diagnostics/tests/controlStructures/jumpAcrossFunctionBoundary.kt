@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun call(f: () -> Unit) = f()
 
 fun f1() {
@@ -15,3 +16,6 @@ fun f2() {
         }
     } while (true)
 }
+
+/* GENERATED_FIR_TAGS: break, continue, doWhileLoop, functionDeclaration, functionalType, lambdaLiteral, localFunction,
+whileLoop */

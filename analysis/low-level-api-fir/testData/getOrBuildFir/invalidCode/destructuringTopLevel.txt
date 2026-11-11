@@ -1,0 +1,24 @@
+KT element: KtClass
+FIR element: FirRegularClassImpl
+FIR source kind: KtRealSourceElementKind
+
+FIR element rendered:
+public final [ResolvedTo(ANNOTATION_ARGUMENTS)] class C : R|kotlin/Any| {
+    public [ResolvedTo(BODY_RESOLVE)] [ContainingClassKey=C] constructor(): R|C| {
+        super<R|kotlin/Any|>()
+    }
+
+}
+
+FIR FILE:
+FILE: [ResolvedTo(IMPORTS)] destructuringTopLevel.kt
+    private final [ResolvedTo(RAW_FIR)] [DestructuringDeclarationContainerVariableMarkerKey=true] val <destruct>: <implicit> = ERROR_EXPR(Initializer required for destructuring declaration)
+        private [ResolvedTo(RAW_FIR)] get(): <implicit>
+    public final [ResolvedTo(RAW_FIR)] [DestructuringDeclarationContainerVariableKey=/<destruct>] val e: <implicit> = LAZY_EXPRESSION
+        public [ResolvedTo(RAW_FIR)] get(): <implicit>
+    public final [ResolvedTo(ANNOTATION_ARGUMENTS)] class C : R|kotlin/Any| {
+        public [ResolvedTo(BODY_RESOLVE)] [ContainingClassKey=C] constructor(): R|C| {
+            super<R|kotlin/Any|>()
+        }
+
+    }

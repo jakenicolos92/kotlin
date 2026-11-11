@@ -1,10 +1,11 @@
-@kotlin.coroutines.experimental.RestrictsSuspension
+// RUN_PIPELINE_TILL: FRONTEND
+@kotlin.coroutines.RestrictsSuspension
 class RestrictedController
 
 suspend fun Any?.extFun() {}
 suspend fun suspendFun() {}
 
-fun generate(<!UNUSED_PARAMETER!>c<!>: suspend RestrictedController.() -> Unit) {}
+fun generate(c: suspend RestrictedController.() -> Unit) {}
 
 fun test() {
     generate {
@@ -12,3 +13,6 @@ fun test() {
         <!ILLEGAL_RESTRICTED_SUSPENDING_FUNCTION_CALL!>suspendFun<!>()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, lambdaLiteral,
+nullableType, suspend, typeWithExtension */

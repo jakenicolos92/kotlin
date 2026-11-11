@@ -16,23 +16,59 @@
 
 package org.jetbrains.kotlin.resolve
 
+import com.intellij.psi.PsiElement
 import com.intellij.util.containers.MultiMap
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.config.LanguageVersionSettings
+import org.jetbrains.kotlin.container.DefaultImplementation
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.diagnostics.DiagnosticFactory1
 import org.jetbrains.kotlin.diagnostics.Errors
 import org.jetbrains.kotlin.diagnostics.reportOnDeclaration
 import org.jetbrains.kotlin.idea.MainFunctionDetector
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.name.FqNameUnsafe
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.resolve.descriptorUtil.platform
 
 import org.jetbrains.kotlin.resolve.scopes.MemberScope
 import java.util.*
 
+@DefaultImplementation(impl = ConflictingOverloadsDispatcher.Default::class)
+@K1Deprecation
+interface ConflictingOverloadsDispatcher {
+    fun getDiagnostic(
+        languageVersionSettings: LanguageVersionSettings,
+        declaration: DeclarationDescriptor,
+        redeclarations: Collection<DeclarationDescriptor>
+    ): DiagnosticFactory1<PsiElement, Collection<DeclarationDescriptor>>?
+
+    object Default : ConflictingOverloadsDispatcher {
+        override fun getDiagnostic(
+            languageVersionSettings: LanguageVersionSettings,
+            declaration: DeclarationDescriptor,
+            redeclarations: Collection<DeclarationDescriptor>
+        ): DiagnosticFactory1<PsiElement, Collection<DeclarationDescriptor>>? {
+            return when (declaration) {
+                is PropertyDescriptor, is ClassifierDescriptor -> Errors.REDECLARATION
+                is FunctionDescriptor -> Errors.CONFLICTING_OVERLOADS
+                else -> null
+            }
+        }
+    }
+}
+
+@K1Deprecation
 class OverloadResolver(
-        private val trace: BindingTrace,
-        private val overloadFilter: OverloadFilter,
-        private val overloadChecker: OverloadChecker
+    private val trace: BindingTrace,
+    private val overloadFilter: OverloadFilter,
+    private val overloadChecker: OverloadChecker,
+    private val errorDispatcher: ConflictingOverloadsDispatcher,
+    private val languageVersionSettings: LanguageVersionSettings,
+    mainFunctionDetectorFactory: MainFunctionDetector.Factory
 ) {
+
+    private val mainFunctionDetector = mainFunctionDetectorFactory.createMainFunctionDetector(trace, languageVersionSettings)
 
     fun checkOverloads(c: BodiesResolveContext) {
         val inClasses = findConstructorsInNestedClassesAndTypeAliases(c)
@@ -54,13 +90,11 @@ class OverloadResolver(
             val containingDeclaration = klass.containingDeclaration
             if (containingDeclaration is ScriptDescriptor) {
                 // TODO: check overload conflicts of functions with constructors in scripts
-            }
-            else if (containingDeclaration is ClassDescriptor) {
+            } else if (containingDeclaration is ClassDescriptor) {
                 constructorsByOuterClass.putValues(containingDeclaration, klass.constructors)
-            }
-            else if (!(containingDeclaration is FunctionDescriptor ||
-                       containingDeclaration is PropertyDescriptor ||
-                       containingDeclaration is PackageFragmentDescriptor)) {
+            } else if (!(containingDeclaration is FunctionDescriptor ||
+                        containingDeclaration is PropertyDescriptor ||
+                        containingDeclaration is PackageFragmentDescriptor)) {
                 throw IllegalStateException("Illegal class container: " + containingDeclaration)
             }
         }
@@ -84,17 +118,16 @@ class OverloadResolver(
     }
 
     private fun groupModulePackageMembersByFqName(
-            c: BodiesResolveContext,
-            overloadFilter: OverloadFilter
+        c: BodiesResolveContext,
+        overloadFilter: OverloadFilter
     ): MultiMap<FqNameUnsafe, DeclarationDescriptorNonRoot> {
         val packageMembersByName = MultiMap<FqNameUnsafe, DeclarationDescriptorNonRoot>()
 
         collectModulePackageMembersWithSameName(
-                packageMembersByName,
-                (c.functions.values as Collection<DeclarationDescriptor>) + c.declaredClasses.values + c.typeAliases.values,
-                overloadFilter
-        ) {
-            scope, name ->
+            packageMembersByName,
+            (c.functions.values as Collection<DeclarationDescriptor>) + c.declaredClasses.values + c.typeAliases.values,
+            overloadFilter
+        ) { scope, name ->
             val functions = scope.getContributedFunctions(name, NoLookupLocation.WHEN_CHECK_DECLARATION_CONFLICTS)
             val classifier = scope.getContributedClassifier(name, NoLookupLocation.WHEN_CHECK_DECLARATION_CONFLICTS)
             when (classifier) {
@@ -110,8 +143,7 @@ class OverloadResolver(
             }
         }
 
-        collectModulePackageMembersWithSameName(packageMembersByName, c.properties.values, overloadFilter) {
-            scope, name ->
+        collectModulePackageMembersWithSameName(packageMembersByName, c.properties.values, overloadFilter) { scope, name ->
             val variables = scope.getContributedVariables(name, NoLookupLocation.WHEN_CHECK_DECLARATION_CONFLICTS)
             val classifier = scope.getContributedClassifier(name, NoLookupLocation.WHEN_CHECK_DECLARATION_CONFLICTS)
             variables + listOfNotNull(classifier)
@@ -121,10 +153,10 @@ class OverloadResolver(
     }
 
     private inline fun collectModulePackageMembersWithSameName(
-            packageMembersByName: MultiMap<FqNameUnsafe, DeclarationDescriptorNonRoot>,
-            interestingDescriptors: Collection<DeclarationDescriptor>,
-            overloadFilter: OverloadFilter,
-            getMembersByName: (MemberScope, Name) -> Collection<DeclarationDescriptorNonRoot>
+        packageMembersByName: MultiMap<FqNameUnsafe, DeclarationDescriptorNonRoot>,
+        interestingDescriptors: Collection<DeclarationDescriptor>,
+        overloadFilter: OverloadFilter,
+        getMembersByName: (MemberScope, Name) -> Collection<DeclarationDescriptorNonRoot>
     ) {
         val observedFQNs = hashSetOf<FqNameUnsafe>()
         for (descriptor in interestingDescriptors) {
@@ -140,35 +172,34 @@ class OverloadResolver(
     }
 
     private inline fun getModulePackageMembersWithSameName(
-            descriptor: DeclarationDescriptor,
-            overloadFilter: OverloadFilter,
-            getMembersByName: (MemberScope, Name) -> Collection<DeclarationDescriptorNonRoot>
+        descriptor: DeclarationDescriptor,
+        overloadFilter: OverloadFilter,
+        getMembersByName: (MemberScope, Name) -> Collection<DeclarationDescriptorNonRoot>
     ): Collection<DeclarationDescriptorNonRoot> {
         val containingPackage = descriptor.containingDeclaration
         if (containingPackage !is PackageFragmentDescriptor) {
             throw AssertionError("$descriptor is not a top-level package member")
         }
 
-        val containingModule = DescriptorUtils.getContainingModuleOrNull(descriptor) ?:
-                               return when (descriptor) {
-                                   is CallableMemberDescriptor -> listOf(descriptor)
-                                   is ClassDescriptor -> descriptor.constructors
-                                   else -> throw AssertionError("Unexpected descriptor kind: $descriptor")
-                               }
+        val containingModule = DescriptorUtils.getContainingModuleOrNull(descriptor) ?: return when (descriptor) {
+            is CallableMemberDescriptor -> listOf(descriptor)
+            is ClassDescriptor -> descriptor.constructors
+            else -> throw AssertionError("Unexpected descriptor kind: $descriptor")
+        }
 
         val containingPackageScope = containingModule.getPackage(containingPackage.fqName).memberScope
         val possibleOverloads =
-                getMembersByName(containingPackageScope, descriptor.name).filter {
-                    // NB memberScope for PackageViewDescriptor includes module dependencies
-                    DescriptorUtils.getContainingModule(it) == containingModule
-                }
+            getMembersByName(containingPackageScope, descriptor.name).filter {
+                // NB memberScope for PackageViewDescriptor includes module dependencies
+                DescriptorUtils.getContainingModule(it) == containingModule
+            }
 
         return overloadFilter.filterPackageMemberOverloads(possibleOverloads)
     }
 
     private fun checkOverloadsInClass(
-            classDescriptor: ClassDescriptorWithResolutionScopes,
-            nestedClassConstructors: Collection<FunctionDescriptor>
+        classDescriptor: ClassDescriptorWithResolutionScopes,
+        nestedClassConstructors: Collection<FunctionDescriptor>
     ) {
         val functionsByName = MultiMap.create<Name, CallableMemberDescriptor>()
 
@@ -198,7 +229,7 @@ class OverloadResolver(
         }
 
         val reported = HashSet<DeclarationDescriptorNonRoot>()
-        for ((member, conflicting) in redeclarationsMap) {
+        for ([member, conflicting] in redeclarationsMap) {
             if (!reported.contains(member)) {
                 reported.addAll(conflicting)
                 reportRedeclarations(conflicting)
@@ -231,8 +262,8 @@ class OverloadResolver(
     }
 
     private fun DeclarationDescriptor.isPrivate() =
-            this is DeclarationDescriptorWithVisibility &&
-            Visibilities.isPrivate(this.visibility)
+        this is DeclarationDescriptorWithVisibility &&
+                DescriptorVisibilities.isPrivate(this.visibility)
 
     private fun checkOverloadsInClass(members: Collection<CallableMemberDescriptor>) {
         if (members.size == 1) return
@@ -240,7 +271,7 @@ class OverloadResolver(
     }
 
     private fun DeclarationDescriptor.isSynthesized() =
-            this is CallableMemberDescriptor && kind == CallableMemberDescriptor.Kind.SYNTHESIZED
+        this is CallableMemberDescriptor && kind == CallableMemberDescriptor.Kind.SYNTHESIZED
 
     private fun findRedeclarations(members: Collection<DeclarationDescriptorNonRoot>): Collection<DeclarationDescriptorNonRoot> {
         val redeclarations = linkedSetOf<DeclarationDescriptorNonRoot>()
@@ -252,7 +283,7 @@ class OverloadResolver(
                 if (isConstructorsOfDifferentRedeclaredClasses(member1, member2)) continue
                 if (isTopLevelMainInDifferentFiles(member1, member2)) continue
                 if (isDefinitionsForDifferentPlatforms(member1, member2)) continue
-                if (isHeaderDeclarationAndDefinition(member1, member2) || isHeaderDeclarationAndDefinition(member2, member1)) continue
+                if (isExpectDeclarationAndDefinition(member1, member2) || isExpectDeclarationAndDefinition(member2, member1)) continue
 
                 if (!overloadChecker.isOverloadable(member1, member2)) {
                     redeclarations.add(member1)
@@ -273,7 +304,7 @@ class OverloadResolver(
     }
 
     private fun isTopLevelMainInDifferentFiles(member1: DeclarationDescriptor, member2: DeclarationDescriptor): Boolean {
-        if (!MainFunctionDetector.isMain(member1) || !MainFunctionDetector.isMain(member2)) {
+        if (!mainFunctionDetector.isMain(member1) || !mainFunctionDetector.isMain(member2)) {
             return false
         }
 
@@ -282,28 +313,25 @@ class OverloadResolver(
         return file1 == null || file2 == null || file1 !== file2
     }
 
-    private fun isHeaderDeclarationAndDefinition(declaration: DeclarationDescriptor, definition: DeclarationDescriptor): Boolean {
-        return declaration is MemberDescriptor && declaration.isHeader &&
-               definition is MemberDescriptor && !definition.isHeader
+    private fun isExpectDeclarationAndDefinition(declaration: DeclarationDescriptor, definition: DeclarationDescriptor): Boolean {
+        return declaration is MemberDescriptor && declaration.isExpect &&
+                definition is MemberDescriptor && !definition.isExpect
     }
 
     private fun isDefinitionsForDifferentPlatforms(member1: DeclarationDescriptorNonRoot, member2: DeclarationDescriptorNonRoot): Boolean {
         if (member1 !is MemberDescriptor || member2 !is MemberDescriptor) return false
 
-        return member1.isImpl && member2.isImpl &&
-               member1.getMultiTargetPlatform() != member2.getMultiTargetPlatform()
+        return member1.isActual && member2.isActual &&
+                member1.platform != member2.platform
     }
 
     private fun reportRedeclarations(redeclarations: Collection<DeclarationDescriptorNonRoot>) {
         if (redeclarations.isEmpty()) return
 
         for (memberDescriptor in redeclarations) {
-            when (memberDescriptor) {
-                is PropertyDescriptor,
-                is ClassifierDescriptor ->
-                    reportOnDeclaration(trace, memberDescriptor) { Errors.REDECLARATION.on(it, redeclarations) }
-                is FunctionDescriptor ->
-                    reportOnDeclaration(trace, memberDescriptor) { Errors.CONFLICTING_OVERLOADS.on(it, redeclarations) }
+            val diagnostic = errorDispatcher.getDiagnostic(languageVersionSettings, memberDescriptor, redeclarations) ?: continue
+            reportOnDeclaration(trace, memberDescriptor) {
+                diagnostic.on(it, redeclarations)
             }
         }
     }

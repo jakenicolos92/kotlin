@@ -1,6 +1,6 @@
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_REFLECT
 
 import kotlin.test.assertEquals
@@ -21,7 +21,6 @@ inline fun <reified T, reified R> check(f: (T) -> R, g: (T) -> R, tType: String,
 fun box(): String {
     check("", 1, ::foo, "String", "Int")
     check("", 1, ::fooReturnInt, "String", "Int")
-    check("", "", ::fooReturnInt, "String", "Any")
 
     check(Int::toString, ::foo, "Int", "String")
 

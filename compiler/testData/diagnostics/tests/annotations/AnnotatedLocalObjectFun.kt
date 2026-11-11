@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 annotation class My
 
 fun foo() {
@@ -6,3 +7,6 @@ fun foo() {
     }
     s.bar()
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, anonymousObjectExpression, functionDeclaration, localProperty,
+propertyDeclaration */

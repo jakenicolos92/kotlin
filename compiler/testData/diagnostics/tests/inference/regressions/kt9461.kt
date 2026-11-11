@@ -1,11 +1,12 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface In<in I>
 
 interface B : In<B>
 
 interface C<I, T>
 
-fun <I, T> In<I>.foo(<!UNUSED_PARAMETER!>f<!>: () -> C<I, T>) {}
-fun <I, T, Self: In<I>> Self.foo2(<!UNUSED_PARAMETER!>f<!>: () -> C<I, T>) {}
+fun <I, T> In<I>.foo(f: () -> C<I, T>) {}
+fun <I, T, Self: In<I>> Self.foo2(f: () -> C<I, T>) {}
 
 class E : B // e <: In<B> <: In<E>
 
@@ -15,3 +16,6 @@ fun test(c: C<E, Int>, e: E) {
     e.foo2 { c }
     e.foo2 ({ c })
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, in,
+interfaceDeclaration, lambdaLiteral, nullableType, typeConstraint, typeParameter */

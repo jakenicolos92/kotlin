@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 interface G {
     operator fun get(x: Int, y: Int): Int = x + y
@@ -6,23 +7,27 @@ interface G {
 }
 
 fun foo1(a: Int?, b: G) {
-    b[a!!, a<!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>] = <!DEBUG_INFO_SMARTCAST!>a<!>
-    checkSubtype<Int>(<!DEBUG_INFO_SMARTCAST!>a<!>)
+    b[a!!, a<!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>] = a
+    checkSubtype<Int>(a)
 }
 
 fun foo2(a: Int?, b: G) {
-    b[0, a!!] = <!DEBUG_INFO_SMARTCAST!>a<!>
-    checkSubtype<Int>(<!DEBUG_INFO_SMARTCAST!>a<!>)
+    b[0, a!!] = a
+    checkSubtype<Int>(a)
 }
 
 fun foo3(a: Int?, b: G) {
-    val r = b[a!!, <!DEBUG_INFO_SMARTCAST!>a<!>]
-    checkSubtype<Int>(<!DEBUG_INFO_SMARTCAST!>a<!>)
+    val r = b[a!!, a]
+    checkSubtype<Int>(a)
     checkSubtype<Int>(r)
 }
 
 fun foo4(a: Int?, b: G) {
     val r = b[0, a!!]
-    checkSubtype<Int>(<!DEBUG_INFO_SMARTCAST!>a<!>)
+    checkSubtype<Int>(a)
     checkSubtype<Int>(r)
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, checkNotNullCall, classDeclaration, funWithExtensionReceiver,
+functionDeclaration, functionalType, infix, integerLiteral, interfaceDeclaration, localProperty, nullableType, operator,
+propertyDeclaration, smartcast, typeParameter, typeWithExtension */

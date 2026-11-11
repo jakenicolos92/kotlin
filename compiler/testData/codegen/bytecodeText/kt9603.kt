@@ -1,9 +1,11 @@
+// LAMBDAS: CLASS
 class A {
     public var prop = "O"
         private set
 
     fun test() {
-        { prop }()
+        val f = { prop }
+        f()
     }
 }
 

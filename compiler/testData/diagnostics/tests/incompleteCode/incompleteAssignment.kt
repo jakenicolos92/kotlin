@@ -1,3 +1,6 @@
+// RUN_PIPELINE_TILL: FRONTEND
+// COMPARE_WITH_LIGHT_TREE
+
 package sum
 
 import java.util.*
@@ -5,9 +8,9 @@ fun sum(a : IntArray) : Int {
     // Write your solution here
     <!UNRESOLVED_REFERENCE!>res<!> = 0
     for (e in a)
-        <!UNRESOLVED_REFERENCE!>res<!> <!DEBUG_INFO_MISSING_UNRESOLVED!>+=<!><!SYNTAX!><!>
+        <!UNRESOLVED_REFERENCE!>res<!> +=<!SYNTAX!><!>
 }
-fun main(args : Array<String>) {
+fun main() {
     test(0)
     test(1, 1)
     test(-1, -1, 0)
@@ -28,3 +31,7 @@ fun <T: Any> assertEquals(actual : T?, expected : T?, message : Any? = null) {
             throw AssertionError(message)
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, equalityExpression, flexibleType, forLoop, functionDeclaration,
+ifExpression, integerLiteral, javaFunction, localProperty, nullableType, propertyDeclaration, smartcast, stringLiteral,
+typeConstraint, typeParameter, vararg */

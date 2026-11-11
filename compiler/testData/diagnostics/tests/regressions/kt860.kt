@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -NOTHING_TO_INLINE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -NOTHING_TO_INLINE
 // KT-860 ConcurrentModificationException in frontend
 
 package std.util
@@ -12,3 +13,6 @@ fun <T, U: MutableCollection<in T>> Iterator<T>.to(container: U) : U {
 }
 
 fun <T> Iterator<T>.toArrayList() = to(ArrayList<T>())
+
+/* GENERATED_FIR_TAGS: flexibleType, funWithExtensionReceiver, functionDeclaration, inProjection, javaFunction,
+nullableType, typeConstraint, typeParameter, whileLoop */

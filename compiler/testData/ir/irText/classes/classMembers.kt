@@ -1,4 +1,4 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 
 class C(x: Int, val y: Int, var z: Int = 1) {
     constructor() : this(0, 0, 0) {}

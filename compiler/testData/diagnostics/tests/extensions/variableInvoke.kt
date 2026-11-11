@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class A(foo: Int.() -> Unit) {
     init {
         4.foo()
@@ -6,6 +7,9 @@ class A(foo: Int.() -> Unit) {
 
 fun test(foo: Int.(String) -> Unit) {
     4.foo("")
-    4.foo(<!NAMED_ARGUMENTS_NOT_ALLOWED, NAMED_PARAMETER_NOT_FOUND!>p1<!> = ""<!NO_VALUE_FOR_PARAMETER!>)<!>
+    4.<!NO_VALUE_FOR_PARAMETER!>foo<!>(<!ARGUMENT_PASSED_TWICE, NAMED_ARGUMENTS_NOT_ALLOWED!>p1<!> = "")
     4.foo(<!NAMED_ARGUMENTS_NOT_ALLOWED!>p2<!> = "")
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, functionalType, init, integerLiteral, primaryConstructor,
+stringLiteral, typeWithExtension */

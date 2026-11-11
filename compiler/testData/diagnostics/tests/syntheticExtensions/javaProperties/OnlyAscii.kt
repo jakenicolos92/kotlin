@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 fun foo(javaClass: JavaClass) {
     javaClass.КакоеТоСвойство = javaClass.КакоеТоСвойство + 1
@@ -20,3 +21,5 @@ public class JavaClass {
         return 0;
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, functionDeclaration, integerLiteral, javaProperty, javaType */

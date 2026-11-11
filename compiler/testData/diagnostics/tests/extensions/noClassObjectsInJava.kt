@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 public class A {
     public static void foo() {}
@@ -9,3 +10,5 @@ fun Any?.bar() = 42
 
 fun f1() = A.<!UNRESOLVED_REFERENCE!>bar<!>()
 fun f2() = A.Nested.<!UNRESOLVED_REFERENCE!>bar<!>()
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, integerLiteral, nullableType */

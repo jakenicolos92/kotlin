@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 public interface Base {
     val test: String
         get() = "OK"
@@ -15,3 +16,6 @@ fun box(): String {
 
     return "OK"
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, getter, inheritanceDelegation,
+interfaceDeclaration, override, propertyDeclaration, stringLiteral */

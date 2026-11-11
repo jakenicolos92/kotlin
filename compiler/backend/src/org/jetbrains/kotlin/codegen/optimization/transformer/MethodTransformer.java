@@ -17,31 +17,26 @@
 package org.jetbrains.kotlin.codegen.optimization.transformer;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.kotlin.codegen.optimization.common.FastMethodAnalyzer;
+import org.jetbrains.kotlin.utils.ExceptionUtilsKt;
 import org.jetbrains.org.objectweb.asm.tree.MethodNode;
-import org.jetbrains.org.objectweb.asm.tree.analysis.*;
+import org.jetbrains.org.objectweb.asm.tree.analysis.Frame;
+import org.jetbrains.org.objectweb.asm.tree.analysis.Interpreter;
+import org.jetbrains.org.objectweb.asm.tree.analysis.Value;
 
 public abstract class MethodTransformer {
-    @NotNull
-    protected static <V extends Value> Frame<V>[] runAnalyzer(
-            @NotNull Analyzer<V> analyzer,
-            @NotNull String internalClassName,
-            @NotNull MethodNode node
-    ) {
-        try {
-            return analyzer.analyze(internalClassName, node);
-        }
-        catch (AnalyzerException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     @NotNull
     public static <V extends Value> Frame<V>[] analyze(
             @NotNull String internalClassName,
             @NotNull MethodNode node,
             @NotNull Interpreter<V> interpreter
     ) {
-        return runAnalyzer(new Analyzer<>(interpreter), internalClassName, node);
+        try {
+            FastMethodAnalyzer<V> analyser = new FastMethodAnalyzer<>(internalClassName, node, interpreter);
+            return analyser.analyze();
+        } catch (Exception e) {
+            throw ExceptionUtilsKt.rethrow(e);
+        }
     }
 
     public abstract void transform(@NotNull String internalClassName, @NotNull MethodNode methodNode);

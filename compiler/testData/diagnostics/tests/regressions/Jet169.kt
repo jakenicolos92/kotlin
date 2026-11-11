@@ -1,8 +1,12 @@
-fun set(<!UNUSED_PARAMETER!>key<!> : String, <!UNUSED_PARAMETER!>value<!> : String) {
+// RUN_PIPELINE_TILL: CODEGEN
+fun set(key : String, value : String) {
   val a : String? = ""
   when (a) {
-    "" -> <!DEBUG_INFO_SMARTCAST!>a<!>.get(0)
-    is String, is Any -> <!DEBUG_INFO_SMARTCAST!>a<!>.compareTo("")
+    "" -> a.get(0)
+    is String, is Any -> a.compareTo("")
     else -> a.toString()
   }
 }
+
+/* GENERATED_FIR_TAGS: disjunctionExpression, equalityExpression, functionDeclaration, integerLiteral, isExpression,
+localProperty, nullableType, propertyDeclaration, smartcast, stringLiteral, whenExpression, whenWithSubject */

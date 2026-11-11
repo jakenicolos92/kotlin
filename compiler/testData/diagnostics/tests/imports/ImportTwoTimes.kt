@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: a.kt
 
 package weatherForecast
@@ -12,3 +13,5 @@ import weatherForecast.weatherToday
 import weatherForecast.weatherToday
 
 fun needUmbrella() = weatherToday() == "rain"
+
+/* GENERATED_FIR_TAGS: equalityExpression, functionDeclaration, stringLiteral */

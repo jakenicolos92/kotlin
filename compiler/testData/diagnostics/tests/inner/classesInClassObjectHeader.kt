@@ -1,6 +1,7 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class Test {
     @`InnerAnnotation` <!REPEATED_ANNOTATION!>@InnerAnnotation<!>
-    companion object : StaticClass(), <!UNRESOLVED_REFERENCE, MANY_CLASSES_IN_SUPERTYPE_LIST, DEBUG_INFO_UNRESOLVED_WITH_TARGET!>InnerClass<!>() {
+    companion object : StaticClass(), <!INNER_CLASS_CONSTRUCTOR_NO_RECEIVER, MANY_CLASSES_IN_SUPERTYPE_LIST!>InnerClass<!>() {
 
     }
 
@@ -9,3 +10,5 @@ class Test {
 
     open inner class InnerClass
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration, companionObject, inner, nestedClass, objectDeclaration */

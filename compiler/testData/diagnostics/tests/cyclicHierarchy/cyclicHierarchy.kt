@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface A {
     fun foo() {}
 }
@@ -28,3 +29,5 @@ fun test() {
     g?.<!UNRESOLVED_REFERENCE!>foo<!>()
     h?.<!UNRESOLVED_REFERENCE!>foo<!>()
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, nullableType, propertyDeclaration, safeCall */

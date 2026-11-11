@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 
 package kt469
 
@@ -26,3 +27,7 @@ class MyNumber(var i: Int) {
         i -= m.i
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, classDeclaration, flexibleType, forLoop, funWithExtensionReceiver,
+functionDeclaration, integerLiteral, javaFunction, javaProperty, localProperty, nullableType, operator,
+primaryConstructor, propertyDeclaration, rangeExpression, typeParameter */

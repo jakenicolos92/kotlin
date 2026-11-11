@@ -1,13 +1,17 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 fun foo(arg: Int?) {
     var x = arg
     if (x == null) return
     run {
-        // Unsafe because of owner modification
-        <!SMARTCAST_IMPOSSIBLE!>x<!>.hashCode()
+        // Stable because `run` is in-place
+        x.hashCode()
         x = null
     }
     if (x != null) x = 42
     // Unsafe because of lambda
-    <!SMARTCAST_IMPOSSIBLE!>x<!>.hashCode()
+    x<!UNSAFE_CALL!>.<!>hashCode()
 }
+
+/* GENERATED_FIR_TAGS: assignment, equalityExpression, functionDeclaration, ifExpression, integerLiteral, lambdaLiteral,
+localProperty, nullableType, propertyDeclaration, smartcast */

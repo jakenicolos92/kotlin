@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Super.java
 public class Super {
     void foo(Runnable r) {
@@ -6,6 +7,8 @@ public class Super {
 
 // FILE: Sub.kt
 class Sub() : Super() {
-    fun foo(<!UNUSED_PARAMETER!>r<!> : (() -> Unit)?) {
+    fun foo(r : (() -> Unit)?) {
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, functionalType, javaType, nullableType, primaryConstructor */

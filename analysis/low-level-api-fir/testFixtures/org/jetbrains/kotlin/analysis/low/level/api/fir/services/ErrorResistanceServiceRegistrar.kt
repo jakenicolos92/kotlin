@@ -1,0 +1,200 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.analysis.low.level.api.fir.services
+
+import com.intellij.lang.java.JavaLanguage
+import com.intellij.mock.MockProject
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.diagnostic.ControlFlowException
+import com.intellij.openapi.project.Project
+import com.intellij.psi.*
+import com.intellij.psi.impl.file.PsiPackageImpl
+import com.intellij.psi.impl.light.LightMethodBuilder
+import com.intellij.psi.impl.light.LightModifierList
+import com.intellij.psi.impl.light.LightPsiClassBase
+import com.intellij.psi.search.GlobalSearchScope
+import com.intellij.psi.search.PsiSearchScopeUtil
+import org.jetbrains.kotlin.analysis.test.framework.test.configurators.AnalysisApiTestServiceRegistrar
+import org.jetbrains.kotlin.test.services.TestServices
+
+internal object ErrorResistanceServiceRegistrar : AnalysisApiTestServiceRegistrar() {
+    fun handleInterruption(block: () -> Unit) {
+        try {
+            withInterruption(block)
+            error("The block should have been interrupted")
+        } catch (e: Throwable) {
+            val exceptionChain = generateSequence(e) { it.cause }
+            if (exceptionChain.none { it is AnalysisInterruptedException }) {
+                throw e
+            }
+        }
+    }
+
+    private fun <T> withInterruption(block: () -> T): T {
+        require(!ENABLE_INTERRUPTION.get())
+        ENABLE_INTERRUPTION.set(true)
+        try {
+            return block()
+        } finally {
+            ENABLE_INTERRUPTION.set(false)
+        }
+    }
+
+    override fun registerProjectModelServices(project: MockProject, disposable: Disposable, testServices: TestServices) {
+        with(PsiElementFinder.EP.getPoint(project)) {
+            registerExtension(BrokenLibraryElementFinder(project), disposable)
+        }
+    }
+}
+
+/**
+ * Interrupts the analysis on purpose, see [ErrorResistanceServiceRegistrar.handleInterruption].
+ *
+ * The exception is a [ControlFlowException], like [ProcessCanceledException][com.intellij.openapi.progress.ProcessCanceledException], so
+ * the analysis rethrows it instead of reporting it via `Logger.error` (e.g., in `LLFirDiagnosticVisitor.suppressAndLogExceptions`). In
+ * tests, the logger dumps each error with its stack trace to stderr, even though the test expects the interruption and catches it.
+ */
+internal class AnalysisInterruptedException : RuntimeException(), ControlFlowException
+
+private val ENABLE_INTERRUPTION: ThreadLocal<Boolean> = ThreadLocal.withInitial { false }
+
+private fun interruptAnalysis() {
+    if (ENABLE_INTERRUPTION.get()) {
+        throw AnalysisInterruptedException()
+    }
+}
+
+private class BrokenLibraryElementFinder(project: Project) : PsiElementFinder() {
+    private val manager = PsiManager.getInstance(project)
+    private val brokenPackage = BrokenPackage("broken.lib", manager)
+    private val brokenClass = BrokenClass(brokenPackage.qualifiedName, "Foo", manager)
+    private val brokenAnnotationClass = BrokenAnnotationClass(brokenPackage.qualifiedName, "BrokenAnnotation", manager)
+
+    override fun findPackage(qualifiedName: String): PsiPackage? {
+        return when (qualifiedName) {
+            brokenPackage.qualifiedName -> brokenPackage
+            else -> null
+        }
+    }
+
+    override fun findClass(qualifiedName: String, scope: GlobalSearchScope): PsiClass? {
+        val klass = when (qualifiedName) {
+            brokenClass.qualifiedName -> brokenClass
+            brokenAnnotationClass.qualifiedName -> brokenAnnotationClass
+            else -> null
+        }
+
+        return klass?.takeIf { PsiSearchScopeUtil.isInScope(scope, it) }
+    }
+
+    override fun findClasses(qualifiedName: String, scope: GlobalSearchScope): Array<PsiClass> {
+        val klass = findClass(qualifiedName, scope) ?: return PsiClass.EMPTY_ARRAY
+        return arrayOf(klass)
+    }
+}
+
+private class BrokenPackage(packageName: String, manager: PsiManager) : PsiPackageImpl(manager, packageName) {
+    override fun isValid(): Boolean = true
+}
+
+private class BrokenClass(
+    private val packageName: String,
+    name: String,
+    manager: PsiManager,
+) : LightPsiClassBase(manager, JavaLanguage.INSTANCE, name) {
+    private val methods: Array<PsiMethod> = arrayOf(ConstructorMethod(this), GetterMethod(this))
+
+    override fun getMethods(): Array<PsiMethod> {
+        return methods
+    }
+
+    // region Boilerplate PsiClass members
+    private val modifierList: PsiModifierList = LightModifierList(manager, JavaLanguage.INSTANCE, PsiModifier.PUBLIC)
+
+    override fun getQualifiedName(): String = "$packageName.$name"
+    override fun getModifierList(): PsiModifierList = modifierList
+    override fun getContainingClass(): PsiClass? = null
+    override fun getTypeParameterList(): PsiTypeParameterList? = null
+
+    override fun getFields(): Array<PsiField> {
+        return PsiField.EMPTY_ARRAY
+    }
+
+    override fun getInnerClasses(): Array<PsiClass> = PsiClass.EMPTY_ARRAY
+    override fun getInitializers(): Array<PsiClassInitializer> = PsiClassInitializer.EMPTY_ARRAY
+
+    override fun getExtendsList(): PsiReferenceList? = null
+    override fun getImplementsList(): PsiReferenceList? = null
+
+    override fun getScope(): PsiElement? = null
+    // endregion
+
+    private class ConstructorMethod(owner: PsiClass) : LightMethodBuilder(owner, JavaLanguage.INSTANCE) {
+        init {
+            isConstructor = true
+            setModifiers(PsiModifier.PUBLIC)
+
+            val projectScope = GlobalSearchScope.allScope(manager.project)
+            addParameter("first", PsiType.getJavaLangString(manager, projectScope))
+            addParameter("second", PsiTypes.intType())
+        }
+    }
+
+    private class GetterMethod(owner: PsiClass) : LightMethodBuilder(owner.manager, "getResult") {
+        init {
+            containingClass = owner
+            setModifiers(PsiModifier.PUBLIC)
+            setMethodReturnType(PsiTypes.booleanType())
+        }
+
+        override fun getTypeParameterList(): PsiTypeParameterList? {
+            interruptAnalysis()
+            return super.getTypeParameterList()
+        }
+
+        override fun getTypeParameters(): Array<PsiTypeParameter> {
+            interruptAnalysis()
+            return super.getTypeParameters()
+        }
+    }
+}
+
+/**
+ * An annotation class whose own annotations (e.g., `@Target`) cannot be read,
+ * so the analysis is interrupted when the use-site targets of its usages are computed.
+ */
+private class BrokenAnnotationClass(
+    private val packageName: String,
+    name: String,
+    manager: PsiManager,
+) : LightPsiClassBase(manager, JavaLanguage.INSTANCE, name) {
+    private val modifierList: PsiModifierList = object : LightModifierList(manager, JavaLanguage.INSTANCE, PsiModifier.PUBLIC) {
+        override fun getAnnotations(): Array<PsiAnnotation> {
+            interruptAnalysis()
+            return super.getAnnotations()
+        }
+    }
+
+    override fun getModifierList(): PsiModifierList = modifierList
+
+    // region Boilerplate PsiClass members
+    override fun getQualifiedName(): String = "$packageName.$name"
+    override fun getContainingClass(): PsiClass? = null
+    override fun getTypeParameterList(): PsiTypeParameterList? = null
+    override fun isInterface(): Boolean = true
+    override fun isAnnotationType(): Boolean = true
+
+    override fun getMethods(): Array<PsiMethod> = PsiMethod.EMPTY_ARRAY
+    override fun getFields(): Array<PsiField> = PsiField.EMPTY_ARRAY
+    override fun getInnerClasses(): Array<PsiClass> = PsiClass.EMPTY_ARRAY
+    override fun getInitializers(): Array<PsiClassInitializer> = PsiClassInitializer.EMPTY_ARRAY
+
+    override fun getExtendsList(): PsiReferenceList? = null
+    override fun getImplementsList(): PsiReferenceList? = null
+
+    override fun getScope(): PsiElement? = null
+    // endregion
+}

@@ -1,5 +1,8 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class My(x: String) {
-    val y: String = <!DEBUG_INFO_LEAKING_THIS!>foo<!>(x)
+    val y: String = foo(x)
 
     fun foo(x: String) = "$x$y"
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, primaryConstructor, propertyDeclaration */

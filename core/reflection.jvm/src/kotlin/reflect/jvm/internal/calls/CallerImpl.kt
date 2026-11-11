@@ -1,0 +1,289 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package kotlin.reflect.jvm.internal.calls
+
+import org.jetbrains.kotlin.utils.genericParameterTypesWithEnclosingThis
+import java.lang.reflect.Member
+import java.lang.reflect.Type
+import kotlin.jvm.internal.CallableReference
+import java.lang.reflect.Constructor as ReflectConstructor
+import java.lang.reflect.Field as ReflectField
+import java.lang.reflect.Method as ReflectMethod
+
+internal sealed class CallerImpl<out M : Member>(
+    final override val member: M,
+    final override val returnType: Type,
+    valueParameterTypes: Array<Type>,
+) : Caller<M> {
+    override val parameterTypes: List<Type> = valueParameterTypes.toList()
+
+    protected fun checkObjectInstance(obj: Any?) {
+        if (obj == null || !member.declaringClass.isInstance(obj)) {
+            throw IllegalArgumentException("An object member requires the object instance passed as the first argument.")
+        }
+    }
+
+    class Constructor(constructor: ReflectConstructor<*>) : CallerImpl<ReflectConstructor<*>>(
+        constructor,
+        constructor.declaringClass,
+        constructor.genericParameterTypesWithEnclosingThis
+    ) {
+        override fun call(args: Array<*>): Any? {
+            checkArguments(args)
+            return member.newInstance(*args)
+        }
+    }
+
+    // TODO fix 'callBy' for bound (and non-bound) inner class constructor references
+    // See https://youtrack.jetbrains.com/issue/KT-14990
+    class BoundConstructor(constructor: ReflectConstructor<*>, private val boundReceiver: Any?) :
+        CallerImpl<ReflectConstructor<*>>(
+            constructor, constructor.declaringClass,
+            constructor.genericParameterTypesWithEnclosingThis
+        ) {
+        override fun call(args: Array<*>): Any? {
+            checkArguments(args.size + 1)
+            return member.newInstance(boundReceiver, *args)
+        }
+    }
+
+    class AccessorForHiddenConstructor(
+        constructor: ReflectConstructor<*>
+    ) : CallerImpl<ReflectConstructor<*>>(
+        constructor, constructor.declaringClass,
+        constructor.genericParameterTypes.dropLast()
+    ) {
+        override fun call(args: Array<*>): Any? {
+            checkArguments(args)
+            return member.newInstance(*args, null)
+        }
+    }
+
+    class AccessorForHiddenBoundConstructor(
+        constructor: ReflectConstructor<*>,
+        private val boundReceiver: Any?
+    ) : CallerImpl<ReflectConstructor<*>>(
+        constructor, constructor.declaringClass,
+        constructor.genericParameterTypes.dropFirstAndLast()
+    ) {
+        override fun call(args: Array<*>): Any? {
+            checkArguments(args)
+            return member.newInstance(boundReceiver, *args, null)
+        }
+    }
+
+    sealed class Method(
+        method: ReflectMethod,
+        requiresInstance: Boolean,
+        parameterTypes: Array<Type> = method.genericParameterTypes,
+    ) : CallerImpl<ReflectMethod>(
+        method,
+        method.genericReturnType,
+        if (requiresInstance) arrayOf(method.declaringClass, *parameterTypes) else parameterTypes
+    ) {
+        private val isVoidMethod = returnType == Void.TYPE
+
+        protected fun callMethod(instance: Any?, args: Array<*>): Any? {
+            val result = member.invoke(instance, *args)
+
+            // If this is a Unit function, the method returns void, Method#invoke returns null, while we should return Unit
+            return if (isVoidMethod) Unit else result
+        }
+
+        protected fun prependBoundArguments(boundArgs: Array<Any?>, args: Array<*>): Array<*> {
+            if (boundArgs.isEmpty()) return args
+            val result = arrayOfNulls<Any?>(boundArgs.size + args.size)
+            System.arraycopy(boundArgs, 0, result, 0, boundArgs.size)
+            System.arraycopy(args, 0, result, boundArgs.size, args.size)
+            return result
+        }
+
+        /**
+         * @param isCallByToValueClassMangledMethod true if this is a `callBy` caller whose original caller is an instance method that is
+         *  mangled due to value classes in the signature.
+         * ```kotlin
+         * class Bar {
+         *     // original caller calls this method
+         *     fun foo(param1: Foo = ..., param2: Foo = ...): ReturnType = ...
+         *     // generated caller for default parameter call
+         *     // static ReturnType foo$default(Bar, Foo, Foo, Int, Object);
+         * }
+         * ```
+         * If `Foo` is value class or `ReturnType` is inline class, [ValueClassAwareCaller] regards it as a normal static function
+         * rather than a top level extension function/property (see KT-71378).
+         *
+         * @param hasInstanceParameter true if the first parameter of the method is an instance, the callable is invoked on.
+         * Some of the member functions are compiled to static methods taking the instance (e.g., value class members, $default methods).
+         * They expect the instance as a very first argument, unlike extension receivers that go after context parameters.
+         */
+        class Static(
+            method: ReflectMethod,
+            internal val isCallByToValueClassMangledMethod: Boolean,
+            private val boundReceiver: Any?,
+            private val boundContextArguments: Array<Any?>,
+            private val hasInstanceParameter: Boolean,
+        ) : Method(
+            method,
+            requiresInstance = false,
+            parameterTypes = method.genericParameterTypes.let { types ->
+                val boundCount = boundContextArguments.size + (if (boundReceiver !== CallableReference.NO_RECEIVER) 1 else 0)
+                if (hasInstanceParameter && boundReceiver === CallableReference.NO_RECEIVER)
+                    arrayOf(types[0], *types.drop(1 + boundCount).toTypedArray())
+                else
+                    types.drop(boundCount).toTypedArray()
+            }
+        ) {
+            override fun call(args: Array<*>): Any? {
+                checkArguments(args)
+                val isReceiverBound: Boolean = boundReceiver !== CallableReference.NO_RECEIVER
+                val allArgs = when {
+                    !isReceiverBound && boundContextArguments.isEmpty() -> args
+                    !isReceiverBound && !hasInstanceParameter -> prependBoundArguments(boundContextArguments, args)
+                    !isReceiverBound -> arrayOf(args[0], *prependBoundArguments(boundContextArguments, args.dropFirst()))
+                    hasInstanceParameter -> arrayOf(boundReceiver, *prependBoundArguments(boundContextArguments, args))
+                    else -> prependBoundArguments(boundContextArguments, arrayOf(boundReceiver, *args))
+                }
+                return callMethod(null, allArgs)
+            }
+        }
+
+        class Instance(
+            method: ReflectMethod,
+            private val boundReceiver: Any?,
+            private val boundContextArguments: Array<Any?>,
+        ) : Method(
+            method,
+            requiresInstance = boundReceiver === CallableReference.NO_RECEIVER,
+            parameterTypes = method.genericParameterTypes.drop(boundContextArguments.size).toTypedArray()
+        ) {
+            override fun call(args: Array<*>): Any? {
+                checkArguments(args)
+                return if (boundReceiver !== CallableReference.NO_RECEIVER)
+                    callMethod(boundReceiver, prependBoundArguments(boundContextArguments, args))
+                else
+                    callMethod(args[0], prependBoundArguments(boundContextArguments, args.dropFirst()))
+            }
+        }
+
+        class JvmStaticInObject(
+            method: ReflectMethod,
+            private val boundReceiver: Any?,
+            private val boundContextArguments: Array<Any?>,
+        ) : Method(
+            method,
+            requiresInstance = boundReceiver === CallableReference.NO_RECEIVER,
+            parameterTypes = method.genericParameterTypes.drop(boundContextArguments.size).toTypedArray()
+        ) {
+            override fun call(args: Array<*>): Any? {
+                checkArguments(args)
+                return if (boundReceiver !== CallableReference.NO_RECEIVER) {
+                    callMethod(null, prependBoundArguments(boundContextArguments, args))
+                } else {
+                    checkObjectInstance(args.firstOrNull())
+                    callMethod(null, prependBoundArguments(boundContextArguments, args.dropFirst()))
+                }
+            }
+        }
+    }
+
+    sealed class FieldGetter(
+        field: ReflectField,
+        private val requiresInstance: Boolean,
+    ) : CallerImpl<ReflectField>(
+        field,
+        field.genericType,
+        if (requiresInstance) arrayOf(field.declaringClass) else emptyArray()
+    ) {
+        override fun call(args: Array<*>): Any? {
+            checkArguments(args)
+            return member.get(if (requiresInstance) args.first() else null)
+        }
+
+        class Static(field: ReflectField) : FieldGetter(field, requiresInstance = false)
+
+        class Instance(field: ReflectField) : FieldGetter(field, requiresInstance = true)
+
+        class JvmStaticInObject(field: ReflectField) : FieldGetter(field, requiresInstance = true) {
+            override fun checkArguments(args: Array<*>) {
+                super.checkArguments(args)
+                checkObjectInstance(args.firstOrNull())
+            }
+        }
+
+        class BoundInstance(field: ReflectField, private val boundReceiver: Any?) :
+            FieldGetter(field, requiresInstance = false) {
+            override fun call(args: Array<*>): Any? {
+                checkArguments(args)
+                return member.get(boundReceiver)
+            }
+        }
+
+        class BoundJvmStaticInObject(field: ReflectField) : FieldGetter(field, requiresInstance = false)
+    }
+
+    sealed class FieldSetter(
+        field: ReflectField,
+        private val notNull: Boolean,
+        private val requiresInstance: Boolean,
+    ) : CallerImpl<ReflectField>(
+        field,
+        Void.TYPE,
+        if (requiresInstance) arrayOf(field.declaringClass, field.genericType) else arrayOf(field.genericType)
+    ) {
+        override fun checkArguments(args: Array<*>) {
+            super.checkArguments(args)
+            if (notNull && args.last() == null) {
+                throw IllegalArgumentException("null is not allowed as a value for this property.")
+            }
+        }
+
+        override fun call(args: Array<*>): Any? {
+            checkArguments(args)
+            return member.set(if (requiresInstance) args.first() else null, args.last())
+        }
+
+        class Static(field: ReflectField, notNull: Boolean) : FieldSetter(field, notNull, requiresInstance = false)
+
+        class Instance(field: ReflectField, notNull: Boolean) : FieldSetter(field, notNull, requiresInstance = true)
+
+        class JvmStaticInObject(field: ReflectField, notNull: Boolean) : FieldSetter(field, notNull, requiresInstance = true) {
+            override fun checkArguments(args: Array<*>) {
+                super.checkArguments(args)
+                checkObjectInstance(args.firstOrNull())
+            }
+        }
+
+        class BoundInstance(field: ReflectField, notNull: Boolean, private val boundReceiver: Any?) :
+            FieldSetter(field, notNull, requiresInstance = false) {
+            override fun call(args: Array<*>): Any {
+                checkArguments(args)
+                return member.set(boundReceiver, args.first())
+            }
+        }
+
+        class BoundJvmStaticInObject(field: ReflectField, notNull: Boolean) :
+            FieldSetter(field, notNull, requiresInstance = false) {
+            override fun call(args: Array<*>): Any {
+                checkArguments(args)
+                return member.set(null, args.last())
+            }
+        }
+    }
+
+    companion object {
+        @Suppress("UNCHECKED_CAST")
+        inline fun <reified T> Array<out T>.dropFirst(): Array<T> =
+            if (size <= 1) emptyArray() else copyOfRange(1, size) as Array<T>
+
+        @Suppress("UNCHECKED_CAST")
+        inline fun <reified T> Array<out T>.dropLast(): Array<T> =
+            if (size <= 1) emptyArray() else copyOfRange(0, size - 1) as Array<T>
+
+        @Suppress("UNCHECKED_CAST")
+        inline fun <reified T> Array<out T>.dropFirstAndLast(): Array<T> =
+            if (size <= 2) emptyArray() else copyOfRange(1, size - 1) as Array<T>
+    }
+}

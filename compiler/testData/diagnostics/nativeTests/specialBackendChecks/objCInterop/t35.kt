@@ -1,0 +1,7 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// WITH_PLATFORM_LIBS
+import kotlinx.cinterop.*
+import platform.darwin.*
+import platform.Foundation.*
+
+class Zzz : NSValue()

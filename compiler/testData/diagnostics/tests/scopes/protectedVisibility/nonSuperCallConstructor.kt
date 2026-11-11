@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 open class A protected constructor(x: Int) {
     protected constructor() : this(1)
@@ -24,3 +25,6 @@ class B4 : A(1) {
         class Local : A()
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, init, integerLiteral,
+localClass, primaryConstructor, secondaryConstructor */

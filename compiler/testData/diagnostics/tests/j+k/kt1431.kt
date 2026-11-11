@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //FILE: a/C.java
 // KT-1431 StackOverflowException in IDE when using JavaFX builders
 package a;
@@ -15,3 +16,5 @@ import a.C
 fun test() {
     C.create().foo()
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, starProjection */

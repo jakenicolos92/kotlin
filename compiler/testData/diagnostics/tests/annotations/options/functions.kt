@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 @Target(AnnotationTarget.FUNCTION)
 annotation class FunAnn
 
@@ -6,6 +7,7 @@ annotation class FunAnn
 annotation class SourceAnn
 
 @Target(AnnotationTarget.EXPRESSION)
+@Retention(AnnotationRetention.SOURCE)
 annotation class ExprAnn
 
 fun bar(arg: () -> Int) = arg()
@@ -18,7 +20,7 @@ inline fun fast2(x: Int, arg: () -> Int) = x + arg()
 
 fun foo(arg: Int) {
     // Literal is annotatable
-    bar @FunAnn { arg }
+    bar <!RUNTIME_ANNOTATION_ON_LAMBDA_IS_NOT_RETAINED!>@FunAnn<!> { arg }
     // Annotatable in principle but useless, fast is inline
     fast <!NON_SOURCE_ANNOTATION_ON_INLINED_LAMBDA_EXPRESSION!>@FunAnn<!> { arg }
     fast2(1, <!NON_SOURCE_ANNOTATION_ON_INLINED_LAMBDA_EXPRESSION!>@FunAnn<!> { arg })
@@ -29,10 +31,13 @@ fun foo(arg: Int) {
     fast @ExprAnn { arg }
     fast2(1, @ExprAnn { arg })
     // Function expression too
-    val f = @FunAnn fun(): Int { return 42 }
+    val f = <!RUNTIME_ANNOTATION_ON_LAMBDA_IS_NOT_RETAINED!>@FunAnn<!> fun(): Int { return 42 }
     // But here, f and gav should be annotated instead
     bar(<!WRONG_ANNOTATION_TARGET!>@FunAnn<!> f)
     bar(<!WRONG_ANNOTATION_TARGET!>@FunAnn<!> ::gav)
     // Function expression, ok
     fast(f)
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, annotationDeclaration, anonymousFunction, callableReference,
+functionDeclaration, functionalType, inline, integerLiteral, lambdaLiteral, localProperty, propertyDeclaration */

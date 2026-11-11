@@ -1,5 +1,8 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Dup {
   fun Dup() : Unit {
-    this<!AMBIGUOUS_LABEL!>@Dup<!>
+    this@Dup
   }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, thisExpression */

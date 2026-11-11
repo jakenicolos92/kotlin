@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 open class A {
     open var foo: Boolean = true
 }
@@ -27,3 +28,5 @@ class BS1: A(), IGA<Boolean>
 <!VAR_TYPE_MISMATCH_ON_INHERITANCE!>class BS3<!>: A(), IGA<String>
 
 <!VAR_TYPE_MISMATCH_ON_INHERITANCE!>class BG1<!><T>: A(), IGA<T>
+
+/* GENERATED_FIR_TAGS: classDeclaration, interfaceDeclaration, nullableType, propertyDeclaration, typeParameter */

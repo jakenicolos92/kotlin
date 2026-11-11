@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 @Deprecated("Object")
 object Obsolete {
     fun use() {}
@@ -5,5 +6,7 @@ object Obsolete {
 
 fun useObject() {
     <!DEPRECATION!>Obsolete<!>.use()
-    val <!UNUSED_VARIABLE!>x<!> = <!DEPRECATION!>Obsolete<!>
+    val x = <!DEPRECATION!>Obsolete<!>
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, localProperty, objectDeclaration, propertyDeclaration, stringLiteral */

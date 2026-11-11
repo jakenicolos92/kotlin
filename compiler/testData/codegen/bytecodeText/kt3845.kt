@@ -1,3 +1,4 @@
+
 class Example
 {
     var a1 = 0
@@ -33,9 +34,17 @@ class Example
         b3 = 1
         b4 = 1
         b5 = 1
+        foo { a1 = 1 }
+        bar()
     }
+
+    private inline fun bar() { a1 = 1 }
 }
+
+inline fun foo(x: () -> Unit) = x()
 
 // Every property should be accessed directly in this example because they all are final class properties with default accessors
 // 0 INVOKESPECIAL Example\.set
+
+// ...including the access in `private inline fun` which we know is only called from `init`.
 // 0 INVOKEVIRTUAL Example\.set

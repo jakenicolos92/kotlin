@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 @Deprecated("Deprecated class")
 open class DeprecatedClass
 
@@ -10,8 +11,13 @@ typealias DeprecatedClassAlias = <!DEPRECATION!>DeprecatedClass<!>
 typealias WithDeprecatedCtorAlias = WithDeprecatedCtor
 typealias ArrayListOfDeprecatedClass = ArrayList<<!DEPRECATION!>DeprecatedClass<!>>
 
-class Test1 : <!DEPRECATION!>DeprecatedClassAlias<!>()
+class Test1 : <!TYPEALIAS_EXPANSION_DEPRECATION!>DeprecatedClassAlias<!>()
+val test1_1 = <!TYPEALIAS_EXPANSION_DEPRECATION!>DeprecatedClassAlias<!>()
 
-class Test2 : <!DEPRECATION!>WithDeprecatedCtorAlias<!>()
+class Test2 : <!TYPEALIAS_EXPANSION_DEPRECATION!>WithDeprecatedCtorAlias<!>()
+val test2_1 = <!TYPEALIAS_EXPANSION_DEPRECATION!>WithDeprecatedCtorAlias<!>()
 
-val test3 = <!DEPRECATION!>ArrayListOfDeprecatedClass<!>()
+val test3 = <!TYPEALIAS_EXPANSION_DEPRECATION!>ArrayListOfDeprecatedClass<!>()
+
+/* GENERATED_FIR_TAGS: classDeclaration, integerLiteral, primaryConstructor, propertyDeclaration, secondaryConstructor,
+stringLiteral, typeAliasDeclaration */

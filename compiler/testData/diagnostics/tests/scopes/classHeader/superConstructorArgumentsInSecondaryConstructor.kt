@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 open class S(
         n: A.Nested,
@@ -22,7 +23,7 @@ class A : S {
             Companion.CONST,
             Nested.CONST,
             Interface.CONST,
-            <!INSTANCE_ACCESS_BEFORE_SUPER_CALL, UNINITIALIZED_VARIABLE!>a<!>,
+            <!INSTANCE_ACCESS_BEFORE_SUPER_CALL!>a<!>,
             <!INSTANCE_ACCESS_BEFORE_SUPER_CALL!>b<!>()
     )
 
@@ -48,3 +49,7 @@ class A : S {
         fun foo(): Nested = null!!
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, companionObject, const, functionDeclaration, inner,
+integerLiteral, interfaceDeclaration, nestedClass, objectDeclaration, primaryConstructor, propertyDeclaration,
+secondaryConstructor */

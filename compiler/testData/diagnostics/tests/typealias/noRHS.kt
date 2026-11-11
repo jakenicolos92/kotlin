@@ -1,6 +1,10 @@
+// RUN_PIPELINE_TILL: FRONTEND
 typealias<!SYNTAX!><!>
 
 <!SYNTAX!><!>typealias A1<!SYNTAX!><!>
 
 <!SYNTAX!><!>typealias A2 =
-<!SYNTAX!><!>
+
+<!SYNTAX!><!>typealias Valid = String
+
+/* GENERATED_FIR_TAGS: typeAliasDeclaration */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS:-UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS:-UNUSED_PARAMETER
 
 // KT-9883 prohibit using spread operator for nullable value
 
@@ -9,6 +10,15 @@ public class A {
     public static String[] ar;
 }
 
+// FILE: J.java
+
+public class J {
+    public interface Invoke {
+        void invoke(String ...args);
+    }
+
+    public static Invoke staticFun;
+}
 
 // FILE: 1.kt
 val args: Array<String>? = null
@@ -17,16 +27,21 @@ fun bar(x: Int, vararg s: String) {}
 
 fun baz(s: String) {}
 
+fun getArr(): Array<String>? = null
+
 fun f() {
     A().foo(1, <!SPREAD_OF_NULLABLE!>*<!>args)
-    bar(2, <!SPREAD_OF_NULLABLE!>*<!><!TYPE_MISMATCH!>args<!>)
-    baz(<!NON_VARARG_SPREAD, SPREAD_OF_NULLABLE!>*<!>args)
+    A().foo(1, <!NAMED_ARGUMENTS_NOT_ALLOWED!>args<!> = <!SPREAD_OF_NULLABLE!>*<!>args)
+    bar(2, <!SPREAD_OF_NULLABLE!>*<!><!ARGUMENT_TYPE_MISMATCH!>args<!>)
+    bar(2, s = <!SPREAD_OF_NULLABLE!>*<!><!ARGUMENT_TYPE_MISMATCH!>args<!>)
+    baz(<!NON_VARARG_SPREAD, SPREAD_OF_NULLABLE!>*<!><!ARGUMENT_TYPE_MISMATCH!>args<!>)
+    baz(s = <!NON_VARARG_SPREAD, SPREAD_OF_NULLABLE!>*<!><!ARGUMENT_TYPE_MISMATCH!>args<!>)
 }
 
 fun g(args: Array<String>?) {
 
     if (args != null) {
-        A().foo(1, *<!DEBUG_INFO_SMARTCAST!>args<!>)
+        A().foo(1, *args)
     }
     A().foo(1, *A.ar)
 }
@@ -37,8 +52,25 @@ class B {
 
 fun h(b: B) {
     if (b.args != null) {
-        A().foo(1, <!SPREAD_OF_NULLABLE!>*<!><!SMARTCAST_IMPOSSIBLE!>b.args<!>)
+        A().foo(1, <!SPREAD_OF_NULLABLE!>*<!>b.args)
+        A().foo(1, <!NAMED_ARGUMENTS_NOT_ALLOWED!>args<!> = <!SPREAD_OF_NULLABLE!>*<!>b.args)
     }
 }
 
+fun k() {
+    A().foo(1, <!SPREAD_OF_NULLABLE!>*<!>getArr())
+    A().foo(1, <!NAMED_ARGUMENTS_NOT_ALLOWED!>args<!> = <!SPREAD_OF_NULLABLE!>*<!>getArr())
+    bar(2, <!SPREAD_OF_NULLABLE!>*<!><!ARGUMENT_TYPE_MISMATCH!>getArr()<!>)
+    bar(2, s = <!SPREAD_OF_NULLABLE!>*<!><!ARGUMENT_TYPE_MISMATCH!>getArr()<!>)
+    baz(<!NON_VARARG_SPREAD, SPREAD_OF_NULLABLE!>*<!><!ARGUMENT_TYPE_MISMATCH!>getArr()<!>)
+    baz(s = <!NON_VARARG_SPREAD, SPREAD_OF_NULLABLE!>*<!><!ARGUMENT_TYPE_MISMATCH!>getArr()<!>)
+}
 
+fun invokeTest(goodArgs: Array<String>) {
+    J.staticFun(*goodArgs)
+    J.staticFun(<!SPREAD_OF_NULLABLE!>*<!>args)
+    J.staticFun(<!SPREAD_OF_NULLABLE!>*<!>args <!USELESS_ELVIS_RIGHT_IS_NULL!>?: null<!>)
+}
+
+/* GENERATED_FIR_TAGS: classDeclaration, elvisExpression, equalityExpression, flexibleType, functionDeclaration,
+ifExpression, integerLiteral, javaFunction, javaProperty, javaType, nullableType, propertyDeclaration, smartcast, vararg */

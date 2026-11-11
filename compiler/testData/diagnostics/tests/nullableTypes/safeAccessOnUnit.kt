@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 data class My(val x: Unit)
 
 fun foo(my: My?): Int? {
@@ -5,3 +6,6 @@ fun foo(my: My?): Int? {
     // ?. is required here
     return x?.hashCode()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, data, functionDeclaration, localProperty, nullableType, primaryConstructor,
+propertyDeclaration, safeCall */

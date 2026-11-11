@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 open class Super<T> {
     inner open class Inner {
     }
@@ -10,3 +11,5 @@ class Sub : Super<String>() {
         constructor(x: Int) : super() {}
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, inner, nullableType, secondaryConstructor, typeParameter */

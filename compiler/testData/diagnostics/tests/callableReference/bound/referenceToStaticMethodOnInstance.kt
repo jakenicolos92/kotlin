@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 public class A {
@@ -12,3 +13,5 @@ fun test() {
     A()::<!UNRESOLVED_REFERENCE!>test<!>
     E.EN::<!UNRESOLVED_REFERENCE!>valueOf<!>
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, functionDeclaration, javaFunction, javaType */

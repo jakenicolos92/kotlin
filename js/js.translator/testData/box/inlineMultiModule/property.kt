@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 508
 // MODULE: lib
 // FILE: lib.kt
 
@@ -100,8 +99,8 @@ var A.p15: Int
 
 // MODULE: main(lib)
 // FILE: main.kt
-// PROPERTY_NOT_USED: p1
-// PROPERTY_NOT_READ_FROM: p2
+// PROPERTY_NOT_USED: p1 scope=box
+// PROPERTY_NOT_READ_FROM: p2 scope=box
 // PROPERTY_NOT_WRITTEN_TO: p3
 // CHECK_NOT_CALLED: imported$get_p4
 // CHECK_NOT_CALLED: imported$set_p4

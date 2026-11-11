@@ -1,0 +1,585 @@
+/*
+ * Copyright 2010-2021 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.gradle.testbase
+
+import org.gradle.api.JavaVersion
+import org.gradle.util.GradleVersion
+import org.jetbrains.kotlin.gradle.testbase.TestVersions.AgpCompatibilityMatrix
+import org.jetbrains.kotlin.test.sharding.ParameterizedTestSharding
+import org.jetbrains.kotlin.test.sharding.shard
+import org.jetbrains.kotlin.testFederation.testFederationAllTestsRequested
+import org.junit.jupiter.api.extension.*
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
+import org.junit.jupiter.params.provider.ArgumentsProvider
+import org.junit.jupiter.params.provider.ArgumentsSource
+import org.junit.jupiter.params.support.AnnotationConsumerInitializer
+import org.junit.jupiter.params.support.ParameterDeclaration
+import org.junit.jupiter.params.support.ParameterDeclarations
+import org.junit.platform.commons.JUnitException
+import org.junit.platform.commons.util.AnnotationUtils
+import org.junit.platform.commons.util.ReflectionUtils
+import java.io.File
+import java.util.Optional
+import java.util.stream.Stream
+import kotlin.test.assertIs
+
+
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.ANNOTATION_CLASS, AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class GradleTestVersions(
+    val minVersion: String = TestVersions.Gradle.MIN_SUPPORTED,
+    val maxVersion: String = TestVersions.Gradle.MAX_SUPPORTED,
+    val additionalVersions: Array<String> = [],
+)
+
+/**
+ * Adds another dimension of arguments alongside Gradle Version
+ * Example:
+ *
+ * ```
+ * class SomeGradleTest {
+ *   @GradleTest
+ *   @GradleTestExtraStringArguments("a", "b")
+ *   fun testMethod(gradleVersion: GradleVersion, extra: String) {
+ *      // JUnit will invoke testMethod as follows
+ *      // testMethod(GradleVersion.MIN, "a")
+ *      // testMethod(GradleVersion.MIN, "b")
+ *      // testMethod(GradleVersion.MAX, "a")
+ *      // testMethod(GradleVersion.MAX, "b")
+ *   }
+ * }
+ * ```
+ */
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.ANNOTATION_CLASS, AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class GradleTestExtraStringArguments(
+    vararg val values: String,
+)
+
+/**
+ * Parameterized test against different Gradle versions.
+ * Test should accept [GradleVersion] as a parameter.
+ *
+ * By default, [TestVersions.Gradle.MIN_SUPPORTED] and [TestVersions.Gradle.MAX_SUPPORTED] Gradle versions are provided.
+ * To modify it use additional [GradleTestVersions] annotation on the test method.
+ *
+ * Invocations are spread across test shards, see [ParameterizedTestSharding].
+ *
+ * @see [GradleTestVersions]
+ */
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.RUNTIME)
+@GradleTestVersions
+@ParameterizedTest(name = "{0}: {displayName}", allowZeroInvocations = true)
+@ParameterizedTestSharding
+@ArgumentsSource(GradleArgumentsProvider::class)
+annotation class GradleTest
+
+/**
+ * The only Gradle version to test (`gradle.integration.tests.gradle.version.filter`), set by version-specific TeamCity tasks.
+ * `null` tests all versions.
+ */
+val gradleTestVersionFilter: GradleVersion? = System.getProperty("gradle.integration.tests.gradle.version.filter")
+    ?.let { GradleVersion.version(it) }
+
+/**
+ * The Gradle versions of all version-specific TeamCity tasks (`gradle.integration.tests.gradle.versions`).
+ * Other versions are dropped before sharding, as no task would run them. `null` keeps all versions.
+ */
+val gradleTestVersions: Set<GradleVersion>? = System.getProperty("gradle.integration.tests.gradle.versions")
+    ?.split(";")?.map { GradleVersion.version(it) }?.toSet()
+
+/**
+ * Keeps only the [Arguments] whose first argument (the Gradle version) matches [gradleTestVersionFilter].
+ *
+ * Call it after [shard], so that the invocations are sharded as if there was no version filter:
+ * every task running with a different [gradleTestVersionFilter] computes the same assignment of the full matrix
+ * and only runs its own Gradle version from it. Invocations sharing a Gradle version are placed on neighbouring shards,
+ * so each shard only runs few Gradle versions in total, across all tasks.
+ */
+private fun Iterable<Arguments>.filterByGradleTestVersion(): List<Arguments> {
+    val versionFilter = gradleTestVersionFilter ?: return toList()
+    return filter { arguments -> assertIs<GradleVersion>(arguments.get().first()) == versionFilter }
+}
+
+inline fun <reified T : Annotation> findAnnotationOrNull(context: ExtensionContext): T? {
+    var nextSuperclass: Class<*>? = context.testClass.get().superclass
+    val superClassSequence = if (nextSuperclass != null) {
+        generateSequence {
+            val currentSuperclass = nextSuperclass
+            nextSuperclass = nextSuperclass?.superclass
+            currentSuperclass
+        }
+    } else {
+        emptySequence()
+    }
+
+    return sequenceOf(
+        context.testMethod.orElse(null),
+        context.testClass.orElse(null)
+    )
+        .filterNotNull()
+        .plus(superClassSequence)
+        .mapNotNull { declaration ->
+            declaration.annotations.firstOrNull { it is T }
+        }
+        .firstOrNull() as T?
+        ?: context.testMethod.get().annotations
+            .mapNotNull { annotation ->
+                annotation.annotationClass.annotations.firstOrNull { it is T }
+            }
+            .firstOrNull() as T?
+}
+
+inline fun <reified T : Annotation> findAnnotation(context: ExtensionContext): T {
+    return findAnnotationOrNull(context) ?: error("Couldn't find @${T::class.java.simpleName} in the test or the test class hierarchy")
+}
+
+open class GradleParameterResolver : ParameterResolver {
+    override fun supportsParameter(parameterContext: ParameterContext, extensionContext: ExtensionContext): Boolean {
+        return parameterContext.parameter.type == GradleVersion::class.java
+    }
+
+    override fun resolveParameter(parameterContext: ParameterContext, extensionContext: ExtensionContext): Any? {
+        return gradleTestVersionFilter
+    }
+}
+
+open class GradleArgumentsProvider : ArgumentsProvider {
+    override fun provideArguments(
+        parameters: ParameterDeclarations,
+        context: ExtensionContext,
+    ): Stream<out Arguments> {
+        val gradleVersions = gradleVersions(context)
+        val extraArguments = extraArguments(context) ?: emptyArray()
+
+        return gradleVersions
+            .flatMap { gradleVersion ->
+                if (extraArguments.isNotEmpty()) {
+                    extraArguments.map { extraArgument -> Arguments.of(gradleVersion, extraArgument) }
+                } else listOf(Arguments.of(gradleVersion))
+            }
+            .shard(context)
+            .filterByGradleTestVersion()
+            .stream()
+    }
+
+    protected fun gradleVersions(context: ExtensionContext): Set<GradleVersion> {
+        return run {
+            val versionsAnnotation = findAnnotationOrNull<GradleTestVersions>(context) ?: GradleTestVersions()
+
+        val minGradleVersion = GradleVersion.version(versionsAnnotation.minVersion)
+        // Max is used for cases when test is annotated with `@GradleTestVersions(minVersion = LATEST)` but MAX_SUPPORTED isn't latest
+        val maxGradleVersion = maxOf(GradleVersion.version(versionsAnnotation.maxVersion), minGradleVersion)
+
+        if (!testFederationAllTestsRequested) return@run setOf(maxGradleVersion)
+
+            val additionalGradleVersions = versionsAnnotation
+                .additionalVersions
+                .map(GradleVersion::version)
+            additionalGradleVersions.forEach {
+                assert(it in minGradleVersion..maxGradleVersion) {
+                    "Additional Gradle version ${it.version} should be between ${minGradleVersion.version} and ${maxGradleVersion.version}"
+                }
+            }
+
+            setOf(minGradleVersion, *additionalGradleVersions.toTypedArray(), maxGradleVersion)
+        }.filterTo(mutableSetOf()) { version -> gradleTestVersions == null || version in gradleTestVersions }
+    }
+
+    protected fun extraArguments(context: ExtensionContext): Array<out String>? {
+        val extraArgumentsAnnotation = findAnnotationOrNull<GradleTestExtraStringArguments>(context)
+        return extraArgumentsAnnotation?.values
+    }
+}
+
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.ANNOTATION_CLASS, AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class JdkVersions(
+    val versions: Array<JavaVersion> = [JavaVersion.VERSION_1_8, JavaVersion.VERSION_21],
+    val compatibleWithGradle: Boolean = true,
+) {
+    class ProvidedJdk(
+        val version: JavaVersion,
+        val location: File,
+    ) {
+        override fun toString(): String {
+            return "JDK $version"
+        }
+    }
+}
+
+/**
+ * Parameterized test against different Gradle and JDK versions.
+ * Test should accept [GradleVersion] and [JdkVersions.ProvidedJdk] as a parameters.
+ *
+ * By default, [TestVersions.Gradle.MIN_SUPPORTED] and [TestVersions.Gradle.MAX_SUPPORTED] Gradle versions are provided.
+ * To modify it use additional [GradleTestVersions] annotation on the test method.
+ *
+ * By default, [JavaVersion.VERSION_1_8] and either maximum compatible with given Gradle release
+ * or [JavaVersion.VERSION_21] JDK versions are provided. To modify it use additional [JdkVersions] annotation on the test method.
+ *
+ * Invocations are spread across test shards, see [ParameterizedTestSharding].
+ *
+ * @see [GradleTestVersions]
+ * @see [JdkVersions]
+ */
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.RUNTIME)
+@GradleTestVersions
+@JdkVersions
+@ParameterizedTest(name = "{1} with {0}: {displayName}", allowZeroInvocations = true)
+@ParameterizedTestSharding
+@ArgumentsSource(GradleAndJdkArgumentsProvider::class)
+annotation class GradleWithJdkTest
+
+class GradleAndJdkArgumentsProvider : GradleArgumentsProvider() {
+    override fun provideArguments(
+        parameters: ParameterDeclarations,
+        context: ExtensionContext,
+    ): Stream<out Arguments> {
+        val jdkAnnotation = findAnnotation<JdkVersions>(context)
+        val providedJdks = jdkAnnotation
+            .versions
+            .map {
+                JdkVersions.ProvidedJdk(
+                    it,
+                    File(System.getProperty("jdk${it.majorVersion}Home"))
+                )
+            }
+
+        val gradleVersions = gradleVersions(context)
+
+        return providedJdks
+            .flatMap { providedJdk ->
+                val allSupportedGradleVersions = jdkGradleCompatibilityMatrix
+                    .filter { providedJdk.version in it.javaVersions }
+
+                check(allSupportedGradleVersions.isNotEmpty()) {
+                    "Could not find suitable Gradle version for $providedJdk. Please update the compatibility matrix."
+                }
+
+                val supportedGradleVersionsRange =
+                    allSupportedGradleVersions.first().gradleVersions.start..allSupportedGradleVersions.last().gradleVersions.endInclusive
+                gradleVersions
+                    .run {
+                        if (jdkAnnotation.compatibleWithGradle) {
+                            gradleVersionsWorkingWithJdk(supportedGradleVersionsRange, providedJdk)
+                        } else this
+                    }
+                    .map { it to providedJdk }
+            }
+            .map { (gradleVersion, providedJdk) -> Arguments.of(gradleVersion, providedJdk) }
+            .run {
+                if (testFederationAllTestsRequested) toList()
+                else toList().takeLast(1)
+            }
+            .shard(context)
+            .filterByGradleTestVersion()
+            .stream()
+    }
+
+    private fun Set<GradleVersion>.gradleVersionsWorkingWithJdk(
+        allSupportedForJdkGradleVersionRange: ClosedRange<GradleVersion>,
+        requestedJdk: JdkVersions.ProvidedJdk,
+    ): Set<GradleVersion> {
+        val initialVersionsCount = count()
+        val filteredVersions = filter { it in allSupportedForJdkGradleVersionRange }
+        return when {
+            // All Gradle versions fit
+            filteredVersions.count() == initialVersionsCount -> this
+            // No Gradle versions fit
+            filteredVersions.isEmpty() -> {
+                println("Requested Gradle versions ${this.joinToString()} are not compatible with JDK ${requestedJdk.version}.")
+                emptySet()
+            }
+            // Some Gradle versions fit
+            filteredVersions.count() <= initialVersionsCount -> {
+                filteredVersions.toSet()
+            }
+            else -> error(
+                "Failed to match JDK version ${requestedJdk.version} to ${this.joinToString()} - result: ${filteredVersions.joinToString()}"
+            )
+        }
+    }
+
+    companion object {
+        private data class GradleJavaVersionsRange(
+            val gradleVersions: ClosedRange<GradleVersion>,
+            val javaVersions: ClosedRange<JavaVersion>,
+        )
+
+        // https://docs.gradle.org/current/userguide/compatibility.html#java_runtime
+        private val jdkGradleCompatibilityMatrix = setOf(
+            GradleJavaVersionsRange(
+                gradleVersions = GradleVersion.version(TestVersions.Gradle.G_8_14)..GradleVersion.version(TestVersions.Gradle.G_8_14),
+                javaVersions = JavaVersion.VERSION_1_8..JavaVersion.VERSION_16,
+            ),
+            GradleJavaVersionsRange(
+                gradleVersions = GradleVersion.version(TestVersions.Gradle.G_8_14)..GradleVersion.version(TestVersions.Gradle.MAX_SUPPORTED),
+                javaVersions = JavaVersion.VERSION_17..JavaVersion.VERSION_24,
+            ),
+        )
+    }
+}
+
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.ANNOTATION_CLASS, AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class AndroidTestVersions(
+    val minVersion: String = TestVersions.AGP.MIN_SUPPORTED,
+    val maxVersion: String = TestVersions.AGP.MAX_SUPPORTED,
+    val additionalVersions: Array<String> = [],
+)
+
+/**
+ * Parameterized test against different Android Gradle plugin versions.
+ * Test should accept [GradleVersion], [String] (AGP version) and [JdkVersions.ProvidedJdk] as a parameters.
+ *
+ * By default, [TestVersions.AGP.MIN_SUPPORTED] and [TestVersions.AGP.MAX_SUPPORTED] AGP versions are provided.
+ * To modify it use additional [AndroidTestVersions] annotation on the test method.
+ *
+ * Invocations are spread across test shards, see [ParameterizedTestSharding].
+ *
+ * @see [AndroidTestVersions]
+ */
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.RUNTIME)
+@GradleTestVersions
+@AndroidTestVersions
+@ParameterizedTest(name = "AGP {1} with {0}: {displayName}", allowZeroInvocations = true)
+@ParameterizedTestSharding
+@ArgumentsSource(GradleAndAgpArgumentsProvider::class)
+annotation class GradleAndroidTest
+
+class GradleAndAgpArgumentsProvider : GradleArgumentsProvider() {
+    override fun provideArguments(
+        parameters: ParameterDeclarations,
+        context: ExtensionContext,
+    ): Stream<out Arguments> {
+        val agpVersionsAnnotation = findAnnotation<AndroidTestVersions>(context)
+        var agpVersions = setOfNotNull(
+            agpVersionsAnnotation.minVersion,
+            *agpVersionsAnnotation.additionalVersions,
+            if (
+                AgpCompatibilityMatrix.fromVersion(
+                    agpVersionsAnnotation.minVersion
+                ) < AgpCompatibilityMatrix.fromVersion(
+                    agpVersionsAnnotation.maxVersion
+                )
+            ) {
+                agpVersionsAnnotation.maxVersion
+            } else {
+                null
+            }
+        )
+
+        if (!testFederationAllTestsRequested) {
+            agpVersions = setOf(agpVersions.last())
+        }
+
+        val gradleVersions = gradleVersions(context)
+
+        return agpVersions
+            .flatMap { version ->
+                val agpVersion = AgpCompatibilityMatrix.entries.find { it.version == version }
+                    ?: throw IllegalArgumentException("AGP version $version is not defined in TestVersions.AGP!")
+
+                val providedJdk = JdkVersions.ProvidedJdk(
+                    agpVersion.requiredJdkVersion,
+                    File(System.getProperty("jdk${agpVersion.requiredJdkVersion.majorVersion}Home"))
+                )
+
+                gradleVersions
+                    .filter { it in agpVersion.minSupportedGradleVersion..agpVersion.maxSupportedGradleVersion }
+                    .ifEmpty {
+                        // Falling back to the minimal supported Gradle version for this AGP version
+                        listOf(agpVersion.minSupportedGradleVersion)
+                    }
+                    .map {
+                        AgpTestArguments(it, agpVersion.version, providedJdk)
+                    }
+            }
+            .map { Arguments.of(it.gradleVersion, it.agpVersion, it.jdkVersion) }
+            .shard(context)
+            .filterByGradleTestVersion()
+            .stream()
+    }
+
+    data class AgpTestArguments(
+        val gradleVersion: GradleVersion,
+        val agpVersion: String,
+        val jdkVersion: JdkVersions.ProvidedJdk,
+    )
+}
+
+@Target(AnnotationTarget.FUNCTION, AnnotationTarget.ANNOTATION_CLASS, AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+annotation class CompilerVersions(
+    val versions: Array<String> = [],
+    val additionalVersions: Array<String> = [],
+) {
+    companion object {
+        const val CURRENT = "CURRENT"
+        const val STABLE_RELEASE = TestVersions.Kotlin.STABLE_RELEASE
+    }
+}
+
+/**
+ * Parameterized test against different Gradle and Kotlin compiler versions.
+ * Test should accept [GradleVersion] and [String] (compiler version) as parameters.
+ *
+ * By default, [TestVersions.Gradle.MIN_SUPPORTED] and [TestVersions.Gradle.MAX_SUPPORTED] Gradle versions are provided.
+ * To modify it use additional [GradleTestVersions] annotation on the test method.
+ *
+ * By default, [TestVersions.Kotlin.STABLE_RELEASE] and [TestVersions.Kotlin.CURRENT] compiler versions are provided.
+ * To modify it use additional [CompilerVersions] annotation on the test method.
+ *
+ * @see [GradleTestVersions]
+ * @see [CompilerVersions]
+ */
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.RUNTIME)
+@GradleTestVersions
+@CompilerVersions
+@ParameterizedTest(name = "{1} with {0}: {displayName}")
+@ArgumentsSource(GradleAndCompilerVersionArgumentsProvider::class)
+annotation class GradleWithCompilerVersionTest
+
+class GradleAndCompilerVersionArgumentsProvider : GradleArgumentsProvider() {
+    override fun provideArguments(
+        parameters: ParameterDeclarations,
+        context: ExtensionContext,
+    ): Stream<out Arguments> {
+        val compilerVersions = compilerVersions(context)
+        val gradleVersions = gradleVersions(context)
+        val versionFilter = context.getConfigurationParameter("gradle.integration.tests.gradle.version.filter")
+            .map { GradleVersion.version(it) }
+
+        return compilerVersions
+            .flatMap { compilerVersion ->
+                gradleVersions.map { gradleVersion ->
+                    gradleVersion to compilerVersion
+                }
+            }
+            .asSequence()
+            .filter { pair -> versionFilter.map { pair.first == it }.orElse(true) }
+            .map { it: Pair<GradleVersion, String> ->
+                Arguments.of(it.first, it.second)
+            }
+            .run {
+                /* We only take the last configuration in smoke test mode */
+                if (!testFederationAllTestsRequested) toList().takeLast(1)
+                else toList()
+            }
+            .stream()
+    }
+
+    protected fun compilerVersions(context: ExtensionContext): Set<String> {
+        val versionsAnnotation = findAnnotationOrNull<CompilerVersions>(context)
+
+        val defaultVersions = listOf(TestVersions.Kotlin.STABLE_RELEASE, TestVersions.Kotlin.CURRENT)
+        val baseVersions = if (versionsAnnotation == null || versionsAnnotation.versions.isEmpty()) {
+            defaultVersions
+        } else {
+            versionsAnnotation.versions.map { resolveCompilerVersion(it) }
+        }
+
+        val additionalVersions = versionsAnnotation?.additionalVersions?.map { resolveCompilerVersion(it) } ?: emptyList()
+
+        val allVersions = (baseVersions + additionalVersions).distinct()
+
+        if (!testFederationAllTestsRequested) {
+            return setOf(allVersions.last())
+        }
+
+        return allVersions.toSet()
+    }
+
+    companion object {
+        private fun resolveCompilerVersion(version: String): String = when (version.uppercase()) {
+            CompilerVersions.CURRENT -> TestVersions.Kotlin.CURRENT
+            "STABLE_RELEASE", "STABLE" -> TestVersions.Kotlin.STABLE_RELEASE
+            else -> version
+        }
+    }
+}
+
+/**
+ * Disables a parametrized test if any of argument providers doesn't have arguments to provide.
+ * When gradle.integration.tests.gradle.version.filter property is used, all arguments of a GradleArgumentsProvider may be filtered out.
+ * If such a test is not disabled, it will fail with initialization error (unless it allows zero invocations).
+ */
+class DisabledIfNoArgumentsProvided : ExecutionCondition {
+    override fun evaluateExecutionCondition(context: ExtensionContext): ConditionEvaluationResult {
+        if (!context.testMethod.isPresent) {
+            return ConditionEvaluationResult.enabled("The execution condition is only applicable to test methods")
+        }
+
+        if (gradleTestVersionFilter == null) {
+            return ConditionEvaluationResult.enabled("No Gradle version filter provided")
+        }
+
+        /*
+        Such tests do not fail without arguments.
+        Their arguments may also be filtered out by test sharding (see 'ParameterizedTestSharding'), which shall not skip the test.
+         */
+        val parameterizedTest = AnnotationUtils.findAnnotation(context.requiredTestMethod, ParameterizedTest::class.java).orElse(null)
+        if (parameterizedTest?.allowZeroInvocations == true) {
+            return ConditionEvaluationResult.enabled("The test allows zero invocations")
+        }
+
+        val argumentProviders = AnnotationUtils.findRepeatableAnnotations(context.requiredTestMethod, ArgumentsSource::class.java)
+            .map(ArgumentsSource::value)
+            .map { instantiateArgumentsProvider(it.java) }
+            .map { provider -> AnnotationConsumerInitializer.initialize(context.requiredTestMethod, provider) }
+        val parameterDeclarations = createParameterDeclarations(context)
+
+        return if (argumentProviders.any { it.provideArguments(parameterDeclarations, context).count() == 0L })
+            ConditionEvaluationResult.disabled("No arguments provided")
+        else
+            ConditionEvaluationResult.enabled("Arguments provided")
+    }
+
+    private fun createParameterDeclarations(context: ExtensionContext): ParameterDeclarations {
+        val source = context.requiredTestMethod
+        val declarations = source.parameters.mapIndexed { index, parameter ->
+            object : ParameterDeclaration {
+                override fun getAnnotatedElement() = parameter
+                override fun getParameterType() = parameter.type
+                override fun getParameterIndex() = index
+                override fun getParameterName(): Optional<String> =
+                    if (parameter.isNamePresent) Optional.of(parameter.name) else Optional.empty()
+            }
+        }
+        return object : ParameterDeclarations {
+            override fun getAll(): List<ParameterDeclaration> = declarations
+            override fun getFirst(): Optional<ParameterDeclaration> = Optional.ofNullable(declarations.firstOrNull())
+            override fun get(parameterIndex: Int): Optional<ParameterDeclaration> =
+                Optional.ofNullable(declarations.getOrNull(parameterIndex))
+
+            override fun getSourceElement() = source
+            override fun getSourceElementDescription(): String = source.toGenericString()
+        }
+    }
+
+    private fun instantiateArgumentsProvider(clazz: Class<out ArgumentsProvider>): ArgumentsProvider {
+        try {
+            return ReflectionUtils.newInstance(clazz)
+        } catch (ex: Exception) {
+            if (ex is NoSuchMethodException) {
+                val message = String.format(
+                    "Failed to find a no-argument constructor for ArgumentsProvider [%s]. "
+                            + "Please ensure that a no-argument constructor exists and "
+                            + "that the class is either a top-level class or a static nested class",
+                    clazz.getName()
+                )
+                throw JUnitException(message, ex)
+            }
+            throw ex
+        }
+    }
+}

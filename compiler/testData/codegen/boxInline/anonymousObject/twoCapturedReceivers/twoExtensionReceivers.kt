@@ -1,3 +1,4 @@
+// NO_CHECK_LAMBDA_INLINING
 // FILE: 1.kt
 
 package test
@@ -16,7 +17,6 @@ fun Person.companyName(call: () -> String) = call()
 
 // FILE: 2.kt
 
-//NO_CHECK_LAMBDA_INLINING
 import test.*
 
 fun box(): String {

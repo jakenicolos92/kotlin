@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 interface Tr
 
 class A { companion object }
@@ -17,3 +18,6 @@ fun test() {
     A.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>f5<!>()
     B.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>f5<!>()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, funWithExtensionReceiver, functionDeclaration,
+interfaceDeclaration, nullableType, objectDeclaration */

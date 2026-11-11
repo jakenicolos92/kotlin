@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 abstract public class A extends java.util.ArrayList<String> {
@@ -9,3 +10,5 @@ abstract public class A extends java.util.ArrayList<String> {
 class B : A() {
     <!OVERRIDING_FINAL_MEMBER!>override<!> val size: Int = 1
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, integerLiteral, javaType, override, propertyDeclaration */

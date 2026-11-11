@@ -1,0 +1,7 @@
+// RUN_PIPELINE_TILL: FRONTEND
+// ISSUE: KT-58282
+
+@Deprecated(fun <!ANONYMOUS_FUNCTION_WITH_NAME!>box<!>() = <!DEPRECATION, FUNCTION_CALL_EXPECTED!>foo<!>)
+<!NON_MEMBER_FUNCTION_NO_BODY!>fun foo()<!>
+
+/* GENERATED_FIR_TAGS: functionDeclaration, localFunction */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Derived.java
 import kotlin.jvm.functions.Function0;
 import org.jetbrains.annotations.NotNull;
@@ -20,6 +21,9 @@ class KotlinDerived2 : Derived() {
     override fun <V: Any> foo() {}
 }
 
-fun main(args: Array<String>) {
+fun main() {
     Derived().foo<String>()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, functionDeclaration, interfaceDeclaration, javaFunction, javaType,
+nullableType, override, typeConstraint, typeParameter */

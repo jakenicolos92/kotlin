@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-12982 Incorrect type inference when accessing mutable protected property via reflection
 
 import kotlin.reflect.KMutableProperty1
@@ -20,3 +21,5 @@ open class B : A() {
 }
 
 class C : B()
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, functionDeclaration, integerLiteral, propertyDeclaration */

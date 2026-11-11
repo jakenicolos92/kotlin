@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun use(arg: String?) = arg
 
 fun sample(): String? {
@@ -22,3 +23,6 @@ fun sample(): String? {
     } finally {}
     return null
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, ifExpression, localProperty, nullableType, propertyDeclaration,
+stringLiteral, tryExpression */

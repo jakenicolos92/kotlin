@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: Super.java
 
 interface Super {
@@ -14,3 +15,5 @@ interface Sub extends Super {
 class SubSub : Sub {
     override fun foo(subName: Long) {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaType, override */

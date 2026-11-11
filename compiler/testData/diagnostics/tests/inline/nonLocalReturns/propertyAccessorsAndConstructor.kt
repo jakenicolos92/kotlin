@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 inline fun <R> doCall(p: () -> R) {
     p()
 }
@@ -22,3 +23,6 @@ class A {
             result = v
         }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, functionDeclaration, functionalType, getter, inline, integerLiteral,
+lambdaLiteral, multiplicativeExpression, nullableType, propertyDeclaration, setter, thisExpression, typeParameter */

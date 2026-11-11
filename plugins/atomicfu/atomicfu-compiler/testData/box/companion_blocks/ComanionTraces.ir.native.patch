@@ -1,0 +1,180 @@
+--- a/ComanionTraces.ir.txt
++++ b/ComanionTraces.ir.native.txt
+@@ -1,26 +1,42 @@
+ FILE fqName:<root> fileName:/ComanionTraces.kt
+-  PROPERTY ATOMICFU_GENERATED_PROPERTY name:a visibility:private modality:FINAL [val]
+-    FIELD ATOMICFU_GENERATED_FIELD name:a type:java.util.concurrent.atomic.AtomicInteger visibility:private [final,static]
++  PROPERTY ATOMICFU_GENERATED_PROPERTY name:a$volatile visibility:private modality:FINAL [var]
++    FIELD ATOMICFU_GENERATED_FIELD name:a$volatile type:kotlin.Int visibility:private [static]
++      annotations:
++        Volatile
+       EXPRESSION_BODY
+-        CONSTRUCTOR_CALL 'public constructor <init> (value: kotlin.Int) declared in java.util.concurrent.atomic.AtomicInteger' type=java.util.concurrent.atomic.AtomicInteger origin=null
+-          ARG value: CONST Int type=kotlin.Int value=42
+-    FUN ATOMICFU_GENERATED_PROPERTY_ACCESSOR name:<get-a> visibility:private modality:FINAL returnType:java.util.concurrent.atomic.AtomicInteger
+-      correspondingProperty: PROPERTY ATOMICFU_GENERATED_PROPERTY name:a visibility:private modality:FINAL [val]
++        CONST Int type=kotlin.Int value=42
++    FUN ATOMICFU_GENERATED_PROPERTY_ACCESSOR name:<get-a$volatile> visibility:private modality:FINAL returnType:kotlin.Int
++      correspondingProperty: PROPERTY ATOMICFU_GENERATED_PROPERTY name:a$volatile visibility:private modality:FINAL [var]
+       BLOCK_BODY
+-        RETURN type=kotlin.Nothing from='private final fun <get-a> (): java.util.concurrent.atomic.AtomicInteger declared in <root>'
+-          GET_FIELD 'FIELD ATOMICFU_GENERATED_FIELD name:a type:java.util.concurrent.atomic.AtomicInteger visibility:private [final,static] declared in <root>' type=java.util.concurrent.atomic.AtomicInteger origin=null
++        RETURN type=kotlin.Nothing from='private final fun <get-a$volatile> (): kotlin.Int declared in <root>'
++          GET_FIELD 'FIELD ATOMICFU_GENERATED_FIELD name:a$volatile type:kotlin.Int visibility:private [static] declared in <root>' type=kotlin.Int origin=null
++    FUN ATOMICFU_GENERATED_PROPERTY_ACCESSOR name:<set-a$volatile> visibility:private modality:FINAL returnType:kotlin.Unit
++      VALUE_PARAMETER kind:Regular name:value index:0 type:kotlin.Int
++      correspondingProperty: PROPERTY ATOMICFU_GENERATED_PROPERTY name:a$volatile visibility:private modality:FINAL [var]
++      BLOCK_BODY
++        RETURN type=kotlin.Nothing from='private final fun <set-a$volatile> (value: kotlin.Int): kotlin.Unit declared in <root>'
++          SET_FIELD 'FIELD ATOMICFU_GENERATED_FIELD name:a$volatile type:kotlin.Int visibility:private [static] declared in <root>' type=kotlin.Unit origin=null
++            value: GET_VAR 'value: kotlin.Int declared in <root>.<set-a$volatile>' type=kotlin.Int origin=null
+   CLASS CLASS name:TraceTest modality:FINAL visibility:public superTypes:[kotlin.Any]
+     thisReceiver: VALUE_PARAMETER INSTANCE_RECEIVER kind:DispatchReceiver name:<this> type:<root>.TraceTest
+-    PROPERTY ATOMICFU_GENERATED_PROPERTY name:a1 visibility:private modality:FINAL [val]
+-      FIELD ATOMICFU_GENERATED_FIELD name:a1 type:java.util.concurrent.atomic.AtomicInteger visibility:private [final,static]
++    PROPERTY ATOMICFU_GENERATED_PROPERTY name:a1$volatile visibility:private modality:FINAL [var]
++      FIELD ATOMICFU_GENERATED_FIELD name:a1$volatile type:kotlin.Int visibility:private [static]
++        annotations:
++          Volatile
+         EXPRESSION_BODY
+-          CONSTRUCTOR_CALL 'public constructor <init> (value: kotlin.Int) declared in java.util.concurrent.atomic.AtomicInteger' type=java.util.concurrent.atomic.AtomicInteger origin=null
+-            ARG value: CONST Int type=kotlin.Int value=5
+-      FUN ATOMICFU_GENERATED_PROPERTY_ACCESSOR name:<get-a1> visibility:private modality:FINAL returnType:java.util.concurrent.atomic.AtomicInteger [companion]
+-        correspondingProperty: PROPERTY ATOMICFU_GENERATED_PROPERTY name:a1 visibility:private modality:FINAL [val]
++          CONST Int type=kotlin.Int value=5
++      FUN ATOMICFU_GENERATED_PROPERTY_ACCESSOR name:<get-a1$volatile> visibility:private modality:FINAL returnType:kotlin.Int [companion]
++        correspondingProperty: PROPERTY ATOMICFU_GENERATED_PROPERTY name:a1$volatile visibility:private modality:FINAL [var]
+         BLOCK_BODY
+-          RETURN type=kotlin.Nothing from='private final fun <get-a1> (): java.util.concurrent.atomic.AtomicInteger declared in <root>.TraceTest'
+-            GET_FIELD 'FIELD ATOMICFU_GENERATED_FIELD name:a1 type:java.util.concurrent.atomic.AtomicInteger visibility:private [final,static] declared in <root>.TraceTest' type=java.util.concurrent.atomic.AtomicInteger origin=null
++          RETURN type=kotlin.Nothing from='private final fun <get-a1$volatile> (): kotlin.Int declared in <root>.TraceTest'
++            GET_FIELD 'FIELD ATOMICFU_GENERATED_FIELD name:a1$volatile type:kotlin.Int visibility:private [static] declared in <root>.TraceTest' type=kotlin.Int origin=null
++      FUN ATOMICFU_GENERATED_PROPERTY_ACCESSOR name:<set-a1$volatile> visibility:private modality:FINAL returnType:kotlin.Unit [companion]
++        VALUE_PARAMETER kind:Regular name:value index:0 type:kotlin.Int
++        correspondingProperty: PROPERTY ATOMICFU_GENERATED_PROPERTY name:a1$volatile visibility:private modality:FINAL [var]
++        BLOCK_BODY
++          RETURN type=kotlin.Nothing from='private final fun <set-a1$volatile> (value: kotlin.Int): kotlin.Unit declared in <root>.TraceTest'
++            SET_FIELD 'FIELD ATOMICFU_GENERATED_FIELD name:a1$volatile type:kotlin.Int visibility:private [static] declared in <root>.TraceTest' type=kotlin.Unit origin=null
++              value: GET_VAR 'value: kotlin.Int declared in <root>.TraceTest.<set-a1$volatile>' type=kotlin.Int origin=null
+     CONSTRUCTOR visibility:public returnType:<root>.TraceTest [primary]
+       BLOCK_BODY
+         DELEGATING_CONSTRUCTOR_CALL 'public constructor <init> () declared in kotlin.Any'
+@@ -42,19 +58,52 @@
+       BLOCK_BODY
+         VAR name:oldValue type:kotlin.Int [val]
+           TYPE_OP type=kotlin.Int origin=CAST typeOperand=kotlin.Int
+-            CALL 'public final fun get (): kotlin.Int declared in java.util.concurrent.atomic.AtomicInteger' type=kotlin.Int origin=null
+-              ARG <this>: CALL 'private final fun <get-a1> (): java.util.concurrent.atomic.AtomicInteger declared in <root>.TraceTest' type=java.util.concurrent.atomic.AtomicInteger origin=null
++            CALL 'internal final fun atomicGetField <T> (<this>: kotlin.reflect.KMutableProperty0<T of kotlin.concurrent.atomicGetField>): T of kotlin.concurrent.atomicGetField declared in kotlin.concurrent' type=kotlin.Int origin=null
++              TYPE_ARG T: kotlin.Int
++              ARG <this>: RICH_PROPERTY_REFERENCE type=kotlin.reflect.KMutableProperty0<kotlin.Int> origin=null reflectionTarget='private final a1$volatile: kotlin.Int declared in <root>.TraceTest'
++                getter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<get-a1$volatile> visibility:local modality:FINAL returnType:kotlin.Int
++                  BLOCK_BODY
++                    RETURN type=kotlin.Nothing from='local final fun <get-a1$volatile> (): kotlin.Int declared in <root>.TraceTest.testCompanionTrace'
++                      CALL 'private final fun <get-a1$volatile> (): kotlin.Int declared in <root>.TraceTest' type=kotlin.Int origin=null
++                setter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<set-a1$volatile> visibility:local modality:FINAL returnType:kotlin.Unit
++                  VALUE_PARAMETER kind:Regular name:p0 index:0 type:kotlin.Int
++                  BLOCK_BODY
++                    RETURN type=kotlin.Nothing from='local final fun <set-a1$volatile> (p0: kotlin.Int): kotlin.Unit declared in <root>.TraceTest.testCompanionTrace'
++                      CALL 'private final fun <set-a1$volatile> (value: kotlin.Int): kotlin.Unit declared in <root>.TraceTest' type=kotlin.Unit origin=null
++                        ARG value: GET_VAR 'p0: kotlin.Int declared in <root>.TraceTest.testCompanionTrace.<set-a1$volatile>' type=kotlin.Int origin=null
+         VAR name:res type:kotlin.Boolean [val]
+-          CALL 'public final fun compareAndSet (expect: kotlin.Int, update: kotlin.Int): kotlin.Boolean declared in java.util.concurrent.atomic.AtomicInteger' type=kotlin.Boolean origin=null
+-            ARG <this>: CALL 'private final fun <get-a1> (): java.util.concurrent.atomic.AtomicInteger declared in <root>.TraceTest' type=java.util.concurrent.atomic.AtomicInteger origin=null
+-            ARG expect: GET_VAR 'val oldValue: kotlin.Int declared in <root>.TraceTest.testCompanionTrace' type=kotlin.Int origin=null
+-            ARG update: CALL 'public final fun times (other: kotlin.Int): kotlin.Int declared in kotlin.Int' type=kotlin.Int origin=MUL
++          CALL 'internal final fun compareAndSetField <T> (<this>: kotlin.reflect.KMutableProperty0<T of kotlin.concurrent.compareAndSetField>, expectedValue: T of kotlin.concurrent.compareAndSetField, newValue: T of kotlin.concurrent.compareAndSetField): kotlin.Boolean declared in kotlin.concurrent' type=kotlin.Boolean origin=null
++            TYPE_ARG T: kotlin.Int
++            ARG <this>: RICH_PROPERTY_REFERENCE type=kotlin.reflect.KMutableProperty0<kotlin.Int> origin=null reflectionTarget='private final a1$volatile: kotlin.Int declared in <root>.TraceTest'
++              getter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<get-a1$volatile> visibility:local modality:FINAL returnType:kotlin.Int
++                BLOCK_BODY
++                  RETURN type=kotlin.Nothing from='local final fun <get-a1$volatile> (): kotlin.Int declared in <root>.TraceTest.testCompanionTrace'
++                    CALL 'private final fun <get-a1$volatile> (): kotlin.Int declared in <root>.TraceTest' type=kotlin.Int origin=null
++              setter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<set-a1$volatile> visibility:local modality:FINAL returnType:kotlin.Unit
++                VALUE_PARAMETER kind:Regular name:p0 index:0 type:kotlin.Int
++                BLOCK_BODY
++                  RETURN type=kotlin.Nothing from='local final fun <set-a1$volatile> (p0: kotlin.Int): kotlin.Unit declared in <root>.TraceTest.testCompanionTrace'
++                    CALL 'private final fun <set-a1$volatile> (value: kotlin.Int): kotlin.Unit declared in <root>.TraceTest' type=kotlin.Unit origin=null
++                      ARG value: GET_VAR 'p0: kotlin.Int declared in <root>.TraceTest.testCompanionTrace.<set-a1$volatile>' type=kotlin.Int origin=null
++            ARG expectedValue: GET_VAR 'val oldValue: kotlin.Int declared in <root>.TraceTest.testCompanionTrace' type=kotlin.Int origin=null
++            ARG newValue: CALL 'public final fun times (other: kotlin.Int): kotlin.Int declared in kotlin.Int' type=kotlin.Int origin=MUL
+               ARG <this>: GET_VAR 'val oldValue: kotlin.Int declared in <root>.TraceTest.testCompanionTrace' type=kotlin.Int origin=null
+               ARG other: CONST Int type=kotlin.Int value=10
+         VAR name:newValue type:kotlin.Int [val]
+           TYPE_OP type=kotlin.Int origin=CAST typeOperand=kotlin.Int
+-            CALL 'public final fun get (): kotlin.Int declared in java.util.concurrent.atomic.AtomicInteger' type=kotlin.Int origin=null
+-              ARG <this>: CALL 'private final fun <get-a1> (): java.util.concurrent.atomic.AtomicInteger declared in <root>.TraceTest' type=java.util.concurrent.atomic.AtomicInteger origin=null
++            CALL 'internal final fun atomicGetField <T> (<this>: kotlin.reflect.KMutableProperty0<T of kotlin.concurrent.atomicGetField>): T of kotlin.concurrent.atomicGetField declared in kotlin.concurrent' type=kotlin.Int origin=null
++              TYPE_ARG T: kotlin.Int
++              ARG <this>: RICH_PROPERTY_REFERENCE type=kotlin.reflect.KMutableProperty0<kotlin.Int> origin=null reflectionTarget='private final a1$volatile: kotlin.Int declared in <root>.TraceTest'
++                getter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<get-a1$volatile> visibility:local modality:FINAL returnType:kotlin.Int
++                  BLOCK_BODY
++                    RETURN type=kotlin.Nothing from='local final fun <get-a1$volatile> (): kotlin.Int declared in <root>.TraceTest.testCompanionTrace'
++                      CALL 'private final fun <get-a1$volatile> (): kotlin.Int declared in <root>.TraceTest' type=kotlin.Int origin=null
++                setter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<set-a1$volatile> visibility:local modality:FINAL returnType:kotlin.Unit
++                  VALUE_PARAMETER kind:Regular name:p0 index:0 type:kotlin.Int
++                  BLOCK_BODY
++                    RETURN type=kotlin.Nothing from='local final fun <set-a1$volatile> (p0: kotlin.Int): kotlin.Unit declared in <root>.TraceTest.testCompanionTrace'
++                      CALL 'private final fun <set-a1$volatile> (value: kotlin.Int): kotlin.Unit declared in <root>.TraceTest' type=kotlin.Unit origin=null
++                        ARG value: GET_VAR 'p0: kotlin.Int declared in <root>.TraceTest.testCompanionTrace.<set-a1$volatile>' type=kotlin.Int origin=null
+   FUN name:box visibility:public modality:FINAL returnType:kotlin.String
+     BLOCK_BODY
+       CALL 'private final fun test (): kotlin.Unit declared in <root>' type=kotlin.Unit origin=null
+@@ -68,17 +117,50 @@
+     BLOCK_BODY
+       VAR name:oldValue type:kotlin.Int [val]
+         TYPE_OP type=kotlin.Int origin=CAST typeOperand=kotlin.Int
+-          CALL 'public final fun get (): kotlin.Int declared in java.util.concurrent.atomic.AtomicInteger' type=kotlin.Int origin=null
+-            ARG <this>: CALL 'private final fun <get-a> (): java.util.concurrent.atomic.AtomicInteger declared in <root>' type=java.util.concurrent.atomic.AtomicInteger origin=null
++          CALL 'internal final fun atomicGetField <T> (<this>: kotlin.reflect.KMutableProperty0<T of kotlin.concurrent.atomicGetField>): T of kotlin.concurrent.atomicGetField declared in kotlin.concurrent' type=kotlin.Int origin=null
++            TYPE_ARG T: kotlin.Int
++            ARG <this>: RICH_PROPERTY_REFERENCE type=kotlin.reflect.KMutableProperty0<kotlin.Int> origin=null reflectionTarget='private final a$volatile: kotlin.Int declared in <root>'
++              getter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<get-a$volatile> visibility:local modality:FINAL returnType:kotlin.Int
++                BLOCK_BODY
++                  RETURN type=kotlin.Nothing from='local final fun <get-a$volatile> (): kotlin.Int declared in <root>.testExtensionTrace'
++                    CALL 'private final fun <get-a$volatile> (): kotlin.Int declared in <root>' type=kotlin.Int origin=null
++              setter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<set-a$volatile> visibility:local modality:FINAL returnType:kotlin.Unit
++                VALUE_PARAMETER kind:Regular name:p0 index:0 type:kotlin.Int
++                BLOCK_BODY
++                  RETURN type=kotlin.Nothing from='local final fun <set-a$volatile> (p0: kotlin.Int): kotlin.Unit declared in <root>.testExtensionTrace'
++                    CALL 'private final fun <set-a$volatile> (value: kotlin.Int): kotlin.Unit declared in <root>' type=kotlin.Unit origin=null
++                      ARG value: GET_VAR 'p0: kotlin.Int declared in <root>.testExtensionTrace.<set-a$volatile>' type=kotlin.Int origin=null
+       VAR name:res type:kotlin.Boolean [val]
+-        CALL 'public final fun compareAndSet (expect: kotlin.Int, update: kotlin.Int): kotlin.Boolean declared in java.util.concurrent.atomic.AtomicInteger' type=kotlin.Boolean origin=null
+-          ARG <this>: CALL 'private final fun <get-a> (): java.util.concurrent.atomic.AtomicInteger declared in <root>' type=java.util.concurrent.atomic.AtomicInteger origin=null
+-          ARG expect: GET_VAR 'val oldValue: kotlin.Int declared in <root>.testExtensionTrace' type=kotlin.Int origin=null
+-          ARG update: CALL 'public final fun times (other: kotlin.Int): kotlin.Int declared in kotlin.Int' type=kotlin.Int origin=MUL
++        CALL 'internal final fun compareAndSetField <T> (<this>: kotlin.reflect.KMutableProperty0<T of kotlin.concurrent.compareAndSetField>, expectedValue: T of kotlin.concurrent.compareAndSetField, newValue: T of kotlin.concurrent.compareAndSetField): kotlin.Boolean declared in kotlin.concurrent' type=kotlin.Boolean origin=null
++          TYPE_ARG T: kotlin.Int
++          ARG <this>: RICH_PROPERTY_REFERENCE type=kotlin.reflect.KMutableProperty0<kotlin.Int> origin=null reflectionTarget='private final a$volatile: kotlin.Int declared in <root>'
++            getter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<get-a$volatile> visibility:local modality:FINAL returnType:kotlin.Int
++              BLOCK_BODY
++                RETURN type=kotlin.Nothing from='local final fun <get-a$volatile> (): kotlin.Int declared in <root>.testExtensionTrace'
++                  CALL 'private final fun <get-a$volatile> (): kotlin.Int declared in <root>' type=kotlin.Int origin=null
++            setter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<set-a$volatile> visibility:local modality:FINAL returnType:kotlin.Unit
++              VALUE_PARAMETER kind:Regular name:p0 index:0 type:kotlin.Int
++              BLOCK_BODY
++                RETURN type=kotlin.Nothing from='local final fun <set-a$volatile> (p0: kotlin.Int): kotlin.Unit declared in <root>.testExtensionTrace'
++                  CALL 'private final fun <set-a$volatile> (value: kotlin.Int): kotlin.Unit declared in <root>' type=kotlin.Unit origin=null
++                    ARG value: GET_VAR 'p0: kotlin.Int declared in <root>.testExtensionTrace.<set-a$volatile>' type=kotlin.Int origin=null
++          ARG expectedValue: GET_VAR 'val oldValue: kotlin.Int declared in <root>.testExtensionTrace' type=kotlin.Int origin=null
++          ARG newValue: CALL 'public final fun times (other: kotlin.Int): kotlin.Int declared in kotlin.Int' type=kotlin.Int origin=MUL
+             ARG <this>: GET_VAR 'val oldValue: kotlin.Int declared in <root>.testExtensionTrace' type=kotlin.Int origin=null
+             ARG other: CONST Int type=kotlin.Int value=10
+       VAR name:newValue type:kotlin.Int [val]
+         TYPE_OP type=kotlin.Int origin=CAST typeOperand=kotlin.Int
+-          CALL 'public final fun get (): kotlin.Int declared in java.util.concurrent.atomic.AtomicInteger' type=kotlin.Int origin=null
+-            ARG <this>: CALL 'private final fun <get-a> (): java.util.concurrent.atomic.AtomicInteger declared in <root>' type=java.util.concurrent.atomic.AtomicInteger origin=null
++          CALL 'internal final fun atomicGetField <T> (<this>: kotlin.reflect.KMutableProperty0<T of kotlin.concurrent.atomicGetField>): T of kotlin.concurrent.atomicGetField declared in kotlin.concurrent' type=kotlin.Int origin=null
++            TYPE_ARG T: kotlin.Int
++            ARG <this>: RICH_PROPERTY_REFERENCE type=kotlin.reflect.KMutableProperty0<kotlin.Int> origin=null reflectionTarget='private final a$volatile: kotlin.Int declared in <root>'
++              getter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<get-a$volatile> visibility:local modality:FINAL returnType:kotlin.Int
++                BLOCK_BODY
++                  RETURN type=kotlin.Nothing from='local final fun <get-a$volatile> (): kotlin.Int declared in <root>.testExtensionTrace'
++                    CALL 'private final fun <get-a$volatile> (): kotlin.Int declared in <root>' type=kotlin.Int origin=null
++              setter: FUN LOCAL_FUNCTION_FOR_LAMBDA name:<set-a$volatile> visibility:local modality:FINAL returnType:kotlin.Unit
++                VALUE_PARAMETER kind:Regular name:p0 index:0 type:kotlin.Int
++                BLOCK_BODY
++                  RETURN type=kotlin.Nothing from='local final fun <set-a$volatile> (p0: kotlin.Int): kotlin.Unit declared in <root>.testExtensionTrace'
++                    CALL 'private final fun <set-a$volatile> (value: kotlin.Int): kotlin.Unit declared in <root>' type=kotlin.Unit origin=null
++                      ARG value: GET_VAR 'p0: kotlin.Int declared in <root>.testExtensionTrace.<set-a$volatile>' type=kotlin.Int origin=null

@@ -16,18 +16,21 @@
 
 package org.jetbrains.kotlin.resolve.scopes
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.utils.Printer
 
+@K1Deprecation
 class LexicalScopeImpl @JvmOverloads constructor(
-        parent: HierarchicalScope,
-        override val ownerDescriptor: DeclarationDescriptor,
-        override val isOwnerDescriptorAccessibleByLabel: Boolean,
-        override val implicitReceiver: ReceiverParameterDescriptor?,
-        override val kind: LexicalScopeKind,
-        redeclarationChecker: LocalRedeclarationChecker = LocalRedeclarationChecker.DO_NOTHING,
-        initialize: LexicalScopeImpl.InitializeHandler.() -> Unit = {}
-): LexicalScope, LexicalScopeStorage(parent, redeclarationChecker) {
+    parent: HierarchicalScope,
+    override val ownerDescriptor: DeclarationDescriptor,
+    override val isOwnerDescriptorAccessibleByLabel: Boolean,
+    override val implicitReceiver: ReceiverParameterDescriptor?,
+    override val contextReceiversGroup: List<ReceiverParameterDescriptor>,
+    override val kind: LexicalScopeKind,
+    redeclarationChecker: LocalRedeclarationChecker = LocalRedeclarationChecker.DO_NOTHING,
+    initialize: LexicalScopeImpl.InitializeHandler.() -> Unit = {}
+) : LexicalScope, LexicalScopeStorage(parent, redeclarationChecker) {
 
     init {
         InitializeHandler().initialize()
@@ -36,8 +39,18 @@ class LexicalScopeImpl @JvmOverloads constructor(
     override fun toString(): String = kind.toString()
 
     override fun printStructure(p: Printer) {
-        p.println(this::class.java.simpleName, ": ", kind, "; for descriptor: ", ownerDescriptor.name,
-                  " with implicitReceiver: ", implicitReceiver?.value ?: "NONE", " {")
+        p.println(
+            this::class.java.simpleName,
+            ": ",
+            kind,
+            "; for descriptor: ",
+            ownerDescriptor.name,
+            " with implicitReceiver: ",
+            implicitReceiver?.value ?: "NONE",
+            " with contextReceiversGroup: ",
+            if (contextReceiversGroup.isEmpty()) "NONE" else contextReceiversGroup.joinToString { it.value.toString() },
+            " {"
+        )
         p.pushIndent()
 
         p.print("parent = ")
@@ -49,14 +62,14 @@ class LexicalScopeImpl @JvmOverloads constructor(
 
     inner class InitializeHandler() {
 
-        fun addVariableDescriptor(variableDescriptor: VariableDescriptor): Unit
-                = this@LexicalScopeImpl.addVariableOrClassDescriptor(variableDescriptor)
+        fun addVariableDescriptor(variableDescriptor: VariableDescriptor): Unit =
+            this@LexicalScopeImpl.addVariableOrClassDescriptor(variableDescriptor)
 
-        fun addFunctionDescriptor(functionDescriptor: FunctionDescriptor): Unit
-                = this@LexicalScopeImpl.addFunctionDescriptorInternal(functionDescriptor)
+        fun addFunctionDescriptor(functionDescriptor: FunctionDescriptor): Unit =
+            this@LexicalScopeImpl.addFunctionDescriptorInternal(functionDescriptor)
 
-        fun addClassifierDescriptor(classifierDescriptor: ClassifierDescriptor): Unit
-                = this@LexicalScopeImpl.addVariableOrClassDescriptor(classifierDescriptor)
+        fun addClassifierDescriptor(classifierDescriptor: ClassifierDescriptor): Unit =
+            this@LexicalScopeImpl.addVariableOrClassDescriptor(classifierDescriptor)
 
     }
 }

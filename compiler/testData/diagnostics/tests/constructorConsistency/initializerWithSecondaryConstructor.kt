@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 
 private const val A = 0L
 private val B = 0L
@@ -18,3 +19,6 @@ class Foo {
 
     constructor()
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, const, functionDeclaration, init, nullableType, propertyDeclaration,
+secondaryConstructor */

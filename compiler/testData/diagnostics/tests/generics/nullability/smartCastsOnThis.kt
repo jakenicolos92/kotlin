@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION,-UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION,-UNUSED_VARIABLE
 
 fun <T : CharSequence?> T.bar1() {}
 fun CharSequence?.bar2() {}
@@ -15,7 +16,7 @@ fun <T : String?> T.foo() {
 
         bar1()
         bar2()
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>bar3<!>()
+        bar3()
         bar4()
 
 
@@ -25,11 +26,14 @@ fun <T : String?> T.foo() {
     <!UNSAFE_CALL!>length<!>
 
     if (this is String) {
-        <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>length<!>
+        length
         this<!UNNECESSARY_SAFE_CALL!>?.<!>length
 
         bar1()
         bar2()
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>bar3<!>()
+        bar3()
     }
 }
+
+/* GENERATED_FIR_TAGS: dnnType, equalityExpression, funWithExtensionReceiver, functionDeclaration, ifExpression,
+isExpression, nullableType, safeCall, smartcast, thisExpression, typeConstraint, typeParameter */

@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 495
+// IGNORE_BACKEND: JS_IR
 // FILE: foo.kt
 
 package foo

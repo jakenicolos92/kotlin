@@ -21,10 +21,10 @@ import org.jetbrains.kotlin.descriptors.annotations.Annotations
 import org.jetbrains.kotlin.descriptors.impl.PropertyDescriptorImpl
 import org.jetbrains.kotlin.descriptors.impl.VariableDescriptorImpl
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.name.NameUtils
 import org.jetbrains.kotlin.resolve.constants.ConstantValue
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.TypeSubstitutor
-import java.lang.UnsupportedOperationException
 
 interface IrDelegateDescriptor : PropertyDescriptor
 
@@ -45,43 +45,41 @@ interface IrImplementingDelegateDescriptor : IrDelegateDescriptor {
 }
 
 abstract class IrDelegateDescriptorBase(
-        containingDeclaration: DeclarationDescriptor,
-        name: Name,
-        delegateType: KotlinType
-) : PropertyDescriptorImpl(
+    containingDeclaration: DeclarationDescriptor,
+    name: Name,
+    delegateType: KotlinType,
+    annotations: Annotations = Annotations.EMPTY
+) :
+    PropertyDescriptorImpl(
         containingDeclaration,
         /* original = */ null,
-        Annotations.EMPTY,
+        annotations,
         Modality.FINAL,
-        Visibilities.PRIVATE,
+        DescriptorVisibilities.PRIVATE,
         /* isVar = */ false,
         name,
         CallableMemberDescriptor.Kind.SYNTHESIZED,
         SourceElement.NO_SOURCE,
         /* lateInit = */ false,
         /* isConst = */ false,
-        /* isHeader = */ false,
-        /* isImpl = */ false,
+        /* isExpect = */ false,
+        /* isActual = */ false,
         /* isExternal = */ false,
         /* isDelegated = */ true
-) {
+    ) {
     init {
-        val typeParameters: List<TypeParameterDescriptor> = emptyList()
-        val extensionReceiverParameter: ReceiverParameterDescriptor? = null
-        val dispatchReceiverParameter =
-                if (containingDeclaration is ClassDescriptor)
-                    containingDeclaration.thisAsReceiverParameter
-                else null
-        setType(delegateType, typeParameters, dispatchReceiverParameter, extensionReceiverParameter)
+        setType(delegateType, emptyList(), (containingDeclaration as? ClassDescriptor)?.thisAsReceiverParameter, null, emptyList())
     }
 
-    override final fun setOutType(outType: KotlinType?) {
+    final override fun setOutType(outType: KotlinType?) {
         super.setOutType(outType)
     }
 
     override fun getCompileTimeInitializer(): ConstantValue<*>? = null
 
-    override fun getVisibility(): Visibility = Visibilities.PRIVATE
+    override fun cleanCompileTimeInitializerCache() {}
+
+    override fun getVisibility(): DescriptorVisibility = DescriptorVisibilities.PRIVATE
 
     override fun substitute(substitutor: TypeSubstitutor): PropertyDescriptor {
         throw UnsupportedOperationException("Property delegate descriptor shouldn't be substituted: $this")
@@ -90,55 +88,55 @@ abstract class IrDelegateDescriptorBase(
     override fun isVar(): Boolean = false
 
     override fun <R, D> accept(visitor: DeclarationDescriptorVisitor<R, D>, data: D): R =
-            visitor.visitVariableDescriptor(this, data)
+        visitor.visitPropertyDescriptor(this, data)
 }
 
 class IrPropertyDelegateDescriptorImpl(
-        override val correspondingProperty: PropertyDescriptor,
-        delegateType: KotlinType,
-        override val kPropertyType: KotlinType
-) : IrDelegateDescriptorBase(
+    override val correspondingProperty: PropertyDescriptor,
+    delegateType: KotlinType,
+    override val kPropertyType: KotlinType
+) :
+    IrDelegateDescriptorBase(
         correspondingProperty.containingDeclaration,
-        getDelegateName(correspondingProperty.name),
-        delegateType
-), IrPropertyDelegateDescriptor
+        NameUtils.propertyDelegateName(correspondingProperty.name),
+        delegateType,
+        correspondingProperty.delegateField?.annotations ?: Annotations.EMPTY
+    ),
+    IrPropertyDelegateDescriptor
 
 class IrImplementingDelegateDescriptorImpl(
-        containingDeclaration: ClassDescriptor,
-        delegateType: KotlinType,
-        override val correspondingSuperType: KotlinType
-) : IrDelegateDescriptorBase(
+    containingDeclaration: ClassDescriptor,
+    delegateType: KotlinType,
+    override val correspondingSuperType: KotlinType,
+    number: Int
+) :
+    IrDelegateDescriptorBase(
         containingDeclaration,
-        getDelegateName(containingDeclaration, correspondingSuperType),
+        NameUtils.delegateFieldName(number),
         delegateType
-), IrImplementingDelegateDescriptor
-
-internal fun getDelegateName(name: Name): Name =
-        Name.identifier(name.asString() + "\$delegate")
-
-internal fun getDelegateName(classDescriptor: ClassDescriptor, superType: KotlinType): Name =
-        Name.identifier(classDescriptor.name.asString() + "\$" +
-                        (superType.constructor.declarationDescriptor?.name ?: "\$") +
-                        "\$delegate")
+    ),
+    IrImplementingDelegateDescriptor
 
 class IrLocalDelegatedPropertyDelegateDescriptorImpl(
-        override val correspondingLocalProperty: VariableDescriptorWithAccessors,
-        delegateType: KotlinType,
-        override val kPropertyType: KotlinType
+    override val correspondingLocalProperty: VariableDescriptorWithAccessors,
+    delegateType: KotlinType,
+    override val kPropertyType: KotlinType
 ) : IrLocalDelegatedPropertyDelegateDescriptor,
-        VariableDescriptorImpl(
-                correspondingLocalProperty.containingDeclaration,
-                Annotations.EMPTY,
-                getDelegateName(correspondingLocalProperty.name),
-                delegateType,
-                org.jetbrains.kotlin.descriptors.SourceElement.NO_SOURCE
-        ) {
+    VariableDescriptorImpl(
+        correspondingLocalProperty.containingDeclaration,
+        Annotations.EMPTY,
+        NameUtils.propertyDelegateName(correspondingLocalProperty.name),
+        delegateType,
+        SourceElement.NO_SOURCE
+    ) {
 
     override fun getCompileTimeInitializer(): ConstantValue<*>? = null
+    override fun cleanCompileTimeInitializerCache() {}
     override fun isVar(): Boolean = false
-    override fun substitute(substitutor: TypeSubstitutor): VariableDescriptor? = throw UnsupportedOperationException()
-    override fun getVisibility(): Visibility = Visibilities.LOCAL
+    override fun isLateInit(): Boolean = false
+    override fun substitute(substitutor: TypeSubstitutor): VariableDescriptor = throw UnsupportedOperationException()
+    override fun getVisibility(): DescriptorVisibility = DescriptorVisibilities.LOCAL
 
     override fun <R : Any?, D : Any?> accept(visitor: DeclarationDescriptorVisitor<R, D>, data: D): R =
-            visitor.visitVariableDescriptor(this, data)
+        visitor.visitVariableDescriptor(this, data)
 }

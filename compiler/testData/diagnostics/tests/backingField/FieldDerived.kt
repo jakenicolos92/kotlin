@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class Base {
     open val x: Int = 1
         get() = field - 1
@@ -16,3 +17,5 @@ class NoBackingField: Base() {
     override val x: Int
         get() = 5
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, getter, integerLiteral, override, propertyDeclaration */

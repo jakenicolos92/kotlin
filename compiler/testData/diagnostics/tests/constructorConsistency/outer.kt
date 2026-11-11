@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Outer {
 
     fun foo() = 1
@@ -9,3 +10,5 @@ class Outer {
         val y = foo()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, inner, integerLiteral, propertyDeclaration, thisExpression */

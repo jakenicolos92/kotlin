@@ -1,6 +1,7 @@
+// WITH_KOTLIN_JVM_ANNOTATIONS
 package test;
 
-import org.jetbrains.annotations.*;
+import kotlin.annotations.jvm.*;
 
 public interface LoadIterable<T> {
     public @Mutable Iterable<T> getIterable();

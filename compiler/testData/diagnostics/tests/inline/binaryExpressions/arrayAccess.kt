@@ -1,10 +1,11 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE
 operator inline fun <T, U> Function1<T, U>.get(index : Int) {
 
 }
 
 inline fun <T, U, V> inlineFunWithInvoke(s: (p: T) -> U) {
-    s[1]
+    <!USAGE_IS_NOT_INLINABLE!>s<!>[1]
 }
 
 //noinline
@@ -20,3 +21,6 @@ inline fun <T, U, V, W> inlineFunWithInvoke(s: (p: T, l: U) -> V, ext: T.(p: U, 
     <!USAGE_IS_NOT_INLINABLE!>s<!>[1]
     <!USAGE_IS_NOT_INLINABLE!>ext<!>[1]
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, inline, integerLiteral,
+nullableType, operator, typeParameter, typeWithExtension */

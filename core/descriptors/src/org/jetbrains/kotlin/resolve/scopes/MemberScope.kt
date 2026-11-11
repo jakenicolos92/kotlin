@@ -18,20 +18,25 @@ package org.jetbrains.kotlin.resolve.scopes
 
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.incremental.components.LookupLocation
+import org.jetbrains.kotlin.incremental.components.NoLookupLocation
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.resolve.scopes.MemberScope.Companion.ALL_NAME_FILTER
 import org.jetbrains.kotlin.utils.Printer
+import org.jetbrains.kotlin.utils.addToStdlib.flatMapToNullable
 import java.lang.reflect.Modifier
 
 interface MemberScope : ResolutionScope {
 
-    override fun getContributedVariables(name: Name, location: LookupLocation): Collection<PropertyDescriptor>
-    override fun getContributedFunctions(name: Name, location: LookupLocation): Collection<SimpleFunctionDescriptor>
+    override fun getContributedVariables(name: Name, location: LookupLocation): Collection<@JvmWildcard PropertyDescriptor>
+
+    override fun getContributedFunctions(name: Name, location: LookupLocation): Collection<@JvmWildcard SimpleFunctionDescriptor>
 
     /**
      * These methods may return a superset of an actual names' set
      */
     fun getFunctionNames(): Set<Name>
     fun getVariableNames(): Set<Name>
+    fun getClassifierNames(): Set<Name>?
 
     /**
      * Is supposed to be used in tests and debug only
@@ -43,8 +48,11 @@ interface MemberScope : ResolutionScope {
             p.println("Empty member scope")
         }
 
+        override fun definitelyDoesNotContainName(name: Name): Boolean = true
+
         override fun getFunctionNames() = emptySet<Name>()
         override fun getVariableNames() = emptySet<Name>()
+        override fun getClassifierNames() = emptySet<Name>()
     }
 
     companion object {
@@ -52,12 +60,28 @@ interface MemberScope : ResolutionScope {
     }
 }
 
+fun MemberScope.computeAllNames() = getClassifierNames()?.let { classifierNames ->
+    getFunctionNames().toMutableSet().also {
+        it.addAll(getVariableNames())
+        it.addAll(classifierNames)
+    }
+}
+
+inline fun MemberScope.findFirstFunction(name: String, predicate: (CallableMemberDescriptor) -> Boolean) =
+    getContributedFunctions(Name.identifier(name), NoLookupLocation.FROM_BACKEND).first(predicate)
+
+inline fun MemberScope.findFirstVariable(name: String, predicate: (CallableMemberDescriptor) -> Boolean) =
+    getContributedVariables(Name.identifier(name), NoLookupLocation.FROM_BACKEND).firstOrNull(predicate)
+
+fun Iterable<MemberScope>.flatMapClassifierNamesOrNull(): MutableSet<Name>? =
+        flatMapToNullable(hashSetOf(), MemberScope::getClassifierNames)
+
 /**
  * The same as getDescriptors(kindFilter, nameFilter) but the result is guaranteed to be filtered by kind and name.
  */
 fun MemberScope.getDescriptorsFiltered(
         kindFilter: DescriptorKindFilter = DescriptorKindFilter.ALL,
-        nameFilter: (Name) -> Boolean = { true }
+        nameFilter: (Name) -> Boolean = ALL_NAME_FILTER
 ): Collection<DeclarationDescriptor> {
     if (kindFilter.kindMask == 0) return listOf()
     return getContributedDescriptors(kindFilter, nameFilter).filter { kindFilter.accepts(it) && nameFilter(it.name) }
@@ -102,10 +126,10 @@ class DescriptorKindFilter(
     fun intersect(other: DescriptorKindFilter) = DescriptorKindFilter(kindMask and other.kindMask, excludes + other.excludes)
 
     override fun toString(): String {
-        val predefinedFilterName = DEBUG_PREDEFINED_FILTERS_MASK_NAMES.firstOrNull { it.mask == kindMask } ?.name
+        val predefinedFilterName = DEBUG_PREDEFINED_FILTERS_MASK_NAMES.firstOrNull { it.mask == kindMask }?.name
         val kindString = predefinedFilterName ?: DEBUG_MASK_BIT_NAMES
-                .mapNotNull { if (acceptsKinds(it.mask)) it.name else null }
-                .joinToString(separator = " | ")
+            .mapNotNull { if (acceptsKinds(it.mask)) it.name else null }
+            .joinToString(separator = " | ")
 
         return "DescriptorKindFilter($kindString, $excludes)"
     }
@@ -120,6 +144,24 @@ class DescriptorKindFilter(
             is VariableDescriptor -> VARIABLES_MASK
             else -> 0
         }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as DescriptorKindFilter
+
+        if (excludes != other.excludes) return false
+        if (kindMask != other.kindMask) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = excludes.hashCode()
+        result = 31 * result + kindMask
+        return result
     }
 
     companion object {
@@ -151,21 +193,24 @@ class DescriptorKindFilter(
 
         private class MaskToName(val mask: Int, val name: String)
 
-        private val DEBUG_PREDEFINED_FILTERS_MASK_NAMES = staticFields<DescriptorKindFilter>()
+        // Only used in toString
+        private val DEBUG_PREDEFINED_FILTERS_MASK_NAMES by lazy {
+            staticFields<DescriptorKindFilter>()
                 .mapNotNull { field ->
                     val filter = field.get(null) as? DescriptorKindFilter
                     if (filter != null) MaskToName(filter.kindMask, field.name) else null
                 }
-                .toList()
+        }
 
-        private val DEBUG_MASK_BIT_NAMES = staticFields<DescriptorKindFilter>()
+        private val DEBUG_MASK_BIT_NAMES by lazy {
+            staticFields<DescriptorKindFilter>()
                 .filter { it.type == Integer.TYPE }
                 .mapNotNull { field ->
                     val mask = field.get(null) as Int
                     val isOneBitMask = mask == (mask and (-mask))
                     if (isOneBitMask) MaskToName(mask, field.name) else null
                 }
-                .toList()
+        }
 
         private inline fun <reified T : Any> staticFields() = T::class.java.fields.filter { Modifier.isStatic(it.modifiers) }
     }

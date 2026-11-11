@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface A {
     fun foo()
 }
@@ -16,7 +17,7 @@ fun B.b() {
 
 
 fun test() {
-    fun <T> without(f: T.() -> Unit): Unit = (null!!).f<!UNREACHABLE_CODE!>()<!>
+    fun <T> without(f: T.() -> Unit): Unit = (null!!).f()
     without<B>() b@ {
         object : A {
             override fun foo() {
@@ -25,3 +26,7 @@ fun test() {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, checkNotNullCall, funWithExtensionReceiver, functionDeclaration,
+functionalType, interfaceDeclaration, lambdaLiteral, localFunction, nullableType, override, thisExpression,
+typeParameter, typeWithExtension */

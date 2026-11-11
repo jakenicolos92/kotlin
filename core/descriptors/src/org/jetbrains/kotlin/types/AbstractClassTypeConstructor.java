@@ -17,44 +17,33 @@
 package org.jetbrains.kotlin.types;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
 import org.jetbrains.kotlin.descriptors.ClassDescriptor;
 import org.jetbrains.kotlin.descriptors.ClassifierDescriptor;
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor;
-import org.jetbrains.kotlin.name.FqNameUnsafe;
-import org.jetbrains.kotlin.resolve.DescriptorUtils;
+import org.jetbrains.kotlin.descriptors.ModalityUtilsKt;
 import org.jetbrains.kotlin.resolve.descriptorUtil.DescriptorUtilsKt;
 import org.jetbrains.kotlin.storage.StorageManager;
+import org.jetbrains.kotlin.utils.SmartList;
 
 import java.util.Collection;
 import java.util.Collections;
 
 public abstract class AbstractClassTypeConstructor extends AbstractTypeConstructor implements TypeConstructor {
-    private int hashCode = 0;
-
     public AbstractClassTypeConstructor(@NotNull StorageManager storageManager) {
         super(storageManager);
     }
 
-    @Override
-    public final int hashCode() {
-        int currentHashCode = hashCode;
-        if (currentHashCode != 0) return currentHashCode;
-
-        ClassifierDescriptor descriptor = getDeclarationDescriptor();
-        if (descriptor instanceof ClassDescriptor && hasMeaningfulFqName(descriptor)) {
-            currentHashCode = DescriptorUtils.getFqName(descriptor).hashCode();
-        }
-        else {
-            currentHashCode = System.identityHashCode(this);
-        }
-        hashCode = currentHashCode;
-        return currentHashCode;
-    }
-
     @NotNull
     @Override
-    public abstract ClassifierDescriptor getDeclarationDescriptor();
+    public abstract ClassDescriptor getDeclarationDescriptor();
+
+    @Override
+    public final boolean isFinal() {
+        ClassDescriptor descriptor = getDeclarationDescriptor();
+        return ModalityUtilsKt.isFinalClass(descriptor) && !descriptor.isExpect();
+    }
 
     @NotNull
     @Override
@@ -63,55 +52,55 @@ public abstract class AbstractClassTypeConstructor extends AbstractTypeConstruct
     }
 
     @Override
-    public boolean equals(Object other) {
-        if (!(other instanceof TypeConstructor)) return false;
-
-        // performance optimization: getFqName is slow method
-        if (other.hashCode() != hashCode()) return false;
-
-        // Sometimes we can get two classes from different modules with different counts of type parameters.
-        // To avoid problems in type checker we suppose that it is different type constructors.
-        if (((TypeConstructor) other).getParameters().size() != getParameters().size()) return false;
-
-        ClassifierDescriptor myDescriptor = getDeclarationDescriptor();
-        ClassifierDescriptor otherDescriptor = ((TypeConstructor) other).getDeclarationDescriptor();
-
-        // descriptor for type is created once per module
-        if (myDescriptor == otherDescriptor) return true;
-
-        // All error types have the same descriptor
-        if (!hasMeaningfulFqName(myDescriptor) ||
-            otherDescriptor != null && !hasMeaningfulFqName(otherDescriptor)) {
-            return this == other;
-        }
-
-        if (myDescriptor instanceof ClassDescriptor && otherDescriptor instanceof ClassDescriptor) {
-            FqNameUnsafe otherFqName = DescriptorUtils.getFqName(otherDescriptor);
-            FqNameUnsafe myFqName = DescriptorUtils.getFqName(myDescriptor);
-            return myFqName.equals(otherFqName);
-        }
-
-        return false;
-    }
-
-    private static boolean hasMeaningfulFqName(@NotNull ClassifierDescriptor descriptor) {
-        return !ErrorUtils.isError(descriptor) &&
-               !DescriptorUtils.isLocal(descriptor);
+    protected boolean isSameClassifier(@NotNull ClassifierDescriptor classifier) {
+        return classifier instanceof ClassDescriptor && areFqNamesEqual(getDeclarationDescriptor(), classifier);
     }
 
     @NotNull
     @Override
-    protected Collection<KotlinType> getAdditionalNeighboursInSupertypeGraph() {
+    protected Collection<KotlinType> getAdditionalNeighboursInSupertypeGraph(boolean useCompanions) {
+        DeclarationDescriptor containingDeclaration = getDeclarationDescriptor().getContainingDeclaration();
+
+        if (!(containingDeclaration instanceof ClassDescriptor)) {
+            return Collections.emptyList();
+        }
+
+        Collection<KotlinType> additionalNeighbours = new SmartList<KotlinType>();
+
         // We suppose that there is an edge from C to A in graph when disconnecting loops in supertypes,
         // because such cyclic declarations should be prohibited (see p.10.2.1 of Kotlin spec)
         // class A : B {
         //   static class C {}
         // }
         // class B : A.C {}
-        DeclarationDescriptor containingDeclaration = getDeclarationDescriptor().getContainingDeclaration();
-        if (containingDeclaration instanceof ClassDescriptor) {
-            return Collections.<KotlinType>singleton(((ClassDescriptor) containingDeclaration).getDefaultType());
+        ClassDescriptor containingClassDescriptor = (ClassDescriptor) containingDeclaration;
+        additionalNeighbours.add(containingClassDescriptor.getDefaultType());
+
+        // Also we add edge from host-class to companion object. Together with previous edges
+        // (from nesteds to containing class), they can create visibility loops like in the
+        // following example:
+        //
+        // class ContainingClass {
+        //   open class Nested {}  // to create scope for resolving Nested, we have to resolve CO header
+        //   companion object : Nested() {} // to resolve CO header, we have to resolve Nested
+        // }
+        //
+        // Relates to KT-21515
+        ClassDescriptor companion = containingClassDescriptor.getCompanionObjectDescriptor();
+        if (useCompanions && companion != null) {
+            additionalNeighbours.add(companion.getDefaultType());
         }
-        return Collections.emptyList();
+
+        return additionalNeighbours;
+    }
+
+    @Nullable
+    @Override
+    protected KotlinType defaultSupertypeIfEmpty() {
+        if (KotlinBuiltIns.isSpecialClassWithNoSupertypes(this.getDeclarationDescriptor())) {
+            return null;
+        } else {
+            return getBuiltIns().getAnyType();
+        }
     }
 }

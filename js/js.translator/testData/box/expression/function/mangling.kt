@@ -1,5 +1,6 @@
-// SKIP_MINIFICATION
-// This test uses eval to access root package, therefore DCE can't infer usage of corresponding functions
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
+// KJS_WITH_FULL_RUNTIME
 package foo
 
 private var log = ""

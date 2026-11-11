@@ -3,40 +3,48 @@ function f(x) {
 }
 
 function testCatch1() {
+    var $tmp;
     var result;
     try {
-        result = f("testCatch1");
+        $tmp = f("testCatch1");
         throw new Error();
     } catch (e) {
+        result = $tmp;
     }
     return result;
 }
 
 function testCatch2() {
+    var $tmp;
     var result;
     try {
         throw new Error();
     } catch (e) {
+        result = $tmp;
     }
     return result;
 }
 
 function testFinally() {
+    var $tmp;
     var result;
     try {
-        result = f("testFinally");
+        $tmp = f("testFinally");
     } finally {
+        result = $tmp;
     }
     return result;
 }
 
 function testOuter() {
+    var $tmp;
     var result;
     try {
-        result = f("testOuter");
+        $tmp = f("testOuter");
     } finally {
         f("23")
     }
+    result = $tmp;
     return result;
 }
 

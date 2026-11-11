@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Outer {
     class Nested {
         companion object {
@@ -12,3 +13,6 @@ class Outer {
 
 fun foo() = Outer.Nested.foo()
 fun bar() = Outer.bar()
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, integerLiteral, nestedClass,
+objectDeclaration */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 interface X<T>
 interface A: X<String>
@@ -8,3 +9,6 @@ fun foo(x: B) {
     // Checks that when checking subtypes we search closes corresponding constructor (e.g. with BFS)
     val y: X<Int> = x
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, localProperty, nullableType, propertyDeclaration,
+typeParameter */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 enum class E {
     E1,
     E2 { };
@@ -5,3 +6,5 @@ enum class E {
 
 fun foo() = E.E1
 fun bar() = E.E2
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, functionDeclaration */

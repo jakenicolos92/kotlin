@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface Wise {
     fun doIt(): Int
 }
@@ -16,3 +17,6 @@ class My {
 
     fun bar() = x.doIt()
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, functionalType, integerLiteral,
+interfaceDeclaration, lambdaLiteral, override, propertyDeclaration */

@@ -1,6 +1,7 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-3343 Type mismatch when function literal consists of try-catch with Int returning call, and Unit is expected
 
-fun main(args : Array<String>) {
+fun main() {
     "hello world".prt{
         try{
             print(it)
@@ -17,9 +18,12 @@ fun log(str : String) : Int{
     return 0
 }
 
-fun print(<!UNUSED_PARAMETER!>obj<!>: Any) {}
+fun print(obj: Any) {}
 
 
 fun String.prt(action : (String) -> Unit){
     action(this)
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, integerLiteral, lambdaLiteral,
+localProperty, propertyDeclaration, stringLiteral, thisExpression, tryExpression */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 abstract class A {
     abstract var i: Int
 }
@@ -5,3 +6,5 @@ abstract class A {
 class B() : A() {
     override var i = 1
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, integerLiteral, override, primaryConstructor, propertyDeclaration */

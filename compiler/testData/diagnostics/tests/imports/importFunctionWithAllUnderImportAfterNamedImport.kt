@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //FILE:mainFile.kt
 //----------------------------------------------------------------------------------
 package test
@@ -20,3 +21,5 @@ class TestFun
 package testing.other
 
 fun TestFun() = 12
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, propertyDeclaration */

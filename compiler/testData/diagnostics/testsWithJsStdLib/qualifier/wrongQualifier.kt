@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: a.kt
 @file:JsQualifier(<!WRONG_JS_QUALIFIER!>""<!>)
 
@@ -15,3 +16,15 @@
 
 // FILE: f.kt
 @file:JsQualifier("a.bc.d23._$")
+
+// FILE: g.kt
+typealias JsQ = JsQualifier
+
+// FILE: h.kt
+@file:JsQ(value = <!WRONG_JS_QUALIFIER!>"%^&"<!>)
+
+// FILE: i.kt
+@file:JsQualifier(<!WRONG_JS_QUALIFIER!>"("<!>)
+
+// FILE: j.kt
+@file:JsQualifier(<!WRONG_JS_QUALIFIER!>"{"<!>)

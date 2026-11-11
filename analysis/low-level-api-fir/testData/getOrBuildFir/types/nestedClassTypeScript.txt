@@ -1,0 +1,35 @@
+KT element: KtTypeReference
+FIR element: FirResolvedTypeRefImpl
+FIR source kind: KtRealSourceElementKind
+
+FIR element rendered:
+R|Foo.Nested|
+
+FIR FILE:
+FILE: [ResolvedTo(IMPORTS)] nestedClassTypeScript.kts
+    SCRIPT: [ResolvedTo(RAW_FIR)] <script-nestedClassTypeScript.kts>
+        [ResolvedTo(RAW_FIR)] <script receiver parameter>: R|kotlin/script/experimental/templates/ScriptWithArgs|
+        [ResolvedTo(RAW_FIR)] lval args: R|kotlin/Array<kotlin/String>|
+
+        public open [ResolvedTo(SUPER_TYPES)] [ContainingScriptKey=FirScriptSymbol <script-nestedClassTypeScript.kts>, ScriptTopLevelDeclaration=true] class Foo : R|kotlin/Any| {
+            public? [ResolvedTo(RAW_FIR)] [ContainingClassKey=Foo] constructor(): R|Foo| {
+                LAZY_super<R|kotlin/Any|>
+            }
+
+            public final? [ResolvedTo(RAW_FIR)] [ContainingScriptKey=FirScriptSymbol <script-nestedClassTypeScript.kts>] class Nested : R|kotlin/Any| {
+                public? [ResolvedTo(RAW_FIR)] [ContainingClassKey=Nested] constructor(): R|Foo.Nested| {
+                    LAZY_super<R|kotlin/Any|>
+                }
+
+            }
+
+        }
+
+        public final? [ResolvedTo(TYPES)] [ContainingScriptKey=FirScriptSymbol <script-nestedClassTypeScript.kts>, ScriptTopLevelDeclaration=true] class Bar : R|Foo| {
+            public? [ResolvedTo(RAW_FIR)] [ContainingClassKey=Bar] constructor(): R|Bar| {
+                LAZY_super<Foo>
+            }
+
+            public? final? [ResolvedTo(TYPES)] fun create(): R|Foo.Nested| { LAZY_BLOCK }
+
+        }

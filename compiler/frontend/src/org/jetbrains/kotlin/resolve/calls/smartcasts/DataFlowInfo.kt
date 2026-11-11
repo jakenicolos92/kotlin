@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,22 @@
 
 package org.jetbrains.kotlin.resolve.calls.smartcasts
 
-import com.google.common.collect.SetMultimap
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.util.vavr.ImmutableMap
+import org.jetbrains.kotlin.util.vavr.ImmutableSet
 
 /**
  * This interface is intended to provide and edit information about value nullabilities and possible types.
  * Data flow info is immutable so functions never change it.
  */
+@K1Deprecation
 interface DataFlowInfo {
 
-    val completeNullabilityInfo: Map<DataFlowValue, Nullability>
+    val completeNullabilityInfo: ImmutableMap<DataFlowValue, Nullability>
 
-    val completeTypeInfo: SetMultimap<DataFlowValue, KotlinType>
+    val completeTypeInfo: ImmutableMap<DataFlowValue, ImmutableSet<KotlinType>>
 
     /**
      * Returns collected nullability for the given value, NOT taking its stability into account.
@@ -48,7 +51,7 @@ interface DataFlowInfo {
      * are NOT included. So it's quite possible to get an empty set here.
      * Also, type order in the result set MAKES SENSE so keep it stable and do not change without reason
      */
-    fun getCollectedTypes(key: DataFlowValue): Set<KotlinType>
+    fun getCollectedTypes(key: DataFlowValue, languageVersionSettings: LanguageVersionSettings): Set<KotlinType>
 
     /**
      * Returns possible types for the given value if it's stable.
@@ -58,7 +61,7 @@ interface DataFlowInfo {
      * are NOT included. So it's quite possible to get an empty set here.
      * Also, type order in the result set MAKES SENSE so keep it stable and do not change without reason
      */
-    fun getStableTypes(key: DataFlowValue): Set<KotlinType>
+    fun getStableTypes(key: DataFlowValue, languageVersionSettings: LanguageVersionSettings): Set<KotlinType>
 
     /**
      * Call this function to clear all data flow information about
@@ -98,7 +101,8 @@ interface DataFlowInfo {
     }
 }
 
+@K1Deprecation
 object DataFlowInfoFactory {
     @JvmField
-    val EMPTY: DataFlowInfo = DelegatingDataFlowInfo()
+    val EMPTY: DataFlowInfo = DataFlowInfoImpl()
 }

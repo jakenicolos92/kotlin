@@ -1,5 +1,7 @@
+// NATIVE error: name contains illegal characters: "$"
 // IGNORE_BACKEND: NATIVE
-// WITH_REFLECT
+// IGNORE_IR_DESERIALIZATION_TEST: NATIVE
+// WITH_STDLIB
 
 import kotlin.reflect.KClass
 import kotlin.test.assertEquals

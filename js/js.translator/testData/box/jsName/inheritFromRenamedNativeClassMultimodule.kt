@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 495
 // MODULE: module1
 // FILE: module1.kt
 

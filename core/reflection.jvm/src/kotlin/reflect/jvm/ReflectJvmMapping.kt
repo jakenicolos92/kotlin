@@ -15,20 +15,20 @@
  */
 
 @file:JvmName("ReflectJvmMapping")
+
 package kotlin.reflect.jvm
 
+import org.jetbrains.kotlin.descriptors.runtime.components.ReflectKotlinClass
+import org.jetbrains.kotlin.load.java.JvmAbi
 import org.jetbrains.kotlin.load.kotlin.header.KotlinClassHeader
-import org.jetbrains.kotlin.load.kotlin.reflect.ReflectKotlinClass
 import java.lang.reflect.*
-import java.util.*
 import kotlin.reflect.*
 import kotlin.reflect.full.companionObject
 import kotlin.reflect.full.functions
 import kotlin.reflect.full.memberProperties
-import kotlin.reflect.jvm.internal.KPackageImpl
-import kotlin.reflect.jvm.internal.KTypeImpl
-import kotlin.reflect.jvm.internal.asKCallableImpl
-import kotlin.reflect.jvm.internal.asKPropertyImpl
+import kotlin.reflect.full.staticProperties
+import kotlin.reflect.jvm.internal.*
+import kotlin.reflect.javaType as stdlibJavaType
 
 // Kotlin reflection -> Java reflection
 
@@ -37,7 +37,7 @@ import kotlin.reflect.jvm.internal.asKPropertyImpl
  * or `null` if the property has no backing field.
  */
 val KProperty<*>.javaField: Field?
-    get() = this.asKPropertyImpl()?.javaField
+    get() = this.asReflectProperty()?.javaField
 
 /**
  * Returns a Java [Method] instance corresponding to the getter of the given property,
@@ -59,14 +59,18 @@ val KMutableProperty<*>.javaSetter: Method?
  * or `null` if this function is a constructor or cannot be represented by a Java [Method].
  */
 val KFunction<*>.javaMethod: Method?
-    get() = this.asKCallableImpl()?.caller?.member as? Method
+    get() {
+        val callable = this.asReflectCallable()
+        return (callable as? JavaKNamedFunction)?.jMethod ?: callable?.caller?.member as? Method
+    }
 
 /**
  * Returns a Java [Constructor] instance corresponding to the given Kotlin function,
  * or `null` if this function is not a constructor or cannot be represented by a Java [Constructor].
  */
-@Suppress("UNCHECKED_CAST") val <T> KFunction<T>.javaConstructor: Constructor<T>?
-    get() = this.asKCallableImpl()?.caller?.member as? Constructor<T>
+@Suppress("UNCHECKED_CAST")
+val <T> KFunction<T>.javaConstructor: Constructor<T>?
+    get() = this.asReflectCallable()?.caller?.member as? Constructor<T>
 
 
 /**
@@ -75,8 +79,8 @@ val KFunction<*>.javaMethod: Method?
  * the JVM class [Unit] when it's the type of a parameter, or to `void` when it's the return type of a function.
  */
 val KType.javaType: Type
-    get() = (this as KTypeImpl).javaType
-
+    @OptIn(ExperimentalStdlibApi::class)
+    get() = stdlibJavaType
 
 
 // Java reflection -> Kotlin reflection
@@ -90,52 +94,89 @@ val Field.kotlinProperty: KProperty<*>?
     get() {
         if (isSynthetic) return null
 
-        // TODO: optimize (search by name)
-
-        val kotlinPackage = getKPackage()
-        if (kotlinPackage != null) {
-            return kotlinPackage.members.filterIsInstance<KProperty<*>>().firstOrNull { it.javaField == this }
-        }
-
-        return declaringClass.kotlin.memberProperties.firstOrNull { it.javaField == this }
-    }
-
-
-private fun Member.getKPackage(): KDeclarationContainer? =
-        when (ReflectKotlinClass.create(declaringClass)?.classHeader?.kind) {
-            KotlinClassHeader.Kind.FILE_FACADE, KotlinClassHeader.Kind.MULTIFILE_CLASS, KotlinClassHeader.Kind.MULTIFILE_CLASS_PART ->
-                KPackageImpl(declaringClass)
-            else -> null
-        }
-
-/**
- * Returns a [KFunction] instance corresponding to the given Java [Method] instance,
- * or `null` if this method cannot be represented by a Kotlin function
- * (for example, if it is a synthetic method).
- */
-val Method.kotlinFunction: KFunction<*>?
-    get() {
-        if (isSynthetic) return null
+        val declaringKClass by lazy(LazyThreadSafetyMode.NONE) { declaringClass.kotlin }
 
         if (Modifier.isStatic(modifiers)) {
             val kotlinPackage = getKPackage()
             if (kotlinPackage != null) {
-                return kotlinPackage.members.filterIsInstance<KFunction<*>>().firstOrNull { it.javaMethod == this }
+                return kotlinPackage.members.findKProperty(this)
+            }
+
+            val companionKClass = declaringKClass.companionObject
+            if (companionKClass != null) {
+                val companionField = declaringClass.getDeclaredFieldOrNull(name, false)
+                if (companionField != null) {
+                    companionKClass.memberProperties.findKProperty(companionField)?.let { return it }
+                }
+            }
+
+            if (declaringClass.simpleName == JvmAbi.INTERFACE_PRIVATE_FIELDS1_CLASS_NAME || declaringClass.simpleName == JvmAbi.INTERFACE_PRIVATE_FIELDS2_CLASS_NAME) {
+                val interfaceClass = declaringClass.enclosingClass
+                    ?: throw KotlinReflectionInternalError("${declaringClass.simpleName} must have enclosing class")
+                interfaceClass.kotlin.staticProperties.findKProperty(this)?.let { return it }
+            }
+
+            declaringKClass.staticProperties.findKProperty(this)?.let { return it }
+        }
+
+        return declaringKClass.memberProperties.findKProperty(this)
+    }
+
+
+private fun Member.getKPackage(): KDeclarationContainer? =
+    when (ReflectKotlinClass.create(declaringClass)?.classHeader?.kind) {
+        KotlinClassHeader.Kind.FILE_FACADE, KotlinClassHeader.Kind.MULTIFILE_CLASS, KotlinClassHeader.Kind.MULTIFILE_CLASS_PART ->
+            KPackageImpl(declaringClass)
+        else -> null
+    }
+
+/**
+ * Returns a [KFunction] instance corresponding to the given Java [Method] instance,
+ * or `null` if this method cannot be represented by a Kotlin function.
+ */
+val Method.kotlinFunction: KFunction<*>?
+    get() {
+        if (Modifier.isStatic(modifiers)) {
+            val kotlinPackage = getKPackage()
+            if (kotlinPackage != null) {
+                return kotlinPackage.members.findKFunction(this)
             }
 
             // For static bridge method generated for a @JvmStatic function in the companion object, also try to find the latter
-            val companion = declaringClass.kotlin.companionObject
-            if (companion != null) {
-                companion.functions.firstOrNull {
-                    val m = it.javaMethod
-                    m != null && m.name == this.name &&
-                    Arrays.equals(m.parameterTypes, this.parameterTypes) && m.returnType == this.returnType
-                }?.let { return it }
+            val companionKClass = declaringClass.kotlin.companionObject
+            if (companionKClass != null) {
+                val companionMethod = companionKClass.java.getDeclaredMethodOrNull(name, *parameterTypes)
+                if (companionMethod != null) {
+                    companionKClass.functions.findKFunction(companionMethod)?.let { return it }
+                }
             }
         }
 
-        return declaringClass.kotlin.functions.firstOrNull { it.javaMethod == this }
+        return declaringClass.kotlin.functions.findKFunction(this)
     }
+
+private fun Collection<KCallable<*>>.findKFunction(method: Method): KFunction<*>? {
+    // As an optimization, try to search among functions with the same name first, and then among the rest of functions.
+    // This is needed because a function's JVM name might be different from its Kotlin name (because of `@JvmName`, inline class mangling,
+    // internal visibility, etc).
+    for (callable in this) {
+        if (callable is KFunction<*> && callable.name == method.name && callable.javaMethod == method) return callable
+    }
+    for (callable in this) {
+        if (callable is KFunction<*> && callable.name != method.name && callable.javaMethod == method) return callable
+    }
+    return null
+}
+
+private fun Collection<KCallable<*>>.findKProperty(field: Field): KProperty<*>? {
+    for (callable in this) {
+        if (callable is KProperty<*> && callable.name == field.name && callable.javaField == field) return callable
+    }
+    for (callable in this) {
+        if (callable is KProperty<*> && callable.name != field.name && callable.javaField == field) return callable
+    }
+    return null
+}
 
 /**
  * Returns a [KFunction] instance corresponding to the given Java [Constructor] instance,
@@ -144,7 +185,5 @@ val Method.kotlinFunction: KFunction<*>?
  */
 val <T : Any> Constructor<T>.kotlinFunction: KFunction<T>?
     get() {
-        if (isSynthetic) return null
-
         return declaringClass.kotlin.constructors.firstOrNull { it.javaConstructor == this }
     }

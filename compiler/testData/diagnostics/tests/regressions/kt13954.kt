@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: foo/A.kt
 
 package foo
@@ -24,3 +25,6 @@ import static foo.B.D.*;
 
 @SuppressWarnings("RedundantTypeArguments")
 public class C {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, javaType, nestedClass,
+primaryConstructor, propertyDeclaration */

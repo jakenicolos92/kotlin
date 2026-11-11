@@ -16,26 +16,30 @@
 
 package org.jetbrains.kotlin.incremental
 
-import org.jetbrains.kotlin.diagnostics.DiagnosticUtils.getLineAndColumnInPsiFile
+import org.jetbrains.kotlin.K1Deprecation
+import org.jetbrains.kotlin.diagnostics.PsiDiagnosticUtils.getLineAndColumnInPsiFile
 import org.jetbrains.kotlin.incremental.components.LocationInfo
 import org.jetbrains.kotlin.incremental.components.LookupLocation
 import org.jetbrains.kotlin.incremental.components.Position
 import org.jetbrains.kotlin.psi.KtElement
 import org.jetbrains.kotlin.psi.doNotAnalyze
 
+@K1Deprecation
 class KotlinLookupLocation(val element: KtElement) : LookupLocation {
+    val cachedLocation : LocationInfo? by lazy {
+        val containingKtFile = element.containingKtFile
+
+        if (containingKtFile.doNotAnalyze != null)
+            null
+        else
+            object : LocationInfo {
+            override val filePath = containingKtFile.virtualFilePath
+
+            override val position: Position
+                get() = getLineAndColumnInPsiFile(containingKtFile, element.textRange).let { Position(it.line, it.column) }
+        }
+    }
 
     override val location: LocationInfo?
-        get() {
-            val containingJetFile = element.containingKtFile
-
-            if (containingJetFile.doNotAnalyze != null) return null
-
-            return object : LocationInfo {
-                override val filePath = containingJetFile.virtualFile.path
-
-                override val position: Position
-                    get() = getLineAndColumnInPsiFile(containingJetFile, element.textRange).let { Position(it.line, it.column) }
-            }
-        }
+        get() = cachedLocation
 }

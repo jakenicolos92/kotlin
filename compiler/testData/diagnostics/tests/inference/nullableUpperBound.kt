@@ -1,9 +1,12 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package o
 
 fun foo(): String? {
     return accept(JV<String?, Unit?>())
 }
 
-fun <R, D> accept(<!UNUSED_PARAMETER!>v<!>: JV<R, D>): R? = null
+fun <R, D> accept(v: JV<R, D>): R? = null
 
 open class JV<R, D>()
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, nullableType, primaryConstructor, typeParameter */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 class A {
@@ -23,8 +24,8 @@ class B extends A {
 // FILE: test.kt
 
 fun test() {
-    A.<!INVISIBLE_MEMBER!>a<!>
-    A.<!INVISIBLE_MEMBER!>foo<!>()
+    A.<!INVISIBLE_REFERENCE!>a<!>
+    A.<!INVISIBLE_REFERENCE!>foo<!>()
     A.b
     A.bar()
     B.a
@@ -34,3 +35,5 @@ fun test() {
     B.bar()
     B.bar(1)
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, javaFunction, javaProperty */

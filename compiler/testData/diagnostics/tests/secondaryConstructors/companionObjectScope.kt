@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 class A {
     companion object {
         fun foo(): Int = 1
@@ -15,3 +16,6 @@ class A {
     constructor(x: Int)
     constructor() : this(foo() + prop + B.bar() + B.prop <!NONE_APPLICABLE!>+<!> C)
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, classDeclaration, companionObject, functionDeclaration, integerLiteral,
+nestedClass, objectDeclaration, propertyDeclaration, secondaryConstructor */

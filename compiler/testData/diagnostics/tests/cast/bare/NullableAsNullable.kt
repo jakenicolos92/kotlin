@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 interface Tr<T>
 interface G<T> : Tr<T>
@@ -8,3 +9,7 @@ fun test(tr: Tr<String>?) {
     // If v is not nullable, there will be a warning on this line:
     checkSubtype<G<String>>(v!!)
 }
+
+/* GENERATED_FIR_TAGS: asExpression, checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, interfaceDeclaration, localProperty, nullableType, propertyDeclaration, typeParameter,
+typeWithExtension */

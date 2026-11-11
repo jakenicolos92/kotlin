@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-3535 Functional value-parametr in nested class is inaccessible
 
 class Foo {
@@ -7,3 +8,6 @@ class Foo {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, functionalType, integerLiteral, nestedClass,
+primaryConstructor, propertyDeclaration */

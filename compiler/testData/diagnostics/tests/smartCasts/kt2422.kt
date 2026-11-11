@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package bar
 
 class Test {
@@ -6,18 +7,21 @@ class Test {
 
     fun bar(a: Test, b: Test) {
         if (a.foo != null) {
-            useInt(<!TYPE_MISMATCH!>b.foo<!>)
+            useInt(<!ARGUMENT_TYPE_MISMATCH!>b.foo<!>)
         }
         if (a.foo != null) {
-            useInt(<!TYPE_MISMATCH!>foo<!>)
+            useInt(<!ARGUMENT_TYPE_MISMATCH!>foo<!>)
         }
         if (this.foo != null) {
-            useInt(<!DEBUG_INFO_SMARTCAST!>foo<!>)
+            useInt(foo)
         }
         if (foo != null) {
-            useInt(<!DEBUG_INFO_SMARTCAST!>this.foo<!>)
+            useInt(this.foo)
         }
     }
 
     fun useInt(i: Int) = i
 }
+
+/* GENERATED_FIR_TAGS: andExpression, classDeclaration, equalityExpression, functionDeclaration, ifExpression,
+nullableType, propertyDeclaration, smartcast, thisExpression */

@@ -1,0 +1,19 @@
+FILE: [ResolvedTo(BODY_RESOLVE)] danglingAnnotationOnMemberProperty.kt
+    public final [ResolvedTo(BODY_RESOLVE)] annotation class Ann : R|kotlin/Annotation| {
+        public [ResolvedTo(BODY_RESOLVE)] [ContainingClassKey=Ann] constructor(): R|Ann| {
+            super<R|kotlin/Any|>()
+        }
+
+    }
+    public final [ResolvedTo(BODY_RESOLVE)] class C : R|kotlin/Any| {
+        public [ResolvedTo(BODY_RESOLVE)] [ContainingClassKey=C] constructor(): R|C| {
+            super<R|kotlin/Any|>()
+        }
+
+        @R|Ann|[Types]() private final [ResolvedTo(BODY_RESOLVE)] [DestructuringDeclarationContainerVariableMarkerKey=true] val <destruct>: <ERROR TYPE REF: Initializer required for destructuring declaration> = ERROR_EXPR(Initializer required for destructuring declaration)
+            private [ResolvedTo(BODY_RESOLVE)] get(): <ERROR TYPE REF: Initializer required for destructuring declaration>
+
+        public final [ResolvedTo(BODY_RESOLVE)] [DestructuringDeclarationContainerVariableKey=/C.<destruct>] val x: R|kotlin/Int| = R|/C.<destruct>|.<Unresolved name: >#
+            public [ResolvedTo(BODY_RESOLVE)] get(): R|kotlin/Int|
+
+    }

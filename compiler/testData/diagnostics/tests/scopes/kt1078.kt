@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-1078 Problem with visibility in do-while
 
 package kt1078
@@ -14,3 +15,6 @@ class B() {
 }
 
 fun foo() = B()
+
+/* GENERATED_FIR_TAGS: classDeclaration, doWhileLoop, functionDeclaration, localProperty, primaryConstructor,
+propertyDeclaration */

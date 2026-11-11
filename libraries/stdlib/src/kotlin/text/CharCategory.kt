@@ -1,169 +1,172 @@
-@file:JvmVersion
+/*
+ * Copyright 2010-2020 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 package kotlin.text
 
 /**
  * Represents the character general category in the Unicode specification.
  */
-public enum class CharCategory(public val value: Int, public val code: String) {
+@SinceKotlin("1.5")
+public expect enum class CharCategory {
     /**
      * General category "Cn" in the Unicode specification.
      */
-    UNASSIGNED(Character.UNASSIGNED.toInt(), "Cn"),
+    UNASSIGNED,
 
     /**
      * General category "Lu" in the Unicode specification.
      */
-    UPPERCASE_LETTER(Character.UPPERCASE_LETTER.toInt(), "Lu"),
+    UPPERCASE_LETTER,
 
     /**
      * General category "Ll" in the Unicode specification.
      */
-    LOWERCASE_LETTER(Character.LOWERCASE_LETTER.toInt(), "Ll"),
+    LOWERCASE_LETTER,
 
     /**
      * General category "Lt" in the Unicode specification.
      */
-    TITLECASE_LETTER(Character.TITLECASE_LETTER.toInt(), "Lt"),
+    TITLECASE_LETTER,
 
     /**
      * General category "Lm" in the Unicode specification.
      */
-    MODIFIER_LETTER(Character.MODIFIER_LETTER.toInt(), "Lm"),
+    MODIFIER_LETTER,
 
     /**
      * General category "Lo" in the Unicode specification.
      */
-    OTHER_LETTER(Character.OTHER_LETTER.toInt(), "Lo"),
+    OTHER_LETTER,
 
     /**
      * General category "Mn" in the Unicode specification.
      */
-    NON_SPACING_MARK(Character.NON_SPACING_MARK.toInt(), "Mn"),
+    NON_SPACING_MARK,
 
     /**
      * General category "Me" in the Unicode specification.
      */
-    ENCLOSING_MARK(Character.ENCLOSING_MARK.toInt(), "Me"),
+    ENCLOSING_MARK,
 
     /**
      * General category "Mc" in the Unicode specification.
      */
-    COMBINING_SPACING_MARK(Character.COMBINING_SPACING_MARK.toInt(), "Mc"),
+    COMBINING_SPACING_MARK,
 
     /**
      * General category "Nd" in the Unicode specification.
      */
-    DECIMAL_DIGIT_NUMBER(Character.DECIMAL_DIGIT_NUMBER.toInt(), "Nd"),
+    DECIMAL_DIGIT_NUMBER,
 
     /**
      * General category "Nl" in the Unicode specification.
      */
-    LETTER_NUMBER(Character.LETTER_NUMBER.toInt(), "Nl"),
+    LETTER_NUMBER,
 
     /**
      * General category "No" in the Unicode specification.
      */
-    OTHER_NUMBER(Character.OTHER_NUMBER.toInt(), "No"),
+    OTHER_NUMBER,
 
     /**
      * General category "Zs" in the Unicode specification.
      */
-    SPACE_SEPARATOR(Character.SPACE_SEPARATOR.toInt(), "Zs"),
+    SPACE_SEPARATOR,
 
     /**
      * General category "Zl" in the Unicode specification.
      */
-    LINE_SEPARATOR(Character.LINE_SEPARATOR.toInt(), "Zl"),
+    LINE_SEPARATOR,
 
     /**
      * General category "Zp" in the Unicode specification.
      */
-    PARAGRAPH_SEPARATOR(Character.PARAGRAPH_SEPARATOR.toInt(), "Zp"),
+    PARAGRAPH_SEPARATOR,
 
     /**
      * General category "Cc" in the Unicode specification.
      */
-    CONTROL(Character.CONTROL.toInt(), "Cc"),
+    CONTROL,
 
     /**
      * General category "Cf" in the Unicode specification.
      */
-    FORMAT(Character.FORMAT.toInt(), "Cf"),
+    FORMAT,
 
     /**
      * General category "Co" in the Unicode specification.
      */
-    PRIVATE_USE(Character.PRIVATE_USE.toInt(), "Co"),
+    PRIVATE_USE,
 
     /**
      * General category "Cs" in the Unicode specification.
      */
-    SURROGATE(Character.SURROGATE.toInt(), "Cs"),
+    SURROGATE,
 
     /**
      * General category "Pd" in the Unicode specification.
      */
-    DASH_PUNCTUATION(Character.DASH_PUNCTUATION.toInt(), "Pd"),
+    DASH_PUNCTUATION,
 
     /**
      * General category "Ps" in the Unicode specification.
      */
-    START_PUNCTUATION(Character.START_PUNCTUATION.toInt(), "Ps"),
+    START_PUNCTUATION,
 
     /**
      * General category "Pe" in the Unicode specification.
      */
-    END_PUNCTUATION(Character.END_PUNCTUATION.toInt(), "Pe"),
+    END_PUNCTUATION,
 
     /**
      * General category "Pc" in the Unicode specification.
      */
-    CONNECTOR_PUNCTUATION(Character.CONNECTOR_PUNCTUATION.toInt(), "Pc"),
+    CONNECTOR_PUNCTUATION,
 
     /**
      * General category "Po" in the Unicode specification.
      */
-    OTHER_PUNCTUATION(Character.OTHER_PUNCTUATION.toInt(), "Po"),
+    OTHER_PUNCTUATION,
 
     /**
      * General category "Sm" in the Unicode specification.
      */
-    MATH_SYMBOL(Character.MATH_SYMBOL.toInt(), "Sm"),
+    MATH_SYMBOL,
 
     /**
      * General category "Sc" in the Unicode specification.
      */
-    CURRENCY_SYMBOL(Character.CURRENCY_SYMBOL.toInt(), "Sc"),
+    CURRENCY_SYMBOL,
 
     /**
      * General category "Sk" in the Unicode specification.
      */
-    MODIFIER_SYMBOL(Character.MODIFIER_SYMBOL.toInt(), "Sk"),
+    MODIFIER_SYMBOL,
 
     /**
      * General category "So" in the Unicode specification.
      */
-    OTHER_SYMBOL(Character.OTHER_SYMBOL.toInt(), "So"),
+    OTHER_SYMBOL,
 
     /**
      * General category "Pi" in the Unicode specification.
      */
-    INITIAL_QUOTE_PUNCTUATION(Character.INITIAL_QUOTE_PUNCTUATION.toInt(), "Pi"),
+    INITIAL_QUOTE_PUNCTUATION,
 
     /**
      * General category "Pf" in the Unicode specification.
      */
-    FINAL_QUOTE_PUNCTUATION(Character.FINAL_QUOTE_PUNCTUATION.toInt(), "Pf");
+    FINAL_QUOTE_PUNCTUATION;
+
+    /**
+     * Two-letter code of this general category in the Unicode specification.
+     */
+    public val code: String
 
     /**
      * Returns `true` if [char] character belongs to this category.
      */
-    public operator fun contains(char: Char): Boolean = Character.getType(char) == this.value
-
-
-    public companion object {
-        private val categoryMap by lazy { CharCategory.values().associateBy { it.value } }
-
-        public fun valueOf(category: Int): CharCategory = categoryMap[category] ?: throw IllegalArgumentException("Category #$category is not defined.")
-    }
+    public operator fun contains(char: Char): Boolean
 }

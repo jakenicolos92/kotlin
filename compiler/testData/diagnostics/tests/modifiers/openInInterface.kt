@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 interface My {
     <!REDUNDANT_OPEN_IN_INTERFACE!>open<!> fun foo()
     open fun bar() {}
@@ -8,3 +9,5 @@ interface My {
         get() = ""
     <!REDUNDANT_MODIFIER!>open<!> abstract val z: Double
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, getter, interfaceDeclaration, propertyDeclaration, stringLiteral */

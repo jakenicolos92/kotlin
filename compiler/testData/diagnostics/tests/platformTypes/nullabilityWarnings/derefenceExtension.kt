@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 // FILE: J.java
 
@@ -43,3 +44,6 @@ fun test() {
 
 fun J.foo() {}
 fun J?.bar() {}
+
+/* GENERATED_FIR_TAGS: flexibleType, funWithExtensionReceiver, functionDeclaration, javaProperty, javaType,
+lambdaLiteral, localProperty, nullableType, propertyDeclaration */

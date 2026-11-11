@@ -1,0 +1,59 @@
+val h: String /* by */
+  field = lazy<String>(initializer = local fun <anonymous>(): String {
+    return "H"
+  }
+)
+  get(): String {
+  }
+
+fun foo(): String {
+}
+
+val a: String
+  get
+
+val b: String
+  get
+
+val c: String
+  get(): String {
+  }
+
+val d: Boolean
+  get
+
+val e: String
+  get
+
+var f: Int
+  get
+  set(value: Int) {
+  }
+
+val g: Int
+  get(): Int {
+  }
+
+const val i: Int
+  field = 123
+  get
+
+val j: Any
+  get
+
+val k: Function1<String, String>
+  get
+
+val l: Function1<String, String>
+  get
+
+val m: String
+  inline get(): String {
+    return "M"
+  }
+
+val n: String
+  inline get(): String {
+    return "N"
+  }
+

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // KT-353 Generic type argument inference sometimes doesn't work
 
 interface A {
@@ -5,17 +6,17 @@ interface A {
 }
 
 fun foo(a: A) {
-    val <!UNUSED_VARIABLE!>g<!> : () -> Unit = {
+    val g : () -> Unit = {
         a.gen()  //it works: Unit is derived
     }
 
-    val <!UNUSED_VARIABLE!>u<!>: Unit = a.gen() // Unit should be inferred
+    val u: Unit = a.gen() // Unit should be inferred
 
     if (true) {
-        a.<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>gen<!>() // Shouldn't work: no info for inference
+        a.<!CANNOT_INFER_PARAMETER_TYPE!>gen<!>() // Shouldn't work: no info for inference
     }
 
-    val <!UNUSED_VARIABLE!>b<!> : () -> Unit = {
+    val b : () -> Unit = {
         if (true) {
             a.gen()  // unit can be inferred
         }
@@ -24,9 +25,12 @@ fun foo(a: A) {
         }
     }
 
-    val <!UNUSED_VARIABLE!>f<!> : () -> Int = {
+    val f : () -> Int = {
         a.gen()  //type mismatch, but Int can be derived
     }
 
-    a.<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>gen<!>() // Shouldn't work: no info for inference
+    a.<!CANNOT_INFER_PARAMETER_TYPE!>gen<!>() // Shouldn't work: no info for inference
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, ifExpression, interfaceDeclaration, lambdaLiteral,
+localProperty, nullableType, propertyDeclaration, typeParameter */

@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 499
 // MODULE: lib
 // FILE: lib.kt
 
@@ -14,8 +13,6 @@ public class A(public val x: Int) {
 // FILE: main.kt
 
 import utils.*
-
-// CHECK_CONTAINS_NO_CALLS: test
 
 internal fun test(a: A, y: Int): Int = a.plus(y)
 

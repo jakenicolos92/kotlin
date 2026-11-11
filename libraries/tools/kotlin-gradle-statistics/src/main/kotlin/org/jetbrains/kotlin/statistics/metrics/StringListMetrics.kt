@@ -1,0 +1,135 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.statistics.metrics
+
+import org.jetbrains.kotlin.statistics.metrics.StringAnonymizationPolicy.AllowedListAnonymizer
+import org.jetbrains.kotlin.statistics.metrics.StringListOverridePolicy.CONCAT
+
+enum class StringListMetrics(
+    val type: StringListOverridePolicy,
+    val anonymization: StringAnonymizationPolicy,
+    val perProject: Boolean = false,
+) {
+    IDES_INSTALLED(CONCAT, AllowedListAnonymizer(listOf("AS", "OC", "CL", "IU", "IC", "WC"))),
+
+    // Build script
+    MPP_PLATFORMS(
+        CONCAT, AllowedListAnonymizer(
+            listOf(
+                "common",
+                "native",
+                "jvm",
+                "js",
+                "android_x64",
+                "android_x86",
+                "androidJvm",
+                "android_arm32",
+                "android_arm64",
+                "ios_arm64",
+                "ios_simulator_arm64",
+                "ios_x64",
+                "watchos_arm64",
+                "watchos_x64",
+                "watchos_simulator_arm64",
+                "watchos_device_arm64",
+                "tvos_arm64",
+                "tvos_x64",
+                "tvos_simulator_arm64",
+                "linux_arm32_hfp",
+                "linux_arm64",
+                "linux_x64",
+                "macos_x64",
+                "macos_arm64",
+                "mingw_x64",
+                "wasm"
+            )
+        )
+    ),
+
+    JS_COMPILER_MODE(CONCAT, AllowedListAnonymizer(listOf("ir", "legacy", "both", "UNKNOWN"))),
+    JS_TARGET_MODE(CONCAT, AllowedListAnonymizer(listOf("both", "browser", "nodejs", "none"))),
+    JS_BINARY_TYPE(CONCAT, AllowedListAnonymizer(listOf("both", "library", "executable", "none"))),
+
+    // browser types configured in the Kotlin/JS browser test DSL
+    JS_TEST_BROWSER_TYPE(CONCAT, AllowedListAnonymizer(listOf("chromium", "firefox", "webkit"))),
+
+    // options of the Kotlin/JS browser test DSL which values differ from the default ones
+    JS_TEST_BROWSER_CHANGED_OPTION(
+        CONCAT,
+        AllowedListAnonymizer(
+            listOf(
+                "testsLocation",
+                "headless",
+                "launchArgs",
+                "launchEnvironmentVariables",
+                "customBrowserExecutable"
+            )
+        )
+    ),
+
+    WASM_COMPILER_MODE(
+        CONCAT,
+        AllowedListAnonymizer(
+            listOf(
+                "monolith",
+                "multimodule-open-world",
+                "multimodule-closed-world",
+                "multimodule-closed-world-only-in-dev"
+            )
+        )
+    ),
+
+    // Compiler parameters
+    JVM_DEFAULTS(CONCAT, AllowedListAnonymizer(listOf("enable", "no-compatibility", "disable"))),
+    USE_FIR(CONCAT, AllowedListAnonymizer(listOf("true", "false"))),
+    KOTLIN_COMPILER_EXECUTION_POLICY(CONCAT, AllowedListAnonymizer(listOf("in-process", "daemon"))),
+    JS_PROPERTY_LAZY_INITIALIZATION(CONCAT, AllowedListAnonymizer(listOf("true", "false"))),
+
+    // options overridden via the `export { swift { } }` DSL
+    SWIFT_EXPORT_DSL_MODULE_OPTIONS_OVERRIDES(CONCAT, AllowedListAnonymizer(listOf("moduleName", "rootPackage"))),
+
+    // options overridden via the `export { swift { xcodeIntegration { configure(dependency) { } } } }` DSL
+    SWIFT_EXPORT_DSL_XCODE_INTEGRATION_OVERRIDES(
+        CONCAT,
+        AllowedListAnonymizer(listOf("exposed", "hidden", "moduleName", "rootPackage", "settings"))
+    ),
+    NODE_JS_TOOLCHAIN_SERVICE(CONCAT, AllowedListAnonymizer(listOf("download", "preinstalled", "disable", "custom"))),
+    WASI_ADAPTER_TOOLCHAIN_SERVICE(CONCAT, AllowedListAnonymizer(listOf("download", "preinstalled", "disable", "custom"))),
+    WASM_TOOLS_TOOLCHAIN_SERVICE(CONCAT, AllowedListAnonymizer(listOf("download", "preinstalled", "disable", "custom"))),
+
+    // CLI arguments
+    CLI_MANUALLY_CONFIGURED_LANGUAGE_FEATURES(
+        CONCAT,
+        AllowedListAnonymizer(languageFeatureNames.map { "+$it" } + languageFeatureNames.map { "-$it" }),
+    ),
+
+    CLI_JSR305_NULLABILITY_ANNOTATIONS_MODE(
+        CONCAT,
+        AllowedListAnonymizer("ignore", "strict", "warn", "under-migration:ignore", "under-migration:strict", "under-migration:warn"),
+    ),
+    CLI_METADATA_TARGET_PLATFORM(
+        CONCAT,
+        AllowedListAnonymizer("JVM", "JS", "WasmJs", "WasmWasi", "Native"),
+    ),
+    CLI_NATIVE_MANIFEST_TARGETS(
+        CONCAT,
+        AllowedListAnonymizer(
+            "android_x64", "android_x86", "android_arm32", "android_arm64",
+            "ios_arm64", "ios_x64", "ios_simulator_arm64",
+            "watchos_arm64", "watchos_x64", "watchos_simulator_arm64", "watchos_device_arm64",
+            "tvos_arm64", "tvos_x64", "tvos_simulator_arm64",
+            "linux_x64", "mingw_x64",
+            "macos_x64", "macos_arm64",
+            "linux_arm64", "linux_arm32_hfp",
+        )
+    )
+    ;
+
+
+    companion object {
+        const val VERSION = 9
+    }
+}

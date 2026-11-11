@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 val x get(): String = foo()
 val y get(): List<Int> = bar()
 val z get(): List<Int> {
@@ -16,3 +17,6 @@ fun baz() {
     y checkType { _<List<Int>>() }
     z checkType { _<List<Int>>() }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+getter, infix, lambdaLiteral, nullableType, propertyDeclaration, typeParameter, typeWithExtension */

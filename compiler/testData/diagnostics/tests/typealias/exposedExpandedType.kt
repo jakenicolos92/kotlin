@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER -TOPLEVEL_TYPEALIASES_ONLY
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER -TOPLEVEL_TYPEALIASES_ONLY -UNSUPPORTED_FEATURE
 
 typealias L<T> = List<T>
 
@@ -20,7 +21,7 @@ class Outer {
     private typealias TestProtected4 = Protected
     typealias <!EXPOSED_TYPEALIAS_EXPANDED_TYPE!>TestProtected5<!> = L<Protected>
     typealias <!EXPOSED_TYPEALIAS_EXPANDED_TYPE!>TestProtected6<!> = L<TestProtected1>
-    
+
     typealias <!EXPOSED_TYPEALIAS_EXPANDED_TYPE!>TestInternal1<!> = Internal
     protected typealias <!EXPOSED_TYPEALIAS_EXPANDED_TYPE!>TestInternal2<!> = Internal
     internal typealias TestInternal3 = Internal
@@ -43,3 +44,6 @@ internal typealias TestInternal2 = Internal
 private typealias TestInternal3 = Internal
 typealias <!EXPOSED_TYPEALIAS_EXPANDED_TYPE!>TestInternal4<!> = L<Internal>
 typealias <!EXPOSED_TYPEALIAS_EXPANDED_TYPE!>TestInternal5<!> = L<TestInternal1>
+
+/* GENERATED_FIR_TAGS: classDeclaration, nestedClass, nullableType, typeAliasDeclaration,
+typeAliasDeclarationWithTypeParameter, typeParameter */

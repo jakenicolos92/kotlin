@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
 
 class Outer<E> {
     inner class Inner<F> {
@@ -18,8 +19,8 @@ class Outer<E> {
             bar(outerE(), baz())
             bar(instance().outerE(), baz())
 
-            bar(topLevel().Inner<E>().baz(), <!TYPE_MISMATCH!>topLevel().Inner<E>().baz()<!>)
-            bar(<!TYPE_MISMATCH!>topLevel().Inner<E>().foo()<!>, <!TYPE_MISMATCH!>topLevel().Inner<E>().baz()<!>)
+            bar(topLevel().Inner<E>().baz(), <!ARGUMENT_TYPE_MISMATCH!>topLevel().Inner<E>().baz()<!>)
+            bar(<!ARGUMENT_TYPE_MISMATCH!>topLevel().Inner<E>().foo()<!>, <!ARGUMENT_TYPE_MISMATCH!>topLevel().Inner<E>().baz()<!>)
 
             setE(foo())
         }
@@ -45,5 +46,9 @@ fun foo() {
     strInt.instance().Inner<Double>().checkType { _<Outer<String>.Inner<Double>>() }
 
     Outer<String>().setInner(strInt)
-    Outer<CharSequence>().setInner(<!TYPE_MISMATCH!>strInt<!>)
+    Outer<CharSequence>().setInner(<!ARGUMENT_TYPE_MISMATCH!>strInt<!>)
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, inner, lambdaLiteral, localProperty, nullableType, propertyDeclaration, stringLiteral, thisExpression,
+typeParameter, typeWithExtension */

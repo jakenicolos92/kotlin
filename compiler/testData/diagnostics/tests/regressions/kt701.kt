@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-702 Type inference failed
 fun <T> getJavaClass() : java.lang.Class<T> { return "" <!CAST_NEVER_SUCCEEDS!>as<!> Class<T> }
 
@@ -15,3 +16,7 @@ public class Throwables() {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: andExpression, asExpression, checkNotNullCall, classDeclaration, companionObject,
+equalityExpression, functionDeclaration, ifExpression, nullableType, objectDeclaration, primaryConstructor, safeCall,
+smartcast, stringLiteral, typeConstraint, typeParameter */

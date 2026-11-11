@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-1806 accessing private member in object class/anonymous object is not highlighted as error
 package kt1806
 
@@ -8,7 +9,7 @@ object MyObject {
 
 fun test1() {
 
-    doSmth(MyObject.<!INVISIBLE_MEMBER!>message<!>)
+    doSmth(MyObject.<!INVISIBLE_REFERENCE!>message<!>)
 }
 
 class Test {
@@ -17,8 +18,11 @@ class Test {
   }
 
   fun test2() {
-      doSmth(MyObject1.<!INVISIBLE_MEMBER!>message<!>)
+      doSmth(MyObject1.<!INVISIBLE_REFERENCE!>message<!>)
   }
 }
 
 fun doSmth(s: String) = s
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, objectDeclaration,
+propertyDeclaration, stringLiteral */

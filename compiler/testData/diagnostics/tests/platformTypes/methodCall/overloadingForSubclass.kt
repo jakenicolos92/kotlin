@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/Super.java
 package p;
 
@@ -13,7 +14,7 @@ public interface Sub extends Super {}
 package p;
 
 public abstract class Util {
-    public abstract void foo(String s, Super sup)
+    public abstract void foo(String s, Super sup);
     public void foo(String s, Sub sub) {}
 }
 
@@ -28,3 +29,5 @@ class C: Util() {
 fun foo(sub: Sub) {
     C().foo("", sub)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaFunction, javaType, override, stringLiteral */

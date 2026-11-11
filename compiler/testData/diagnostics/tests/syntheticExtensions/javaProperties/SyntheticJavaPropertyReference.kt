@@ -1,9 +1,20 @@
+// RUN_PIPELINE_TILL: FRONTEND
+// LANGUAGE: -ReferencesToSyntheticJavaProperties
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_EXPRESSION
+
 // FILE: KotlinFile.kt
 
-fun bar() = JavaClass::<!UNSUPPORTED!>foo<!>
+fun call(c: Any) {}
+
+fun test() {
+    JavaClass::<!UNSUPPORTED_FEATURE!>foo<!>
+    call(JavaClass::<!UNSUPPORTED_FEATURE!>foo<!>)
+}
 
 // FILE: JavaClass.java
 
 public class JavaClass {
     public String getFoo() {}
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaCallableReference, javaType */

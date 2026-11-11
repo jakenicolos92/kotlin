@@ -1,12 +1,12 @@
-// EXPECTED_REACHABLE_NODES: 499
-package foo
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 
 object A {
     @JsName("js_f") private fun f(x: Int) = "f($x)"
 }
 
 fun test() = js("""
-return JS_TESTS.foo.A.js_f(23);
+return main.A.js_f(23);
 """)
 
 fun box(): String {

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: SameClassNameResolveTest.kt
 package test
 
@@ -8,3 +9,5 @@ class SubBase: Base()
 
 open class Base
 class SubBase: Base()
+
+/* GENERATED_FIR_TAGS: classDeclaration */

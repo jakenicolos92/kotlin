@@ -1,0 +1,103 @@
+import org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinUsages
+
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("jvm")
+    id("d8-configuration")
+    id("java-test-fixtures")
+    id("test-inputs-check")
+}
+
+val sandboxAnnotationsNativeRuntimeForTests = configurations.create("sandboxAnnotationsNativeRuntimeForTests") {
+    attributes {
+        attribute(KotlinPlatformType.attribute, KotlinPlatformType.native)
+        hostKonanTargetAttribute()
+        attribute(Usage.USAGE_ATTRIBUTE, objects.named(KotlinUsages.KOTLIN_API))
+        attribute(KotlinPlatformType.attribute, KotlinPlatformType.native)
+    }
+}
+
+val sandboxPluginForTests = configurations.create("sandboxPluginForTests")
+
+dependencies {
+    implementation(project(":compiler:frontend.common.jvm"))
+    implementation(project(":compiler:frontend.common-psi"))
+    implementation(project(":compiler:psi:psi-api"))
+    implementation(project(":core:descriptors"))
+
+    implementation(project(":compiler:ir.backend.common"))
+    implementation(project(":compiler:ir.tree"))
+    implementation(project(":compiler:plugin-api"))
+    implementation(project(":compiler:fir:plugin.api"))
+    // Required for 'FirFunctionCallRefinementExtension' internal FIR extension.
+    implementation(project(":compiler:fir:resolve"))
+    // TODO(KT-90146): Required to access various utility functions.
+    implementation(project(":compiler:fir:checkers:checkers.common"))
+    // TODO(KT-90146): Required to access various utility functions.
+    implementation(project(":compiler:fir:fir-jvm"))
+    // TODO(KT-90146): Required to access various utility functions.
+    implementation(project(":compiler:fir:fir2ir"))
+    compileOnly(intellijCore())
+    compileOnly(libs.intellij.asm)
+
+    testFixturesApi(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testFixturesApi(testFixtures(project(":compiler:tests-common-new")))
+    testFixturesApi(testFixtures(project(":compiler:jvm.tests")))
+    testFixturesApi(testFixtures(project(":js:js.tests")))
+    testFixturesApi(project(":compiler:fir:plugin.api"))
+    testFixturesImplementation(testFixtures(project(":tools:kotlinp-jvm")))
+
+    testFixturesApi(testFixtures(project(":native:native.tests")))
+
+    testRuntimeOnly(commonDependency("org.codehaus.woodstox:stax2-api"))
+    testRuntimeOnly(commonDependency("com.fasterxml:aalto-xml"))
+
+    testRuntimeOnly(toolsJar())
+
+    sandboxAnnotationsNativeRuntimeForTests(project(":plugins:plugin-sandbox:plugin-annotations"))
+    sandboxPluginForTests(project(":plugins:plugin-sandbox"))
+}
+
+optInToExperimentalCompilerApi()
+optInToUnsafeDuringIrConstructionAPI()
+
+sourceSets {
+    "main" { projectDefault() }
+    "testFixtures" { projectDefault() }
+}
+
+projectTests {
+    testTask() {
+        useJsIrBoxTests(buildDir = layout.buildDirectory)
+        useJUnitPlatform {
+            excludeTags("sandbox-native")
+        }
+    }
+
+    nativeTestTask(
+        taskName = "nativeTest",
+        tag = "sandbox-native", // Include all tests with the "sandbox-native" tag
+        requirePlatformLibs = false,
+        customTestDependencies = listOf(sandboxAnnotationsNativeRuntimeForTests),
+        compilerPluginDependencies = listOf(sandboxPluginForTests)
+    )
+
+    testGenerator("org.jetbrains.kotlin.plugin.sandbox.TestGeneratorKt", generateTestsInBuildDirectory = true) {
+        args("tolerateEmptyModels")
+    }
+
+    withJvmStdlibAndReflect()
+    withMockJdkAnnotationsJar()
+    withMockJdkRuntime()
+    withTestJar()
+    withStdlibCommon()
+    withJsRuntime()
+    withPluginSandboxAnnotations()
+
+    testData(project(":plugins:plugin-sandbox").isolated, "testData")
+    testData(project(":js:js.translator").isolated, "testData/_commonFiles")
+}

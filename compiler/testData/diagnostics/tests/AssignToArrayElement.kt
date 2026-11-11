@@ -1,5 +1,9 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -DEBUG_INFO_SMARTCAST
+
 fun getArray(): Array<Int> = throw Exception()
 fun getList(): MutableList<Int> = throw Exception()
+fun getNullableList(): MutableList<Int>? = throw Exception()
 fun fn() {
     getArray()[1] = 2
     getList()[1] = 2
@@ -7,4 +11,12 @@ fun fn() {
     getList()[1]++
     getArray()[1] += 2
     getList()[1] += 2
+
+    val nullable = getNullableList()
+    if (nullable != null) {
+        nullable[1] += 1
+    }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, equalityExpression, functionDeclaration, ifExpression,
+incrementDecrementExpression, integerLiteral, localProperty, nullableType, propertyDeclaration, smartcast */

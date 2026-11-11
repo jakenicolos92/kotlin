@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 import kotlin.reflect.KProperty
 
@@ -12,3 +13,7 @@ operator fun <G> MutableMap<in String, in G>.getValue(thisRef: Any?, property: K
 operator fun <S> MutableMap<in String, in S>.setValue(thisRef: Any?, property: KProperty<*>, value: S) {}
 
 fun <K, V> MutableMap<K, V>.withDefault1(default: (key: K) -> V): MutableMap<K, V> = this
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, inProjection,
+lambdaLiteral, nullableType, operator, primaryConstructor, propertyDeclaration, propertyDelegate, setter, starProjection,
+stringLiteral, thisExpression, typeParameter */

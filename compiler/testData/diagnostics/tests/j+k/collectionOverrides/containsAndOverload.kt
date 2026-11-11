@@ -1,4 +1,7 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE -PARAMETER_NAME_CHANGED_ON_OVERRIDE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE -PARAMETER_NAME_CHANGED_ON_OVERRIDE
+// SCOPE_DUMP: KA:contains
+// RENDER_DIAGNOSTICS_FULL_TEXT
 
 // FILE: A.java
 abstract public class A implements java.util.Collection<String> {
@@ -7,18 +10,21 @@ abstract public class A implements java.util.Collection<String> {
 }
 
 // FILE: main.kt
-abstract class <!CONFLICTING_JVM_DECLARATIONS!>KA<!> : A() {
-    <!CONFLICTING_JVM_DECLARATIONS!>override fun contains(x: String)<!> = false
+abstract class KA : A() {
+    override fun <!ACCIDENTAL_OVERRIDE_CLASH_BY_JVM_SIGNATURE!>contains<!>(x: String) = false
 }
 
 fun foo(a: A, ka: KA) {
     a.contains("")
-    a.contains(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>)
+    a.contains(<!ARGUMENT_TYPE_MISMATCH!>1<!>)
     "" in a
-    <!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!> in a
+    <!ARGUMENT_TYPE_MISMATCH!>1<!> in a
 
     ka.contains("")
-    ka.contains(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>)
+    ka.contains(<!ARGUMENT_TYPE_MISMATCH!>1<!>)
     "" in ka
-    <!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!> in ka
+    <!ARGUMENT_TYPE_MISMATCH!>1<!> in ka
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, javaFunction, javaType, operator, override,
+stringLiteral */

@@ -1,7 +1,5 @@
-// EXPECTED_REACHABLE_NODES: 492
-// MODULE_KIND: UMD
+// JS_MODULE_KIND: UMD
 // NO_JS_MODULE_SYSTEM
-// FUNCTION_CALLED_TIMES: require count=3
 
 @JsModule("lib")
 @JsNonModule

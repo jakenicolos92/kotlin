@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: A.java
 
 public class A {
@@ -9,12 +10,15 @@ public class A {
 class Inv<T>
 
 fun test(x: Inv<Int>, y: Inv<String>) {
-    <!TYPE_INFERENCE_CONFLICTING_SUBSTITUTIONS!>A<!>("", x)
+    A("", <!ARGUMENT_TYPE_MISMATCH!>x<!>)
     A("", y)
 
-    A<String>("", <!TYPE_MISMATCH!>x<!>)
+    A<String>("", <!ARGUMENT_TYPE_MISMATCH!>x<!>)
 
-    A<Any>("", <!TYPE_MISMATCH!>x<!>)
+    A<Any>("", <!ARGUMENT_TYPE_MISMATCH!>x<!>)
     A<String>("", y)
-    A<CharSequence>("", <!TYPE_MISMATCH!>y<!>)
+    A<CharSequence>("", <!ARGUMENT_TYPE_MISMATCH!>y<!>)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, functionDeclaration, javaFunction, javaType, nullableType,
+stringLiteral, typeParameter */

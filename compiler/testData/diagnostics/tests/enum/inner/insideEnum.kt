@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 enum class E {
     ABC;
     
@@ -5,3 +6,5 @@ enum class E {
         DEF
     }
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, nestedClass */

@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 // FILE: p/J.java
 
 package p;
@@ -21,3 +22,6 @@ fun test(
     J().arr(sa)
     J().arr(san)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, infix,
+javaFunction, javaType, nullableType, typeParameter, typeWithExtension */

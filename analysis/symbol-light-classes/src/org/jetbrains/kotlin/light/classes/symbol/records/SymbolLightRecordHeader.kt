@@ -1,0 +1,72 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.light.classes.symbol.records
+
+import com.intellij.psi.*
+import org.jetbrains.kotlin.analysis.api.KaImplementationDetail
+import org.jetbrains.kotlin.analysis.api.projectStructure.KaModule
+import org.jetbrains.kotlin.analysis.api.symbols.KaConstructorSymbol
+import org.jetbrains.kotlin.analysis.api.symbols.pointers.KaSymbolPointer
+import org.jetbrains.kotlin.asJava.elements.KtLightElement
+import org.jetbrains.kotlin.asJava.elements.KtLightElementBase
+import org.jetbrains.kotlin.analysis.api.javaInterop.KaSymbolJavaView
+import org.jetbrains.kotlin.light.classes.symbol.classes.SymbolLightClassForClassOrObject
+import org.jetbrains.kotlin.light.classes.symbol.utils.cachedValue
+import org.jetbrains.kotlin.light.classes.symbol.utils.toArrayIfNotEmptyOrDefault
+import org.jetbrains.kotlin.light.classes.symbol.utils.withSymbol
+import org.jetbrains.kotlin.psi.KtPrimaryConstructor
+
+@OptIn(KaImplementationDetail::class)
+internal class SymbolLightRecordHeader(
+    override val kotlinOrigin: KtPrimaryConstructor?,
+    override val symbolPointer: KaSymbolPointer<KaConstructorSymbol>,
+    private val containingClass: SymbolLightClassForClassOrObject,
+    override val useSiteModule: KaModule,
+) : KtLightElementBase(parent = containingClass), PsiRecordHeader, KtLightElement<KtPrimaryConstructor, PsiRecordHeader>,
+    KaSymbolJavaView<KaConstructorSymbol> {
+    override fun getRecordComponents(): Array<PsiRecordComponent> =
+        cachedValue { createRecordComponents() }.toArrayIfNotEmptyOrDefault(PsiRecordComponent.EMPTY_ARRAY)
+
+    override fun getContainingClass(): PsiClass = containingClass
+
+    private fun createRecordComponents(): List<PsiRecordComponent> {
+        return symbolPointer.withSymbol(useSiteModule) { primaryConstructorSymbol ->
+            primaryConstructorSymbol.valueParameters.mapNotNull { parameterSymbol ->
+                val backingFieldSymbol = parameterSymbol.primaryConstructorProperty?.backingFieldSymbol
+                    ?: return@mapNotNull null
+                SymbolLightRecordComponent(
+                    parameterSymbol = parameterSymbol,
+                    backingFieldSymbol = backingFieldSymbol,
+                    parent = this@SymbolLightRecordHeader,
+                    containingClass = containingClass,
+                )
+            }
+        }
+    }
+
+
+    override fun accept(visitor: PsiElementVisitor) {
+        if (visitor is JavaElementVisitor) {
+            visitor.visitRecordHeader(this)
+        } else {
+            visitor.visitElement(this)
+        }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is SymbolLightRecordHeader) return false
+
+        val otherKotlinOrigin = other.kotlinOrigin
+        if (kotlinOrigin != null || otherKotlinOrigin != null) {
+            return kotlinOrigin == otherKotlinOrigin
+        }
+
+        return other.containingClass == containingClass
+    }
+
+    override fun hashCode(): Int = kotlinOrigin?.hashCode() ?: containingClass.hashCode()
+}

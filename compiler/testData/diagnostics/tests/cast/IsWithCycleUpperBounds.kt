@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // check that there is no SOE on checking for instance
 interface Visitor<T>
 interface Acceptor<T>
@@ -12,3 +13,6 @@ class S<T : Acceptor<U>, U : Visitor<T>>(val visitor: U, val acceptor: T) {
         acceptor is Word
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, isExpression, nullableType,
+primaryConstructor, propertyDeclaration, typeConstraint, typeParameter */

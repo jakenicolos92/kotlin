@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 sealed class Sealed {
     object First: Sealed()
     open class NonFirst: Sealed() {
@@ -13,3 +14,5 @@ fun foo(s: Sealed): Int {
     }
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, isExpression, nestedClass,
+objectDeclaration, sealed, smartcast, whenExpression, whenWithSubject */

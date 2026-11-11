@@ -16,40 +16,97 @@
 
 package kotlin.reflect.jvm.internal
 
+import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor
+import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
+import org.jetbrains.kotlin.descriptors.runtime.components.ReflectKotlinClass
+import org.jetbrains.kotlin.load.kotlin.JvmPackagePartSource
+import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedMemberDescriptor
 import org.jetbrains.kotlin.types.Variance
+import org.jetbrains.kotlin.types.model.TypeConstructorMarker
+import org.jetbrains.kotlin.types.model.TypeParameterMarker
+import kotlin.jvm.internal.KTypeParameterBase
+import kotlin.jvm.internal.Reflection
 import kotlin.reflect.KType
-import kotlin.reflect.KTypeParameter
 import kotlin.reflect.KVariance
+import kotlin.reflect.jvm.ReflectedLambdaFakeContainerSource
+import kotlin.reflect.jvm.internal.types.DescriptorKType
 
-internal class KTypeParameterImpl(override val descriptor: TypeParameterDescriptor) : KTypeParameter, KClassifierImpl {
-    override val name: String
-        get() = descriptor.name.asString()
+internal class KTypeParameterImpl private constructor(
+    descriptor: TypeParameterDescriptor?,
+    val container: KTypeParameterOwnerImpl,
+    override val name: String,
+    override val variance: KVariance,
+    override val isReified: Boolean,
+) : KTypeParameterBase(container), TypeParameterMarker, TypeConstructorMarker {
+    constructor(
+        container: KTypeParameterOwnerImpl,
+        name: String,
+        variance: KVariance,
+        isReified: Boolean,
+    ) : this(descriptor = null, container, name, variance, isReified)
 
-    override val upperBounds: List<KType> by ReflectProperties.lazySoft {
-        descriptor.upperBounds.map { kotlinType ->
-            KTypeImpl(kotlinType) {
-                TODO("Java type is not yet supported for type parameters: $descriptor")
-            }
-        }
+    constructor(
+        container: KTypeParameterOwnerImpl,
+        descriptor: TypeParameterDescriptor,
+    ) : this(
+        descriptor,
+        container,
+        descriptor.name.asString(),
+        descriptor.variance.toKVariance(),
+        descriptor.isReified,
+    ) {
+        upperBounds = descriptor.upperBounds.map(::DescriptorKType)
     }
 
-    override val variance: KVariance
-        get() = when (descriptor.variance) {
-            Variance.INVARIANT -> KVariance.INVARIANT
-            Variance.IN_VARIANCE -> KVariance.IN
-            Variance.OUT_VARIANCE -> KVariance.OUT
-        }
+    private val _descriptor: TypeParameterDescriptor? = descriptor
+    val descriptor: TypeParameterDescriptor
+        get() = _descriptor ?: error("Descriptor-less type parameter: $this")
 
-    override val isReified: Boolean
-        get() = descriptor.isReified
-
-    override fun equals(other: Any?) =
-            other is KTypeParameterImpl && descriptor == other.descriptor
-
-    override fun hashCode() =
-            descriptor.hashCode()
-
-    override fun toString() =
-            ReflectionObjectRenderer.renderTypeParameter(descriptor)
+    @Volatile
+    override lateinit var upperBounds: List<KType>
 }
+
+private fun Variance.toKVariance(): KVariance =
+    when (this) {
+        Variance.INVARIANT -> KVariance.INVARIANT
+        Variance.IN_VARIANCE -> KVariance.IN
+        Variance.OUT_VARIANCE -> KVariance.OUT
+    }
+
+internal fun TypeParameterDescriptor.toContainer(): KTypeParameterOwnerImpl =
+    when (val declaration = containingDeclaration) {
+        is ClassDescriptor -> {
+            declaration.toKClassImpl()
+        }
+        is CallableMemberDescriptor -> {
+            val callableContainerClass = when (val callableContainer = declaration.containingDeclaration) {
+                is ClassDescriptor -> {
+                    callableContainer.toKClassImpl()
+                }
+                else -> {
+                    val deserializedMember = declaration as? DeserializedMemberDescriptor
+                        ?: throw KotlinReflectionInternalError("Non-class callable descriptor must be deserialized: $declaration")
+                    deserializedMember.getContainerOfDeserializedMember()
+                }
+            }
+            declaration.accept(CreateKCallableVisitor(callableContainerClass), Unit)
+        }
+        else -> throw KotlinReflectionInternalError("Unknown type parameter container: $declaration")
+    }
+
+private fun ClassDescriptor.toKClassImpl(): KClassImpl<*> =
+    toJavaClass()?.kotlin as KClassImpl<*>?
+        ?: throw KotlinReflectionInternalError("Type parameter container is not resolved: $containingDeclaration")
+
+private fun DeserializedMemberDescriptor.getContainerOfDeserializedMember(): KDeclarationContainerImpl =
+    when (val containerSource = containerSource) {
+        is JvmPackagePartSource -> (containerSource.knownJvmBinaryClass as? ReflectKotlinClass)?.klass?.let {
+            Reflection.getOrCreateKotlinPackage(it) as KPackageImpl
+        } ?: throw KotlinReflectionInternalError(
+            "Container of top-level deserialized member is not resolved: $this (${containerSource.knownJvmBinaryClass}"
+        )
+        is LocalDelegatedPropertyFakeContainerSource -> containerSource.container
+        is ReflectedLambdaFakeContainerSource -> EmptyContainerForLocal
+        else -> throw KotlinReflectionInternalError("Container of deserialized member is not resolved: $this")
+    }

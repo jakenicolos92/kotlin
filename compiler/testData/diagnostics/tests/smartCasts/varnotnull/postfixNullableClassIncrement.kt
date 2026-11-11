@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class MyClass
 
 // Correct at compile time but wrong at run-time
@@ -7,6 +8,9 @@ public fun box() : MyClass? {
     var i : MyClass? 
     i = MyClass()
     var j = i++
-    <!DEBUG_INFO_SMARTCAST!>j<!>.hashCode()
+    j.hashCode()
     return i
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+incrementDecrementExpression, localProperty, nullableType, operator, propertyDeclaration */

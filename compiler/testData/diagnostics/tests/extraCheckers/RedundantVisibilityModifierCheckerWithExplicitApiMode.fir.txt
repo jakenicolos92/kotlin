@@ -1,0 +1,262 @@
+FILE: RedundantVisibilityModifierCheckerWithExplicitApiMode.kt
+    public final fun f1(): R|kotlin/Unit| {
+        local final class LocalClass : R|kotlin/Any| {
+            public constructor(): R|<local>/LocalClass| {
+                super<R|kotlin/Any|>()
+            }
+
+            public final var foo: R|kotlin/Int| = Int(0)
+                public get(): R|kotlin/Int|
+                public set(value: R|kotlin/Int|): R|kotlin/Unit|
+
+        }
+
+        R|<local>/LocalClass.LocalClass|().R|<local>/foo| = Int(1)
+    }
+    public final fun f2(): R|kotlin/Unit| {
+        R|/f1|()
+    }
+    public final inline fun h1(): R|kotlin/Unit| {
+        R|/f1|()
+    }
+    public final inline fun h2(): R|kotlin/Unit| {
+        R|/f1|()
+    }
+    public final class C1 : R|kotlin/Any| {
+        public constructor(string: R|kotlin/String|): R|C1| {
+            super<R|kotlin/Any|>()
+        }
+
+        public final val foo: R|kotlin/Int| = Int(0)
+            public get(): R|kotlin/Int|
+
+        public final val z: R|kotlin/Any| = object : R|kotlin/Any| {
+            private constructor(): R|<anonymous>| {
+                super<R|kotlin/Any|>()
+            }
+
+            public final fun foo(): R|kotlin/Int| {
+                ^foo Int(13)
+            }
+
+        }
+
+            public get(): R|kotlin/Any|
+
+        public final fun x(): R|kotlin/Unit| {
+        }
+
+    }
+    public final class C2 : R|kotlin/Any| {
+        public constructor(string: R|kotlin/String|): R|C2| {
+            super<R|kotlin/Any|>()
+        }
+
+        public final val foo: R|kotlin/Int| = Int(0)
+            public get(): R|kotlin/Int|
+
+        public final val z: R|kotlin/Any| = object : R|kotlin/Any| {
+            private constructor(): R|<anonymous>| {
+                super<R|kotlin/Any|>()
+            }
+
+            public final fun foo(): R|kotlin/Int| {
+                ^foo Int(13)
+            }
+
+        }
+
+            public get(): R|kotlin/Any|
+
+        public final fun x(): R|kotlin/Unit| {
+        }
+
+    }
+    public open class D1 : R|kotlin/Any| {
+        public constructor(): R|D1| {
+            super<R|kotlin/Any|>()
+        }
+
+        public open fun willRemainPublic(): R|kotlin/Unit| {
+        }
+
+        protected open fun willBecomePublic(): R|kotlin/Unit| {
+        }
+
+    }
+    public open class D2 : R|kotlin/Any| {
+        public constructor(): R|D2| {
+            super<R|kotlin/Any|>()
+        }
+
+        public open fun willRemainPublic(): R|kotlin/Unit| {
+        }
+
+        protected open fun willBecomePublic(): R|kotlin/Unit| {
+        }
+
+    }
+    public abstract interface I1 : R|kotlin/Any| {
+        public abstract fun bar(): R|kotlin/Unit|
+
+    }
+    public abstract interface I2 : R|kotlin/Any| {
+        public abstract fun bar(): R|kotlin/Unit|
+
+    }
+    public final var baz1: R|kotlin/Int| = Int(0)
+        public get(): R|kotlin/Int|
+        public set(value: R|kotlin/Int|): R|kotlin/Unit|
+    public final var baz2: R|kotlin/Int| = Int(0)
+        public get(): R|kotlin/Int|
+        public set(value: R|kotlin/Int|): R|kotlin/Unit|
+    public final class J1 : R|kotlin/Any| {
+        public constructor(): R|J1| {
+            super<R|kotlin/Any|>()
+        }
+
+        protected final val baz: R|kotlin/Int| = Int(0)
+            protected get(): R|kotlin/Int| {
+                ^ this@R|/J1|.F|/J1.baz|.R|kotlin/Int.times|(Int(2))
+            }
+
+        public final var baf: R|kotlin/Int| = Int(0)
+            public get(): R|kotlin/Int| {
+                ^ Int(1)
+            }
+            public set(value: R|kotlin/Int|): R|kotlin/Unit| {
+                this@R|/J1|.F|/J1.baf| = R|<local>/value|
+            }
+
+        public final var buf: R|kotlin/Int| = Int(0)
+            private get(): R|kotlin/Int| {
+                ^ Int(42)
+            }
+            protected set(value: R|kotlin/Int|): R|kotlin/Unit| {
+                this@R|/J1|.F|/J1.buf| = R|<local>/value|
+            }
+
+        public final var bar: R|kotlin/Int| = Int(0)
+            public get(): R|kotlin/Int| {
+                ^ Double(3.1415926535)
+            }
+            public set(value: R|kotlin/Int|): R|kotlin/Unit| {
+            }
+
+    }
+    public final class J2 : R|kotlin/Any| {
+        public constructor(): R|J2| {
+            super<R|kotlin/Any|>()
+        }
+
+        protected final val baz: R|kotlin/Int| = Int(0)
+            protected get(): R|kotlin/Int| {
+                ^ this@R|/J2|.F|/J2.baz|.R|kotlin/Int.times|(Int(2))
+            }
+
+        public final var baf: R|kotlin/Int| = Int(0)
+            public get(): R|kotlin/Int| {
+                ^ Int(1)
+            }
+            public set(value: R|kotlin/Int|): R|kotlin/Unit| {
+                this@R|/J2|.F|/J2.baf| = R|<local>/value|
+            }
+
+        public final var buf: R|kotlin/Int| = Int(0)
+            private get(): R|kotlin/Int| {
+                ^ Int(42)
+            }
+            protected set(value: R|kotlin/Int|): R|kotlin/Unit| {
+                this@R|/J2|.F|/J2.buf| = R|<local>/value|
+            }
+
+        public final var bar: R|kotlin/Int| = Int(0)
+            public get(): R|kotlin/Int| {
+                ^ Double(3.1415926535)
+            }
+            public set(value: R|kotlin/Int|): R|kotlin/Unit| {
+            }
+
+    }
+    public sealed class Sealed : R|kotlin/Any| {
+        protected constructor(y: R|kotlin/Int|): R|Sealed| {
+            super<R|kotlin/Any|>()
+        }
+
+        public final val y: R|kotlin/Int| = R|<local>/y|
+            public get(): R|kotlin/Int|
+
+        private constructor(): R|Sealed| {
+            this<R|Sealed|>(Int(42))
+        }
+
+        public constructor(byte: R|kotlin/Byte|): R|Sealed| {
+            this<R|Sealed|>(R|<local>/byte|.R|kotlin/Byte.toInt|())
+        }
+
+        protected constructor(x: R|kotlin/Double|): R|Sealed| {
+            this<R|Sealed|>(R|<local>/x|.R|kotlin/Double.toInt|())
+        }
+
+        protected constructor(z: R|kotlin/Float|): R|Sealed| {
+            this<R|Sealed|>(R|<local>/z|.R|kotlin/Float.toInt|())
+        }
+
+        public final object SealedImpl : R|Sealed| {
+            private constructor(): R|Sealed.SealedImpl| {
+                super<R|Sealed|>()
+            }
+
+        }
+
+    }
+    public final enum class E : R|kotlin/Enum<E>| {
+        private constructor(x: R|kotlin/Double|): R|E| {
+            super<R|kotlin/Enum<E>|>()
+        }
+
+        public final val x: R|kotlin/Double| = R|<local>/x|
+            public get(): R|kotlin/Double|
+
+        public final static enum entry E1: R|E| = object : R|E| {
+            private constructor(): R|<anonymous>| {
+                super<R|E|>(Int(1))
+            }
+
+        }
+
+        public final static enum entry E2: R|E| = object : R|E| {
+            private constructor(): R|<anonymous>| {
+                super<R|E|>(Double(2.0))
+            }
+
+        }
+
+        private constructor(y: R|kotlin/Int|): R|E| {
+            this<R|E|>(R|<local>/y|.R|kotlin/Int.toDouble|())
+        }
+
+        private constructor(f: R|kotlin/Float|): R|E| {
+            this<R|E|>(R|<local>/f|.R|kotlin/Float.toFloat|())
+        }
+
+        public final static fun values(): R|kotlin/Array<E>| {
+        }
+
+        public final static fun valueOf(value: R|kotlin/String|): R|E| {
+        }
+
+        public final static val entries: R|kotlin/enums/EnumEntries<E>|
+            public static get(): R|kotlin/enums/EnumEntries<E>|
+
+    }
+    private final class Hidden : R|kotlin/Any| {
+        public constructor(): R|Hidden| {
+            super<R|kotlin/Any|>()
+        }
+
+        public final fun f(): R|kotlin/Int| {
+            ^f Int(5)
+        }
+
+    }

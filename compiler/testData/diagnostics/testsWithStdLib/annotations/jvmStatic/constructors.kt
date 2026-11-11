@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class A {
     <!WRONG_ANNOTATION_TARGET!>@JvmStatic<!> constructor() {}
     inner class B {
@@ -6,3 +7,5 @@ class A {
 }
 
 class C <!WRONG_ANNOTATION_TARGET!>@JvmStatic<!> constructor()
+
+/* GENERATED_FIR_TAGS: classDeclaration, inner, primaryConstructor, secondaryConstructor */

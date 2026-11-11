@@ -1,4 +1,6 @@
-// WITH_RUNTIME
+// WITH_STDLIB
+// DUMP_IR_DIFFERENCE: JVM
+//   K/JVM invokes `println (kotlin.Int)` instead of `println (message: kotlin.Any?)`
 
 object FiveTimes
 

@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 501
 interface I {
     fun foo() = "OK"
 }

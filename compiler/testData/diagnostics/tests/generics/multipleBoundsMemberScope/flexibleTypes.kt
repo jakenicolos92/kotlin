@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 // FILE: A.java
 public interface A {
     String foo();
@@ -17,3 +18,6 @@ interface C {
 fun <T> test(x: T) where T : B, T : A, T : C {
     x.foo().checkType { _<String>() }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, infix,
+interfaceDeclaration, javaType, lambdaLiteral, nullableType, typeConstraint, typeParameter, typeWithExtension */

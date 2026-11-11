@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: KotlinFile.kt
 fun foo(javaInterface: JavaInterface) {
     val value = javaInterface.compute { "" }
@@ -16,3 +17,6 @@ public interface JavaInterface {
 public interface Provider<T> {
     public T compute();
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaType, lambdaLiteral, localProperty,
+nullableType, propertyDeclaration, samConversion, stringLiteral */

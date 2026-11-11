@@ -1,4 +1,4 @@
-// !DUMP_DEPENDENCIES
+// DUMP_EXTERNAL_CLASS: Outer
 
 // FILE: external.kt
 // EXTERNAL_FILE

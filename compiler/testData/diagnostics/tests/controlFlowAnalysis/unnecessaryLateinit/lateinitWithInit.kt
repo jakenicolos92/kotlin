@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Foo {
     <!UNNECESSARY_LATEINIT!>lateinit<!> var bar: String
 
@@ -5,3 +6,5 @@ class Foo {
         bar = ""
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, init, lateinit, propertyDeclaration, stringLiteral */

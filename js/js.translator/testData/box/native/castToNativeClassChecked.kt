@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 491
 // FILE: castToNativeClassChecked.kt
 external abstract class S() {
     abstract fun foo(): String

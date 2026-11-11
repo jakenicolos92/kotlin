@@ -1,4 +1,5 @@
-// !MARK_DYNAMIC_CALLS
+// RUN_PIPELINE_TILL: CODEGEN
+// MARK_DYNAMIC_CALLS
 
 fun foo(d: dynamic) {
     if (d is Foo) {

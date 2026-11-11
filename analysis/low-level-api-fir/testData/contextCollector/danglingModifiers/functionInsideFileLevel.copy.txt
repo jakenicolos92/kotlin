@@ -1,0 +1,25 @@
+Tower Data Context:
+    Element 0
+        Scope: FirDefaultStarImportingScope
+    Element 1
+        Scope: FirExplicitStarImportingScope
+    Element 2
+        Scope: FirDefaultSimpleImportingScope
+    Element 3
+        Scope: FirDefaultSimpleImportingScope
+    Element 4
+        Scope: FirPackageMemberScope
+    Element 5
+        Scope: FirExplicitSimpleImportingScope
+
+FILE: [ResolvedTo(IMPORTS)] functionInsideFileLevel.kt
+    public final? [ResolvedTo(RAW_FIR)] annotation class Anno : R|kotlin/Annotation| {
+        public? [ResolvedTo(RAW_FIR)] constructor([ResolvedTo(RAW_FIR)] value: String): R|foo/Anno| {
+            LAZY_super<R|kotlin/Any|>
+        }
+
+        public? final? [ResolvedTo(RAW_FIR)] val value: String = R|<local>/value|
+            public? [ResolvedTo(RAW_FIR)] get(): String
+
+    }
+    [ResolvedTo(BODY_RESOLVE)] @R|foo/Anno|[Types](value = ERROR_EXPR(Argument is absent) [evaluated = ERROR_EXPR(Argument is absent)]) <DANGLING MODIFIER: Top level declaration expected>

@@ -1,14 +1,15 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: DocumentedAnnotations.java
 
 import java.lang.annotation.*;
 
 public class DocumentedAnnotations {
 
-    @Documented public @interface DocAnn;
+    @Documented public @interface DocAnn {};
 
-    public @interface NotDocAnn;
+    public @interface NotDocAnn {};
 
-    @Documented @Retention(RetentionPolicy.RUNTIME) public @interface RunDocAnn;
+    @Documented @Retention(RetentionPolicy.RUNTIME) public @interface RunDocAnn {};
 }
 
 // FILE: DocumentedAnnotations.kt
@@ -18,3 +19,5 @@ public class DocumentedAnnotations {
 @DocumentedAnnotations.NotDocAnn class Your
 
 @DocumentedAnnotations.RunDocAnn class His
+
+/* GENERATED_FIR_TAGS: classDeclaration, javaType */

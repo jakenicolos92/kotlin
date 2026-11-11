@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 val <!REDECLARATION!>a<!> : Int = 1
 val <!REDECLARATION!>a<!> : Int = 1
 val <!REDECLARATION!>a<!> : Int = 1
@@ -35,3 +36,5 @@ class A {
     <!CONFLICTING_OVERLOADS!>fun bar()<!> {} // and here
     <!CONFLICTING_OVERLOADS!>fun bar()<!> {} // and here
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, propertyDeclaration */

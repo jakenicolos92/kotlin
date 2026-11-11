@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class VeryBase
 
 open class Base : VeryBase()
@@ -15,3 +16,6 @@ fun foo(d: Derived, a: Another?): Base? {
     val ad = a ?: d
     return ad
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, elvisExpression, equalityExpression, functionDeclaration, ifExpression,
+localProperty, nullableType, propertyDeclaration, thisExpression */

@@ -1,5 +1,6 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun testBinary1() {
-    operator fun Int.times(<!UNUSED_PARAMETER!>s<!>: String) {}
+    operator fun Int.times(s: String) {}
 
     todo() <!UNREACHABLE_CODE!>* ""<!>
 }
@@ -8,7 +9,7 @@ fun testBinary2() {
 }
 
 fun testElvis1() {
-    todo() <!USELESS_ELVIS, UNREACHABLE_CODE!>?: ""<!>
+    todo() <!UNREACHABLE_CODE, USELESS_ELVIS!>?: ""<!>
 }
 
 fun testElvis2(s: String?) {
@@ -23,17 +24,21 @@ fun testAnd1(b: Boolean) {
     bar()
 }
 
-fun testAnd2(<!UNUSED_PARAMETER!>b<!>: Boolean) {
-    todo() <!UNREACHABLE_CODE!>&& b<!>
+fun testAnd2(b: Boolean) {
+    todo() && <!UNREACHABLE_CODE!>b<!>
 }
 
 fun returnInBinary1(): Boolean {
-    (return true) <!UNREACHABLE_CODE!>&& (return false)<!>
+    (return true) && (<!UNREACHABLE_CODE!>return false<!>)
 }
 
 fun returnInBinary2(): Boolean {
-    (return true) <!UNREACHABLE_CODE!>|| (return false)<!>
+    (return true) || (<!UNREACHABLE_CODE!>return false<!>)
 }
 
 fun todo(): Nothing = throw Exception()
 fun bar() {}
+
+/* GENERATED_FIR_TAGS: additiveExpression, andExpression, disjunctionExpression, elvisExpression,
+funWithExtensionReceiver, functionDeclaration, localFunction, multiplicativeExpression, nullableType, operator,
+stringLiteral */

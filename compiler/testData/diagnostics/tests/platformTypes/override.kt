@@ -1,8 +1,10 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/I.java
 
 package p;
 
-import p.J.Param
+import p.J.Param;
 
 public interface I {
     String s();
@@ -24,3 +26,6 @@ fun test() {
     s.get(0)
     s!!.get(0)
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, flexibleType, functionDeclaration, integerLiteral, javaFunction, javaType,
+localProperty, propertyDeclaration */

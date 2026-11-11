@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: MyFunc.java
 
 public interface MyFunc {
@@ -20,3 +21,6 @@ public class B<E> implements A<E> {
 fun main() {
     B<String>().foo("") { "" }
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaType, lambdaLiteral, samConversion,
+stringLiteral */

@@ -1,7 +1,8 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun use(x: Any?) = x
 
 class Eap {
-    private val foo = <!DEBUG_INFO_LEAKING_THIS!>toString<!>()
+    private val foo = toString()
 
     constructor(foo: Int) {
         use(foo)
@@ -10,3 +11,5 @@ class Eap {
         use(foo)
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, nullableType, propertyDeclaration, secondaryConstructor */

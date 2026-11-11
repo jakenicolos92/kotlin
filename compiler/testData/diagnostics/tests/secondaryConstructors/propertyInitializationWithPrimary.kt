@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 class A(val w: Char) {
     val x: Int
     var y: Int
@@ -12,7 +13,7 @@ class A(val w: Char) {
         y = 1
 
         <!VAL_REASSIGNMENT!>overinitialized<!> = 2
-        <!VAL_REASSIGNMENT!>uninitialized<!> = 3
+        uninitialized = 3
     }
 
     // anonymous
@@ -31,3 +32,6 @@ class A(val w: Char) {
         y = 8
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, classDeclaration, init, integerLiteral, primaryConstructor, propertyDeclaration,
+secondaryConstructor */

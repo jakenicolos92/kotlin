@@ -1,0 +1,34 @@
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("jvm")
+    id("generated-sources")
+    id("require-explicit-types")
+}
+
+dependencies {
+    api(project(":compiler:fir:checkers:checkers.common"))
+    api(project(":native:base"))
+    api(project(":compiler:frontend.common"))
+    api(project(":core:compiler.common"))
+    api(project(":core:util.runtime"))
+    api(project(":kotlin-stdlib"))
+    implementation(project(":compiler:frontend.common-psi"))
+
+    implementation(project(":compiler:psi:psi-api"))
+    implementation(project(":compiler:fir:fir-native"))
+    implementation(project(":core:error.handling"))
+
+    compileOnly(project(":core:compiler.common.native"))
+    compileOnly(commonDependency("org.jetbrains.kotlin:kotlin-reflect")) { isTransitive = false }
+    compileOnly(intellijCore())
+}
+
+sourceSets {
+    "main" {
+        projectDefault()
+    }
+    "test" { none() }
+}
+
+generatedDiagnosticContainersAndCheckerComponents()

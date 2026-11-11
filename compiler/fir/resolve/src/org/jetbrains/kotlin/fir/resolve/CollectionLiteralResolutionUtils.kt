@@ -1,0 +1,145 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.fir.resolve
+
+import org.jetbrains.kotlin.KtFakeSourceElementKind
+import org.jetbrains.kotlin.builtins.StandardNames
+import org.jetbrains.kotlin.fir.diagnostics.ConeCollectionLiteralAmbiguity
+import org.jetbrains.kotlin.fir.diagnostics.ConeDiagnostic
+import org.jetbrains.kotlin.fir.expressions.FirCollectionLiteral
+import org.jetbrains.kotlin.fir.expressions.FirFunctionCall
+import org.jetbrains.kotlin.fir.expressions.FirFunctionCallOrigin
+import org.jetbrains.kotlin.fir.expressions.builder.buildFunctionCall
+import org.jetbrains.kotlin.fir.expressions.builder.buildResolvedQualifier
+import org.jetbrains.kotlin.fir.references.builder.buildSimpleNamedReference
+import org.jetbrains.kotlin.fir.resolve.calls.ConeCollectionLiteralAtom
+import org.jetbrains.kotlin.fir.resolve.calls.ResolutionContext
+import org.jetbrains.kotlin.fir.resolve.calls.UnsuccessfulCollectionLiteralArgument
+import org.jetbrains.kotlin.fir.resolve.calls.candidate.Candidate
+import org.jetbrains.kotlin.fir.resolve.calls.candidate.CheckerSink
+import org.jetbrains.kotlin.fir.resolve.calls.candidate.FirErrorReferenceWithCandidate
+import org.jetbrains.kotlin.fir.resolve.calls.candidate.createErrorReferenceWithExistingCandidate
+import org.jetbrains.kotlin.fir.resolve.inference.StateForAtomWithExpectedTypeAsStaticReceiver
+import org.jetbrains.kotlin.fir.resolve.inference.ExpectedTypeAsStaticReceiverStrategy
+import org.jetbrains.kotlin.fir.symbols.impl.FirErrorFunctionSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirRegularClassSymbol
+import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.name.StandardClassIds
+import org.jetbrains.kotlin.resolve.CollectionNames
+import org.jetbrains.kotlin.resolve.calls.tower.ApplicabilityDetail
+import org.jetbrains.kotlin.resolve.calls.tower.CandidateApplicability
+import org.jetbrains.kotlin.resolve.calls.tower.isSuccess
+
+/**
+ * For Kotlin class:
+ *  There is a companion && in this companion at least one operator `of` is declared.
+ *  If all the `of` operators are deprecated with `level=HIDDEN`, the class must be considered as not-having `of` operator
+ *   ([KT-83165](https://youtrack.jetbrains.com/issue/KT-83165)).
+ *  If the overloads of `of` are not visible from the call-site, the class must be considered as not-having `of` operator
+ *   ([KT-84072](https://youtrack.jetbrains.com/issue/KT-84072)).
+ *
+ * For Java class:
+ *  Static `of` with vararg is declared which fulfills all the restrictions on `of` (KT-80494).
+ *
+ * Additionally:
+ *  `List`, `Set`, `MutableList`, `MutableSet`, `Sequence`, `Array`, primitive arrays, and unsigned arrays all declare operator `of`.
+ *  ([KT-81722](https://youtrack.jetbrains.com/issue/KT-81722) for stdlib support).
+ */
+context(resolutionContext: ResolutionContext)
+fun FirRegularClassSymbol.declaresOperatorOf(): Boolean {
+    return tryAllCLResolutionStrategies {
+        if (declaresOperatorOf(this@declaresOperatorOf)) true
+        else null
+    } ?: false
+}
+
+object CollectionLiteralReceiverStrategy : ExpectedTypeAsStaticReceiverStrategy<ConeCollectionLiteralAtom> {
+    context(resolutionContext: ResolutionContext)
+    override fun getClassRepresentative(type: ConeKotlinType): FirRegularClassSymbol? {
+        return type.getClassRepresentativeForResolutionByExpectedType(resolutionContext.session)
+    }
+
+    context(resolutionContext: ResolutionContext)
+    override fun isSuitableReceiver(atom: ConeCollectionLiteralAtom, classSymbol: FirRegularClassSymbol): Boolean {
+        return classSymbol.declaresOperatorOf()
+    }
+}
+
+fun StateForAtomWithExpectedTypeAsStaticReceiver<*>?.toConeDiagnostic(): ConeDiagnostic {
+    return when (this) {
+        is StateForAtomWithExpectedTypeAsStaticReceiver.MultipleBounds -> ConeCollectionLiteralAmbiguity(bounds.toList())
+        else -> error("Fallback should be used instead")
+    }
+}
+
+context(context: ResolutionContext)
+fun buildCollectionLiteralCallForFallback(collectionLiteral: FirCollectionLiteral): FirFunctionCall {
+    // rhs of elvis here is somewhat redundant, but let's leave it in case `toSymbol` call returns null in some corner cases
+    return tryAllCLResolutionStrategies {
+        prepareRawCall(collectionLiteral, StandardClassIds.List.toSymbol() as? FirRegularClassSymbol)
+    } ?: context.bodyResolveComponents.buildCollectionLiteralCallForStdlibType(
+        StandardNames.COLLECTIONS_PACKAGE_FQ_NAME,
+        CollectionNames.Factories.LIST_OF,
+        collectionLiteral,
+    )
+}
+
+fun BodyResolveComponents.buildCollectionLiteralCallForStdlibType(
+    packageName: FqName,
+    functionName: Name,
+    collectionLiteral: FirCollectionLiteral,
+): FirFunctionCall {
+    return buildFunctionCall {
+        annotations.addAll(collectionLiteral.annotations)
+        explicitReceiver = buildResolvedQualifier {
+            packageFqName = packageName
+            source = collectionLiteral.source?.fakeElement(KtFakeSourceElementKind.DesugaredReceiverForOperatorOfCall)
+            resolvedToCompanionObject = false
+            initTypeAndObjectAccess()
+        }
+        source = collectionLiteral.source
+        calleeReference = buildSimpleNamedReference {
+            source = collectionLiteral.source?.fakeElement(KtFakeSourceElementKind.CalleeReferenceForOperatorOfCall)
+            name = functionName
+        }
+        argumentList = collectionLiteral.argumentList
+        origin = FirFunctionCallOrigin.StdlibCollectionLiteral
+    }
+}
+
+context(context: ResolutionContext)
+fun updateCalleeReferenceWithNewErrorsIfNeeded(functionCall: FirFunctionCall, candidate: Candidate) {
+    if (candidate.isSuccessful) return
+    val existingReference = functionCall.calleeReference
+    if (existingReference is FirErrorReferenceWithCandidate && existingReference.candidateSymbol is FirErrorFunctionSymbol) return
+    val diagnostic = createConeDiagnosticForCandidateWithError(candidate.lowestApplicability, candidate)
+    val errorReference = createErrorReferenceWithExistingCandidate(
+        candidate,
+        diagnostic,
+        functionCall.calleeReference.source,
+        context,
+        context.bodyResolveComponents.resolutionStageRunner,
+    )
+
+    functionCall.replaceCalleeReference(errorReference)
+}
+
+fun Candidate.remapResolutionDiagnosticsToOuterCandidate(outerCheckerSink: CheckerSink) {
+    for (diagnostic in diagnostics) {
+        val applicability = diagnostic.applicability
+
+        @OptIn(ApplicabilityDetail::class)
+        val remappedDiagnostic = when {
+            diagnostic is UnsuccessfulCollectionLiteralArgument -> diagnostic
+            !applicability.isSuccess && applicability != CandidateApplicability.RESOLVED_WITH_ERROR ->
+                UnsuccessfulCollectionLiteralArgument(CandidateApplicability.INAPPLICABLE)
+            else -> UnsuccessfulCollectionLiteralArgument(diagnostic.applicability)
+        }
+        outerCheckerSink.reportDiagnostic(remappedDiagnostic)
+    }
+}

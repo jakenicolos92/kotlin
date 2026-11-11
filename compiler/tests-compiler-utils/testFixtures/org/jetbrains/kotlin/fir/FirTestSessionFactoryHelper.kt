@@ -1,0 +1,54 @@
+/*
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.fir
+
+import org.jetbrains.kotlin.ObsoleteTestInfrastructure
+import org.jetbrains.kotlin.cli.create
+import org.jetbrains.kotlin.cli.jvm.compiler.VfsBasedProjectEnvironment
+import org.jetbrains.kotlin.cli.jvm.compiler.javaInterop
+import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.config.LanguageVersionSettings
+import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl
+import org.jetbrains.kotlin.config.languageVersionSettings
+import org.jetbrains.kotlin.fir.session.FirSessionFactoryHelper
+import org.jetbrains.kotlin.jvm.environment.JvmClasspath
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
+import java.nio.file.Path
+import kotlin.io.path.pathString
+
+object FirTestSessionFactoryHelper {
+    /**
+     * [compilerConfiguration] must be the one [projectEnvironment] was built from: java-direct takes the `.java`
+     * sources from its content roots, while PSI finds them through a project-wide scope and ignores it.
+     */
+    @ObsoleteTestInfrastructure
+    fun createSessionForTests(
+        projectEnvironment: VfsBasedProjectEnvironment,
+        compilerConfiguration: CompilerConfiguration,
+        librariesClasspath: JvmClasspath = JvmClasspath.ProjectLibraries(),
+        moduleName: String = "TestModule",
+        friendsPaths: List<Path> = emptyList(),
+        languageVersionSettings: LanguageVersionSettings = LanguageVersionSettingsImpl.DEFAULT
+    ): FirSession {
+        val configuration = compilerConfiguration.copy().apply {
+            this.languageVersionSettings = languageVersionSettings
+        }
+        return FirSessionFactoryHelper.createSessionWithDependencies(
+            Name.identifier(moduleName),
+            JvmPlatforms.unspecifiedJvmPlatform,
+            projectEnvironment,
+            configuration,
+            projectEnvironment.javaInterop(configuration),
+            librariesClasspath,
+            incrementalCompilationContext = null,
+            extensionRegistrars = emptyList(),
+            dependenciesConfigurator = {
+                friendDependencies(friendsPaths.map { it.pathString })
+            }
+        )
+    }
+}

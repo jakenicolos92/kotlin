@@ -1,7 +1,8 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class Base {
     init {
-        register(<!DEBUG_INFO_LEAKING_THIS!>this<!>)
-        <!DEBUG_INFO_LEAKING_THIS!>foo<!>()
+        register(this)
+        foo()
     }
 
     open fun foo() {}
@@ -27,8 +28,11 @@ enum class MyEnum {
     };
 
     init {
-        <!DEBUG_INFO_LEAKING_THIS!>foo<!>()
+        foo()
     }
 
     abstract fun foo()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, enumDeclaration, enumEntry, functionDeclaration, init, override,
+primaryConstructor, propertyDeclaration, thisExpression */

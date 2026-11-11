@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-2317 Wrong UNNECESSARY_SAFE_CALL
 
 package kt2317
@@ -13,3 +14,5 @@ fun quux(x: Int?): Unit {
 	x?.baz()
 	x?.bar()
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, integerLiteral, nullableType, safeCall */

@@ -1,0 +1,42 @@
+/*
+ * Copyright 2010-2016 JetBrains s.r.o.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.jetbrains.kotlin.cli.jvm.compiler
+
+import com.intellij.openapi.project.Project
+import com.intellij.psi.search.GlobalSearchScope
+import org.jetbrains.kotlin.cli.jvm.index.JvmDependenciesIndex
+import org.jetbrains.kotlin.jvm.environment.JvmClasspath
+import org.jetbrains.kotlin.load.kotlin.VirtualFileFinder
+import org.jetbrains.kotlin.load.kotlin.VirtualFileFinderFactory
+import org.jetbrains.kotlin.util.PerformanceManager
+
+// TODO(KT-90203): create different JvmDependenciesIndex instances for different sets of source roots to improve performance
+class CliVirtualFileFinderFactory(
+    val index: JvmDependenciesIndex,
+    val enableSearchInCtSym: Boolean,
+    private val perfManager: PerformanceManager?,
+) : VirtualFileFinderFactory {
+    /** Scope-based lookup required by the shared [VirtualFileFinderFactory] contract (K1, Analysis API); K2 CLI uses [create] with [JvmClasspath]. */
+    override fun create(scope: GlobalSearchScope): VirtualFileFinder =
+        CliVirtualFileFinder(index, { it in scope }, enableSearchInCtSym, perfManager)
+
+    fun create(classpath: JvmClasspath): VirtualFileFinder =
+        CliVirtualFileFinder(index, classpath, enableSearchInCtSym, perfManager)
+
+    override fun create(project: Project): VirtualFileFinder =
+        create(GlobalSearchScope.allScope(project))
+}

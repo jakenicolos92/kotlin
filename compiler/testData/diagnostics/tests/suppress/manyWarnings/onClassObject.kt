@@ -1,6 +1,10 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class C {
     @Suppress("REDUNDANT_NULLABLE", "UNNECESSARY_NOT_NULL_ASSERTION")
     companion object {
-        val foo: String?? = ""!! <!USELESS_CAST!>as String??<!>
+        val foo: String?? = ""!! as String??
     }
 }
+
+/* GENERATED_FIR_TAGS: asExpression, checkNotNullCall, classDeclaration, companionObject, nullableType,
+objectDeclaration, propertyDeclaration, stringLiteral */

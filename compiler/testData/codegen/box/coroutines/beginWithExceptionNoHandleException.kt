@@ -1,9 +1,9 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
-suspend fun suspendHere(): Any = suspendCoroutineOrReturn { x ->}
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
+suspend fun suspendHere(): Any = suspendCoroutineUninterceptedOrReturn { x ->}
 
 fun builder(c: suspend () -> Unit) {
     try {

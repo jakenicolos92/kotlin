@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-337 Can't break a line before a dot
 
 class A() {
@@ -12,3 +13,5 @@ fun test() {
       .foo() // Should be a valid expression
 
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, localProperty, primaryConstructor, propertyDeclaration */

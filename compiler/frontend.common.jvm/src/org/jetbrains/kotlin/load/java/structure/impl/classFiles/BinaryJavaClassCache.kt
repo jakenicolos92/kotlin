@@ -1,0 +1,73 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.load.java.structure.impl.classFiles
+
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
+import org.jetbrains.kotlin.jvm.environment.JvmClasspath
+import org.jetbrains.kotlin.name.ClassId
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
+
+/**
+ * The classpath-wide state of the binary Java model: class-file lookups in a [BinaryClassFileIndex] and the
+ * classes read from them. This state is created once per compilation, by whoever builds the Java view of that
+ * compilation, and shared by the binary `JavaClassFinder` of every session: the JDK and the libraries are then
+ * looked up and parsed once, and a session restricts the lookup to its own part of the classpath afterwards.
+ */
+class BinaryJavaClassCache(private val index: BinaryClassFileIndex) {
+
+    val signatureParser: BinaryClassSignatureParser = BinaryClassSignatureParser()
+
+    val classes: BinaryJavaClasses = BinaryJavaClasses()
+
+    // Indexed by the two parts of the outermost class name as they already exist in a `ClassId`. An `FqName`
+    // of that class would be a nicer single key, but building it costs a string concatenation, an `FqName`,
+    // an `FqNameUnsafe`, a `pathSegments()` list and a hash of a fresh string on every lookup.
+    private val topLevelClassFiles: MutableMap<FqName, MutableMap<Name, Collection<BinaryClassFileHandle>>> =
+        Object2ObjectOpenHashMap()
+
+    private val topLevelClassFilesByClasspath:
+        MutableMap<JvmClasspath, MutableMap<FqName, MutableMap<Name, Collection<BinaryClassFileHandle>>>> = Object2ObjectOpenHashMap()
+
+    private val classFileNamesInPackage: MutableMap<FqName, Set<String>> = Object2ObjectOpenHashMap()
+
+    private var cachedClasspathVersion: Int = index.classpathVersion
+
+    fun findTopLevelClassFiles(packageFqName: FqName, topLevelName: Name): Collection<BinaryClassFileHandle> {
+        dropLookupsOfPreviousClasspath()
+        return topLevelClassFiles.getOrPut(packageFqName) { Object2ObjectOpenHashMap() }.getOrPut(topLevelName) {
+            index.findTopLevelClassFiles(ClassId(packageFqName, topLevelName))
+        }
+    }
+
+    fun findTopLevelClassFiles(
+        packageFqName: FqName,
+        topLevelName: Name,
+        classpath: JvmClasspath,
+    ): Collection<BinaryClassFileHandle> {
+        dropLookupsOfPreviousClasspath()
+        val classFilesByPackage = topLevelClassFilesByClasspath.getOrPut(classpath) { Object2ObjectOpenHashMap() }
+        return classFilesByPackage.getOrPut(packageFqName) { Object2ObjectOpenHashMap() }.getOrPut(topLevelName) {
+            index.findTopLevelClassFiles(ClassId(packageFqName, topLevelName), classpath)
+        }
+    }
+
+    fun classFileNamesInPackage(packageFqName: FqName): Set<String> {
+        dropLookupsOfPreviousClasspath()
+        return classFileNamesInPackage.getOrPut(packageFqName) { index.classFileNamesInPackage(packageFqName) }
+    }
+
+    fun containsPackageDirectory(packageFqName: FqName): Boolean = index.containsPackageDirectory(packageFqName)
+
+    private fun dropLookupsOfPreviousClasspath() {
+        val currentVersion = index.classpathVersion
+        if (currentVersion == cachedClasspathVersion) return
+        cachedClasspathVersion = currentVersion
+        topLevelClassFiles.clear()
+        topLevelClassFilesByClasspath.clear()
+        classFileNamesInPackage.clear()
+    }
+}

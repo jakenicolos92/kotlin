@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 import kotlin.reflect.KProperty
 
@@ -13,3 +14,7 @@ class A {
 class MyProperty<R> {
     operator fun getValue(thisRef: R, desc: KProperty<*>): Int = throw Exception("$thisRef $desc")
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, infix,
+nullableType, operator, propertyDeclaration, propertyDelegate, starProjection, stringLiteral, typeParameter,
+typeWithExtension */

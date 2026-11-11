@@ -1,11 +1,12 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class C {
 
-    fun f (<!UNUSED_PARAMETER!>a<!> : Boolean, <!UNUSED_PARAMETER!>b<!> : Boolean) {
+    fun f (a : Boolean, b : Boolean) {
         b@ while (true)
           a@ {
             <!NOT_A_LOOP_LABEL!>break@f<!>
             break
-            <!UNREACHABLE_CODE!>break@b<!>
+            break@b
             <!NOT_A_LOOP_LABEL!>break@a<!>
           }
 
@@ -15,17 +16,17 @@ class C {
           a@ {
             <!NOT_A_LOOP_LABEL!>continue@f<!>
             continue
-            <!UNREACHABLE_CODE!>continue@b<!>
+            continue@b
             <!NOT_A_LOOP_LABEL!>continue@a<!>
           }
 
         <!BREAK_OR_CONTINUE_OUTSIDE_A_LOOP!>break<!>
 
-        <!NOT_A_LOOP_LABEL!>continue@f<!>
-        <!NOT_A_LOOP_LABEL!>break@f<!>
+        <!BREAK_OR_CONTINUE_OUTSIDE_A_LOOP!>continue@f<!>
+        <!BREAK_OR_CONTINUE_OUTSIDE_A_LOOP!>break@f<!>
     }
 
-    fun containsBreak(a: String?, <!UNUSED_PARAMETER!>b<!>: String?) {
+    fun containsBreak(a: String?, b: String?) {
         while (a == null) {
             break;
         }
@@ -38,7 +39,7 @@ class C {
                 break;
             }
         }
-        <!DEBUG_INFO_SMARTCAST!>a<!>.compareTo("2")
+        a.compareTo("2")
     }
 
     fun containsBreakWithLabel(a: String?) {
@@ -50,9 +51,9 @@ class C {
 
     fun containsIllegalBreak(a: String?) {
         loop@ while(a == null) {
-            <!NOT_A_LOOP_LABEL!>break<!UNRESOLVED_REFERENCE!>@label<!><!>
+            <!NOT_A_LOOP_LABEL!>break@label<!>
         }
-        <!DEBUG_INFO_SMARTCAST!>a<!>.compareTo("2")
+        a.compareTo("2")
     }
 
     fun containsBreakToOuterLoop(a: String?, b: String?) {
@@ -60,7 +61,7 @@ class C {
             while(a == null) {
                 break@loop
             }
-            <!DEBUG_INFO_SMARTCAST!>a<!>.compareTo("2")
+            a.compareTo("2")
         }
     }
 
@@ -78,7 +79,7 @@ class C {
             l@ for (el in array) {
                 break
             }
-            if (true) break else <!NOT_A_LOOP_LABEL!>break<!UNRESOLVED_REFERENCE!>@l<!><!>
+            if (true) break else <!NOT_A_LOOP_LABEL!>break@l<!>
         }
         a<!UNSAFE_CALL!>.<!>compareTo("2")
     }
@@ -86,7 +87,7 @@ class C {
     fun twoLabelsOnLoop() {
         label1@ label2@ for (i in 1..100) {
             if (i > 0) {
-                break@label1
+                <!NOT_A_LOOP_LABEL!>break@label1<!>
             }
             else {
                 break@label2
@@ -94,3 +95,7 @@ class C {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: break, classDeclaration, comparisonExpression, continue, equalityExpression, forLoop,
+functionDeclaration, ifExpression, integerLiteral, localProperty, nullableType, propertyDeclaration, rangeExpression,
+safeCall, smartcast, stringLiteral, whileLoop */

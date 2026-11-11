@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 894
+// KJS_WITH_FULL_RUNTIME
 fun foo(arg: Any): Boolean {
     return arg == "x"
 }

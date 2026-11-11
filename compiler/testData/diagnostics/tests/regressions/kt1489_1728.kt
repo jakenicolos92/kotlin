@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package kt606_dependents
 
 //KT-1489 Code analyzer fails with assertion
@@ -12,15 +13,15 @@ class C {
         }
     }
 
-    fun <X : AutoCloseable> foo(<!UNUSED_PARAMETER!>x<!> : X, <!UNUSED_PARAMETER!>body<!> : (X) -> Unit) {
+    fun <X : AutoCloseable> foo(x : X, body : (X) -> Unit) {
     }
 
     fun p() : Resource? = null
 
     fun bar() {
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>foo<!>(p()) {
+        <!CANNOT_INFER_PARAMETER_TYPE!>foo<!>(<!ARGUMENT_TYPE_MISMATCH!>p()<!>) <!CANNOT_INFER_PARAMETER_TYPE!>{
 
-        }
+        }<!>
     }
 }
 
@@ -28,3 +29,7 @@ class C {
 
 val Int.ext : () -> Int get() = { 5 }
 val x = 1.ext()
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, functionalType, getter, integerLiteral,
+interfaceDeclaration, lambdaLiteral, nestedClass, nullableType, override, propertyDeclaration,
+propertyWithExtensionReceiver, typeConstraint, typeParameter */

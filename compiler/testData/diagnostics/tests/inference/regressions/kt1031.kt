@@ -1,14 +1,16 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 //KT-1031 Can't infer type of `it` with two lambdas
 package i
 
 import java.util.ArrayList
+import checkSubtype
 
-public infix fun<TItem> Iterable<TItem>.where(<!UNUSED_PARAMETER!>predicate<!> : (TItem)->Boolean) : ()->Iterable<TItem> {
+public infix fun<TItem> Iterable<TItem>.where(predicate : (TItem)->Boolean) : ()->Iterable<TItem> {
 <!NO_RETURN_IN_FUNCTION_WITH_BLOCK_BODY!>}<!>
 
-public fun<TItem, TResult> select(<!UNUSED_PARAMETER!>yielder<!>: ()->Iterable<TItem>, <!UNUSED_PARAMETER!>selector<!> : (TItem)->TResult) : ()->Iterable<TResult> {
+public fun<TItem, TResult> select(yielder: ()->Iterable<TItem>, selector : (TItem)->TResult) : ()->Iterable<TResult> {
 <!NO_RETURN_IN_FUNCTION_WITH_BLOCK_BODY!>}<!>
 
 fun a() {
@@ -19,3 +21,7 @@ fun a() {
     checkSubtype<() -> Iterable<Int>>(z)
     checkSubtype<() -> Iterable<String>>(yielder)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, integerLiteral, lambdaLiteral, localProperty, multiplicativeExpression, nullableType,
+propertyDeclaration, rangeExpression, typeParameter, typeWithExtension */

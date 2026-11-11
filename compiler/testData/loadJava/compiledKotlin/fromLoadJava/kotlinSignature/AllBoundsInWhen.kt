@@ -1,3 +1,6 @@
+// PLATFORM_DEPENDANT_METADATA
+// TARGET_BACKEND: JVM
+
 package test
 
 import java.io.Serializable

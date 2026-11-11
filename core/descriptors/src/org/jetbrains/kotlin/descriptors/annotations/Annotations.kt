@@ -17,27 +17,22 @@
 package org.jetbrains.kotlin.descriptors.annotations
 
 import org.jetbrains.kotlin.name.FqName
-import org.jetbrains.kotlin.resolve.DescriptorUtils
-import org.jetbrains.kotlin.resolve.descriptorUtil.annotationClass
+import org.jetbrains.kotlin.types.model.AnnotationMarker
 
 interface Annotated {
     val annotations: Annotations
 }
 
 interface Annotations : Iterable<AnnotationDescriptor> {
-
     fun isEmpty(): Boolean
 
-    fun findAnnotation(fqName: FqName): AnnotationDescriptor?
+    fun findAnnotation(fqName: FqName): AnnotationDescriptor? = firstOrNull { it.fqName == fqName }
 
-    fun hasAnnotation(fqName: FqName) = findAnnotation(fqName) != null
+    fun hasAnnotation(fqName: FqName): Boolean = findAnnotation(fqName) != null
 
-    fun findExternalAnnotation(fqName: FqName): AnnotationDescriptor?
-
-    fun getUseSiteTargetedAnnotations(): List<AnnotationWithTarget>
-
-    // Returns both targeted and annotations without target. Annotation order is preserved.
-    fun getAllAnnotations(): List<AnnotationWithTarget>
+    @Suppress("DeprecatedCallableAddReplaceWith")
+    @Deprecated("This method should only be used in frontend where we split annotations according to their use-site targets.")
+    fun getUseSiteTargetedAnnotations(): List<AnnotationWithTarget> = emptyList()
 
     companion object {
         val EMPTY: Annotations = object : Annotations {
@@ -45,82 +40,67 @@ interface Annotations : Iterable<AnnotationDescriptor> {
 
             override fun findAnnotation(fqName: FqName) = null
 
-            override fun findExternalAnnotation(fqName: FqName) = null
-
-            override fun getUseSiteTargetedAnnotations() = emptyList<AnnotationWithTarget>()
-
-            override fun getAllAnnotations() = emptyList<AnnotationWithTarget>()
-
             override fun iterator() = emptyList<AnnotationDescriptor>().iterator()
 
             override fun toString() = "EMPTY"
         }
 
-        fun findAnyAnnotation(annotations: Annotations, fqName: FqName): AnnotationWithTarget? {
-            return annotations.getAllAnnotations().firstOrNull { checkAnnotationName(it.annotation, fqName) }
-        }
-
-        fun findUseSiteTargetedAnnotation(annotations: Annotations, target: AnnotationUseSiteTarget, fqName: FqName): AnnotationDescriptor? {
-            return getUseSiteTargetedAnnotations(annotations, target).firstOrNull { checkAnnotationName(it, fqName) }
-        }
-
-        private fun getUseSiteTargetedAnnotations(annotations: Annotations, target: AnnotationUseSiteTarget): List<AnnotationDescriptor> {
-            return annotations.getUseSiteTargetedAnnotations().fold(arrayListOf<AnnotationDescriptor>()) { list, targeted ->
-                if (target == targeted.target) {
-                    list.add(targeted.annotation)
-                }
-                list
-            }
-        }
+        fun create(annotations: List<AnnotationDescriptor>): Annotations =
+            if (annotations.isEmpty()) EMPTY else AnnotationsImpl(annotations)
     }
-}
-
-fun checkAnnotationName(annotation: AnnotationDescriptor, fqName: FqName): Boolean {
-    val descriptor = annotation.annotationClass
-    return descriptor != null && fqName.toUnsafe() == DescriptorUtils.getFqName(descriptor)
 }
 
 class FilteredAnnotations(
-        private val delegate: Annotations,
-        private val fqNameFilter: (FqName) -> Boolean
+    private val delegate: Annotations,
+    private val isDefinitelyNewInference: Boolean,
+    private val fqNameFilter: (FqName) -> Boolean
 ) : Annotations {
 
+    constructor(delegate: Annotations, fqNameFilter: (FqName) -> Boolean) : this(delegate, false, fqNameFilter)
+
     override fun hasAnnotation(fqName: FqName) =
-            if (fqNameFilter(fqName)) delegate.hasAnnotation(fqName)
-            else false
+        if (fqNameFilter(fqName)) delegate.hasAnnotation(fqName)
+        else false
 
     override fun findAnnotation(fqName: FqName) =
-            if (fqNameFilter(fqName)) delegate.findAnnotation(fqName)
-            else null
+        if (fqNameFilter(fqName)) delegate.findAnnotation(fqName)
+        else null
 
-    override fun findExternalAnnotation(fqName: FqName) =
-            if (fqNameFilter(fqName)) delegate.findExternalAnnotation(fqName)
-            else null
+    override fun iterator() = delegate.filter(this::shouldBeReturned).iterator()
 
-    override fun getUseSiteTargetedAnnotations(): List<AnnotationWithTarget> {
-        return delegate.getUseSiteTargetedAnnotations().filter { shouldBeReturned(it.annotation) }
+    override fun isEmpty(): Boolean {
+        val condition = delegate.any(this::shouldBeReturned)
+        // fixing KT-32189 && KT-32138 for the new inference only
+        return if (isDefinitelyNewInference) !condition else condition
     }
 
-    override fun getAllAnnotations(): List<AnnotationWithTarget> {
-        return delegate.getAllAnnotations().filter { shouldBeReturned(it.annotation) }
-    }
-
-    override fun iterator() = delegate.filter { shouldBeReturned(it) }.iterator()
-
-    private fun shouldBeReturned(annotation: AnnotationDescriptor): Boolean {
-        val descriptor = annotation.annotationClass
-        return descriptor != null && DescriptorUtils.getFqName(descriptor).let { fqName ->
-            fqName.isSafe && fqNameFilter(fqName.toSafe())
+    private fun shouldBeReturned(annotation: AnnotationDescriptor): Boolean =
+        annotation.fqName.let { fqName ->
+            fqName != null && fqNameFilter(fqName)
         }
+}
+
+class FilteredByPredicateAnnotations(
+    private val delegate: Annotations,
+    private val filter: (AnnotationDescriptor) -> Boolean
+) : Annotations {
+    override fun isEmpty(): Boolean {
+        return !iterator().hasNext()
     }
 
-    override fun isEmpty() = !iterator().hasNext()
+    override fun iterator(): Iterator<AnnotationDescriptor> {
+        return delegate.filter(filter).iterator()
+    }
+
+    override fun findAnnotation(fqName: FqName): AnnotationDescriptor? {
+        return super.findAnnotation(fqName)?.takeIf(filter)
+    }
 }
 
 class CompositeAnnotations(
-        private val delegates: List<Annotations>
+    private val delegates: List<Annotations>
 ) : Annotations {
-    constructor(vararg delegates: Annotations): this(delegates.toList())
+    constructor(vararg delegates: Annotations) : this(delegates.toList())
 
     override fun isEmpty() = delegates.all { it.isEmpty() }
 
@@ -128,18 +108,15 @@ class CompositeAnnotations(
 
     override fun findAnnotation(fqName: FqName) = delegates.asSequence().mapNotNull { it.findAnnotation(fqName) }.firstOrNull()
 
-    override fun findExternalAnnotation(fqName: FqName) = delegates.asSequence().mapNotNull { it.findExternalAnnotation(fqName) }.firstOrNull()
-
+    @Suppress("DEPRECATION", "OverridingDeprecatedMember", "OVERRIDE_DEPRECATION")
     override fun getUseSiteTargetedAnnotations() = delegates.flatMap { it.getUseSiteTargetedAnnotations() }
-
-    override fun getAllAnnotations() = delegates.flatMap { it.getAllAnnotations() }
 
     override fun iterator() = delegates.asSequence().flatMap { it.asSequence() }.iterator()
 }
 
 fun composeAnnotations(first: Annotations, second: Annotations) =
-        when {
-            first.isEmpty() -> second
-            second.isEmpty() -> first
-            else -> CompositeAnnotations(first, second)
-        }
+    when {
+        first.isEmpty() -> second
+        second.isEmpty() -> first
+        else -> CompositeAnnotations(first, second)
+    }

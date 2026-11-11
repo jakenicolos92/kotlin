@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // See KT-10056
 class Foo(val bar: String)
 
@@ -11,3 +12,6 @@ fun test(foo: Foo?) {
         foo?.bar?.length
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, lambdaLiteral, nullableType, primaryConstructor,
+propertyDeclaration, safeCall */

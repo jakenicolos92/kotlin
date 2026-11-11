@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package kt939
 
 //KT-939 CommonSupertypes erases scopes associated to types
@@ -16,3 +17,6 @@ fun test() {
     val x = System.getProperty("path.separator")?.length ?: 4
     x * 55 + 5
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, elvisExpression, flexibleType, functionDeclaration, integerLiteral,
+javaFunction, localProperty, multiplicativeExpression, nullableType, propertyDeclaration, safeCall, stringLiteral */

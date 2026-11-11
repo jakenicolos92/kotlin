@@ -1,7 +1,8 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package uninitialized_reassigned_variables
 
-fun doSmth(<!UNUSED_PARAMETER!>s<!>: String) {}
-fun doSmth(<!UNUSED_PARAMETER!>i<!>: Int) {}
+fun doSmth(s: String) {}
+fun doSmth(i: Int) {}
 
 // ------------------------------------------------
 // uninitialized variables
@@ -30,7 +31,7 @@ fun t1(b : Boolean) {
         doSmth(<!UNINITIALIZED_VARIABLE!>t<!>)
     else
         t = "ss"
-    doSmth(t) //repeat for t
+    doSmth(<!UNINITIALIZED_VARIABLE!>t<!>) //repeat for t
 
     val i = 3
     doSmth(i)
@@ -54,18 +55,18 @@ fun t2() {
 class A() {}
 
 fun t4(a: A) {
-    <!UNUSED_VALUE!><!VAL_REASSIGNMENT!>a<!> =<!> A()
+    <!VAL_REASSIGNMENT!>a<!> = A()
 }
 
 // ------------------------------------------------
 // reassigned vals
 
 fun t1() {
-    val <!ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE!>a<!> : Int = 1
-    <!UNUSED_VALUE!><!VAL_REASSIGNMENT!>a<!> =<!> 2
+    val a : Int = 1
+    <!VAL_REASSIGNMENT!>a<!> = 2
 
-    var <!ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE!>b<!> : Int = 1
-    <!UNUSED_VALUE!>b =<!> 3
+    var b : Int = 1
+    b = 3
 }
 
 enum class ProtocolState {
@@ -83,7 +84,7 @@ enum class ProtocolState {
 fun t3() {
    val x: ProtocolState = ProtocolState.WAITING
    <!VAL_REASSIGNMENT!>x<!> = x.signal()
-   <!UNUSED_VALUE!>x =<!> x.signal() //repeat for x
+   <!VAL_REASSIGNMENT!>x<!> = x.signal() //repeat for x
 }
 
 fun t4() {
@@ -99,7 +100,22 @@ fun t5() {
     for (i in 0..2) {
         <!VAL_REASSIGNMENT!>i<!> += 1
         fun t5() {
-            i += 3
+            <!VAL_REASSIGNMENT!>i<!> += 3
+        }
+    }
+}
+
+fun t6() {
+    val i = 0
+    fun t5() {
+        <!VAL_REASSIGNMENT!>i<!> += 3
+    }
+}
+
+fun t7() {
+    for (i in 0..2) {
+        fun t5() {
+            <!VAL_REASSIGNMENT!>i<!> = 3
         }
     }
 }
@@ -117,7 +133,7 @@ class AnonymousInitializers(var a: String, val b: String) {
         a = "s"
 
         <!VAL_REASSIGNMENT!>b<!> = "3"
-        b = "tt" //repeat for b
+        <!VAL_REASSIGNMENT!>b<!> = "tt" //repeat for b
     }
 
     val i: Int
@@ -188,17 +204,17 @@ class AnonymousInitializers(var a: String, val b: String) {
 }
 
 fun reassignFunParams(a: Int) {
-    <!UNUSED_VALUE!><!VAL_REASSIGNMENT!>a<!> =<!> 1
+    <!VAL_REASSIGNMENT!>a<!> = 1
 }
 
-open class Open(<!UNUSED_PARAMETER!>a<!>: Int, <!UNUSED_PARAMETER!>w<!>: Int) {}
+open class Open(a: Int, w: Int) {}
 
 class LocalValsVsProperties(val a: Int, w: Int) : Open(a, w) {
     val x : Int
     <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>val y : Int<!>
     init {
         x = 1
-        val <!UNUSED_VARIABLE!>b<!> = x
+        val b = x
     }
     val b = a
 
@@ -240,7 +256,7 @@ class Outer() {
 }
 
 class ForwardAccessToBackingField() { //kt-147
-    val a = <!TYPECHECKER_HAS_RUN_INTO_RECURSIVE_PROBLEM, UNINITIALIZED_VARIABLE!>a<!> // error
+    val a = <!TYPECHECKER_HAS_RUN_INTO_RECURSIVE_PROBLEM!>a<!> // error
     val b = <!UNINITIALIZED_VARIABLE!>c<!> // error
     val c = 1
 }
@@ -262,7 +278,7 @@ class ClassObject() {
 }
 
 fun foo() {
-    val <!UNUSED_VARIABLE!>a<!> = object {
+    val a = object {
         val x : Int
         <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>val y : Int<!>
         val z : Int
@@ -271,7 +287,7 @@ fun foo() {
             z = 3
         }
         fun foo() {
-            y = 10
+            <!VAL_REASSIGNMENT!>y<!> = 10
             <!VAL_REASSIGNMENT!>z<!> = 13
         }
     }
@@ -280,7 +296,7 @@ fun foo() {
 class TestObjectExpression() {
     <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>val a : Int<!>
     fun foo() {
-        val <!UNUSED_VARIABLE!>a<!> = object {
+        val a = object {
             val x : Int
             <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>val y : Int<!>
             init {
@@ -290,12 +306,12 @@ class TestObjectExpression() {
                     x = 1
             }
             fun inner1() {
-                y = 101
+                <!VAL_REASSIGNMENT!>y<!> = 101
                 <!VAL_REASSIGNMENT!>a<!> = 231
             }
             fun inner2() {
-                y = 101
-                a = 231
+                <!VAL_REASSIGNMENT!>y<!> = 101
+                <!VAL_REASSIGNMENT!>a<!> = 231
             }
         }
     }
@@ -322,7 +338,7 @@ object TestObjectDeclaration {
 
 fun func() {
     val b = 1
-    val <!UNUSED_VARIABLE!>a<!> = object {
+    val a = object {
         val x = b
         init {
             <!VAL_REASSIGNMENT!>b<!> = 4
@@ -338,11 +354,17 @@ class M() {
 }
 
 fun test(m : M) {
-    <!VAL_REASSIGNMENT!>m.x<!> = 23
+    m.<!VAL_REASSIGNMENT!>x<!> = 23
     m.y = 23
 }
 
 fun test1(m : M) {
-    <!VAL_REASSIGNMENT!>m.x<!>++
+    m.<!VAL_REASSIGNMENT!>x<!>++
     m.y--
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, anonymousObjectExpression, assignment, classDeclaration, companionObject,
+comparisonExpression, enumDeclaration, enumEntry, equalityExpression, forLoop, functionDeclaration, getter, ifExpression,
+incrementDecrementExpression, init, inner, integerLiteral, isExpression, localFunction, localProperty,
+multiplicativeExpression, objectDeclaration, primaryConstructor, propertyDeclaration, rangeExpression, stringLiteral,
+whileLoop */

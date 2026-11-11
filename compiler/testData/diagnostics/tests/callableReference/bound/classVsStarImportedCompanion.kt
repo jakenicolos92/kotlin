@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: 1.kt
 
 package a
@@ -16,3 +17,5 @@ package b
 class B {
     companion object Companion
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, classReference, companionObject, objectDeclaration, propertyDeclaration */

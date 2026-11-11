@@ -16,7 +16,9 @@
 
 package org.jetbrains.kotlin.diagnostics.rendering
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.diagnostics.DiagnosticBaseContext
 import org.jetbrains.kotlin.name.FqNameUnsafe
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.renderer.ClassifierNamePolicy
@@ -27,6 +29,7 @@ import org.jetbrains.kotlin.types.getAbbreviation
 import org.jetbrains.kotlin.types.typeUtil.contains
 import java.util.*
 
+@K1Deprecation
 val RenderingContext.adaptiveClassifierPolicy: ClassifierNamePolicy
     get() = this[ADAPTIVE_CLASSIFIER_POLICY_KEY]
 
@@ -37,7 +40,7 @@ private class AdaptiveClassifierNamePolicy(private val ambiguousNames: List<Name
         return when {
             hasUniqueName(classifier) -> ClassifierNamePolicy.SHORT.renderClassifier(classifier, renderer)
             classifier is ClassDescriptor ||
-            classifier is TypeAliasDescriptor ->
+                    classifier is TypeAliasDescriptor ->
                 ClassifierNamePolicy.FULLY_QUALIFIED.renderClassifier(classifier, renderer)
             classifier is TypeParameterDescriptor -> {
                 val name = classifier.name
@@ -55,7 +58,7 @@ private class AdaptiveClassifierNamePolicy(private val ambiguousNames: List<Name
     }
 
     private fun DescriptorRenderer.renderAmbiguousTypeParameter(
-            typeParameter: TypeParameterDescriptor, index: Int, firstOccurence: Boolean
+        typeParameter: TypeParameterDescriptor, index: Int, firstOccurence: Boolean
     ) = buildString {
         append(typeParameter.name)
         append("#$index")
@@ -66,9 +69,9 @@ private class AdaptiveClassifierNamePolicy(private val ambiguousNames: List<Name
 }
 
 private val ADAPTIVE_CLASSIFIER_POLICY_KEY = object : RenderingContext.Key<ClassifierNamePolicy>("ADAPTIVE_CLASSIFIER_POLICY") {
-    override fun compute(objectsToRender: Collection<Any?>): ClassifierNamePolicy {
+    override fun compute(objectsToRender: Collection<Any?>, diagnosticContext: DiagnosticBaseContext): ClassifierNamePolicy {
         val ambiguousNames =
-                collectClassifiersFqNames(objectsToRender).groupBy { it.shortNameOrSpecial() }.filter { it.value.size > 1 }.map { it.key }
+            collectClassifiersFqNames(objectsToRender).groupBy { it.shortNameOrSpecial() }.filter { it.value.size > 1 }.map { it.key }
         return AdaptiveClassifierNamePolicy(ambiguousNames)
     }
 }
@@ -77,21 +80,20 @@ private fun collectClassifiersFqNames(objectsToRender: Collection<Any?>): Set<Fq
     collectMentionedClassifiersFqNames(objectsToRender, this)
 }
 
-private fun collectMentionedClassifiersFqNames(contextObjects: Collection<Any?>, result: MutableSet<FqNameUnsafe>) {
+private fun collectMentionedClassifiersFqNames(contextObjects: Iterable<Any?>, result: MutableSet<FqNameUnsafe>) {
     fun KotlinType.addMentionedTypeConstructor() {
         constructor.declarationDescriptor?.let { result.add(it.fqNameUnsafe) }
     }
 
     contextObjects.filterIsInstance<KotlinType>().forEach { diagnosticType ->
-        diagnosticType.contains {
-            innerType ->
+        diagnosticType.contains { innerType ->
             innerType.addMentionedTypeConstructor()
             innerType.getAbbreviation()?.addMentionedTypeConstructor()
             false
         }
     }
 
-    contextObjects.filterIsInstance<Collection<*>>().forEach {
+    contextObjects.filterIsInstance<Iterable<*>>().forEach {
         collectMentionedClassifiersFqNames(it, result)
     }
     contextObjects.filterIsInstance<ClassifierDescriptor>().forEach {
@@ -101,12 +103,14 @@ private fun collectMentionedClassifiersFqNames(contextObjects: Collection<Any?>,
         collectMentionedClassifiersFqNames(it.upperBounds, result)
     }
     contextObjects.filterIsInstance<CallableDescriptor>().forEach {
-        collectMentionedClassifiersFqNames(listOf(
+        collectMentionedClassifiersFqNames(
+            listOf(
                 it.typeParameters,
                 it.returnType,
                 it.valueParameters,
                 it.dispatchReceiverParameter?.type,
                 it.extensionReceiverParameter?.type
-        ), result)
+            ), result
+        )
     }
 }

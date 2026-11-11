@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class Base {
     protected open val prot: Int = 1
     internal open val int: Int = 1
@@ -9,3 +10,5 @@ class Child(
     override val int: Int,
     override val pub: Int
 ) : Base()
+
+/* GENERATED_FIR_TAGS: classDeclaration, integerLiteral, override, primaryConstructor, propertyDeclaration */

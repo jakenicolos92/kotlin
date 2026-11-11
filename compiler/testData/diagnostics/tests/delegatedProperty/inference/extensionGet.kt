@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package foo
 
 import kotlin.reflect.KProperty
@@ -33,3 +34,6 @@ class A3 {
         throw Exception("$thisRef $desc")
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, nestedClass, nullableType,
+operator, propertyDeclaration, propertyDelegate, starProjection, stringLiteral, typeParameter */

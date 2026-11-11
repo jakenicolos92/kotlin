@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
 
 class Outer<in E> {
     inner class Inner {
@@ -9,13 +10,13 @@ class Outer<in E> {
 
     fun bar() = Inner()
 
-    fun set(inner: Inner) {}
+    fun set(inner: <!TYPE_VARIANCE_CONFLICT_ERROR!>Inner<!>) {}
 }
 
 fun factoryString(): Outer<String>.Inner = null!!
 
 fun <T> infer(x: T): Outer<T>.Inner = null!!
-val infered = infer("")
+val inferred = infer("")
 
 fun main() {
     val outer = Outer<CharSequence>()
@@ -32,9 +33,13 @@ fun main() {
     outer.set(outer.Inner())
 
     val x: Outer<String>.Inner = factoryString()
-    outer.set(<!TYPE_MISMATCH!>x<!>)
+    outer.set(<!ARGUMENT_TYPE_MISMATCH!>x<!>)
     val y: Outer<CharSequence>.Inner = infer<CharSequence>("")
     outer.set(y)
 
     outer.set(infer<Any>(""))
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+in, infix, inner, localProperty, nullableType, propertyDeclaration, starProjection, stringLiteral, thisExpression,
+typeParameter, typeWithExtension */

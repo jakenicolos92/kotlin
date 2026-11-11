@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_EXPRESSION
 import kotlin.reflect.KFunction1
 
 open class A {
@@ -28,3 +29,6 @@ fun test() {
 
     ::<!OVERLOAD_RESOLUTION_AMBIGUITY!>fas<!>
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, integerLiteral, lambdaLiteral, nullableType, override, typeParameter, typeWithExtension */

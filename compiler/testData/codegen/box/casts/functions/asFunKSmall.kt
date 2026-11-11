@@ -1,6 +1,9 @@
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
 
+// NO_CHECK_LAMBDA_INLINING
+// FILE: lib.kt
 fun fn0() {}
 fun fn1(x: Any) {}
 
@@ -8,7 +11,7 @@ inline fun asFailsWithCCE(operation: String, block: () -> Unit) {
     try {
         block()
     }
-    catch (e: java.lang.ClassCastException) {
+    catch (e: ClassCastException) {
         return
     }
     catch (e: Throwable) {
@@ -26,6 +29,7 @@ inline fun asSucceeds(operation: String, block: () -> Unit) {
     }
 }
 
+// FILE: main.kt
 class MyFun: Function<Any>
 
 fun box(): String {

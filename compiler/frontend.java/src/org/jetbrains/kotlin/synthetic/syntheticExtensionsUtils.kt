@@ -16,11 +16,17 @@
 
 package org.jetbrains.kotlin.synthetic
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.load.java.descriptors.JavaCallableMemberDescriptor
 import org.jetbrains.kotlin.load.java.descriptors.JavaClassDescriptor
+import org.jetbrains.kotlin.load.java.sam.SamAdapterDescriptor
+import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
+import org.jetbrains.kotlin.resolve.calls.tower.NewResolvedCallImpl
+import org.jetbrains.kotlin.resolve.sam.SamConstructorDescriptor
 import org.jetbrains.kotlin.resolve.scopes.receivers.ReceiverValue
 
+@K1Deprecation
 fun FunctionDescriptor.hasJavaOriginInHierarchy(): Boolean {
     return if (original.overriddenDescriptors.isEmpty())
         this is JavaCallableMemberDescriptor || containingDeclaration is JavaClassDescriptor
@@ -28,30 +34,53 @@ fun FunctionDescriptor.hasJavaOriginInHierarchy(): Boolean {
         original.overriddenDescriptors.any { it.hasJavaOriginInHierarchy() }
 }
 
-fun Visibility.isVisibleOutside() = this != Visibilities.PRIVATE && this != Visibilities.PRIVATE_TO_THIS && this != Visibilities.INVISIBLE_FAKE
+@K1Deprecation
+fun DescriptorVisibility.isVisibleOutside() =
+    this != DescriptorVisibilities.PRIVATE && this != DescriptorVisibilities.PRIVATE_TO_THIS && this != DescriptorVisibilities.INVISIBLE_FAKE
 
-fun syntheticVisibility(originalDescriptor: DeclarationDescriptorWithVisibility, isUsedForExtension: Boolean): Visibility {
-    val originalVisibility = originalDescriptor.visibility
-    return when (originalVisibility) {
-        Visibilities.PUBLIC -> Visibilities.PUBLIC
+@K1Deprecation
+fun syntheticVisibility(originalDescriptor: DeclarationDescriptorWithVisibility, isUsedForExtension: Boolean): DescriptorVisibility {
+    return when (val originalVisibility = originalDescriptor.visibility) {
+        DescriptorVisibilities.PUBLIC -> DescriptorVisibilities.PUBLIC
 
-        else -> object : Visibility(originalVisibility.name, originalVisibility.isPublicAPI) {
+        else -> object : DescriptorVisibility() {
+            override val delegate: Visibility
+                get() = originalVisibility.delegate
+
             override fun isVisible(
-                    receiver: ReceiverValue?,
-                    what: DeclarationDescriptorWithVisibility,
-                    from: DeclarationDescriptor
+                receiver: ReceiverValue?,
+                what: DeclarationDescriptorWithVisibility,
+                from: DeclarationDescriptor,
+                useSpecialRulesForPrivateSealedConstructors: Boolean
             ) = originalVisibility.isVisible(
-                    if (isUsedForExtension) Visibilities.ALWAYS_SUITABLE_RECEIVER else receiver, originalDescriptor, from)
+                if (isUsedForExtension) DescriptorVisibilities.ALWAYS_SUITABLE_RECEIVER else receiver,
+                originalDescriptor,
+                from,
+                useSpecialRulesForPrivateSealedConstructors
+            )
 
-            override fun mustCheckInImports()
-                    = throw UnsupportedOperationException("Should never be called for this visibility")
+            override fun mustCheckInImports() = throw UnsupportedOperationException("Should never be called for this visibility")
 
-            override fun normalize()
-                    = originalVisibility.normalize()
+            override fun normalize() = originalVisibility.normalize()
 
-            override val displayName: String
-                get() = originalVisibility.displayName + " for synthetic extension"
+            override val internalDisplayName: String
+                get() = originalVisibility.internalDisplayName + " for synthetic extension"
+
+            override val externalDisplayName: String
+                get() = internalDisplayName
         }
     }
 
+}
+
+@K1Deprecation
+fun <D : CallableDescriptor> ResolvedCall<D>.isResolvedWithSamConversions(): Boolean {
+    if (this is NewResolvedCallImpl<D> && resolvedCallAtom.argumentsWithConversion.isNotEmpty()) {
+        return true
+    }
+
+    // Feature SamConversionPerArgument is disabled
+    return this.resultingDescriptor is SamAdapterDescriptor<*> ||
+            this.resultingDescriptor is SamConstructorDescriptor ||
+            this.resultingDescriptor is SamAdapterExtensionFunctionDescriptor
 }

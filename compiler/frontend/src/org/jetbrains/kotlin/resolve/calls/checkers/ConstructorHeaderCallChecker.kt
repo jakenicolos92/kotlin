@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.resolve.calls.checkers
 
 import com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.ConstructorDescriptor
@@ -30,6 +31,7 @@ import org.jetbrains.kotlin.resolve.scopes.receivers.ImplicitReceiver
 import org.jetbrains.kotlin.resolve.scopes.receivers.Receiver
 import org.jetbrains.kotlin.resolve.scopes.utils.parentsWithSelf
 
+@K1Deprecation
 object ConstructorHeaderCallChecker : CallChecker {
     override fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext) {
         val dispatchReceiverClass = resolvedCall.dispatchReceiver.classDescriptorForImplicitReceiver
@@ -37,19 +39,18 @@ object ConstructorHeaderCallChecker : CallChecker {
 
         val callElement = resolvedCall.call.callElement
         val labelReferenceClass =
-                if (callElement is KtInstanceExpressionWithLabel) {
-                    context.trace.get(BindingContext.REFERENCE_TARGET, callElement.instanceReference) as? ClassDescriptor
-                }
-                else null
+            if (callElement is KtInstanceExpressionWithLabel) {
+                context.trace.get(BindingContext.REFERENCE_TARGET, callElement.instanceReference) as? ClassDescriptor
+            } else null
 
         if (dispatchReceiverClass == null && extensionReceiverClass == null && labelReferenceClass == null) return
 
         val classes = setOf(dispatchReceiverClass, extensionReceiverClass, labelReferenceClass)
 
         if (context.scope.parentsWithSelf.any { scope ->
-            scope is LexicalScope && scope.kind == LexicalScopeKind.CONSTRUCTOR_HEADER &&
-            (scope.ownerDescriptor as ClassConstructorDescriptor).containingDeclaration in classes
-        }) {
+                scope is LexicalScope && scope.kind == LexicalScopeKind.CONSTRUCTOR_HEADER &&
+                        (scope.ownerDescriptor as ClassConstructorDescriptor).containingDeclaration in classes
+            }) {
             context.trace.report(Errors.INSTANCE_ACCESS_BEFORE_SUPER_CALL.on(reportOn, resolvedCall.resultingDescriptor))
         }
     }

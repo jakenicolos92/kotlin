@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
 // FILE: Outer.java
 
 public class Outer<E> {
@@ -26,3 +27,7 @@ fun main() {
     strInt.bar().checkType { _<Int>() }
     strInt.outer().checkType { _<Outer<String>>() }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, javaFunction, javaType, lambdaLiteral, localProperty, nullableType, propertyDeclaration, typeParameter,
+typeWithExtension */

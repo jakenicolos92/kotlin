@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun testArgumentInCall() {
     fun bar(i: Int, s: String, x: Any) {}
@@ -7,7 +8,9 @@ fun testArgumentInCall() {
 }
 
 fun testArgumentInVariableAsFunctionCall(f: (Any) -> Unit) {
-    f<!UNREACHABLE_CODE!>(<!>todo()<!UNREACHABLE_CODE!>)<!>
+    <!UNREACHABLE_CODE!>f(<!>todo()<!UNREACHABLE_CODE!>)<!>
 }
 
 fun todo(): Nothing = throw Exception()
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, integerLiteral, localFunction, stringLiteral */

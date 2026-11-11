@@ -1,10 +1,12 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 //KT-2179 Nested function literal breaks compiler
 package i
 
 //+JDK
 import java.util.*
+import checkSubtype
 
 fun test() {
     val sample1: List<List<Int?>> = arrayList(arrayList<Int?>(1, 7, null, 8))
@@ -44,3 +46,8 @@ fun <T, C: MutableCollection<in T>> Array<T>.toCollection(result: C) : C {
 
 val Collection<*>.<!EXTENSION_SHADOWED_BY_MEMBER!>size<!> : Int
     get() = size
+
+/* GENERATED_FIR_TAGS: capturedType, classDeclaration, flexibleType, forLoop, funWithExtensionReceiver,
+functionDeclaration, functionalType, getter, inProjection, infix, integerLiteral, javaFunction, lambdaLiteral,
+localProperty, nullableType, outProjection, propertyDeclaration, propertyWithExtensionReceiver, starProjection,
+thisExpression, typeConstraint, typeParameter, typeWithExtension, vararg */

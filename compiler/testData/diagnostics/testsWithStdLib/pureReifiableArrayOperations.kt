@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 fun test() {
     arrayOf<List<String>>(listOf(""))
@@ -16,3 +17,6 @@ fun test() {
     emptyArray<Array<String>>()
     val x: Array<Array<String>> = emptyArray()
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, lambdaLiteral, localProperty, nullableType,
+propertyDeclaration, stringLiteral */

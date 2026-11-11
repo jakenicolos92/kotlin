@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 interface A {
     fun <T, E> foo(): E
@@ -13,3 +14,7 @@ fun test(a: A) {
         a.foo<String, Int>().checkType { _<Int>() }
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, ifExpression,
+infix, interfaceDeclaration, isExpression, lambdaLiteral, nullableType, override, smartcast, typeParameter,
+typeWithExtension */

@@ -16,108 +16,273 @@
 
 package kotlin.reflect.jvm.internal
 
-import org.jetbrains.kotlin.descriptors.*
-import org.jetbrains.kotlin.renderer.DescriptorRenderer
-import org.jetbrains.kotlin.types.KotlinType
-import org.jetbrains.kotlin.types.Variance
-import kotlin.reflect.KParameter
+import org.jetbrains.kotlin.builtins.StandardNames
+import org.jetbrains.kotlin.builtins.isNumberedFunctionClassFqName
+import org.jetbrains.kotlin.name.FqNameUnsafe
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.name.render
+import org.jetbrains.kotlin.renderer.renderFlexibleMutabilityOrArrayElementVarianceType
+import kotlin.reflect.*
+import kotlin.reflect.full.contextParameters
+import kotlin.reflect.full.createTypeImpl
+import kotlin.reflect.full.extensionReceiverParameter
+import kotlin.reflect.full.valueParameters
+import kotlin.reflect.jvm.internal.types.AbstractKType
+import kotlin.reflect.jvm.internal.types.allTypeParameters
+import kotlin.reflect.jvm.jvmName
 
 internal object ReflectionObjectRenderer {
-    private val renderer = DescriptorRenderer.FQ_NAMES_IN_TYPES
+    private fun StringBuilder.appendReceiverType(receiver: KParameter): StringBuilder =
+        append(renderType(receiver.type)).append(".")
 
-    private fun StringBuilder.appendReceiverType(receiver: ReceiverParameterDescriptor?) {
-        if (receiver != null) {
-            append(renderType(receiver.type))
-            append(".")
+    private fun StringBuilder.appendReceivers(callable: KCallable<*>) {
+        val receivers = (callable as ReflectKCallable<*>).allParameters.filter {
+            it.kind == KParameter.Kind.INSTANCE || it.kind == KParameter.Kind.EXTENSION_RECEIVER
+        }
+        receivers.getOrNull(0)?.let { appendReceiverType(it) }
+        receivers.getOrNull(1)?.let { append("(").appendReceiverType(it).append(")") }
+    }
+
+    private fun StringBuilder.appendContexts(callable: KCallable<*>) {
+        val parameters = callable.contextParameters
+        if (parameters.isEmpty()) return
+
+        parameters.joinTo(this, prefix = "context(", postfix = ") ") { parameter ->
+            (parameter.name ?: "_") + ": " + parameter.type
         }
     }
 
-    private fun StringBuilder.appendReceivers(callable: CallableDescriptor) {
-        val dispatchReceiver = callable.dispatchReceiverParameter
-        val extensionReceiver = callable.extensionReceiverParameter
-
-        appendReceiverType(dispatchReceiver)
-
-        val addParentheses = dispatchReceiver != null && extensionReceiver != null
-        if (addParentheses) append("(")
-        appendReceiverType(extensionReceiver)
-        if (addParentheses) append(")")
+    private fun StringBuilder.appendName(name: String) {
+        append(Name.identifier(name).render())
     }
 
-    fun renderCallable(descriptor: CallableDescriptor): String {
-        return when (descriptor) {
-            is PropertyDescriptor -> renderProperty(descriptor)
-            is FunctionDescriptor -> renderFunction(descriptor)
-            else -> error("Illegal callable: $descriptor")
+    private fun renderCallable(callable: KCallable<*>): String {
+        return when (callable) {
+            is KProperty<*> -> renderProperty(callable)
+            is KFunction<*> -> renderFunction(callable)
+            else -> error("Illegal callable: $callable")
         }
     }
 
     // TODO: include visibility
-    fun renderProperty(descriptor: PropertyDescriptor): String {
+    fun renderProperty(property: KProperty<*>): String {
         return buildString {
-            append(if (descriptor.isVar) "var " else "val ")
-            appendReceivers(descriptor)
-            append(renderer.renderName(descriptor.name))
+            appendContexts(property)
+            append(if (property is KMutableProperty<*>) "var " else "val ")
+            appendReceivers(property)
+            appendName(property.name)
 
             append(": ")
-            append(renderType(descriptor.type))
+            append(renderType(property.returnType))
         }
     }
 
-    fun renderFunction(descriptor: FunctionDescriptor): String {
+    fun renderFunction(function: KFunction<*>): String {
         return buildString {
+            appendContexts(function)
             append("fun ")
-            appendReceivers(descriptor)
-            append(renderer.renderName(descriptor.name))
+            appendReceivers(function)
+            appendName(function.name)
 
-            descriptor.valueParameters.joinTo(this, separator = ", ", prefix = "(", postfix = ")") {
+            function.valueParameters.joinTo(this, separator = ", ", prefix = "(", postfix = ")") {
                 renderType(it.type) // TODO: vararg
             }
 
             append(": ")
-            append(renderType(descriptor.returnType!!))
+            append(renderType(function.returnType))
         }
     }
 
-    fun renderLambda(invoke: FunctionDescriptor): String {
+    fun renderLambda(lambda: KFunction<*>): String {
         return buildString {
-            appendReceivers(invoke)
+            lambda.extensionReceiverParameter?.let {
+                append(renderType(it.type))
+                append(".")
+            }
 
-            invoke.valueParameters.joinTo(this, separator = ", ", prefix = "(", postfix = ")") {
+            lambda.valueParameters.joinTo(this, separator = ", ", prefix = "(", postfix = ")") {
                 renderType(it.type)
             }
 
             append(" -> ")
-            append(renderType(invoke.returnType!!))
+            append(renderType(lambda.returnType))
         }
     }
 
-    fun renderParameter(parameter: KParameterImpl): String {
+    fun renderParameter(parameter: KParameter): String {
         return buildString {
             when (parameter.kind) {
-                KParameter.Kind.EXTENSION_RECEIVER -> append("extension receiver")
-                KParameter.Kind.INSTANCE -> append("instance")
+                KParameter.Kind.INSTANCE -> append("instance parameter")
+                KParameter.Kind.CONTEXT -> append("context parameter ${parameter.name}")
+                KParameter.Kind.EXTENSION_RECEIVER -> append("extension receiver parameter")
                 KParameter.Kind.VALUE -> append("parameter #${parameter.index} ${parameter.name}")
             }
 
             append(" of ")
-            append(renderCallable(parameter.callable.descriptor))
+            append(renderCallable((parameter as ReflectKParameter).callable))
         }
     }
 
-    fun renderTypeParameter(typeParameter: TypeParameterDescriptor): String {
+    fun renderType(type: KType, renderRawArgumentPrefix: Boolean = false): String {
+        type as AbstractKType
+
+        if (type.isRawType) {
+            return renderRawType(type.lowerBoundIfFlexible()!!, type.upperBoundIfFlexible()!!)
+        }
+
+        val lowerBound = type.lowerBoundIfFlexible()
+        val upperBound = type.upperBoundIfFlexible()
+        if (lowerBound != null && upperBound != null) {
+            return renderFlexibleType(renderType(lowerBound), renderType(upperBound))
+        }
+
         return buildString {
-            when (typeParameter.variance) {
-                Variance.INVARIANT -> {}
-                Variance.IN_VARIANCE -> append("in ")
-                Variance.OUT_VARIANCE -> append("out ")
+            type.abbreviation?.let {
+                append(it)
+                append(" /* = ")
             }
 
-            append(typeParameter.name)
+            when (val classifier = type.classifier) {
+                is KTypeParameter -> {
+                    appendName(classifier.name)
+                    if (type.isMarkedNullable) {
+                        append("?")
+                    } else if (type.isDefinitelyNotNullType) {
+                        append(" & Any")
+                    }
+                }
+                is KClass<*> -> {
+                    val fqName = getTypeClassFqName(type, classifier) ?: FqNameUnsafe(classifier.jvmName)
+                    if (isNumberedFunctionClassFqName(fqName) && KTypeProjection.STAR !in type.arguments) {
+                        renderFunctionType(type)
+                    } else {
+                        renderSimpleType(classifier, fqName, type.arguments, type.isMarkedNullable, renderRawArgumentPrefix)
+                    }
+                }
+                is KTypeAliasImpl -> {
+                    classifier.fqName.pathSegments().joinTo(this, separator = ".") { it.render() }
+                    renderTypeArgumentsAndNullability(type.arguments, type.isMarkedNullable, renderRawArgumentPrefix)
+                }
+                else -> {
+                    append("???")
+                }
+            }
+
+            if (type.abbreviation != null) {
+                append(" */")
+            }
         }
     }
 
-    fun renderType(type: KotlinType): String {
-        return renderer.renderType(type)
+    // See `RawTypeImpl.render`.
+    private fun renderRawType(lowerBound: AbstractKType, upperBound: AbstractKType): String {
+        val lowerRendered = renderType(lowerBound, renderRawArgumentPrefix = true)
+
+        val upperClassifier = upperBound.classifier
+        val typeParameters = (upperClassifier as? KClass<*>)?.allTypeParameters()
+        val argumentsCanBeReplaced = upperClassifier != null && lowerBound.arguments.size == upperBound.arguments.size &&
+                lowerBound.arguments.zip(upperBound.arguments).withIndex().all { [index, arguments] ->
+                    val [lowerArgument, upperArgument] = arguments
+                    upperArgument == KTypeProjection.STAR ||
+                            upperArgument.type == lowerArgument.type && upperArgument.variance != KVariance.IN ||
+                            upperArgument.variance == KVariance.INVARIANT &&
+                            upperArgument.type.isNonNullNothing() &&
+                            typeParameters?.getOrNull(index)?.variance == KVariance.IN
+                }
+        val upperRendered =
+            if (argumentsCanBeReplaced) {
+                renderType(
+                    upperClassifier.createTypeImpl(
+                        lowerBound.arguments, upperBound.isMarkedNullable, upperBound.annotations, upperBound.mutableCollectionClass,
+                    ),
+                    renderRawArgumentPrefix = true,
+                )
+            } else {
+                renderType(upperBound)
+            }
+
+        if (lowerRendered == upperRendered) return lowerRendered
+        return renderFlexibleType(lowerRendered, upperRendered)
+    }
+
+    private fun KType?.isNonNullNothing(): Boolean =
+        this is AbstractKType && isNothingType && !isMarkedNullable
+
+    private fun getTypeClassFqName(type: AbstractKType, klass: KClass<*>): FqNameUnsafe? {
+        if (type.isNothingType)
+            return StandardNames.FqNames.nothing
+        return (type.mutableCollectionClass ?: klass).qualifiedName?.let(::FqNameUnsafe)
+    }
+
+    private fun StringBuilder.renderFunctionType(type: AbstractKType) {
+        if (type.isMarkedNullable) append("(")
+        if (type.isSuspendFunctionType) append("suspend ")
+        val args = type.arguments.dropLast(1)
+
+        fun StringBuilder.appendParametersInBracketsAndArrow(parameters: List<KTypeProjection>) {
+            parameters.joinTo(this, prefix = "(", postfix = ") -> ")
+        }
+
+        if (type.annotations.any { it is ExtensionFunctionType } && !args.isEmpty()) {
+            append(args.first())
+            append(".")
+            appendParametersInBracketsAndArrow(args.drop(1))
+        } else {
+            appendParametersInBracketsAndArrow(args)
+        }
+        append(type.arguments.last())
+        if (type.isMarkedNullable) append(")?")
+    }
+
+    private fun StringBuilder.renderSimpleType(
+        klass: KClass<*>,
+        classFqName: FqNameUnsafe,
+        allArguments: List<KTypeProjection>,
+        isMarkedNullable: Boolean,
+        renderRawArgumentPrefix: Boolean,
+    ) {
+        if (klass.typeParameters.size < allArguments.size && klass.java.declaringClass != null) {
+            renderSimpleType(
+                klass.java.declaringClass.kotlin,
+                classFqName.parent(),
+                allArguments.drop(klass.typeParameters.size),
+                false,
+                renderRawArgumentPrefix
+            )
+            append(".")
+            append(classFqName.shortName().render())
+        } else {
+            append(classFqName.render())
+        }
+
+        renderTypeArgumentsAndNullability(allArguments.take(klass.typeParameters.size), isMarkedNullable, renderRawArgumentPrefix)
+    }
+
+    private fun StringBuilder.renderTypeArgumentsAndNullability(
+        typeArguments: List<KTypeProjection>, isMarkedNullable: Boolean, renderRawArgumentPrefix: Boolean,
+    ) {
+        if (typeArguments.isNotEmpty()) {
+            typeArguments.joinTo(this, prefix = "<", postfix = ">") {
+                (if (renderRawArgumentPrefix) "(raw) " else "") + it.toString()
+            }
+        }
+        if (isMarkedNullable) {
+            append("?")
+        }
+    }
+
+    private fun renderFlexibleType(lowerRendered: String, upperRendered: String): String {
+        when {
+            lowerRendered == upperRendered.replace("?", "") -> return upperRendered.replace("?", "!")
+            upperRendered.endsWith("?") && ("$lowerRendered?") == upperRendered -> return "$lowerRendered!"
+            "($lowerRendered)?" == upperRendered -> return "($lowerRendered)!"
+        }
+
+        return renderFlexibleMutabilityOrArrayElementVarianceType(
+            lowerRendered,
+            upperRendered,
+            { (StandardNames.COLLECTIONS_PACKAGE_FQ_NAME.asString() + ".").takeIf { lowerRendered.startsWith(it) } ?: "" },
+            { (StandardNames.BUILT_INS_PACKAGE_FQ_NAME.asString() + ".").takeIf { lowerRendered.startsWith(it) } ?: "" },
+        ) ?: "($lowerRendered..$upperRendered)"
     }
 }

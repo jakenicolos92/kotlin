@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 sealed class Base {
     sealed class A : Base() {
         object A1 : A()
@@ -32,3 +33,6 @@ sealed class Base {
         is A.A2 -> 3
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, functionDeclaration, integerLiteral, isExpression,
+nestedClass, objectDeclaration, sealed, smartcast, whenExpression, whenWithSubject */

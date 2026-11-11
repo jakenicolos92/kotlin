@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun testObject() {
     <!UNREACHABLE_CODE!>object : Foo(<!>todo()<!UNREACHABLE_CODE!>) {
@@ -34,3 +35,6 @@ open class Foo(i: Int) {}
 
 fun todo(): Nothing = throw Exception()
 fun bar() {}
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, classDeclaration, functionDeclaration, integerLiteral, localClass,
+localFunction, localProperty, primaryConstructor, propertyDeclaration */

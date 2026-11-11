@@ -1,0 +1,67 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.backend.jvm.lower
+
+import org.jetbrains.kotlin.backend.common.ClassLoweringPass
+import org.jetbrains.kotlin.backend.common.lower.createIrBuilder
+import org.jetbrains.kotlin.backend.jvm.JvmBackendContext
+import org.jetbrains.kotlin.ir.builders.irCall
+import org.jetbrains.kotlin.ir.builders.irExprBody
+import org.jetbrains.kotlin.ir.builders.irGetField
+import org.jetbrains.kotlin.ir.declarations.IrClass
+import org.jetbrains.kotlin.ir.declarations.IrDeclarationContainer
+import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.ir.util.constructors
+import org.jetbrains.kotlin.ir.util.isObject
+import org.jetbrains.kotlin.ir.util.parentAsClass
+
+internal class ObjectClassLowering(val context: JvmBackendContext) : ClassLoweringPass {
+    private val pendingTransformations = mutableListOf<Function0<Unit>>()
+
+    override fun lower(irFile: IrFile) {
+        super.lower(irFile)
+        for (transformation in pendingTransformations) {
+            transformation.invoke()
+        }
+    }
+
+    override fun lower(irClass: IrClass) {
+        if (!irClass.isObject) return
+
+        val publicInstanceField = context.cachedDeclarations.getFieldForObjectInstance(irClass)
+        val privateInstanceField = context.cachedDeclarations.getPrivateFieldForObjectInstance(irClass)
+
+        val constructor = irClass.constructors.find { it.isPrimary }
+            ?: throw AssertionError("Object should have a primary constructor: ${irClass.name}")
+
+        if (privateInstanceField != publicInstanceField) {
+            with(context.createIrBuilder(privateInstanceField.symbol)) {
+                privateInstanceField.initializer = irExprBody(irCall(constructor.symbol))
+            }
+            with(context.createIrBuilder(publicInstanceField.symbol)) {
+                publicInstanceField.initializer = irExprBody(irGetField(null, privateInstanceField))
+            }
+            pendingTransformations.add {
+                (privateInstanceField.parent as IrDeclarationContainer).declarations.add(0, privateInstanceField)
+            }
+        } else {
+            with(context.createIrBuilder(publicInstanceField.symbol)) {
+                publicInstanceField.initializer = irExprBody(irCall(constructor.symbol))
+            }
+        }
+
+        pendingTransformations.add {
+            val indexOfPublicInstanceField = if (publicInstanceField.parent === irClass.parent) {
+                // Insert public instance field right after the companion object declaration to preserve
+                // the order of initialization with respect to companion blocks.
+                irClass.parentAsClass.declarations.indexOf(irClass).also { require(it != -1) } + 1
+            } else {
+                0
+            }
+            (publicInstanceField.parent as IrDeclarationContainer).declarations.add(indexOfPublicInstanceField, publicInstanceField)
+        }
+    }
+}

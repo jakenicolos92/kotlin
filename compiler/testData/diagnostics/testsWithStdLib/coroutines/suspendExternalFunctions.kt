@@ -1,5 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
+// CHECK_TYPE
 suspend fun noParams() {
 }
 
@@ -21,7 +22,7 @@ fun test() {
     builder {
         noParams()
         yieldString("abc") checkType { _<Unit>() }
-        yieldString(<!CONSTANT_EXPECTED_TYPE_MISMATCH!>1<!>) checkType { _<Unit>() }
+        yieldString(<!ARGUMENT_TYPE_MISMATCH!>1<!>) checkType { _<Unit>() }
 
         await<String> { "123" } checkType { _<String>() }
 
@@ -35,7 +36,7 @@ fun test() {
 
         severalParams("", 89) checkType { _<Double>() }
         // TODO: should we allow somehow to call with passing continuation explicitly?
-        severalParams("", 89, <!TOO_MANY_ARGUMENTS!>6.9<!>) checkType { <!TYPE_MISMATCH!>_<!><Unit>() }
+        severalParams("", 89, <!TOO_MANY_ARGUMENTS!>6.9<!>) checkType { <!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>_<!><Unit>() }
 
         "".stringReceiver(1)
         Any().anyReceiver(1)
@@ -45,3 +46,6 @@ fun test() {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, integerLiteral, lambdaLiteral, nullableType, stringLiteral, suspend, typeParameter, typeWithExtension */

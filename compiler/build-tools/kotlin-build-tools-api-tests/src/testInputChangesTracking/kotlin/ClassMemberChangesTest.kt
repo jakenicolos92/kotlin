@@ -1,0 +1,160 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.buildtools.tests.compilation
+
+import org.jetbrains.kotlin.buildtools.tests.CompilerExecutionStrategyConfiguration
+import org.jetbrains.kotlin.buildtools.tests.compilation.assertions.assertCompiledSources
+import org.jetbrains.kotlin.buildtools.tests.compilation.assertions.assertLogContainsPatterns
+import org.jetbrains.kotlin.buildtools.tests.compilation.assertions.expectFailWithError
+import org.jetbrains.kotlin.buildtools.tests.compilation.model.DefaultStrategyAgnosticCompilationTest
+import org.jetbrains.kotlin.buildtools.tests.compilation.model.DefaultStrategyAndPlatformAgnosticScenarioTest
+import org.jetbrains.kotlin.buildtools.tests.compilation.model.LogLevel
+import org.jetbrains.kotlin.buildtools.tests.compilation.model.ScenarioCreator
+import org.jetbrains.kotlin.buildtools.tests.compilation.scenario.jvmScenario
+import org.jetbrains.kotlin.test.TestMetadata
+import org.junit.jupiter.api.DisplayName
+
+@DisplayName("Class member changes in incremental compilation")
+class ClassMemberChangesTest : BaseCompilationTest() {
+
+    @DefaultStrategyAndPlatformAgnosticScenarioTest
+    @DisplayName("KT-40656: Making companion object private should recompile usages (same module)")
+    @TestMetadata("ic-scenarios/kt-40656-same-module")
+    fun testCompanionMadePrivateRecompilesUsagesSameModule(scenario: ScenarioCreator) {
+        scenario {
+            val mod = module("ic-scenarios/kt-40656-same-module")
+
+            mod.replaceFileWithVersion("class1.kt", "make-private")
+            mod.compile {
+                expectFail()
+                assertLogContainsPatterns(
+                    LogLevel.ERROR,
+                    ".*Cannot access 'companion object Companion : Any': it is private in 'Class1'.".toRegex()
+                )
+                assertCompiledSources("class1.kt", "usage.kt")
+            }
+        }
+    }
+
+    @DefaultStrategyAndPlatformAgnosticScenarioTest
+    @DisplayName("KT-40656: Making companion object private should recompile usages (different modules)")
+    @TestMetadata("ic-scenarios/kt-40656-different-modules")
+    fun testCompanionMadePrivateRecompilesUsagesDifferentModules(scenario: ScenarioCreator) {
+        scenario {
+            val lib = module("ic-scenarios/kt-40656-different-modules/lib")
+            val app = module("ic-scenarios/kt-40656-different-modules/app", listOf(lib))
+
+            lib.replaceFileWithVersion("class1.kt", "make-private")
+            lib.compile()
+            app.compile {
+                expectFail()
+                assertLogContainsPatterns(
+                    LogLevel.ERROR,
+                    ".*Cannot access 'companion object Companion : Any': it is private in 'Class1'.".toRegex()
+                )
+                assertCompiledSources("usage.kt")
+            }
+        }
+    }
+
+    @DefaultStrategyAgnosticCompilationTest
+    @DisplayName("KT-91153: Removing a companion object whose member was imported directly should compile incrementally once the import is gone")
+    @TestMetadata("ic-scenarios/companion-member-import")
+    fun testRemovingCompanionAfterDirectMemberImportIsRemoved(strategyConfig: CompilerExecutionStrategyConfiguration) {
+        jvmScenario(strategyConfig) {
+            val lib = module("ic-scenarios/companion-member-import/lib")
+            val app = module("ic-scenarios/companion-member-import/app", listOf(lib))
+
+            lib.replaceFileWithVersion("Outer.kt", "remove-companion")
+            app.replaceFileWithVersion("usage.kt", "remove-import")
+
+            lib.compile()
+            app.compile {
+                assertCompiledSources("usage.kt")
+                assertLogContainsPatterns(LogLevel.DEBUG, ".*Incremental compilation completed".toRegex())
+            }
+        }
+    }
+
+    @DefaultStrategyAgnosticCompilationTest
+    @DisplayName("KT-91153: Removing a companion object should recompile the module importing its member via an alias")
+    @TestMetadata("ic-scenarios/companion-member-import")
+    fun testRemovingCompanionRecompilesAliasedMemberImporter(strategyConfig: CompilerExecutionStrategyConfiguration) {
+        jvmScenario(strategyConfig) {
+            val lib = module("ic-scenarios/companion-member-import/lib")
+            val app = module("ic-scenarios/companion-member-import/app-aliased", listOf(lib))
+
+            lib.replaceFileWithVersion("Outer.kt", "remove-companion")
+
+            lib.compile()
+            app.compile {
+                expectFailWithError(
+                    ".*aliasedUsage\\.kt:3:\\d+ Unresolved reference 'Outer'.*".toRegex(),
+                    ".*aliasedUsage\\.kt:5:\\d+ Unresolved reference 'make'.*".toRegex(),
+                )
+                assertCompiledSources("aliasedUsage.kt")
+                assertLogContainsPatterns(LogLevel.DEBUG, ".*Incremental compilation completed".toRegex())
+            }
+        }
+    }
+
+    @DefaultStrategyAndPlatformAgnosticScenarioTest
+    @DisplayName("KT-59509: Renaming a method should recompile call sites that reach it through a chain")
+    @TestMetadata("ic-scenarios/kt-59509")
+    fun testRenamingMethodAccessedThoughCallChainIsTracked(scenario: ScenarioCreator) {
+        scenario {
+            val lib = module("ic-scenarios/kt-59509/lib")
+            val app = module("ic-scenarios/kt-59509/app", dependencies = listOf(lib))
+
+            lib.replaceFileWithVersion("lib.kt", "rename-and-deprecate")
+            lib.compile()
+            app.compile {
+                expectFail()
+                assertCompiledSources("main.kt")
+            }
+        }
+    }
+
+    @DefaultStrategyAgnosticCompilationTest
+    @DisplayName("KT-62632: Raising property visibility should recompile its inlined usage")
+    @TestMetadata("ic-scenarios/kt-62632")
+    fun testInlineArgVisibilityChangeRecompilesCallSites(strategyConfig: CompilerExecutionStrategyConfiguration) {
+        jvmScenario(strategyConfig) {
+            val mod = module("ic-scenarios/kt-62632")
+            mod.replaceFileWithVersion("Base.kt", "change-property-visibility")
+            mod.compile {
+                // "Usage.kt" should also be recompiled for correct results,
+                // but due to a bug, it does not recompile
+                // After the fix, change it to `assertCompiledSources("Base.kt", "Usage.kt")`
+                assertCompiledSources("Base.kt")
+            }
+        }
+    }
+
+    @DefaultStrategyAgnosticCompilationTest
+    @DisplayName("KT-11196: Replacing a method with a property should recompile the override that goes through a Java class")
+    @TestMetadata("ic-scenarios/method-to-property-in-java-hierarchy")
+    fun testReplacingMethodWithPropertyInMixedHierarchy(strategyConfig: CompilerExecutionStrategyConfiguration) {
+        jvmScenario(strategyConfig) {
+            val mod = module("ic-scenarios/method-to-property-in-java-hierarchy")
+
+            mod.replaceFileWithVersion("Base.kt", "method-to-property")
+
+            mod.compile {
+                // TODO(KT-11196): the change does not propagate through the Java class, so `ChildClass.kt` is never
+                //  rechecked and the build wrongly succeeds, unlike a clean build. Once fixed, it has to `expectFail()`
+                //  with "'getPrefix' overrides nothing" and recompile `ChildClass.kt`.
+                assertCompiledSources("Base.kt")
+            }
+
+            mod.changeFile("ChildClass.kt") { "$it\n" }
+
+            mod.compile {
+                expectFailWithError(".*ChildClass\\.kt:\\d+:\\d+ 'getPrefix' overrides nothing.*".toRegex())
+            }
+        }
+    }
+}

@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 490
 package foo
 
 var c = 0

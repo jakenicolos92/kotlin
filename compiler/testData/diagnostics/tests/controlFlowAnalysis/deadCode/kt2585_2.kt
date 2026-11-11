@@ -1,10 +1,11 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-2585 Code in try-finally is incorrectly marked as unreachable
 
 fun foo() {
     try {
-        <!UNREACHABLE_CODE!>throw<!> RuntimeException()
+        throw RuntimeException()
     } catch (e: Exception) {
-        <!UNREACHABLE_CODE!>return<!>     // <- Wrong UNREACHABLE_CODE
+        return     // <- Wrong UNREACHABLE_CODE
     } finally {
         while (true);
     }
@@ -21,3 +22,5 @@ fun bar() {
 }
 
 fun cond() = true
+
+/* GENERATED_FIR_TAGS: functionDeclaration, localProperty, propertyDeclaration, tryExpression, whileLoop */

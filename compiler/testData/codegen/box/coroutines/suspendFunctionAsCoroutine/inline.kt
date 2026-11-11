@@ -1,10 +1,11 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
+// FILE: lib.kt
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
-suspend fun suspendThere(v: String): String = suspendCoroutineOrReturn { x ->
+suspend fun suspendThere(v: String): String = suspendCoroutineUninterceptedOrReturn { x ->
     x.resume(v)
     COROUTINE_SUSPENDED
 }
@@ -12,6 +13,11 @@ suspend fun suspendThere(v: String): String = suspendCoroutineOrReturn { x ->
 suspend inline fun suspendHere(crossinline block: () -> String): String {
     return suspendThere(block()) + suspendThere(block())
 }
+
+// FILE: main.kt
+import helpers.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 fun builder(c: suspend () -> Unit) {
     c.startCoroutine(EmptyContinuation)

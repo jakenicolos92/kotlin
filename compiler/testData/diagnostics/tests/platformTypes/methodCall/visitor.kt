@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/Visitor.java
 
 package p;
@@ -23,3 +24,5 @@ import p.*
 fun test(v: Visitor<Nothing>, e: Element) {
     e.accept(v, null)
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, javaFunction, javaType, nullableType */

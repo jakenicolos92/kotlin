@@ -1,5 +1,3 @@
-// IGNORE_BACKEND_WITHOUT_CHECK: JS
-
 fun withoutAnnotation(x : Int) : Int {
     if (x > 0) {
         return 1 + withoutAnnotation(x - 1)

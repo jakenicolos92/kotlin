@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 import kotlin.reflect.KClass
 
 annotation class Ann(
@@ -32,3 +33,7 @@ var mutableWithGetter
 object WithLateinit {
     lateinit var kClass: KClass<*>
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, annotationDeclaration, collectionLiteral, const, functionDeclaration, getter,
+integerLiteral, lateinit, objectDeclaration, primaryConstructor, propertyDeclaration, setter, starProjection,
+stringLiteral */

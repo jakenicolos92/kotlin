@@ -1,6 +1,7 @@
+// WITH_KOTLIN_JVM_ANNOTATIONS
 package test;
 
-import org.jetbrains.annotations.*;
+import kotlin.annotations.jvm.*;
 
 public interface LoadIterableWithConflict<T> {
     public @ReadOnly @Mutable Iterable<T> getIterable();

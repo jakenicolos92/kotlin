@@ -4,15 +4,14 @@
 
 package org.jetbrains.kotlin.js.backend.ast;
 
-import org.jetbrains.kotlin.js.common.Symbol;
-import org.jetbrains.kotlin.js.util.AstUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.kotlin.js.util.AstUtil;
 
 /**
  * Represents a JavaScript expression that references a name.
  */
-public final class JsNameRef extends JsExpression implements HasName {
+public final class JsNameRef extends JsAssignableExpression implements HasName {
     private String ident;
     private JsName name;
     private JsExpression qualifier;
@@ -53,12 +52,6 @@ public final class JsNameRef extends JsExpression implements HasName {
     @Override
     public void setName(JsName name) {
         this.name = name;
-    }
-
-    @Nullable
-    @Override
-    public Symbol getSymbol() {
-        return name;
     }
 
     @Nullable
@@ -107,8 +100,8 @@ public final class JsNameRef extends JsExpression implements HasName {
     public JsNameRef deepCopy() {
         JsExpression qualifierCopy = AstUtil.deepCopy(qualifier);
 
-        if (name != null) return new JsNameRef(name, qualifierCopy).withMetadataFrom(this);
+        if (name != null) return AbstractNodeKt.withMetadataFrom(new JsNameRef(name, qualifierCopy), this);
 
-        return new JsNameRef(ident, qualifierCopy).withMetadataFrom(this);
+        return AbstractNodeKt.withMetadataFrom(new JsNameRef(ident, qualifierCopy), this);
     }
 }

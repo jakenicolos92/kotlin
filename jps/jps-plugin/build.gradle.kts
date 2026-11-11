@@ -1,0 +1,236 @@
+
+import org.jetbrains.kotlin.ideaExt.idea
+
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("jvm")
+    id("kotlin-build-helpers")
+}
+
+dependencies {
+    testImplementation(testFixtures(project(":generators:test-generator")))
+
+    CompilerModules.kotlinJpsPluginEmbeddedDependencies
+        .forEach { implementation(project(it)) }
+
+    CompilerModules.kotlinJpsPluginMavenDependencies
+        .forEach { implementation(project(it)) }
+
+    implementation(commonDependency("org.jetbrains.kotlin:kotlin-reflect")) { isTransitive = false }
+
+    implementation(project(":jps:jps-common"))
+    compileOnly(libs.intellij.fastutil)
+    compileOnly(intellijPlatformUtil())
+    compileOnly(jpsModel())
+    compileOnly(jpsBuild())
+    compileOnly(jpsBuildDependencyGraph())
+    compileOnly(jpsBuildJavacRt())
+    compileOnly(jpsModelSerialization())
+    compileOnly(intellijJDom())
+    testRuntimeOnly(jpsModel())
+
+    // testFramework includes too many unnecessary dependencies. Here we manually list all we need to successfully run JPS tests
+    testImplementation(jpsModelSerialization()) { isTransitive = false }
+    testImplementation(testFramework()) { isTransitive = false }
+    testImplementation("com.jetbrains.intellij.platform:test-framework-core:$intellijVersion") { isTransitive = false }
+    testImplementation("com.jetbrains.intellij.platform:test-framework-common:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:analysis-impl:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:boot:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:analysis:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:project-model:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:object-serializer:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:code-style:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:ide-impl:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:ide:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:ide-bootstrap:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:ide-core:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:ide-core-impl:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:execution:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:util-ui:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:concurrency:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:editor:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:editor-ui:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:core-ui:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:lang:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:lang-impl:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:util-ex:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly("com.jetbrains.intellij.platform:locking-impl:$intellijVersion") { isTransitive = false }
+    testRuntimeOnly(libs.gson)
+    testRuntimeOnly(intellijJDom())
+    testRuntimeOnly(libs.kotlinx.coroutines.core.jvm)
+    testRuntimeOnly(libs.rwmutex.idea)
+
+    testImplementation(testFixtures(project(":compiler:incremental-compilation-impl")))
+    testImplementation(jpsBuild())
+    testImplementation(jpsBuildDependencyGraph())
+    testImplementation(jpsBuildJavacRt())
+
+    testImplementation(platform(libs.junit.bom))
+    testImplementation(libs.junit.jupiter.api)
+    testRuntimeOnly(libs.junit.jupiter.engine)
+    testRuntimeOnly(libs.junit.platform.launcher)
+    testRuntimeOnly(libs.junit4) // needed for `com.intellij.tests.JUnit5TestSessionListener` from intellij test framework
+
+    CompilerModules.compilerModules.forEach {
+        testRuntimeOnly(project(it))
+    }
+
+    testImplementation("org.projectlombok:lombok:${project.kotlinBuildProperties.versionsProperty("lombok").get()}")
+    testImplementation(libs.kotlinx.serialization.json)
+}
+
+// The directory with the Build Tools API implementation for the 'testWithBuildToolsApi' task. The IDE gets the same
+// directory as the published `kotlin-build-tools-impl-for-ide` jar.
+val btaImplHome = configurations.dependencyScope("btaImplHome")
+val btaImplHomeResolvable = configurations.resolvable("btaImplHomeResolvable") {
+    extendsFrom(btaImplHome.get())
+}
+
+dependencies {
+    btaImplHome(project(":prepare:ide-plugin-dependencies:kotlin-build-tools-impl-for-ide", configuration = "btaImplHomeElements"))
+}
+
+sourceSets {
+    "main" {
+        projectDefault()
+        resources.srcDir("resources-en")
+    }
+    "test" {
+        Ide.IJ {
+            java.srcDirs("jps-tests/test")
+            java.srcDirs("jps-tests/tests-gen")
+            resources.srcDir("jps-tests/testResources")
+        }
+    }
+}
+
+optInToK1Deprecation()
+
+apply(plugin = "idea")
+idea {
+    this.module.generatedSourceDirs.add(projectDir.resolve("jps-tests").resolve("tests-gen"))
+}
+
+jvmToolchains {
+    jdkVersion = JdkMajorVersion.JDK_21_0
+    targetBytecodeVersion = JdkMajorVersion.JDK_21_0
+    configureForSourceSet("main") {
+        targetBytecodeVersion = JdkMajorVersion.JDK_11_0
+    }
+}
+
+kotlin {
+    compilerOptions {
+        optIn.add("org.jetbrains.kotlin.buildtools.api.ExperimentalBuildToolsApi")
+        optIn.add("org.jetbrains.kotlin.buildtools.api.arguments.ExperimentalCompilerArgument")
+        optIn.add("org.jetbrains.kotlin.buildtools.api.jps.InternalBuildToolsApi")
+    }
+}
+
+fun Test.configureJpsTests() {
+    // do not replace with compile/runtime dependency,
+    // because it forces Intellij reindexing after each compiler change
+    dependsOn(":kotlin-compiler:dist")
+    dependsOn(":kotlin-stdlib:jsJarForTests")
+    workingDir = rootDir
+
+    // The JPS tests run against the new dependency graph architecture.
+    // KotlinBuilder caches these properties in companion vals on class initialization,
+    // so they have to be set before the test JVM starts, not from a test fixture.
+    systemProperty("jps.use.dependency.graph", true)
+    systemProperty("kotlin.jps.dumb.mode", true)
+    systemProperty("kotlin.jps.enable.lookups.in.dumb.mode", true)
+    systemProperty("jvm-inc-builder.test.track.mock.annotations", true)
+    // for debugging tests with in-process compiler
+    systemProperty("kotlin.jps.classPrefixesToLoadByParent", "kotlin.")
+    jvmArgs(
+        // https://github.com/JetBrains/intellij-community/blob/b49faf433f8d73ccd46016a5717f997d167de65f/jps/jps-builders/src/org/jetbrains/jps/cmdline/ClasspathBootstrap.java#L67
+        "--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED",
+        // the minimal required set of modules to be opened for the intellij platform itself
+        "--add-opens=java.desktop/java.awt=ALL-UNNAMED",
+        "--add-opens=java.desktop/java.awt.event=ALL-UNNAMED",
+        "--add-opens=java.desktop/sun.awt=ALL-UNNAMED",
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.desktop/javax.swing=ALL-UNNAMED",
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        // additions for SDK 261
+        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+        "--add-opens=java.base/jdk.internal.ref=ALL-UNNAMED",
+    )
+}
+
+projectTests {
+    // Kotlin is compiled through the legacy compiler runner: module.xml + the daemon
+    testTask(
+        javaLauncher = JdkMajorVersion.JDK_21_0,
+        defineJDKEnvVariables = listOf(JdkMajorVersion.JDK_11_0)
+    ) {
+        configureJpsTests()
+    }
+
+    // Kotlin is compiled through the Build Tools API, enabled by the implementation home
+    testTask(
+        "testWithBuildToolsApi",
+        javaLauncher = JdkMajorVersion.JDK_21_0,
+        defineJDKEnvVariables = listOf(JdkMajorVersion.JDK_11_0),
+        skipInLocalBuild = false,
+    ) {
+        configureJpsTests()
+        addClasspathProperty(btaImplHomeResolvable.get(), "kotlin.jps.build.tools.impl.home")
+    }
+
+    testGenerator("org.jetbrains.kotlin.jps.GenerateJpsPluginTestsKt", doNotSetFixturesSourceSetDependency = true) {
+        javaLauncher = project.getToolchainLauncherFor(JdkMajorVersion.JDK_21_0)
+    }
+
+    withJvmStdlibAndReflect()
+}
+
+testsJarToBeUsedAlongWithFixtures()
+
+/**
+ * Dependency Security Overrides
+ *
+ * Forces specific versions of transitive dependencies to address known vulnerabilities:
+ *
+ * Affected Library:
+ * └── io.netty
+ *    ├── netty-buffer:* → 4.1.127.Final
+ *    └── netty-codec-http2:* → 4.1.127.Final
+ *
+ * Mitigated Vulnerabilities:
+ * - CVE-2025-25193: Denial of Service Vulnerability
+ * - CVE-2024-47535: Network security vulnerability
+ * - CVE-2024-29025: Remote code execution risk
+ * - CVE-2023-4586: Information disclosure vulnerability
+ * - CVE-2023-34462: Potential denial of service
+ * - CVE-2025-55163: Resource exhaustion and DDoS
+ * - CVE-2025-58056: Inconsistent Interpretation of HTTP Requests
+ * - CVE-2025-58057: Improper Handling of Highly Compressed Data
+ *
+ * This configuration overrides versions regardless of the declaring dependency.
+ */
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "io.netty" &&
+            listOf(
+                "netty-buffer",
+                "netty-codec-http2",
+            ).contains(requested.name)
+        ) {
+            useVersion("4.1.127.Final")
+            because("CVE-2025-25193, CVE-2024-47535, CVE-2024-29025, CVE-2023-4586, CVE-2023-34462, CVE-2025-55163, CVE-2025-58056, CVE-2025-58057")
+        }
+    }
+}

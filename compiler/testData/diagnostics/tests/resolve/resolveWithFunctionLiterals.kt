@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 object A {
     val iii = 42
 }
@@ -28,3 +29,6 @@ fun test() {
         }
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, functionDeclaration, functionalType, integerLiteral, lambdaLiteral,
+objectDeclaration, propertyDeclaration */

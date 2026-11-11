@@ -1,6 +1,0 @@
-// Sealed: to be implemented
-impl sealed class Sealed {
-    object Obj : Sealed()
-
-    class Klass(val x: Int) : Sealed()
-}

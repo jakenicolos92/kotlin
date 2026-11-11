@@ -1,3 +1,5 @@
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -REDUNDANT_CALL_OF_CONVERSION_METHOD
 fun <T : CharSequence> foo(x: Array<Any>, y: IntArray, block: (T, Int) -> Int) {
     var r: Any?
 
@@ -7,7 +9,7 @@ fun <T : CharSequence> foo(x: Array<Any>, y: IntArray, block: (T, Int) -> Int) {
     r = block(x[0] as T, "" <!CAST_NEVER_SUCCEEDS!>as<!> Int)
 
     // to prevent unused assignment diagnostic for the above statement
-    <!DEBUG_INFO_SMARTCAST!>r<!>.hashCode()
+    r.hashCode()
 
     var i = 1
 
@@ -58,3 +60,8 @@ fun <T : CharSequence> foo(x: Array<Any>, y: IntArray, block: (T, Int) -> Int) {
 
     y[i] += block(x[0] as T, "" <!CAST_NEVER_SUCCEEDS!>as<!> Int).toInt()
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, asExpression, assignment, doWhileLoop, equalityExpression, forLoop,
+functionDeclaration, functionalType, ifExpression, integerLiteral, lambdaLiteral, localProperty, nullableType,
+propertyDeclaration, rangeExpression, smartcast, stringLiteral, typeConstraint, typeParameter, whenExpression,
+whenWithSubject, whileLoop */

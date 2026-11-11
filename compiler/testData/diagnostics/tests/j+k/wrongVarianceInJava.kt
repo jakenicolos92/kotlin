@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_PARAMETER
 // FILE: A.java
 
 public class A {
@@ -19,5 +20,9 @@ class In<in F> {
 
 fun test() {
     A.foo().x() checkType { _<Any?>() }
-    A.bar().<!MEMBER_PROJECTED_OUT!>y<!>(null)
+    A.bar().y(<!NULL_FOR_NONNULL_TYPE!>null<!>)
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, flexibleType, funWithExtensionReceiver, functionDeclaration,
+functionalType, in, infix, javaFunction, lambdaLiteral, nullableType, out, starProjection, typeParameter,
+typeWithExtension */

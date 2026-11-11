@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun bar(vararg a: String) {}
 
@@ -7,3 +8,5 @@ fun test2(a: Array<String>, b: Array<out String>) {
     bar(*b)
     bar("", *a, *b, "")
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, outProjection, stringLiteral, vararg */

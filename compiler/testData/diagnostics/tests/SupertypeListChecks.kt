@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // KT-286 Check supertype lists
 
 /*
@@ -24,26 +25,28 @@ interface T2<T> {}
 interface Test<!CONSTRUCTOR_IN_INTERFACE!>()<!> {
 }
 
-interface Test1 : <!INTERFACE_WITH_SUPERCLASS!>C2<!><!SUPERTYPE_INITIALIZED_IN_INTERFACE!>()<!> {}
+interface Test1 : <!INTERFACE_WITH_SUPERCLASS, SUPERTYPE_INITIALIZED_IN_INTERFACE!>C2<!>() {}
 
 interface Test2 : <!INTERFACE_WITH_SUPERCLASS!>C2<!> {}
 
-interface Test3 : <!INTERFACE_WITH_SUPERCLASS!>C2<!>, <!MANY_CLASSES_IN_SUPERTYPE_LIST!>C3<!> {}
+interface Test3 : <!INTERFACE_WITH_SUPERCLASS!>C2<!>, <!INTERFACE_WITH_SUPERCLASS, MANY_CLASSES_IN_SUPERTYPE_LIST!>C3<!> {}
 
 interface Test4 : T1 {}
 
 interface Test5 : T1, <!SUPERTYPE_APPEARS_TWICE!>T1<!> {}
 
-interface Test6 : <!INTERFACE_WITH_SUPERCLASS, FINAL_SUPERTYPE!>C1<!> {}
+interface Test6 : <!FINAL_SUPERTYPE, INTERFACE_WITH_SUPERCLASS!>C1<!> {}
 
 class CTest1() : OC1() {}
 
 class CTest2 : <!SUPERTYPE_NOT_INITIALIZED!>C2<!> {}
 
-class CTest3 : <!SUPERTYPE_NOT_INITIALIZED!>C2<!>, <!SUPERTYPE_NOT_INITIALIZED, MANY_CLASSES_IN_SUPERTYPE_LIST!>C3<!> {}
+class CTest3 : <!SUPERTYPE_NOT_INITIALIZED!>C2<!>, <!MANY_CLASSES_IN_SUPERTYPE_LIST!>C3<!> {}
 
 class CTest4 : T1 {}
 
 class CTest5 : T1, <!SUPERTYPE_APPEARS_TWICE!>T1<!> {}
 
-class CTest6 : <!SUPERTYPE_NOT_INITIALIZED, FINAL_SUPERTYPE!>C1<!> {}
+class CTest6 : <!FINAL_SUPERTYPE, SUPERTYPE_NOT_INITIALIZED!>C1<!> {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, interfaceDeclaration, nullableType, primaryConstructor, typeParameter */

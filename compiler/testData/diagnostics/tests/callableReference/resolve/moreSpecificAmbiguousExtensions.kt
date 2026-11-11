@@ -1,5 +1,6 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_PARAMETER -UNUSED_VARIABLE
 
 interface IA
 interface IB : IA
@@ -19,3 +20,7 @@ fun testWithExpectedType() {
     val extFun_BA_B: IB.(IA) -> Unit = IB::extFun
     val extFun_BB_B: IB.(IB) -> Unit = IB::<!OVERLOAD_RESOLUTION_AMBIGUITY!>extFun<!>
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, infix, interfaceDeclaration, localProperty, nullableType, propertyDeclaration, typeParameter,
+typeWithExtension */

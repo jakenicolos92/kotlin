@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun test(x: List<Int>): Int {
     x myMap {
         return@myMap
@@ -8,10 +9,13 @@ fun test(x: List<Int>): Int {
 
 fun myMap(x: List<Int>): Int {
     x myMap {
-        return<!LABEL_NAME_CLASH!>@myMap<!>
+        return@myMap
     }
 
     return 0
 }
 
-infix fun List<Int>.myMap(<!UNUSED_PARAMETER!>x<!>: () -> Unit) {}
+infix fun List<Int>.myMap(x: () -> Unit) {}
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, functionalType, infix, integerLiteral,
+lambdaLiteral */

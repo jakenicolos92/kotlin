@@ -1,4 +1,5 @@
-// !API_VERSION: 1.0
+// RUN_PIPELINE_TILL: FRONTEND
+// API_VERSION: 1.0
 
 @SinceKotlin("1.1")
 class Since_1_1
@@ -18,4 +19,6 @@ fun test2(x: <!API_NOT_AVAILABLE!>C_1_1_Alias<!>) = x
 
 fun test3(x: List<<!API_NOT_AVAILABLE!>C_1_1_Alias<!>>) = x
 
-fun test4(x: L) = x
+fun test4(x: <!API_NOT_AVAILABLE!>L<!>) = x
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, stringLiteral, typeAliasDeclaration */

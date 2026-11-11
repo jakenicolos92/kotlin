@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: CollectionStringImpl.java
 
 import java.util.Collection;
@@ -83,3 +84,5 @@ fun test(x: CollectionStringImpl) {
     x.contains("")
     (x as Collection<String>).contains("")
 }
+
+/* GENERATED_FIR_TAGS: asExpression, functionDeclaration, javaFunction, javaType, stringLiteral */

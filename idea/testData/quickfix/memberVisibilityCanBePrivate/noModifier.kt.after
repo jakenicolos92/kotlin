@@ -1,8 +1,0 @@
-// "Add 'private' modifier" "true"
-class A {
-    private val a = ""
-
-    fun foo() {
-        a
-    }
-}

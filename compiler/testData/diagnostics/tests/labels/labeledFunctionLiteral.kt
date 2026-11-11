@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 val funLit = lambda@ fun String.() {
     val d1 = this@lambda
@@ -12,6 +13,8 @@ fun test() {
 
 fun lambda() {
     val funLit = lambda@ fun String.(): String {
-        return <!NO_THIS!>this@lambda<!>
+        return this@lambda
     }
 }
+
+/* GENERATED_FIR_TAGS: anonymousFunction, functionDeclaration, localProperty, propertyDeclaration, thisExpression */

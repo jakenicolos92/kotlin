@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 object AnObject {
     val ok = "OK"
     fun foo() = "OK"
@@ -30,3 +31,6 @@ val test35: ClassWithCompanion.Companion = TestCWC
 val test36 = TestCWC
 val test37: String = TestCWC.ok
 val test38: String = TestCWC.foo()
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, objectDeclaration, propertyDeclaration,
+stringLiteral, typeAliasDeclaration */

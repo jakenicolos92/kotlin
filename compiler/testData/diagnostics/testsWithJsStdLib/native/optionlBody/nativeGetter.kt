@@ -1,7 +1,8 @@
-// !DIAGNOSTICS: -DEPRECATION
-@nativeGetter
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -DEPRECATION
+<!NATIVE_ANNOTATIONS_ALLOWED_ONLY_ON_MEMBER_FUN!>@nativeGetter<!>
 fun String.foo(n: Int): Int?
-@nativeGetter
+<!NATIVE_ANNOTATIONS_ALLOWED_ONLY_ON_MEMBER_FUN!>@nativeGetter<!>
 fun String.bar(n: Int): Int? = definedExternally
 
 

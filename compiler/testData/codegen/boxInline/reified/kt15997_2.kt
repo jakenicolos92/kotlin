@@ -1,6 +1,7 @@
-// FILE: 1.kt
-// FULL_JDK
+// TARGET_BACKEND: JVM
 // WITH_REFLECT
+// FULL_JDK
+// FILE: 1.kt
 package test
 
 import kotlin.properties.Delegates

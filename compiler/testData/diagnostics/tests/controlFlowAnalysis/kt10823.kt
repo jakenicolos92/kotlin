@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun find2(): Any? {
     fun visit(element: Any) {
         <!RETURN_NOT_ALLOWED!>return@find2<!> element
@@ -17,9 +18,9 @@ fun find(): Any? {
 }
 
 fun find4(): Any? {
-    <!NOT_YET_SUPPORTED_IN_INLINE!>inline fun visit(element: Any) {
+    <!NOT_YET_SUPPORTED_LOCAL_INLINE_FUNCTION!>inline<!> fun visit(element: Any) {
         <!RETURN_NOT_ALLOWED!>return@find4<!> element
-    }<!>
+    }
     return null
 }
 
@@ -31,3 +32,5 @@ fun find3(): Any? {
     }
     return null
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, functionDeclaration, inline, localFunction, nullableType */

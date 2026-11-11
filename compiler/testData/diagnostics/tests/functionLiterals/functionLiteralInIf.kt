@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_EXPRESSION
 
 import java.util.HashSet
 
@@ -13,3 +14,6 @@ fun test123() {
         { it -> it }
     }
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, functionalType, ifExpression, javaFunction, lambdaLiteral,
+localProperty, propertyDeclaration */

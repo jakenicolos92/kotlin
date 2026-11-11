@@ -16,59 +16,85 @@
 
 package org.jetbrains.kotlin.incremental
 
-import org.jetbrains.kotlin.modules.TargetId
+import com.google.common.io.Closer
+import org.jetbrains.kotlin.compilerRunner.OutputItemsCollectorImpl
+import org.jetbrains.kotlin.incremental.components.SubtypeTracker
+import org.jetbrains.kotlin.incremental.storage.BasicMapsOwner
+import org.jetbrains.kotlin.serialization.SerializerExtensionProtocol
+import java.io.Closeable
 import java.io.File
 
-class IncrementalCachesManager (
-        private val targetId: TargetId,
-        private val cacheDirectory: File,
-        private val outputDir: File,
-        private val reporter: ICReporter
-) {
-    private val incrementalCacheDir = File(cacheDirectory, "increCache.${targetId.name}")
-    private val lookupCacheDir = File(cacheDirectory, "lookups")
-    private var incrementalCacheField: GradleIncrementalCacheImpl? = null
-    private var lookupCacheField: LookupStorage? = null
+abstract class IncrementalCachesManager<PlatformCache : AbstractIncrementalCache<*>>(
+    icContext: IncrementalCompilationContext,
+    cachesRootDir: File,
+) : Closeable {
+    private val caches = arrayListOf<BasicMapsOwner>()
 
-    val incrementalCache: GradleIncrementalCacheImpl
-        get() {
-            if (incrementalCacheField == null) {
-                val targetDataRoot = incrementalCacheDir.apply { mkdirs() }
-                incrementalCacheField = GradleIncrementalCacheImpl(targetDataRoot, outputDir, targetId, reporter)
-            }
+    private var isClosed = false
 
-            return incrementalCacheField!!
-        }
-
-    val lookupCache: LookupStorage
-        get() {
-            if (lookupCacheField == null) {
-                lookupCacheField = LookupStorage(lookupCacheDir.apply { mkdirs() })
-            }
-
-            return lookupCacheField!!
-        }
-
-    fun clean() {
-        close(flush = false)
-        cacheDirectory.deleteRecursively()
+    @Synchronized
+    protected fun <T : BasicMapsOwner> T.registerCache() {
+        check(!isClosed) { "This cache storage has already been closed" }
+        caches.add(this)
     }
 
-    fun close(flush: Boolean = false) {
-        incrementalCacheField?.let {
-            if (flush) {
-                it.flush(false)
-            }
-            it.close()
-            incrementalCacheField = null
-        }
+    private val inputSnapshotsCacheDir = File(cachesRootDir, "inputs").apply { mkdirs() }
+    private val lookupCacheDir = File(cachesRootDir, "lookups").apply { mkdirs() }
+    private val compilerPluginFilesCacheDir = File(cachesRootDir, "compilerPluginFiles").apply { mkdirs() }
 
-        lookupCacheField?.let {
-            if (flush) {
-                it.flush(false)
-            }
-            it.close()
-            lookupCacheField = null
+    val inputsCache: InputsCache = InputsCache(inputSnapshotsCacheDir, icContext).apply { registerCache() }
+    val lookupCache: LookupStorage = LookupStorage(lookupCacheDir, icContext).apply { registerCache() }
+    val compilerPluginFilesCache: CompilerPluginFilesCache = CompilerPluginFilesCache(compilerPluginFilesCacheDir, icContext).apply { registerCache() }
+    abstract val platformCache: PlatformCache
+
+    init {
+        icContext.compilerGeneratedSyntheticSources.addAll(compilerPluginFilesCache.getSourceFilesGeneratedByPlugins())
+    }
+
+    open fun recordCompilerPluginFilesCaches(outputItemsCollector: OutputItemsCollectorImpl) {
+        compilerPluginFilesCache.let {
+            it.recordSourceFilesReferencedByPlugins(outputItemsCollector.sourcesReferencedByCompilerPlugin)
+            it.recordOutputFilesGeneratedByPlugins(outputItemsCollector.outputsFileGeneratedForPlugin)
+            it.recordSourceFilesGeneratedByPlugins(outputItemsCollector.sourceFileGeneratedForPlugin)
         }
     }
+
+    @Suppress("UnstableApiUsage")
+    @Synchronized
+    override fun close() {
+        check(!isClosed) { "This cache storage has already been closed" }
+
+        val closer = Closer.create()
+        caches.forEach {
+            closer.register(it)
+        }
+        closer.close()
+
+        isClosed = true
+    }
+
+}
+
+open class IncrementalJvmCachesManager(
+    icContext: IncrementalCompilationContext,
+    outputDir: File?,
+    cachesRootDir: File,
+    subtypeTracker: SubtypeTracker = SubtypeTracker.DoNothing,
+) : IncrementalCachesManager<IncrementalJvmCache>(icContext, cachesRootDir) {
+    private val jvmCacheDir = File(cachesRootDir, "jvm").apply { mkdirs() }
+    override val platformCache = IncrementalJvmCache(
+        targetDataRoot = jvmCacheDir,
+        icContext = icContext,
+        targetOutputDir = outputDir,
+        subtypeTracker = subtypeTracker,
+    ).apply { registerCache() }
+}
+
+class IncrementalJsCachesManager(
+    icContext: IncrementalCompilationContext,
+    serializerProtocol: SerializerExtensionProtocol,
+    cachesRootDir: File,
+) : IncrementalCachesManager<IncrementalJsCache>(icContext, cachesRootDir) {
+    private val jsCacheFile = File(cachesRootDir, "js").apply { mkdirs() }
+    override val platformCache = IncrementalJsCache(jsCacheFile, icContext, serializerProtocol).apply { registerCache() }
 }

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class My {
     var x: Int = 0
         // Ok
@@ -23,3 +24,5 @@ class My {
         // Error: better
         <!SETTER_VISIBILITY_INCONSISTENT_WITH_PROPERTY_VISIBILITY!>public<!> set
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, integerLiteral, propertyDeclaration */

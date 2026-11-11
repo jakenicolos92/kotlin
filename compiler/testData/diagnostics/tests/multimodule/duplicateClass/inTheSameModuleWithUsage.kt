@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // MODULE: m1
 // FILE: a.kt
 
@@ -21,3 +22,5 @@ fun test() {
     val a: A = B().a
     a.foo()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, localProperty, propertyDeclaration */

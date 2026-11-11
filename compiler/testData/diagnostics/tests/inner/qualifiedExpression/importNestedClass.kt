@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: a.kt
 class A {
     class B {
@@ -15,3 +16,5 @@ val ab = A.B()
 val c = C()
 val bc = B.C()
 val abc = A.B.C()
+
+/* GENERATED_FIR_TAGS: classDeclaration, nestedClass, propertyDeclaration */

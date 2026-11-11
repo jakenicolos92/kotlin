@@ -1,8 +1,8 @@
-# Module stdlib
+# Module kotlin-stdlib
 
-## Kotlin Standard Library
+## Kotlin standard library
 
-The Kotlin Standard Library provides living essentials for everyday work with Kotlin.
+The Kotlin standard library provides living essentials for everyday work with Kotlin.
 These include:
   - Higher-order functions implementing idiomatic patterns ([let][kotlin.let], [apply][kotlin.apply], [use][kotlin.io.use], [synchronized][kotlin.synchronized], etc).
   - Extension functions providing querying operations for collections (eager) and sequences (lazy).
@@ -17,10 +17,6 @@ Core functions and types, available on all supported platforms.
 
 Library support for the Kotlin annotation facility.
 
-# Package kotlin.browser
-
-Access to top-level properties (`document`, `window` etc.) in the browser environment.
-
 # Package kotlin.collections
 
 Collection types, such as [Iterable][kotlin.collections.Iterable], [Collection][kotlin.collections.Collection],
@@ -28,23 +24,36 @@ Collection types, such as [Iterable][kotlin.collections.Iterable], [Collection][
 
 # Package kotlin.comparisons
 
-Helper functions for creating [Comparator][java.util.Comparator] instances.
+Helper functions for creating [Comparator][kotlin.Comparator] instances.
 
 # Package kotlin.concurrent
 
-Utility functions for concurrent programming.
+Low-level building blocks and utility functions for concurrent programming.
 
-# Package kotlin.coroutines.experimental
+# Package kotlin.concurrent.atomics
 
-Library support for coroutines, including support for lazy sequences.
+Atomic scalar and array types and utilities for working with them.
 
-# Package kotlin.coroutines.experimental.intrinsics
+# Package kotlin.contracts
+
+Experimental DSL for declaring custom function contracts.
+
+# Package kotlin.coroutines
+
+Basic primitives for creating and suspending coroutines: [Continuation][kotlin.coroutines.Continuation], 
+[CoroutineContext][kotlin.coroutines.CoroutineContext] interfaces, coroutine creation and suspension top-level functions.
+
+# Package kotlin.coroutines.intrinsics
 
 Low-level building blocks for libraries that provide coroutine-based APIs.
 
-# Package kotlin.dom
+# Package kotlin.coroutines.cancellation
 
-Utility functions for working with the browser DOM.
+Provides exceptions arising on suspended coroutine cancellation. 
+
+# Package kotlin.enums
+
+Utilities for working with Kotlin enum classes.
 
 # Package kotlin.experimental
 
@@ -54,34 +63,77 @@ Experimental APIs, subject to change in future versions of Kotlin.
 
 IO API for working with files and streams.
 
+# Package kotlin.io.path
+
+Convenient extensions for working with file system using [java.nio.file.Path][java.nio.file.Path].
+
+# Package kotlin.io.encoding
+
+API for encoding and decoding data using various encoding schemes, such as [Base64][kotlin.io.encoding.Base64].
+
 # Package kotlin.js
 
 Functions and other APIs specific to the JavaScript platform.
+
+# Package kotlin.js.collections
+
+JavaScript-specific collection types, such as [JsArray][kotlin.js.collections.JsArray] and [JsReadonlyMap][kotlin.js.collections.JsReadonlyMap].
 
 # Package kotlin.jvm
 
 Functions and annotations specific to the Java platform.
 
+# Package kotlin.jvm.optionals
+
+Convenience extension functions for `java.util.Optional` to simplify Kotlin-Java interop.
+
+# Package kotlin.math
+
+Mathematical functions and constants. 
+
+The functions include trigonometric, hyperbolic, exponentiation and power, logarithmic, rounding, sign and absolute value.
+
+# Package kotlin.native
+
+Provides functions and types specific to Kotlin/Native, as well as means for interoperability with an underlying platform
+and other languages.
+
+# Package kotlin.native.concurrent
+
+Kotlin/Native-specific concurrency primitives and utility functions for concurrent programming.
+
+# Package kotlin.native.ref
+
+API for object life-cycle and references management.
+
+# Package kotlin.native.runtime
+
+Allows to query information from and interact with the Kotlin/Native runtime. 
+
 # Package kotlin.properties
 
-Standard implementations of delegates for [delegated properties](/docs/reference/delegated-properties.html)
+Standard implementations of delegates for [delegated properties](https://kotlinlang.org/docs/delegated-properties.html)
 and helper functions for implementing custom delegates.
+
+# Package kotlin.random
+
+Provides the default generator of pseudo-random values, the repeatable generator, and a base class for other RNG implementations.
 
 # Package kotlin.ranges
 
-[Ranges](/docs/reference/ranges.html), Progressions and related top-level and extension functions.
+[Ranges](https://kotlinlang.org/docs/ranges.html), Progressions and related top-level and extension functions.
 
 # Package kotlin.reflect
 
-Runtime API for [Kotlin reflection](/docs/reference/reflection.html)
+Runtime API for [Kotlin reflection](https://kotlinlang.org/docs/reflection.html)
 
 # Package kotlin.reflect.full
 
-Extensions for [Kotlin reflection](/docs/reference/reflection.html) provided by `kotlin-reflect` library.
+Extensions for [Kotlin reflection](https://kotlinlang.org/docs/reflection.html) provided by `kotlin-reflect` library.
 
 # Package kotlin.reflect.jvm
 
-Runtime API for interoperability between [Kotlin reflection](/docs/reference/reflection.html) and
+Runtime API for interoperability between [Kotlin reflection](https://kotlinlang.org/docs/reflection.html) and
 Java reflection provided by `kotlin-reflect` library.
 
 # Package kotlin.sequences
@@ -120,55 +172,30 @@ Functions for writing test assertions.
 
 Functions for working with text and regular expressions.
 
-# Package org.khronos.webgl
+# Package kotlin.text.unicode
 
-Kotlin JavaScript wrappers for the WebGL API.
+API and utility functions for working with Unicode code points, character properties, casing, 
+and Unicode-aware text iteration.
 
-# Package org.w3c.dom
+# Package kotlin.time
 
-Kotlin JavaScript wrappers for the DOM API.
+API for measuring time intervals and calculating durations.
 
-# Package org.w3c.dom.css
+For more information, see our [Time measurement](https://kotlinlang.org/docs/time-measurement.html) guide.
 
-Kotlin JavaScript wrappers for the DOM CSS API.
+# Package kotlin.uuid
 
-# Package org.w3c.dom.events
+Multiplatform `Uuid` class and utility functions for working with UUIDs.
 
-Kotlin JavaScript wrappers for the DOM events API.
+# Package kotlin.wasm
 
-# Package org.w3c.dom.parsing
+Provides Wasm-platform interoperability support. 
 
-Kotlin JavaScript wrappers for the DOM parsing API.
+# Package kotlin.wasm.unsafe
 
-# Package org.w3c.dom.svg
+API for working with Wasm linear memory. 
 
-Kotlin JavaScript wrappers for the DOM SVG API.
+# Package kotlinx.cinterop
 
-# Package org.w3c.dom.url
-
-Kotlin JavaScript wrappers for the DOM URL API.
-
-# Package org.w3c.fetch
-
-Kotlin JavaScript wrappers for the [W3C fetch API](https://fetch.spec.whatwg.org).
-
-# Package org.w3c.files
-
-Kotlin JavaScript wrappers for the [W3C file API](https://www.w3.org/TR/FileAPI/).
-
-# Package org.w3c.notifications
-
-Kotlin JavaScript wrappers for the [Web Notifications API](https://www.w3.org/TR/notifications/).
-
-# Package org.w3c.performance
-
-Kotlin JavaScript wrappers for the [Navigation Timing API](https://www.w3.org/TR/navigation-timing/).
-
-# Package org.w3c.workers
-
-Kotlin JavaScript wrappers for the [Web Workers API](https://www.w3.org/TR/workers/).
-
-# Package org.w3c.xhr
-
-Kotlin JavaScript wrappers for the [XMLHttpRequest API](https://www.w3.org/TR/XMLHttpRequest/).
-
+Experimental API for working with unmanaged and foreign memory, as well as for interoperability with other languages,
+such as Objective-C and C.

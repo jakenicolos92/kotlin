@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //  Anonymous object's initialization does not affect smart casts
 
 abstract class A(val s: String) {
@@ -7,5 +8,8 @@ abstract class A(val s: String) {
 fun foo(o: String?): Int {
     val a = object : A(o!!){}
     a.bar()
-    return <!DEBUG_INFO_SMARTCAST!>o<!>.length
+    return o.length
 }
+
+/* GENERATED_FIR_TAGS: anonymousObjectExpression, checkNotNullCall, classDeclaration, functionDeclaration, localProperty,
+nullableType, primaryConstructor, propertyDeclaration, smartcast */

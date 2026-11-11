@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package a
 
 interface Closeable {}
@@ -7,9 +8,12 @@ public inline fun <T: Closeable, R> T.use1(block: (T)-> R) : R {
     return block(this)
 }
 
-fun main(args: Array<String>) {
-    C().use1 {
-        <!UNUSED_ANONYMOUS_PARAMETER!>w<!> ->  // ERROR here
+fun main() {
+    C().<!CANNOT_INFER_PARAMETER_TYPE!>use1<!> {
+        w ->  // ERROR here
         <!UNRESOLVED_REFERENCE!>x<!>
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, inline,
+interfaceDeclaration, lambdaLiteral, nullableType, thisExpression, typeConstraint, typeParameter */

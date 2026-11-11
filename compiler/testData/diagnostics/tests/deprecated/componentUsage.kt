@@ -1,4 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 
 class Data {
     @Deprecated("text")
@@ -7,5 +9,8 @@ class Data {
 }
 
 fun use() {
-    val (<!DEPRECATION!>x<!>, y) = Data()
+    val [<!DEPRECATION!>x<!>, y] = Data()
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, destructuringDeclaration, functionDeclaration, localProperty, operator,
+propertyDeclaration, stringLiteral */

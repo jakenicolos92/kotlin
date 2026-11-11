@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.kt
 
 package test
@@ -7,4 +8,6 @@ interface A
 
 // FILE: B.kt
 
-import test.<!DEPRECATION!>A<!>
+import test.A
+
+/* GENERATED_FIR_TAGS: interfaceDeclaration, stringLiteral */

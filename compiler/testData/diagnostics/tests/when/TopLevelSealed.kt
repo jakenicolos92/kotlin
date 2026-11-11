@@ -1,4 +1,15 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE
+/*
+ * KOTLIN DIAGNOSTICS SPEC TEST (NEGATIVE)
+ *
+ * SPEC VERSION: 0.1-152
+ * PRIMARY LINKS: expressions, when-expression -> paragraph 5 -> sentence 1
+ * expressions, when-expression -> paragraph 6 -> sentence 1
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 6
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 7
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 8
+ */
 
 sealed class A {
     class B: A() {
@@ -20,3 +31,6 @@ fun test(a: A) {
         is D -> "D"
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, isExpression, localProperty, nestedClass,
+propertyDeclaration, sealed, smartcast, stringLiteral, whenExpression, whenWithSubject */

@@ -1,0 +1,166 @@
+description = "Kotlin Mock Runtime for Tests"
+
+plugins {
+    id("common-configuration")
+    id("com.autonomousapps.dependency-analysis")
+    kotlin("multiplatform")
+    `maven-publish`
+}
+
+jvmToolchains {
+    targetBytecodeVersion = JdkMajorVersion.JDK_1_8
+}
+
+val stdlibProjectDir = file("$rootDir/libraries/stdlib")
+
+val builtinsMetadata = configurations.create("builtinsMetadata")
+
+dependencies {
+    builtinsMetadata(project(":kotlin-stdlib"))
+}
+
+val copyCommonSources = tasks.register<Sync>("copyCommonSources") {
+    from(stdlibProjectDir.resolve("src"))
+        .include(
+            "kotlin/Annotation.kt",
+            "kotlin/Any.kt",
+            "kotlin/Array.kt",
+            "kotlin/ArrayIntrinsics.kt",
+            "kotlin/Arrays.kt",
+            "kotlin/Boolean.kt",
+            "kotlin/Char.kt",
+            "kotlin/CharSequence.kt",
+            "kotlin/Collections.kt",
+            "kotlin/Comparable.kt",
+            "kotlin/Enum.kt",
+            "kotlin/Function.kt",
+            "kotlin/Iterator.kt",
+            "kotlin/Library.kt",
+            "kotlin/Nothing.kt",
+            "kotlin/Number.kt",
+            "kotlin/Primitives.kt",
+            "kotlin/RichError.kt",
+            "kotlin/String.kt",
+            "kotlin/Throwable.kt",
+            "kotlin/Unit.kt",
+            "kotlin/util/Standard.kt",
+            "kotlin/annotations/Multiplatform.kt",
+            "kotlin/annotations/WasExperimental.kt",
+            "kotlin/annotations/ReturnValue.kt",
+            "kotlin/internal/Annotations.kt",
+            "kotlin/internal/throwNoWhenBranchMatchedException.kt",
+            "kotlin/internal/AnnotationsBuiltin.kt",
+            "kotlin/concurrent/atomics/AtomicArrays.common.kt",
+            "kotlin/concurrent/atomics/Atomics.common.kt",
+            "kotlin/contextParameters/Context.kt",
+            "kotlin/contextParameters/ContextOf.kt",
+            "kotlin/contracts/ContractBuilder.kt",
+            "kotlin/contracts/Effect.kt",
+        )
+    from(stdlibProjectDir.resolve("common/src"))
+        .include(
+            "kotlin/ExceptionsH.kt",
+        )
+
+    into(layout.buildDirectory.dir("src/common"))
+}
+
+val copySources = tasks.register<Sync>("copySources") {
+    from(stdlibProjectDir.resolve("jvm/runtime"))
+        .include(
+            "kotlin/NoWhenBranchMatchedException.kt",
+            "kotlin/UninitializedPropertyAccessException.kt",
+            "kotlin/TypeAliases.kt",
+            "kotlin/text/TypeAliases.kt",
+        )
+    from(stdlibProjectDir.resolve("jvm/src"))
+        .include(
+            "kotlin/ArrayIntrinsics.kt",
+            "kotlin/Unit.kt",
+            "kotlin/collections/TypeAliases.kt",
+            "kotlin/enums/EnumEntriesJVM.kt",
+            "kotlin/io/Serializable.kt",
+            "kotlin/internal/throwNoWhenBranchMatchedException.kt",
+        )
+
+    from(stdlibProjectDir.resolve("jvm/builtins"))
+        .include("*.kt")
+
+    into(layout.buildDirectory.dir("src/jvm"))
+}
+
+kotlin {
+    jvm {
+        compilations {
+            val main = getByName("main") {
+                compileTaskProvider.configure {
+                    compilerOptions {
+                        moduleName = "kotlin-stdlib"
+                        // Use this to override language and API versions for stdlib compared to the version used to build the whole Kotlin
+                        // languageVersion = KotlinVersion.KOTLIN_...
+                        // apiVersion = KotlinVersion.KOTLIN_...
+
+                        // providing exhaustive list of args here
+                        freeCompilerArgs.set(
+                            listOfNotNull(
+                                "-Xallow-kotlin-package",
+                                "-Xexpect-actual-classes",
+                                "-Xmultifile-parts-inherit",
+                                "-Xuse-14-inline-classes-mangling-scheme",
+                                "-Xno-new-java-annotation-targets",
+                                "-Xstdlib-compilation",
+                                "-Xdont-warn-on-error-suppression",
+                                "-opt-in=kotlin.contracts.ExperimentalContracts",
+                                "-opt-in=kotlin.ExperimentalMultiplatform",
+                                *dogfoodedExperimentalFeatures.toTypedArray(),
+                                redundantCliArgWarningSuppression,
+                                "-Xreturn-value-checker=full",
+                                "-Xcompanion-blocks",
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+    sourceSets {
+        commonMain {
+            kotlin {
+                srcDir("common-src")
+                srcDir(copyCommonSources)
+            }
+            dependencies {
+                compileOnly(project(":kotlin-stdlib"))
+            }
+        }
+        val jvmMain = getByName("jvmMain") {
+            kotlin {
+                srcDir("jvm-src")
+                srcDir(copySources)
+            }
+        }
+    }
+}
+
+val jvmJar = tasks.named("jvmJar", Jar::class) {
+    archiveAppendix = null
+    dependsOn(builtinsMetadata)
+    from {
+        includeEmptyDirs = false
+        builtinsMetadata.files.map {
+            zipTree(it).matching { include("**/*.kotlin_builtins") }
+        }
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("internal") {
+            artifact(jvmJar.get())
+        }
+    }
+
+    repositories {
+        maven(rootProject.isolated.projectDirectory.dir("build/internal/repo"))
+    }
+}

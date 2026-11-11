@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 object Obj {
     fun foo() {}
 
@@ -7,3 +8,5 @@ object Obj {
 
     <!NON_FINAL_MEMBER_IN_OBJECT!>open<!> var y: Int = 1
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, objectDeclaration, propertyDeclaration */

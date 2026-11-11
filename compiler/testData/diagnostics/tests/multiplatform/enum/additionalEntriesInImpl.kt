@@ -1,10 +1,12 @@
-// !LANGUAGE: +MultiPlatformProjects
+// RUN_PIPELINE_TILL: CODEGEN
 // MODULE: m1-common
 // FILE: common.kt
-header enum class Foo { A, B }
-header enum class Bar { X, Y, Z }
+expect enum class Foo { A, B }
+expect enum class Bar { X, Y, Z }
 
-// MODULE: m2-jvm(m1-common)
+// MODULE: m2-jvm()()(m1-common)
 // FILE: jvm.kt
-impl enum class Foo { A, B, C, D, E }
-impl enum class Bar { V, X, W, Y, Z }
+actual enum class Foo { A, B, C, D, E }
+actual enum class Bar { V, X, W, Y, Z }
+
+/* GENERATED_FIR_TAGS: actual, enumDeclaration, enumEntry, expect */

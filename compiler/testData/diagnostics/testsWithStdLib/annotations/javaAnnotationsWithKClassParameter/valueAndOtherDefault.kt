@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 public @interface A {
     Class<?> value();
@@ -10,3 +11,5 @@ public @interface A {
 
 @A(String::class, x = 2) class MyClass3
 @A(value = String::class, x = 4) class MyClass4
+
+/* GENERATED_FIR_TAGS: classDeclaration, classReference, integerLiteral, javaType */

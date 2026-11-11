@@ -1,6 +1,7 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: I.kt
 
-open class I : <!CYCLIC_INHERITANCE_HIERARCHY!>K<!>() {
+open class I : K() {
     fun foo() {}
 }
 
@@ -15,3 +16,5 @@ class J extends I {
 open class K : <!CYCLIC_INHERITANCE_HIERARCHY!>J<!>() {
     fun baz() {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, javaType */

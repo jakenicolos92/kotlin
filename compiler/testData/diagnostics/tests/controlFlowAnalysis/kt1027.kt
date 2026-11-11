@@ -1,48 +1,52 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-1027 Strange selection of unreachable code
 
 package kt1027
 
-fun foo(<!UNUSED_PARAMETER!>c<!>: List<Int>) {
-    var <!UNUSED_VARIABLE!>i<!> = 2
+fun foo(c: List<Int>) {
+    var i = 2
 
     return
 
-    <!UNREACHABLE_CODE!>for (j in c) {  //strange selection of unreachable code
+    for (j in c) {  //strange selection of unreachable code
         i += 23
-    }<!>
+    }
 }
 
 fun t1() {
     return
 
-    <!UNREACHABLE_CODE!>while(true) {
+    while(true) {
         doSmth()
-    }<!>
+    }
 }
 
 fun t2() {
     return
 
-    <!UNREACHABLE_CODE!>do {
+    do {
         doSmth()
-    } while (true)<!>
+    } while (true)
 }
 
 fun t3() {
     return
 
-    <!UNREACHABLE_CODE!>try {
+    try {
         doSmth()
     }
     finally {
         doSmth()
-    }<!>
+    }
 }
 
 fun t4() {
     return
 
-    <!UNREACHABLE_CODE!>(43)<!>
+    (<!UNUSED_EXPRESSION!>43<!>)
 }
 
 fun doSmth() {}
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, doWhileLoop, forLoop, functionDeclaration, integerLiteral,
+localProperty, propertyDeclaration, tryExpression, whileLoop */

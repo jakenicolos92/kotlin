@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: k.kt
 
 interface K {
@@ -9,3 +10,5 @@ interface K {
 interface J extends K {
     <T> void foo(T t);
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, interfaceDeclaration, nullableType, typeParameter */

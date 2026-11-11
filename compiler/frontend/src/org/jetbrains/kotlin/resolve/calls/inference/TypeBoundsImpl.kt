@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2015 JetBrains s.r.o.
+ * Copyright 2010-2017 JetBrains s.r.o.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,19 @@
 
 package org.jetbrains.kotlin.resolve.calls.inference
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.resolve.calls.inference.TypeBounds.Bound
 import org.jetbrains.kotlin.resolve.calls.inference.TypeBounds.BoundKind
 import org.jetbrains.kotlin.resolve.calls.inference.TypeBounds.BoundKind.*
 import org.jetbrains.kotlin.resolve.calls.inference.constraintPosition.ConstraintPosition
 import org.jetbrains.kotlin.resolve.constants.IntegerValueTypeConstructor
 import org.jetbrains.kotlin.types.*
+import org.jetbrains.kotlin.types.error.ErrorUtils
 import org.jetbrains.kotlin.types.checker.KotlinTypeChecker
 import org.jetbrains.kotlin.utils.addIfNotNull
 import java.util.*
 
+@K1Deprecation
 class TypeBoundsImpl(override val typeVariable: TypeVariable) : TypeBounds {
     override val bounds = ArrayList<Bound>()
 
@@ -46,14 +49,17 @@ class TypeBoundsImpl(override val typeVariable: TypeVariable) : TypeBounds {
         bounds.add(bound)
     }
 
-    private fun filterBounds(bounds: Collection<Bound>, kind: BoundKind, errorValues: MutableCollection<KotlinType>? = null): Set<KotlinType> {
+    private fun filterBounds(
+        bounds: Collection<Bound>,
+        kind: BoundKind,
+        errorValues: MutableCollection<KotlinType>? = null
+    ): Set<KotlinType> {
         val result = LinkedHashSet<KotlinType>()
         for (bound in bounds) {
             if (bound.kind == kind) {
                 if (!ErrorUtils.containsErrorType(bound.constrainingType)) {
                     result.add(bound.constrainingType)
-                }
-                else {
+                } else {
                     errorValues?.add(bound.constrainingType)
                 }
             }
@@ -96,7 +102,7 @@ class TypeBoundsImpl(override val typeVariable: TypeVariable) : TypeBounds {
         }
         values.addAll(exactBounds)
 
-        val (numberLowerBounds, generalLowerBounds) =
+        val [numberLowerBounds, generalLowerBounds] =
                 filterBounds(bounds, LOWER_BOUND, values).partition { it.constructor is IntegerValueTypeConstructor }
 
         val superTypeOfLowerBounds = CommonSupertypes.commonSupertypeForNonDenotableTypes(generalLowerBounds)
@@ -116,7 +122,8 @@ class TypeBoundsImpl(override val typeVariable: TypeVariable) : TypeBounds {
         values.addIfNotNull(superTypeOfNumberLowerBounds)
 
         if (superTypeOfLowerBounds != null && superTypeOfNumberLowerBounds != null) {
-            val superTypeOfAllLowerBounds = CommonSupertypes.commonSupertypeForNonDenotableTypes(listOf(superTypeOfLowerBounds, superTypeOfNumberLowerBounds))
+            val superTypeOfAllLowerBounds =
+                CommonSupertypes.commonSupertypeForNonDenotableTypes(listOf(superTypeOfLowerBounds, superTypeOfNumberLowerBounds))
             if (tryPossibleAnswer(bounds, superTypeOfAllLowerBounds)) {
                 return setOf(superTypeOfAllLowerBounds!!)
             }
@@ -124,7 +131,7 @@ class TypeBoundsImpl(override val typeVariable: TypeVariable) : TypeBounds {
 
         val upperBounds = filterBounds(bounds, TypeBounds.BoundKind.UPPER_BOUND, values)
         if (upperBounds.isNotEmpty()) {
-            val intersectionOfUpperBounds = TypeIntersector.intersectTypes(KotlinTypeChecker.DEFAULT, upperBounds)
+            val intersectionOfUpperBounds = TypeIntersector.intersectTypes(upperBounds)
             if (intersectionOfUpperBounds != null && tryPossibleAnswer(bounds, intersectionOfUpperBounds)) {
                 return setOf(intersectionOfUpperBounds)
             }
@@ -141,7 +148,8 @@ class TypeBoundsImpl(override val typeVariable: TypeVariable) : TypeBounds {
         if (!typeVariable.hasOnlyInputTypesAnnotation()) return true
 
         // Only type mentioned in bounds might be the result
-        val typesInBoundsSet = bounds.filter { it.isProper && it.constrainingType.constructor.isDenotable }.map { it.constrainingType }.toSet()
+        val typesInBoundsSet =
+            bounds.filter { it.isProper && it.constrainingType.constructor.isDenotable }.map { it.constrainingType }.toSet()
         // Flexible types are equal to inflexible
         if (typesInBoundsSet.any { KotlinTypeChecker.DEFAULT.equalTypes(it, possibleAnswer) }) return true
 
@@ -181,8 +189,7 @@ class TypeBoundsImpl(override val typeVariable: TypeVariable) : TypeBounds {
     private fun commonSupertypeForNumberTypes(numberLowerBounds: Collection<KotlinType>): KotlinType? {
         if (numberLowerBounds.isEmpty()) return null
         val intersectionOfSupertypes = getIntersectionOfSupertypes(numberLowerBounds)
-        return TypeUtils.getDefaultPrimitiveNumberType(intersectionOfSupertypes) ?:
-                CommonSupertypes.commonSupertype(numberLowerBounds)
+        return TypeUtils.getDefaultPrimitiveNumberType(intersectionOfSupertypes) ?: CommonSupertypes.commonSupertype(numberLowerBounds)
     }
 
     private fun getIntersectionOfSupertypes(types: Collection<KotlinType>): Set<KotlinType> {
@@ -191,8 +198,7 @@ class TypeBoundsImpl(override val typeVariable: TypeVariable) : TypeBounds {
             val supertypes = type.constructor.supertypes
             if (upperBounds.isEmpty()) {
                 upperBounds.addAll(supertypes)
-            }
-            else {
+            } else {
                 upperBounds.retainAll(supertypes)
             }
         }

@@ -1,0 +1,24 @@
+// RUN_PIPELINE_TILL: FRONTEND
+// IGNORE_FIR_DIAGNOSTICS
+// MODULE: m1-common
+// FILE: common.kt
+
+annotation class C(val f: String)
+
+const val flag = true
+
+@C(
+    f = <!ANNOTATION_ARGUMENT_WITH_CONTROL_FLOW_NOT_SUPPORTED!>when (flag) {
+        true -> "OK"
+        false -> "Not OK"
+    }<!>
+)
+object O
+
+// MODULE: m2-jvm()()(m1-common)
+// FILE: jvm.kt
+
+fun bar() = O
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, const, equalityExpression, functionDeclaration, objectDeclaration,
+primaryConstructor, propertyDeclaration, smartcast, stringLiteral, whenExpression, whenWithSubject */

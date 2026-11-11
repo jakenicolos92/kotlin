@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 896
+// KJS_WITH_FULL_RUNTIME
 package foo
 
 public fun <T> List<T>.some(): T = this[0]

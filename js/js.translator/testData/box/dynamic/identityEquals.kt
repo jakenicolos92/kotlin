@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 525
 package foo
 
 fun box(): String {

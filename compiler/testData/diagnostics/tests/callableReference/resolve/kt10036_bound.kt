@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER
 
 class OverloadTest {
     fun foo(bar: Boolean) {}
@@ -9,3 +10,6 @@ inline fun <T : Any> OverloadTest.overload(value: T?, function: (T) -> Unit) {
 }
 
 fun OverloadTest.overloadBoolean(value: Boolean?) = overload(value, OverloadTest()::foo)
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, funWithExtensionReceiver, functionDeclaration,
+functionalType, inline, nullableType, typeConstraint, typeParameter */

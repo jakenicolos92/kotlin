@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 //KT-3162 More precise try-finally error marking
 
 fun foo(x: String) : String {
@@ -10,3 +11,5 @@ fun foo(x: String) : String {
         return x
     }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, localProperty, propertyDeclaration, tryExpression */

@@ -1,12 +1,13 @@
-// !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE -NOTHING_TO_INLINE -ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE -UNUSED_VALUE
 
 inline operator fun <T, U> Function1<T, U>.compareTo(p: Function1<T, U>) = 1
 
 inline fun <T, U, V> inlineFunWithInvoke(s: (p: T) -> U) {
-    s < s
-    s <= s
-    s > s
-    s >= s
+    <!USAGE_IS_NOT_INLINABLE!>s<!> < s
+    <!USAGE_IS_NOT_INLINABLE!>s<!> <= s
+    <!USAGE_IS_NOT_INLINABLE!>s<!> > s
+    <!USAGE_IS_NOT_INLINABLE!>s<!> >= s
 }
 
 //noinline
@@ -24,3 +25,6 @@ inline fun <T, U, V, W> inlineFunWithInvoke(s: (p: T, l: U) -> V, ext: T.(p: U, 
     <!USAGE_IS_NOT_INLINABLE!>ext<!> <= <!USAGE_IS_NOT_INLINABLE!>ext<!>
     <!USAGE_IS_NOT_INLINABLE!>ext<!> >= <!USAGE_IS_NOT_INLINABLE!>ext<!>
 }
+
+/* GENERATED_FIR_TAGS: comparisonExpression, funWithExtensionReceiver, functionDeclaration, functionalType, inline,
+integerLiteral, nullableType, operator, typeParameter, typeWithExtension */

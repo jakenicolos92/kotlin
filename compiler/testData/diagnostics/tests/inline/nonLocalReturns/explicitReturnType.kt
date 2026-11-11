@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun inlineCallExplicitError(): String {
     inlineFun lamba@ {
         if (true) {
@@ -39,3 +40,6 @@ fun noInlineCall(): String {
 fun noInline(s: () -> Int) {
     s()
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, ifExpression, inline, integerLiteral, lambdaLiteral,
+stringLiteral */

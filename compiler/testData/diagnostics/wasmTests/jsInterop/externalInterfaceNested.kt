@@ -1,0 +1,16 @@
+// RUN_PIPELINE_TILL: FRONTEND
+external interface I {
+    interface J
+
+    class <!NESTED_CLASS_IN_EXTERNAL_INTERFACE!>C<!>
+
+    <!NESTED_CLASS_IN_EXTERNAL_INTERFACE!>object O<!>
+
+    enum class <!NESTED_CLASS_IN_EXTERNAL_INTERFACE, WRONG_EXTERNAL_DECLARATION!>E<!>
+
+    companion <!COMPANION_OBJECT_IN_EXTERNAL_INTERFACE!>object<!>
+}
+
+external interface NamedCompanion {
+    companion <!COMPANION_OBJECT_IN_EXTERNAL_INTERFACE!>object Named<!>
+}

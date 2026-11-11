@@ -1,4 +1,13 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // KT-2902 Check for null should be required when match nullable enum element
+/*
+ * KOTLIN DIAGNOSTICS SPEC TEST (NEGATIVE)
+ *
+ * SPEC VERSION: 0.1-313
+ * PRIMARY LINKS: expressions, when-expression -> paragraph 5 -> sentence 1
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 9
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 10
+ */
 
 // FILE: 1.kt
 
@@ -15,6 +24,18 @@ fun withNull(e: E?) = when (e) {
     null -> null
 }
 
+fun withNullableNothingCheck(e: E?) = when (e) {
+    E.A -> 3
+    E.B -> 4
+    is Nothing? -> null
+}
+
+fun withWrongNullableNothingCheck(e: E?) = <!NO_ELSE_IN_WHEN!>when<!> (e) {
+    E.A -> 3
+    E.B -> 4
+    !is Nothing? -> null
+}
+
 fun nullableNothing(): Nothing? = null
 fun withNullableNothing(e: E?) = when (e) {
     E.A -> 5
@@ -22,7 +43,7 @@ fun withNullableNothing(e: E?) = when (e) {
     nullableNothing() -> null
 }
 
-fun platformType() = when (<!WHEN_ENUM_CAN_BE_NULL_IN_JAVA!>J.foo()<!>) {
+fun platformType() = <!WHEN_SUBJECT_CAN_BE_NULL_IN_JAVA!>when<!> (J.foo()) {
     E.A -> 7
     E.B -> 8
 }
@@ -30,7 +51,7 @@ fun platformType() = when (<!WHEN_ENUM_CAN_BE_NULL_IN_JAVA!>J.foo()<!>) {
 fun platformTypeSmartCast(): Int {
     val e = J.foo()
     if (e == null) return -1
-    return when (<!DEBUG_INFO_SMARTCAST!>e<!>) {
+    return when (e) {
         E.A -> 1
         E.B -> 2
     }
@@ -44,3 +65,7 @@ class J {
         return E.A;
     }
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, equalityExpression, flexibleType, functionDeclaration, ifExpression,
+integerLiteral, isExpression, javaFunction, localProperty, nullableType, propertyDeclaration, smartcast, whenExpression,
+whenWithSubject */

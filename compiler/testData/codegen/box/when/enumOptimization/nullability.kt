@@ -1,4 +1,8 @@
-// WITH_RUNTIME
+// WITH_STDLIB
+// CHECK_CASES_COUNT: function=foo1 count=4
+// CHECK_IF_COUNT: function=foo1 count=0
+// CHECK_CASES_COUNT: function=foo2 count=3
+// CHECK_IF_COUNT: function=foo2 count=0
 
 import kotlin.test.assertEquals
 
@@ -13,18 +17,16 @@ fun foo1(x : Season?) : String {
     when(x) {
         Season.AUTUMN, Season.SPRING -> return "autumn_or_spring";
         Season.SUMMER, null -> return "summer_or_null"
+        else -> return "other"
     }
-
-    return "other"
 }
 
 fun foo2(x : Season?) : String {
     when(x) {
         Season.AUTUMN, Season.SPRING -> return "autumn_or_spring";
         Season.SUMMER -> return "summer"
+        else -> return "other"
     }
-
-    return "other"
 }
 
 fun box() : String {

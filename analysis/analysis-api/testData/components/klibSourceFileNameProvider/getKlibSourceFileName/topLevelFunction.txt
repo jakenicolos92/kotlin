@@ -1,0 +1,3 @@
+klib declarations:
+Callable: some/foo; klibSourceFile: Some.kt
+Callable: other/bar; klibSourceFile: Other.kt

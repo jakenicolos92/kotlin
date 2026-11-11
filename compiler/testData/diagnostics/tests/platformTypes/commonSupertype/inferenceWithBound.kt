@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 // FILE: p/Super.java
 
@@ -39,3 +40,7 @@ fun test() {
 
 fun <T: Super> Collection<T>.foo(): T = null!!
 fun <T> listOf(t: T): List<T> = null!!
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, comparisonExpression, flexibleType, funWithExtensionReceiver,
+functionDeclaration, ifExpression, integerLiteral, javaProperty, javaType, localProperty, nullableType, outProjection,
+propertyDeclaration, typeConstraint, typeParameter */

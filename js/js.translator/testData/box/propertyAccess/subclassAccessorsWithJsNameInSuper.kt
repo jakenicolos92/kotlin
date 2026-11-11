@@ -1,6 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 512
-package foo
-
 open class A {
     open val x: Int
         @JsName("getX_") get() = 23
@@ -29,7 +26,7 @@ class B : A(), C {
     override val z = 55
 }
 
-fun getPackage() = js("return JS_TESTS.foo")
+fun getPackage() = js("main")
 
 fun box(): String {
     val a = B()

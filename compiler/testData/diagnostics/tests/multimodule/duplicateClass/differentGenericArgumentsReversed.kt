@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_VARIABLE -UNUSED_PARAMETER
 // MODULE: m1
 // FILE: a.kt
 
@@ -25,5 +26,7 @@ public fun foo(a: A) {
 import p.*
 
 fun test() {
-    foo(<!TYPE_MISMATCH!>M1().a<!>)
+    foo(<!ARGUMENT_TYPE_MISMATCH!>M1().a<!>)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, nullableType, propertyDeclaration, typeParameter */

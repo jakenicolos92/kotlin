@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // See KT-5737
 fun get(): Any {
     return "abc"
@@ -6,8 +7,11 @@ fun get(): Any {
 fun foo(): Int {
     var ss: Any = get()
 
-    return if (ss is String && <!DEBUG_INFO_SMARTCAST!>ss<!>.length > 0)
+    return if (ss is String && ss.length > 0)
         1
     else
         0
 }
+
+/* GENERATED_FIR_TAGS: andExpression, comparisonExpression, functionDeclaration, ifExpression, integerLiteral,
+isExpression, localProperty, propertyDeclaration, smartcast, stringLiteral */

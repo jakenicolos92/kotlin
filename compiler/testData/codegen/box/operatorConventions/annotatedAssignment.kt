@@ -1,4 +1,7 @@
+// LANGUAGE: -ForbidParenthesizedLhsInAssignments
+
 @Target(AnnotationTarget.EXPRESSION)
+@Retention(AnnotationRetention.SOURCE)
 annotation class Annotation
 
 fun box(): String {

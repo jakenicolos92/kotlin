@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class My(protected val x: Int) {
     class Her(protected val x: Int)
 
@@ -19,3 +20,6 @@ enum class Our(protected val x: Int) {
 interface Their {
     <!WRONG_MODIFIER_CONTAINING_DECLARATION!>protected<!> fun foo() = 7
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, classDeclaration, enumDeclaration, enumEntry, functionDeclaration, inner,
+integerLiteral, interfaceDeclaration, nestedClass, objectDeclaration, primaryConstructor, propertyDeclaration */

@@ -1,8 +1,9 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: KotlinFile.kt
 fun Any.foo(): Int {
     if (this is JavaClass) {
-        <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>something<!>++
-        return <!DEBUG_INFO_IMPLICIT_RECEIVER_SMARTCAST!>x<!>
+        something++
+        return x
     }
     return 0
 }
@@ -21,3 +22,6 @@ public abstract class BaseClass implements JavaInterface {
 public interface JavaInterface {
     int getX();
 }
+
+/* GENERATED_FIR_TAGS: assignment, funWithExtensionReceiver, functionDeclaration, ifExpression,
+incrementDecrementExpression, integerLiteral, isExpression, javaProperty, javaType, smartcast, thisExpression */

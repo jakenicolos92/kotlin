@@ -1,5 +1,3 @@
-// IGNORE_BACKEND_WITHOUT_CHECK: JS
-
 tailrec fun foo(x: Int) {
     return if (x > 0) {
         (foo(x - 1))

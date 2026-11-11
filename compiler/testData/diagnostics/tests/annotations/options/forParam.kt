@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // See KT-9145
 
 @Target(AnnotationTarget.CLASS)
@@ -8,3 +9,6 @@ fun foo() {
         if (x == 1) return
     }
 }
+
+/* GENERATED_FIR_TAGS: annotationDeclaration, equalityExpression, forLoop, functionDeclaration, ifExpression,
+integerLiteral, localProperty, propertyDeclaration, rangeExpression */

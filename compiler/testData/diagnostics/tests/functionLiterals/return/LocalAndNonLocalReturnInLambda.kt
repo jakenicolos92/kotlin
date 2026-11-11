@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 fun test2(a: Int) {
     val x = run f@{
@@ -9,3 +10,7 @@ fun test2(a: Int) {
 }
 
 fun <T> run(f: () -> T): T { return f() }
+
+/* GENERATED_FIR_TAGS: classDeclaration, comparisonExpression, funWithExtensionReceiver, functionDeclaration,
+functionalType, ifExpression, infix, integerLiteral, lambdaLiteral, localProperty, nullableType, propertyDeclaration,
+typeParameter, typeWithExtension */

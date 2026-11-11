@@ -16,28 +16,29 @@
 
 package org.jetbrains.kotlin.extensions
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.psi.KtModifierListOwner
-import org.jetbrains.kotlin.resolve.BindingContext
 
+@K1Deprecation
 interface DeclarationAttributeAltererExtension {
     companion object : ProjectExtensionDescriptor<DeclarationAttributeAltererExtension>(
-            "org.jetbrains.kotlin.declarationAttributeAltererExtension",
-            DeclarationAttributeAltererExtension::class.java
+        "org.jetbrains.kotlin.declarationAttributeAltererExtension",
+        DeclarationAttributeAltererExtension::class.java
     )
 
     /**
      * Returns the new modality for the [declaration], or null if the [currentModality] is good enough.
      */
     fun refineDeclarationModality(
-            modifierListOwner: KtModifierListOwner,
-            declaration: DeclarationDescriptor?,
-            containingDeclaration: DeclarationDescriptor?,
-            currentModality: Modality,
-            bindingContext: BindingContext
+        modifierListOwner: KtModifierListOwner,
+        declaration: DeclarationDescriptor?,
+        containingDeclaration: DeclarationDescriptor?,
+        currentModality: Modality,
+        isImplicitModality: Boolean
     ): Modality? = null
 
-    fun shouldConvertFirstSAMParameterToReceiver(function: FunctionDescriptor) : Boolean = false
+    fun shouldConvertFirstSAMParameterToReceiver(function: FunctionDescriptor): Boolean = false
 }

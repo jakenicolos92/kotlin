@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: B.java
 
 public abstract class B implements A {
@@ -17,3 +18,6 @@ class C : B() {
 fun foo() {
     C().size 
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, getter, integerLiteral, interfaceDeclaration, javaType,
+override, propertyDeclaration */

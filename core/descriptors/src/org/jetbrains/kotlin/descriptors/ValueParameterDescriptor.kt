@@ -16,11 +16,12 @@
 
 package org.jetbrains.kotlin.descriptors
 
+import org.jetbrains.kotlin.mpp.ValueParameterSymbolMarker
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.types.KotlinType
 import org.jetbrains.kotlin.types.TypeSubstitutor
 
-interface ValueParameterDescriptor : VariableDescriptor, ParameterDescriptor {
+interface ValueParameterDescriptor : VariableDescriptor, ParameterDescriptor, ValueParameterSymbolMarker {
     override fun getContainingDeclaration(): CallableDescriptor
 
     /**
@@ -54,4 +55,6 @@ interface ValueParameterDescriptor : VariableDescriptor, ParameterDescriptor {
     val isCrossinline: Boolean
 
     val isNoinline: Boolean
+
+    override fun isLateInit(): Boolean = false
 }

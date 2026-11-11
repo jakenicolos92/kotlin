@@ -1,3 +1,4 @@
+
 val ok = "OK"
 val ok2 = ok
 val ok3: String get() = "OK"

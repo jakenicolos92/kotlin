@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: AImpl.java
 
 abstract public class AImpl {
@@ -23,3 +24,6 @@ fun main() {
     x[0]
     x.length
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, integerLiteral, javaProperty, javaType, localProperty,
+propertyDeclaration */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: kotlin.kt
 fun foo() {
   JavaClass()
@@ -11,3 +12,5 @@ public class JavaClass {
 
     public JavaClass(String... ss) {  }
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaType, stringLiteral */

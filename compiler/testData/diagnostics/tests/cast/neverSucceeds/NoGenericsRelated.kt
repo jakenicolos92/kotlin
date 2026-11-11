@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -WARNING +CAST_NEVER_SUCCEEDS
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -USELESS_CAST -UNCHECKED_CAST
 interface T1
 interface T2
 interface T3
@@ -34,7 +35,7 @@ fun <TP1: OC1, TP2: T2, TP3: OC2> test(
   t2 as OC2
   t4 as OC1
   t2 as T2
-  t2 as T5
+  t2 <!CAST_NEVER_SUCCEEDS!>as<!> T5
   t2 as TP2
 
   tp1 as FC1
@@ -44,3 +45,6 @@ fun <TP1: OC1, TP2: T2, TP3: OC2> test(
   tp2 as T5
   tp1 as TP3
 }
+
+/* GENERATED_FIR_TAGS: asExpression, classDeclaration, functionDeclaration, interfaceDeclaration, intersectionType,
+smartcast, typeConstraint, typeParameter */

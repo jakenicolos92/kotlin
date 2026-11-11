@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class My {
     val x: Int
         get() = field + if (z != "") 1 else 0
@@ -12,8 +13,11 @@ class My {
         x = 0
         this.y = 0
         // Unsafe
-        w = this.<!DEBUG_INFO_LEAKING_THIS!>x<!> + <!DEBUG_INFO_LEAKING_THIS!>y<!>
+        w = this.x + y
     }
 
     val z = "1"
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, classDeclaration, equalityExpression, getter, ifExpression, init,
+integerLiteral, propertyDeclaration, stringLiteral, thisExpression */

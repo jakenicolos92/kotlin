@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class Cell<T>(val x : T)
 class Pair<T1, T2>(val x1: T1, val x2: T2)
 
@@ -16,3 +17,5 @@ val test6 = PA(10, 20)
 val test7 = P2A<Int>(10, 20)
 val test8 = P2A(10, 20)
 
+/* GENERATED_FIR_TAGS: classDeclaration, integerLiteral, nullableType, primaryConstructor, propertyDeclaration,
+typeAliasDeclaration, typeAliasDeclarationWithTypeParameter, typeParameter */

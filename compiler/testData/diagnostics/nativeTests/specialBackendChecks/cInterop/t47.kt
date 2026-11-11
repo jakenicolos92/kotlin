@@ -1,0 +1,5 @@
+// RUN_PIPELINE_TILL: CODEGEN
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+import kotlinx.cinterop.*
+
+fun bar(x: Int) = x.convert<String>()

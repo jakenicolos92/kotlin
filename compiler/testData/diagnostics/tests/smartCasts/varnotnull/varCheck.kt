@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun get(): String? {
     return ""
 }
@@ -5,5 +6,8 @@ fun get(): String? {
 fun foo(): Int {
     var c: String? = get()
     c!!.length
-    return <!DEBUG_INFO_SMARTCAST!>c<!>.length // Previous line should make !! unnecessary here.
+    return c.length // Previous line should make !! unnecessary here.
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, functionDeclaration, localProperty, nullableType, propertyDeclaration,
+smartcast, stringLiteral */

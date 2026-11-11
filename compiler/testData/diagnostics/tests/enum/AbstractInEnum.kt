@@ -1,8 +1,9 @@
+// RUN_PIPELINE_TILL: FRONTEND
 package abstract
 
 
 enum class MyEnum() {
-    <!ABSTRACT_MEMBER_NOT_IMPLEMENTED!>INSTANCE<!>;
+    <!ABSTRACT_MEMBER_NOT_IMPLEMENTED_BY_ENUM_ENTRY!>INSTANCE<!>;
     //properties
     <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>val a: Int<!>
     val a1: Int = 1
@@ -45,3 +46,6 @@ enum class MyEnum() {
 
     var n: Int                       <!WRONG_MODIFIER_TARGET!>abstract<!> get <!WRONG_MODIFIER_TARGET!>abstract<!> set(v: Int) {}
 }
+
+/* GENERATED_FIR_TAGS: assignment, enumDeclaration, enumEntry, functionDeclaration, getter, integerLiteral,
+primaryConstructor, propertyDeclaration, setter */

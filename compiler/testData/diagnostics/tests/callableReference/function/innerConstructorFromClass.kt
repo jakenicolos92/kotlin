@@ -1,12 +1,14 @@
-// !CHECK_TYPE
-// !DIAGNOSTICS: -UNUSED_EXPRESSION
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
+// DIAGNOSTICS: -UNUSED_EXPRESSION
+
 import kotlin.reflect.KFunction1
 
 class A {
     inner class Inner
     
     fun main() {
-        ::<!CALLABLE_REFERENCE_TO_MEMBER_OR_EXTENSION_WITH_EMPTY_LHS!>Inner<!>
+        ::Inner
         val y = A::Inner
 
         checkSubtype<KFunction1<A, Inner>>(y)
@@ -30,3 +32,7 @@ class B {
         checkSubtype<KFunction1<A, A.Inner>>(y)
     }
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, companionObject, funWithExtensionReceiver,
+functionDeclaration, functionalType, infix, inner, localProperty, nullableType, objectDeclaration, propertyDeclaration,
+typeParameter, typeWithExtension */

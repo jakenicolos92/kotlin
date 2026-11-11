@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: p/Utils.java
 
 package p;
@@ -17,3 +18,6 @@ fun <D> test(b: Boolean) {
 
     str?.foo()
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, funWithExtensionReceiver, functionDeclaration, ifExpression, javaFunction,
+localProperty, nullableType, propertyDeclaration, safeCall, typeConstraint, typeParameter */

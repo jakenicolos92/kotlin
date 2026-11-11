@@ -1,5 +1,8 @@
-compiler/testData/integration/ant/js/simpleWithoutStdlibAndFolderAsAnotherLib/jslib-example/LibraryExample.kt
--no-stdlib
--meta-info
--output
-$TEMP_DIR$/jslib-example.js
+$TESTDATA_DIR$/jslib-example/LibraryExample.kt
+-Xir-produce-klib-dir
+-ir-output-dir
+$TEMP_DIR$
+-ir-output-name
+jslib-example
+-libraries
+$STDLIB_JS$

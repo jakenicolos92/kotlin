@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 // FILE: A.java
 public class A {
     public static void foo() {}
@@ -14,3 +15,5 @@ fun baz(x: (String) -> Unit) {}
 fun bar() {
     baz(A::foo)
 }
+
+/* GENERATED_FIR_TAGS: flexibleType, functionDeclaration, functionalType, javaCallableReference */

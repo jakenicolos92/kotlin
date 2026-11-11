@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 953
+// KJS_WITH_FULL_RUNTIME
 package foo
 
 data class A(private val x: Int) {

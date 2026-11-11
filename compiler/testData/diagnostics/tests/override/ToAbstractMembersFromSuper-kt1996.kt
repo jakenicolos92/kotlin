@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // http://youtrack.jetbrains.com/issue/KT-1996
 
 interface Foo {
@@ -9,3 +10,5 @@ interface Bar {
 }
 
 <!ABSTRACT_MEMBER_NOT_IMPLEMENTED!>class Baz<!> : Foo, Bar
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration */

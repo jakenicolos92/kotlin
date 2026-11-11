@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 //KT-58 Allow finally around definite returns
 
 package kt58
@@ -17,7 +18,7 @@ fun <T> lock(lock : Lock, body :  () -> T) : T {
 //more tests
 fun t1() : Int {
     try {
-        <!UNREACHABLE_CODE!>return<!> 1
+        return 1
     }
     finally {
         return 2
@@ -87,5 +88,8 @@ fun t7() : Int {
     }
 <!NO_RETURN_IN_FUNCTION_WITH_BLOCK_BODY!>}<!>
 
-fun doSmth(<!UNUSED_PARAMETER!>i<!>: Int) {
+fun doSmth(i: Int) {
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, functionalType, integerLiteral, javaFunction, localProperty, nullableType,
+propertyDeclaration, tryExpression, typeParameter */

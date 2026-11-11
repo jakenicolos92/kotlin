@@ -1,15 +1,17 @@
-// IGNORE_BACKEND: NATIVE
+// TARGET_BACKEND: JVM
 // WITH_REFLECT
 // FILE: 1.kt
 
 package test
 
 inline fun inf(crossinline cif: Any.() -> String): () -> String {
-    return {
+    // Approximate the types manually to avoid running into KT-30696
+    val factory: () -> () -> String = {
         object : () -> String {
             override fun invoke() = cif()
         }
-    }()
+    }
+    return factory()
 }
 // FILE: 2.kt
 
@@ -31,4 +33,3 @@ fun box(): String {
 
     return "OK"
 }
-

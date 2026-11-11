@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 public fun foo(xx: Any): Int {
     var x = xx
     do {
@@ -9,8 +10,11 @@ public fun foo(xx: Any): Int {
             y = "abc"
         }
         // y!! in both branches
-        <!DEBUG_INFO_SMARTCAST!>y<!>.length
+        y.length
     } while (true)
     // We could have smart cast here but with break it's hard to detect
-    return x.<!UNRESOLVED_REFERENCE!>length<!>()
+    return x.<!FUNCTION_EXPECTED!>length<!>()
 }
+
+/* GENERATED_FIR_TAGS: assignment, break, doWhileLoop, functionDeclaration, ifExpression, isExpression, localProperty,
+propertyDeclaration, smartcast, stringLiteral */

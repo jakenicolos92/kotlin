@@ -1,11 +1,13 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 //KT-2200 array(array()) breaks compiler
 package n
+import checkSubtype
 
-fun main(args: Array<String>) {
-    val <!UNUSED_VARIABLE!>a<!> = <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>array<!>(<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>array<!>())
-    val <!UNUSED_VARIABLE!>a0<!> : Array<Array<Int>> = array(array())
+fun main() {
+    val a = <!CANNOT_INFER_PARAMETER_TYPE!>array<!>(<!CANNOT_INFER_PARAMETER_TYPE!>array<!>())
+    val a0 : Array<Array<Int>> = array(array())
     val a1 = array(array<Int>())
     checkSubtype<Array<Array<Int>>>(a1)
     val a2 = array<Array<Int>>(array())
@@ -15,3 +17,7 @@ fun main(args: Array<String>) {
 //from library
 @Suppress("UNCHECKED_CAST")
 fun <T> array(vararg t : T) : Array<T> = t as Array<T>
+
+/* GENERATED_FIR_TAGS: asExpression, classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType,
+infix, localProperty, nullableType, outProjection, propertyDeclaration, stringLiteral, typeParameter, typeWithExtension,
+vararg */

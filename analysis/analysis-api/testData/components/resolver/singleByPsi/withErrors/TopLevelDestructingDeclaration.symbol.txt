@@ -1,0 +1,4 @@
+KtDestructuringDeclarationEntry(105,109): 'val1'
+  KaSimpleSymbolResolutionError:
+    candidateSymbols = []
+    diagnostic = ERROR<UNRESOLVED_REFERENCE: Unresolved reference 'component1'.>

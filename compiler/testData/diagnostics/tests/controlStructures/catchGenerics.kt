@@ -1,11 +1,12 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // See KT-9816, KT-9742
 
 // Not allowed in Java
-class ZException<!GENERIC_THROWABLE_SUBCLASS!><T><!>(val p: T) : Exception()
+class ZException<<!GENERIC_THROWABLE_SUBCLASS!>T<!>>(val p: T) : Exception()
 
-class YException<!GENERIC_THROWABLE_SUBCLASS!><T><!>(val p: T): java.lang.RuntimeException()
+class YException<<!GENERIC_THROWABLE_SUBCLASS!>T<!>>(val p: T): java.lang.RuntimeException()
 
-class XException<!GENERIC_THROWABLE_SUBCLASS!><T><!>(val p: T): Throwable()
+class XException<<!GENERIC_THROWABLE_SUBCLASS!>T<!>>(val p: T): Throwable()
 
 fun bar() {
     try {
@@ -13,13 +14,17 @@ fun bar() {
     } catch (e: ZException<*>) {}    
 }
 
-inline fun <reified E : Exception, R> tryCatch(lazy: () -> R, failure: (E) -> R): R =
-    try {
-        lazy()
-    } catch (<!REIFIED_TYPE_IN_CATCH_CLAUSE!>e: E<!>) {
-        failure(e)
-    }
-
 fun <T : Throwable> tryCatch() {
     try { } catch (<!TYPE_PARAMETER_IN_CATCH_CLAUSE!>e: T<!>) { }
 }
+
+fun <T : Nothing?> test1() {
+    try {
+        throw Exception()
+    } catch (<!TYPE_PARAMETER_IN_CATCH_CLAUSE!>x: T & Any<!>) {
+    }
+}
+
+/* GENERATED_FIR_TAGS: classDeclaration, dnnType, functionDeclaration, functionalType, inline, integerLiteral,
+localProperty, nullableType, primaryConstructor, propertyDeclaration, reified, starProjection, tryExpression,
+typeConstraint, typeParameter */

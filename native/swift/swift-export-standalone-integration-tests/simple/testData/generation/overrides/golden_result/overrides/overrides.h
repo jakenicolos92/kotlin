@@ -1,0 +1,400 @@
+#include <Foundation/Foundation.h>
+#include <stdint.h>
+
+NS_ASSUME_NONNULL_BEGIN
+
+_Bool AbstractBase_abstractFun1__reverse_swift(void * self);
+
+_Bool AbstractBase_abstractFun2__reverse_swift(void * self);
+
+int32_t AbstractBase_abstractVal_get__reverse_swift(void * self);
+
+_Bool AbstractDerived2_abstractFun1__reverse_swift(void * self);
+
+_Bool Child_actuallyOverride__TypesOfArguments__Swift_Optional_Swift_Int32__overrides_Parent_Swift_Optional_overrides_Parent_____reverse_swift(void * self, NSNumber * _Nullable nullable, void * poly, void * _Nullable nullablePoly);
+
+_Bool Child_contains__TypesOfArguments__Swift_Int32____reverse_swift(void * self, int32_t element);
+
+void * Child_functionTypeFunc__TypesOfArguments__U28overrides_ChildU29202D_U20overrides_Parent____reverse_swift(void * self, void * arg);
+
+NSArray<id> * Child_genericReturnTypeFunc__reverse_swift(void * self);
+
+_Bool Child_nonoverride__reverse_swift(void * self);
+
+void * Child_objectFunc__TypesOfArguments__overrides_Child____reverse_swift(void * self, void * arg);
+
+void * _Nullable Child_objectOptionalFunc__TypesOfArguments__overrides_Child____reverse_swift(void * self, void * arg);
+
+void * _Nullable Child_objectOptionalVar_get__reverse_swift(void * self);
+
+void * Child_objectVar_get__reverse_swift(void * self);
+
+_Bool Child_overrideChainFunc__reverse_swift(void * self);
+
+int32_t Child_primitiveTypeFunc__TypesOfArguments__Swift_Int32____reverse_swift(void * self, int32_t arg);
+
+int32_t Child_primitiveTypeVar_get__reverse_swift(void * self);
+
+void * Child_subtypeObjectFunc__TypesOfArguments__overrides_Child____reverse_swift(void * self, void * arg);
+
+void * Child_subtypeObjectVar_get__reverse_swift(void * self);
+
+void * Child_subtypeOptionalObjectFunc__reverse_swift(void * self);
+
+void * Child_subtypeOptionalObjectVar_get__reverse_swift(void * self);
+
+int32_t Child_subtypeOptionalPrimitiveFunc__reverse_swift(void * self);
+
+int32_t Child_subtypeOptionalPrimitiveVar_get__reverse_swift(void * self);
+
+void * Child_subtypeValToVar_get__reverse_swift(void * self);
+
+_Bool Child_subtypeValToVar_set__TypesOfArguments__overrides_Child____reverse_swift(void * self, void * newValue);
+
+int32_t Child_valToVar_get__reverse_swift(void * self);
+
+_Bool Child_valToVar_set__TypesOfArguments__Swift_Int32____reverse_swift(void * self, int32_t newValue);
+
+int32_t Child_varToVar_get__reverse_swift(void * self);
+
+_Bool Child_varToVar_set__TypesOfArguments__Swift_Int32____reverse_swift(void * self, int32_t newValue);
+
+_Bool OpenDerived1_abstractFun1__reverse_swift(void * self);
+
+_Bool OpenDerived1_abstractFun2__reverse_swift(void * self);
+
+int32_t OpenDerived1_abstractVal_get__reverse_swift(void * self);
+
+_Bool Parent_actuallyOverride__TypesOfArguments__Swift_Int32_overrides_Child_overrides_Child____reverse_swift(void * self, int32_t nullable, void * poly, void * nullablePoly);
+
+_Bool Parent_contains__TypesOfArguments__Swift_Int32____reverse_swift(void * self, int32_t element);
+
+_Bool Parent_finalOverrideFunc__reverse_swift(void * self);
+
+_Bool Parent_finalOverrideHopFunc__reverse_swift(void * self);
+
+void * Parent_functionTypeFunc__TypesOfArguments__U28overrides_ChildU29202D_U20overrides_Parent____reverse_swift(void * self, void * arg);
+
+NSArray<id> * Parent_genericReturnTypeFunc__reverse_swift(void * self);
+
+_Bool Parent_hopFunc__reverse_swift(void * self);
+
+int32_t Parent_nonoverride__reverse_swift(void * self);
+
+void * Parent_objectFunc__TypesOfArguments__overrides_Child____reverse_swift(void * self, void * arg);
+
+void * _Nullable Parent_objectOptionalFunc__TypesOfArguments__overrides_Child____reverse_swift(void * self, void * arg);
+
+void * _Nullable Parent_objectOptionalVar_get__reverse_swift(void * self);
+
+void * Parent_objectVar_get__reverse_swift(void * self);
+
+_Bool Parent_overrideChainFunc__reverse_swift(void * self);
+
+int32_t Parent_primitiveTypeFunc__TypesOfArguments__Swift_Int32____reverse_swift(void * self, int32_t arg);
+
+int32_t Parent_primitiveTypeVar_get__reverse_swift(void * self);
+
+void * Parent_subtypeFunctionTypeFunc__TypesOfArguments__U28overrides_ChildU29202D_U20overrides_Parent____reverse_swift(void * self, void * arg);
+
+void * Parent_subtypeObjectFunc__TypesOfArguments__overrides_Child____reverse_swift(void * self, void * arg);
+
+void * Parent_subtypeObjectVar_get__reverse_swift(void * self);
+
+void * _Nullable Parent_subtypeOptionalObjectFunc__reverse_swift(void * self);
+
+void * _Nullable Parent_subtypeOptionalObjectVar_get__reverse_swift(void * self);
+
+NSNumber * _Nullable Parent_subtypeOptionalPrimitiveFunc__reverse_swift(void * self);
+
+NSNumber * _Nullable Parent_subtypeOptionalPrimitiveVar_get__reverse_swift(void * self);
+
+void * Parent_subtypeValToVar_get__reverse_swift(void * self);
+
+int32_t Parent_valToVar_get__reverse_swift(void * self);
+
+int32_t Parent_varToVar_get__reverse_swift(void * self);
+
+_Bool Parent_varToVar_set__TypesOfArguments__Swift_Int32____reverse_swift(void * self, int32_t newValue);
+
+void * overrides_internal_functional_type_callee_overridesU2EParent__TypesOfArguments__Swift_UnsafeMutableRawPointer_overrides_Child__(void * pointerToClosure, void * _1);
+
+_Bool AbstractBase_abstractFun1(void * self);
+
+_Bool AbstractBase_abstractFun2(void * self);
+
+int32_t AbstractBase_abstractVal_get(void * self);
+
+_Bool AbstractDerived2_abstractFun1(void * self);
+
+_Bool Child_actuallyOverride__TypesOfArguments__Swift_Optional_Swift_Int32__overrides_Parent_Swift_Optional_overrides_Parent___(void * self, NSNumber * _Nullable nullable, void * poly, void * _Nullable nullablePoly);
+
+_Bool Child_actuallyOverride__TypesOfArguments__Swift_Optional_Swift_Int32__overrides_Parent_Swift_Optional_overrides_Parent____direct(void * self, NSNumber * _Nullable nullable, void * poly, void * _Nullable nullablePoly);
+
+_Bool Child_contains__TypesOfArguments__Swift_Int32__(void * self, int32_t element);
+
+_Bool Child_contains__TypesOfArguments__Swift_Int32___direct(void * self, int32_t element);
+
+_Bool Child_finalOverrideFunc(void * self);
+
+void * Child_functionTypeFunc__TypesOfArguments__U28overrides_ChildU29202D_U20overrides_Parent__(void * self, void * arg);
+
+void * Child_functionTypeFunc__TypesOfArguments__U28overrides_ChildU29202D_U20overrides_Parent___direct(void * self, void * arg);
+
+NSArray<id> * Child_genericReturnTypeFunc(void * self);
+
+NSArray<id> * Child_genericReturnTypeFunc_direct(void * self);
+
+_Bool Child_nonoverride(void * self) __attribute((noreturn));
+
+_Bool Child_nonoverride_direct(void * self) __attribute((noreturn));
+
+void * Child_objectFunc__TypesOfArguments__overrides_Child__(void * self, void * arg);
+
+void * Child_objectFunc__TypesOfArguments__overrides_Child___direct(void * self, void * arg);
+
+void * _Nullable Child_objectOptionalFunc__TypesOfArguments__overrides_Child__(void * self, void * arg);
+
+void * _Nullable Child_objectOptionalFunc__TypesOfArguments__overrides_Child___direct(void * self, void * arg);
+
+void * _Nullable Child_objectOptionalVar_get(void * self);
+
+void * _Nullable Child_objectOptionalVar_get_direct(void * self);
+
+void * Child_objectVar_get(void * self);
+
+void * Child_objectVar_get_direct(void * self);
+
+_Bool Child_overrideChainFunc(void * self);
+
+_Bool Child_overrideChainFunc_direct(void * self);
+
+int32_t Child_primitiveTypeFunc__TypesOfArguments__Swift_Int32__(void * self, int32_t arg);
+
+int32_t Child_primitiveTypeFunc__TypesOfArguments__Swift_Int32___direct(void * self, int32_t arg);
+
+int32_t Child_primitiveTypeVar_get(void * self);
+
+int32_t Child_primitiveTypeVar_get_direct(void * self);
+
+void * Child_subtypeObjectFunc__TypesOfArguments__overrides_Child__(void * self, void * arg);
+
+void * Child_subtypeObjectFunc__TypesOfArguments__overrides_Child___direct(void * self, void * arg);
+
+void * Child_subtypeObjectVar_get(void * self);
+
+void * Child_subtypeObjectVar_get_direct(void * self);
+
+void * Child_subtypeOptionalObjectFunc(void * self);
+
+void * Child_subtypeOptionalObjectFunc_direct(void * self);
+
+void * Child_subtypeOptionalObjectVar_get(void * self);
+
+void * Child_subtypeOptionalObjectVar_get_direct(void * self);
+
+int32_t Child_subtypeOptionalPrimitiveFunc(void * self);
+
+int32_t Child_subtypeOptionalPrimitiveFunc_direct(void * self);
+
+int32_t Child_subtypeOptionalPrimitiveVar_get(void * self);
+
+int32_t Child_subtypeOptionalPrimitiveVar_get_direct(void * self);
+
+void * Child_subtypeValToVar_get(void * self);
+
+void * Child_subtypeValToVar_get_direct(void * self);
+
+_Bool Child_subtypeValToVar_set__TypesOfArguments__overrides_Child__(void * self, void * newValue);
+
+_Bool Child_subtypeValToVar_set__TypesOfArguments__overrides_Child___direct(void * self, void * newValue);
+
+int32_t Child_valToVar_get(void * self);
+
+int32_t Child_valToVar_get_direct(void * self);
+
+_Bool Child_valToVar_set__TypesOfArguments__Swift_Int32__(void * self, int32_t newValue);
+
+_Bool Child_valToVar_set__TypesOfArguments__Swift_Int32___direct(void * self, int32_t newValue);
+
+int32_t Child_varToVar_get(void * self);
+
+int32_t Child_varToVar_get_direct(void * self);
+
+_Bool Child_varToVar_set__TypesOfArguments__Swift_Int32__(void * self, int32_t newValue);
+
+_Bool Child_varToVar_set__TypesOfArguments__Swift_Int32___direct(void * self, int32_t newValue);
+
+_Bool GrandChild_finalOverrideHopFunc(void * self);
+
+_Bool GrandChild_hopFunc(void * self);
+
+_Bool GrandChild_overrideChainFunc(void * self);
+
+_Bool OpenDerived1_abstractFun1(void * self);
+
+_Bool OpenDerived1_abstractFun1_direct(void * self);
+
+_Bool OpenDerived1_abstractFun2(void * self);
+
+_Bool OpenDerived1_abstractFun2_direct(void * self);
+
+int32_t OpenDerived1_abstractVal_get(void * self);
+
+int32_t OpenDerived1_abstractVal_get_direct(void * self);
+
+_Bool Parent_actuallyOverride__TypesOfArguments__Swift_Int32_overrides_Child_overrides_Child__(void * self, int32_t nullable, void * poly, void * nullablePoly);
+
+_Bool Parent_actuallyOverride__TypesOfArguments__Swift_Int32_overrides_Child_overrides_Child___direct(void * self, int32_t nullable, void * poly, void * nullablePoly);
+
+_Bool Parent_contains__TypesOfArguments__Swift_Int32__(void * self, int32_t element);
+
+_Bool Parent_contains__TypesOfArguments__Swift_Int32___direct(void * self, int32_t element);
+
+_Bool Parent_finalOverrideFunc(void * self);
+
+_Bool Parent_finalOverrideFunc_direct(void * self);
+
+_Bool Parent_finalOverrideHopFunc(void * self);
+
+_Bool Parent_finalOverrideHopFunc_direct(void * self);
+
+void * Parent_functionTypeFunc__TypesOfArguments__U28overrides_ChildU29202D_U20overrides_Parent__(void * self, void * arg);
+
+void * Parent_functionTypeFunc__TypesOfArguments__U28overrides_ChildU29202D_U20overrides_Parent___direct(void * self, void * arg);
+
+NSArray<id> * Parent_genericReturnTypeFunc(void * self);
+
+NSArray<id> * Parent_genericReturnTypeFunc_direct(void * self);
+
+_Bool Parent_hopFunc(void * self);
+
+_Bool Parent_hopFunc_direct(void * self);
+
+int32_t Parent_nonoverride(void * self);
+
+int32_t Parent_nonoverride_direct(void * self);
+
+void * Parent_objectFunc__TypesOfArguments__overrides_Child__(void * self, void * arg);
+
+void * Parent_objectFunc__TypesOfArguments__overrides_Child___direct(void * self, void * arg);
+
+void * _Nullable Parent_objectOptionalFunc__TypesOfArguments__overrides_Child__(void * self, void * arg);
+
+void * _Nullable Parent_objectOptionalFunc__TypesOfArguments__overrides_Child___direct(void * self, void * arg);
+
+void * _Nullable Parent_objectOptionalVar_get(void * self);
+
+void * _Nullable Parent_objectOptionalVar_get_direct(void * self);
+
+void * Parent_objectVar_get(void * self);
+
+void * Parent_objectVar_get_direct(void * self);
+
+_Bool Parent_overrideChainFunc(void * self);
+
+_Bool Parent_overrideChainFunc_direct(void * self);
+
+int32_t Parent_primitiveTypeFunc__TypesOfArguments__Swift_Int32__(void * self, int32_t arg);
+
+int32_t Parent_primitiveTypeFunc__TypesOfArguments__Swift_Int32___direct(void * self, int32_t arg);
+
+int32_t Parent_primitiveTypeVar_get(void * self);
+
+int32_t Parent_primitiveTypeVar_get_direct(void * self);
+
+void * Parent_subtypeFunctionTypeFunc__TypesOfArguments__U28overrides_ChildU29202D_U20overrides_Parent__(void * self, void * arg);
+
+void * Parent_subtypeFunctionTypeFunc__TypesOfArguments__U28overrides_ChildU29202D_U20overrides_Parent___direct(void * self, void * arg);
+
+void * Parent_subtypeObjectFunc__TypesOfArguments__overrides_Child__(void * self, void * arg);
+
+void * Parent_subtypeObjectFunc__TypesOfArguments__overrides_Child___direct(void * self, void * arg);
+
+void * Parent_subtypeObjectVar_get(void * self);
+
+void * Parent_subtypeObjectVar_get_direct(void * self);
+
+void * _Nullable Parent_subtypeOptionalObjectFunc(void * self);
+
+void * _Nullable Parent_subtypeOptionalObjectFunc_direct(void * self);
+
+void * _Nullable Parent_subtypeOptionalObjectVar_get(void * self);
+
+void * _Nullable Parent_subtypeOptionalObjectVar_get_direct(void * self);
+
+NSNumber * _Nullable Parent_subtypeOptionalPrimitiveFunc(void * self);
+
+NSNumber * _Nullable Parent_subtypeOptionalPrimitiveFunc_direct(void * self);
+
+NSNumber * _Nullable Parent_subtypeOptionalPrimitiveVar_get(void * self);
+
+NSNumber * _Nullable Parent_subtypeOptionalPrimitiveVar_get_direct(void * self);
+
+void * Parent_subtypeValToVar_get(void * self);
+
+void * Parent_subtypeValToVar_get_direct(void * self);
+
+int32_t Parent_valToVar_get(void * self);
+
+int32_t Parent_valToVar_get_direct(void * self);
+
+NSString * Parent_value_get(void * self);
+
+int32_t Parent_varToVar_get(void * self);
+
+int32_t Parent_varToVar_get_direct(void * self);
+
+_Bool Parent_varToVar_set__TypesOfArguments__Swift_Int32__(void * self, int32_t newValue);
+
+_Bool Parent_varToVar_set__TypesOfArguments__Swift_Int32___direct(void * self, int32_t newValue);
+
+int32_t RenamedInitBase_a_get(void * self);
+
+int32_t RenamedInitDerived_b_get(void * self);
+
+_Bool __root___AbstractBase_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer__(void * __kt);
+
+_Bool __root___AbstractBase_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_Int32__(void * __kt, int32_t x);
+
+_Bool __root___AbstractDerived2_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer__(void * __kt);
+
+_Bool __root___AbstractDerived2_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_Int32__(void * __kt, int32_t x);
+
+void * __root___Child_init_allocate();
+
+_Bool __root___Child_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_Int32__(void * __kt, int32_t value);
+
+_Bool __root___Child_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_Int32_overrides_Parent_overrides_Parent__(void * __kt, int32_t nullable, void * poly, void * nullablePoly);
+
+_Bool __root___Child_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_String__(void * __kt, NSString * value);
+
+void * __root___GrandChild_init_allocate();
+
+_Bool __root___GrandChild_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_Int32__(void * __kt, int32_t value);
+
+void * __root___OpenDerived1_init_allocate();
+
+_Bool __root___OpenDerived1_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer__(void * __kt);
+
+_Bool __root___OpenDerived1_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_Int32__(void * __kt, int32_t x);
+
+void * __root___Parent_init_allocate();
+
+_Bool __root___Parent_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_String__(void * __kt, NSString * value);
+
+void * __root___RenamedInitBase_init_allocate();
+
+_Bool __root___RenamedInitBase_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_Int32__(void * __kt, int32_t a);
+
+void * __root___RenamedInitDerived_init_allocate();
+
+_Bool __root___RenamedInitDerived_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_Int32__(void * __kt, int32_t b);
+
+void * __root___SameInitDerived_init_allocate();
+
+_Bool __root___SameInitDerived_init_initialize__TypesOfArguments__Swift_UnsafeMutableRawPointer_Swift_Int32__(void * __kt, int32_t a);
+
+void * overrides_internal_functional_type_caller_overridesU2EParent__TypesOfArguments__Swift_UnsafeMutableRawPointer_overrides_Child__(void * pointerToBlock, void * _1);
+
+NS_ASSUME_NONNULL_END

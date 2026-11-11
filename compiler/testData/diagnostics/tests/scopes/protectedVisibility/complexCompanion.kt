@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 open class A {
     protected fun foo() {}
 
@@ -13,6 +14,8 @@ class B {
 
 class C: A() {
     init {
-        B.<!INVISIBLE_MEMBER!>foo<!>() // Error: receiver is not suitable
+        B.<!INVISIBLE_REFERENCE!>foo<!>() // Error: receiver is not suitable
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, init, objectDeclaration */

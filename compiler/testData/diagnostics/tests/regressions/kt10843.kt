@@ -1,6 +1,10 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // See EA-76890 / KT-10843: NPE during analysis
-fun lambda(x : Int?) = x?.<!NO_VALUE_FOR_PARAMETER, TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER, FUNCTION_CALL_EXPECTED!>let<!> <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>l<!> {
-    <!CANNOT_INFER_PARAMETER_TYPE!>y<!> ->
-    if (<!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>y<!> <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>><!> 0) return<!UNRESOLVED_REFERENCE!>@l<!> x
-    <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>y<!>
+fun lambda(x : Int?) = x?.<!CANNOT_INFER_PARAMETER_TYPE, FUNCTION_CALL_EXPECTED, NO_VALUE_FOR_PARAMETER!>let<!> <!UNRESOLVED_REFERENCE!>l<!> {
+    <!CANNOT_INFER_VALUE_PARAMETER_TYPE!>y<!> ->
+    if (y <!UNRESOLVED_REFERENCE!>><!> 0) return@l x
+    y
 }<!NOT_NULL_ASSERTION_ON_LAMBDA_EXPRESSION!>!!<!>
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, comparisonExpression, functionDeclaration, ifExpression, integerLiteral,
+lambdaLiteral, nullableType, safeCall */

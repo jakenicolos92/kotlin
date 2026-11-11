@@ -1,0 +1,37 @@
+/*
+ * Copyright 2010-2025 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.backend.konan.driver.phases
+
+import org.jetbrains.kotlin.backend.common.phaser.createSimpleNamedCompilerPhase
+import org.jetbrains.kotlin.backend.konan.*
+import org.jetbrains.kotlin.backend.konan.driver.BasicNativeBackendPhaseContext
+import org.jetbrains.kotlin.backend.konan.driver.utilities.getDefaultIrActions
+import org.jetbrains.kotlin.backend.konan.serialization.KonanIdSignaturer
+import org.jetbrains.kotlin.backend.konan.serialization.KonanManglerDesc
+import org.jetbrains.kotlin.descriptors.ModuleDescriptor
+import org.jetbrains.kotlin.ir.declarations.impl.IrFactoryImpl
+import org.jetbrains.kotlin.ir.util.SymbolTable
+
+internal class LinkKlibsContextImpl(
+        config: NativeSecondStageCompilationConfig,
+        private val moduleDescriptor: ModuleDescriptor,
+        private val disposeCallback: () -> Unit,
+) : BasicNativeBackendPhaseContext(config), LinkKlibsContext {
+    // TODO: Invalidate properly in dispose method.
+    override val symbolTable = SymbolTable(KonanIdSignaturer(KonanManglerDesc), IrFactoryImpl)
+
+    override fun dispose() {
+        disposeCallback()
+    }
+}
+
+internal val LinkKlibsPhase = createSimpleNamedCompilerPhase<LinkKlibsContext, LinkKlibsInput, LinkKlibsOutput>(
+        "LinkKlibs",
+        postactions = getDefaultIrActions(),
+        outputIfNotEnabled = { _, _, _, _ -> error("LinkKlibs phase cannot be disabled") }
+) { context, input ->
+    context.linkKlibs(input)
+}

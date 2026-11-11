@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: JavaClass.java
 public class JavaClass {
     void from(String s) {}
@@ -5,8 +6,10 @@ public class JavaClass {
 }
 
 // FILE: kotlin.kt
-fun main(args : Array<String>) {
+fun main() {
     JavaClass().from()
     JavaClass().from("")
     JavaClass().from("", "")
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, javaFunction, javaType, stringLiteral */

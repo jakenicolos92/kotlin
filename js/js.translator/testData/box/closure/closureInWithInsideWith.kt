@@ -1,4 +1,3 @@
-// EXPECTED_REACHABLE_NODES: 494
 // KT-4237 With in with
 
 package foo

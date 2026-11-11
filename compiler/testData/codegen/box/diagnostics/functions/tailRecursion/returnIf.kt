@@ -1,6 +1,3 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND_WITHOUT_CHECK: JS
-
 tailrec fun test(x : Int) : Int {
     return if (x == 1) {
         <!NON_TAIL_RECURSIVE_CALL!>test<!>(x - 1)

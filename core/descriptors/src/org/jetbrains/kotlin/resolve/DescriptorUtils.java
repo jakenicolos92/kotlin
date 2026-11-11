@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.resolve;
@@ -19,37 +8,35 @@ package org.jetbrains.kotlin.resolve;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
+import org.jetbrains.kotlin.builtins.UnsignedTypes;
 import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.descriptors.annotations.Annotated;
 import org.jetbrains.kotlin.descriptors.annotations.AnnotationDescriptor;
-import org.jetbrains.kotlin.descriptors.annotations.AnnotationWithTarget;
-import org.jetbrains.kotlin.descriptors.annotations.Annotations;
+import org.jetbrains.kotlin.descriptors.impl.PackageFragmentDescriptorImpl;
 import org.jetbrains.kotlin.incremental.components.LookupLocation;
-import org.jetbrains.kotlin.name.FqName;
-import org.jetbrains.kotlin.name.FqNameUnsafe;
-import org.jetbrains.kotlin.name.Name;
-import org.jetbrains.kotlin.name.SpecialNames;
+import org.jetbrains.kotlin.incremental.components.NoLookupLocation;
+import org.jetbrains.kotlin.name.*;
 import org.jetbrains.kotlin.resolve.constants.ConstantValue;
 import org.jetbrains.kotlin.resolve.constants.StringValue;
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter;
 import org.jetbrains.kotlin.resolve.scopes.MemberScope;
-import org.jetbrains.kotlin.types.*;
+import org.jetbrains.kotlin.types.KotlinType;
+import org.jetbrains.kotlin.types.KotlinTypeKt;
+import org.jetbrains.kotlin.types.TypeConstructor;
+import org.jetbrains.kotlin.types.TypeUtils;
 import org.jetbrains.kotlin.types.checker.KotlinTypeChecker;
+import org.jetbrains.kotlin.types.error.ErrorUtils;
 
 import java.util.*;
 
 import static org.jetbrains.kotlin.builtins.KotlinBuiltIns.isAny;
 import static org.jetbrains.kotlin.descriptors.CallableMemberDescriptor.Kind.*;
+import static org.jetbrains.kotlin.descriptors.Modality.ABSTRACT;
 import static org.jetbrains.kotlin.resolve.descriptorUtil.DescriptorUtilsKt.getBuiltIns;
 
 public class DescriptorUtils {
-    public static final Name ENUM_VALUES = Name.identifier("values");
-    public static final Name ENUM_VALUE_OF = Name.identifier("valueOf");
+    // This JVM-specific class FQ name is declared here only because it's used in MainFunctionDetector which is in frontend
     public static final FqName JVM_NAME = new FqName("kotlin.jvm.JvmName");
-    private static final FqName VOLATILE = new FqName("kotlin.jvm.Volatile");
-    private static final FqName SYNCHRONIZED = new FqName("kotlin.jvm.Synchronized");
-    public static final FqName COROUTINES_PACKAGE_FQ_NAME = new FqName("kotlin.coroutines.experimental");
-    public static final FqName CONTINUATION_INTERFACE_FQ_NAME = COROUTINES_PACKAGE_FQ_NAME.child(Name.identifier("Continuation"));
 
     private DescriptorUtils() {
     }
@@ -79,7 +66,7 @@ public class DescriptorUtils {
 
     public static boolean isDescriptorWithLocalVisibility(DeclarationDescriptor current) {
         return current instanceof DeclarationDescriptorWithVisibility &&
-         ((DeclarationDescriptorWithVisibility) current).getVisibility() == Visibilities.LOCAL;
+         ((DeclarationDescriptorWithVisibility) current).getVisibility() == DescriptorVisibilities.LOCAL;
     }
 
     @NotNull
@@ -126,6 +113,20 @@ public class DescriptorUtils {
             return FqName.topLevel(name);
         }
         return getFqNameFromTopLevelClass(containingDeclaration).child(name);
+    }
+
+    @NotNull
+    public static ClassId getClassIdForNonLocalClass(@NotNull DeclarationDescriptor descriptor) {
+        DeclarationDescriptor containingDeclaration = descriptor.getContainingDeclaration();
+        Name name = descriptor.getName();
+        if (containingDeclaration instanceof PackageFragmentDescriptorImpl) {
+            FqName packageFqName = ((PackageFragmentDescriptorImpl) containingDeclaration).getFqName();
+            return new ClassId(packageFqName, name);
+        }
+        if (!(containingDeclaration instanceof ClassDescriptor)) {
+            return new ClassId(FqName.ROOT, name);
+        }
+        return getClassIdForNonLocalClass(containingDeclaration).createNestedClassId(name);
     }
 
     public static boolean isTopLevelDeclaration(@Nullable DeclarationDescriptor descriptor) {
@@ -184,6 +185,14 @@ public class DescriptorUtils {
             descriptor = descriptor.getContainingDeclaration();
         }
         return null;
+    }
+
+    @Nullable
+    public static ModuleDescriptor getContainingModuleOrNull(@NotNull KotlinType kotlinType) {
+        ClassifierDescriptor descriptor = kotlinType.getConstructor().getDeclarationDescriptor();
+        if (descriptor == null) return null;
+
+        return getContainingModuleOrNull(descriptor);
     }
 
     @NotNull
@@ -276,14 +285,20 @@ public class DescriptorUtils {
     }
 
     public static boolean isSealedClass(@Nullable DeclarationDescriptor descriptor) {
-        return isKindOf(descriptor, ClassKind.CLASS) && ((ClassDescriptor) descriptor).getModality() == Modality.SEALED;
+        return (isKindOf(descriptor, ClassKind.CLASS) || isKindOf(descriptor, ClassKind.INTERFACE)) && ((ClassDescriptor) descriptor).getModality() == Modality.SEALED;
     }
 
     public static boolean isAnonymousObject(@NotNull DeclarationDescriptor descriptor) {
         return isClass(descriptor) && descriptor.getName().equals(SpecialNames.NO_NAME_PROVIDED);
     }
 
-    public static boolean isNonCompanionObject(@NotNull DeclarationDescriptor descriptor) {
+    @SuppressWarnings("unused")
+    public static boolean isAnonymousFunction(@NotNull DeclarationDescriptor descriptor) {
+        return descriptor instanceof SimpleFunctionDescriptor &&
+               descriptor.getName().equals(SpecialNames.ANONYMOUS);
+    }
+
+    public static boolean isNonCompanionObject(@Nullable DeclarationDescriptor descriptor) {
         return isKindOf(descriptor, ClassKind.OBJECT) && !((ClassDescriptor) descriptor).isCompanionObject();
     }
 
@@ -317,6 +332,16 @@ public class DescriptorUtils {
 
     private static boolean isKindOf(@Nullable DeclarationDescriptor descriptor, @NotNull ClassKind classKind) {
         return descriptor instanceof ClassDescriptor && ((ClassDescriptor) descriptor).getKind() == classKind;
+    }
+
+    public static boolean hasAbstractMembers(@NotNull ClassDescriptor classDescriptor) {
+        for (DeclarationDescriptor member : getAllDescriptors(classDescriptor.getDefaultType().getMemberScope())) {
+            if (member instanceof CallableMemberDescriptor &&
+                ((CallableMemberDescriptor) member).getModality() == ABSTRACT) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @NotNull
@@ -370,16 +395,26 @@ public class DescriptorUtils {
     }
 
     @NotNull
-    public static Visibility getDefaultConstructorVisibility(@NotNull ClassDescriptor classDescriptor) {
+    public static DescriptorVisibility getDefaultConstructorVisibility(
+            @NotNull ClassDescriptor classDescriptor,
+            boolean freedomForSealedInterfacesSupported
+    ) {
         ClassKind classKind = classDescriptor.getKind();
-        if (classKind == ClassKind.ENUM_CLASS || classKind.isSingleton() || isSealedClass(classDescriptor)) {
-            return Visibilities.PRIVATE;
+        if (classKind == ClassKind.ENUM_CLASS || classKind.isSingleton()) {
+            return DescriptorVisibilities.PRIVATE;
+        }
+        if (isSealedClass(classDescriptor)) {
+            if (freedomForSealedInterfacesSupported) {
+                return DescriptorVisibilities.PROTECTED;
+            } else {
+                return DescriptorVisibilities.PRIVATE;
+            }
         }
         if (isAnonymousObject(classDescriptor)) {
-            return Visibilities.DEFAULT_VISIBILITY;
+            return DescriptorVisibilities.DEFAULT_VISIBILITY;
         }
         assert classKind == ClassKind.CLASS || classKind == ClassKind.INTERFACE || classKind == ClassKind.ANNOTATION_CLASS;
-        return Visibilities.PUBLIC;
+        return DescriptorVisibilities.PUBLIC;
     }
 
     // TODO: should be internal
@@ -409,15 +444,6 @@ public class DescriptorUtils {
     }
 
     /**
-     * @return true iff {@code descriptor}'s first non-class container is a package
-     */
-    public static boolean isTopLevelOrInnerClass(@NotNull ClassDescriptor descriptor) {
-        DeclarationDescriptor containing = descriptor.getContainingDeclaration();
-        return isTopLevelDeclaration(descriptor) ||
-               containing instanceof ClassDescriptor && isTopLevelOrInnerClass((ClassDescriptor) containing);
-    }
-
-    /**
      * Given a fake override, finds any declaration of it in the overridden descriptors. Keep in mind that there may be many declarations
      * of the fake override in the supertypes, this method finds just only one of them.
      * TODO: probably some call-sites of this method are wrong, they should handle all super-declarations
@@ -430,6 +456,20 @@ public class DescriptorUtils {
             if (overridden.isEmpty()) {
                 throw new IllegalStateException("Fake override should have at least one overridden descriptor: " + descriptor);
             }
+            descriptor = (D) overridden.iterator().next();
+        }
+        return descriptor;
+    }
+
+    @NotNull
+    @SuppressWarnings("unchecked")
+    public static <D extends CallableMemberDescriptor> D unwrapSubstitutionOverride(@NotNull D descriptor) {
+        while (descriptor.getKind() == CallableMemberDescriptor.Kind.FAKE_OVERRIDE) {
+            Collection<? extends CallableMemberDescriptor> overridden = descriptor.getOverriddenDescriptors();
+            if (overridden.isEmpty()) {
+                throw new IllegalStateException("Fake override should have at least one overridden descriptor: " + descriptor);
+            }
+            if (overridden.size() > 1) return descriptor;
             descriptor = (D) overridden.iterator().next();
         }
         return descriptor;
@@ -454,10 +494,15 @@ public class DescriptorUtils {
         return KotlinBuiltIns.isPrimitiveType(type) ||
                KotlinTypeChecker.DEFAULT.equalTypes(builtIns.getStringType(), type) ||
                KotlinTypeChecker.DEFAULT.equalTypes(builtIns.getNumber().getDefaultType(), type) ||
-               KotlinTypeChecker.DEFAULT.equalTypes(builtIns.getAnyType(), type);
+               KotlinTypeChecker.DEFAULT.equalTypes(builtIns.getAnyType(), type) ||
+               UnsignedTypes.INSTANCE.isUnsignedType(type);
     }
 
-    public static boolean classCanHaveAbstractMembers(@NotNull ClassDescriptor classDescriptor) {
+    public static boolean classCanHaveAbstractFakeOverride(@NotNull ClassDescriptor classDescriptor) {
+        return classCanHaveAbstractDeclaration(classDescriptor) || classDescriptor.isExpect();
+    }
+
+    public static boolean classCanHaveAbstractDeclaration(@NotNull ClassDescriptor classDescriptor) {
         return classDescriptor.getModality() == Modality.ABSTRACT
                || isSealedClass(classDescriptor)
                || classDescriptor.getKind() == ClassKind.ENUM_CLASS;
@@ -518,14 +563,14 @@ public class DescriptorUtils {
 
     @Nullable
     public static String getJvmName(@NotNull Annotated annotated) {
-        return getJvmName(getJvmNameAnnotation(annotated));
+        return getJvmName(findJvmNameAnnotation(annotated));
     }
 
     @Nullable
-    public static String getJvmName(@Nullable AnnotationDescriptor jvmNameAnnotation) {
+    private static String getJvmName(@Nullable AnnotationDescriptor jvmNameAnnotation) {
         if (jvmNameAnnotation == null) return null;
 
-        Map<ValueParameterDescriptor, ConstantValue<?>> arguments = jvmNameAnnotation.getAllValueArguments();
+        Map<Name, ConstantValue<?>> arguments = jvmNameAnnotation.getAllValueArguments();
         if (arguments.isEmpty()) return null;
 
         ConstantValue<?> name = arguments.values().iterator().next();
@@ -535,24 +580,12 @@ public class DescriptorUtils {
     }
 
     @Nullable
-    public static AnnotationDescriptor getAnnotationByFqName(@NotNull Annotations annotations, @NotNull FqName name) {
-        AnnotationWithTarget annotationWithTarget = Annotations.Companion.findAnyAnnotation(annotations, name);
-        return annotationWithTarget == null ? null : annotationWithTarget.getAnnotation();
+    public static AnnotationDescriptor findJvmNameAnnotation(@NotNull Annotated annotated) {
+        return annotated.getAnnotations().findAnnotation(JVM_NAME);
     }
 
-    @Nullable
-    public static AnnotationDescriptor getJvmNameAnnotation(@NotNull Annotated annotated) {
-        return getAnnotationByFqName(annotated.getAnnotations(), JVM_NAME);
-    }
-
-    @Nullable
-    public static AnnotationDescriptor getVolatileAnnotation(@NotNull Annotated annotated) {
-        return getAnnotationByFqName(annotated.getAnnotations(), VOLATILE);
-    }
-
-    @Nullable
-    public static AnnotationDescriptor getSynchronizedAnnotation(@NotNull Annotated annotated) {
-        return getAnnotationByFqName(annotated.getAnnotations(), SYNCHRONIZED);
+    public static boolean hasJvmNameAnnotation(@NotNull Annotated annotated) {
+        return findJvmNameAnnotation(annotated) != null;
     }
 
     @NotNull
@@ -575,24 +608,31 @@ public class DescriptorUtils {
 
     @NotNull
     public static FunctionDescriptor getFunctionByName(@NotNull MemberScope scope, @NotNull Name name) {
-        Collection<DeclarationDescriptor> functions = scope.getContributedDescriptors(DescriptorKindFilter.FUNCTIONS,
-                                                                                      MemberScope.Companion.getALL_NAME_FILTER());
-        for (DeclarationDescriptor d : functions) {
-            if (d instanceof FunctionDescriptor && name.equals(d.getOriginal().getName())) {
-                return (FunctionDescriptor) d;
+        FunctionDescriptor result = getFunctionByNameOrNull(scope, name);
+
+        if (result == null) {
+            throw new IllegalStateException("Function not found");
+        }
+
+        return result;
+    }
+
+    @Nullable
+    public static FunctionDescriptor getFunctionByNameOrNull(@NotNull MemberScope scope, @NotNull Name name) {
+        for (SimpleFunctionDescriptor d : scope.getContributedFunctions(name, NoLookupLocation.FROM_BACKEND)) {
+            if (name.equals(d.getOriginal().getName())) {
+                return d;
             }
         }
 
-        throw new IllegalStateException("Function not found");
+        return null;
     }
 
     @NotNull
     public static PropertyDescriptor getPropertyByName(@NotNull MemberScope scope, @NotNull Name name) {
-        Collection<DeclarationDescriptor> callables = scope.getContributedDescriptors(
-                DescriptorKindFilter.CALLABLES, MemberScope.Companion.getALL_NAME_FILTER());
-        for (DeclarationDescriptor d : callables) {
-            if (d instanceof PropertyDescriptor && name.equals(d.getOriginal().getName())) {
-                return (PropertyDescriptor) d;
+        for (PropertyDescriptor d : scope.getContributedVariables(name, NoLookupLocation.FROM_BACKEND)) {
+            if (name.equals(d.getOriginal().getName())) {
+                return d;
             }
         }
 
@@ -605,5 +645,4 @@ public class DescriptorUtils {
                ? ((PropertyAccessorDescriptor) descriptor).getCorrespondingProperty()
                : descriptor;
     }
-
 }

@@ -1,3 +1,5 @@
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: CODEGEN
 class A {
     operator fun component1() : Int = 1
     operator fun component2() : Int = 2
@@ -5,10 +7,13 @@ class A {
 
 fun a(aa : A?, b : Any) {
     if (aa != null) {
-        val (<!UNUSED_VARIABLE!>a1<!>, <!UNUSED_VARIABLE!>b1<!>) = <!DEBUG_INFO_SMARTCAST!>aa<!>;
+        val [a1, b1] = aa;
     }
 
     if (b is A) {
-        val (<!UNUSED_VARIABLE!>a1<!>, <!UNUSED_VARIABLE!>b1<!>) = <!DEBUG_INFO_SMARTCAST!>b<!>;
+        val [a1, b1] = b;
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, destructuringDeclaration, equalityExpression, functionDeclaration, ifExpression,
+integerLiteral, isExpression, localProperty, nullableType, operator, propertyDeclaration, smartcast */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-2100
 
 interface I {
@@ -11,3 +12,6 @@ class Foo {
         override val x : String = this@Foo.x
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, inner, interfaceDeclaration, override, propertyDeclaration, stringLiteral,
+thisExpression */

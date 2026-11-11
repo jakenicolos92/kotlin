@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 val zero = 0
 
 fun test() {
@@ -9,3 +10,5 @@ fun test() {
 
     +0
 }
+
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, propertyDeclaration, unaryExpression */

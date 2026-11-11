@@ -1,7 +1,8 @@
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
-
-// WITH_RUNTIME
+// WITH_STDLIB
 
 enum class E {
     VALUE,
@@ -13,11 +14,11 @@ class C(val nums: Map<E, Int>) {
 
     private fun loadNormalizedNums(): Map<E, Float> {
         val vals = nums.values
-        val min = vals.min()!!
-        val max = vals.max()!!
+        val min = vals.minOrNull()!!
+        val max = vals.maxOrNull()!!
         val rangeDiff = (max - min).toFloat()
         val normalizedNums = nums.map { kvp ->
-            val (e, num) = kvp
+            val [e, num] = kvp
             //val e = kvp.key
             //val num = kvp.value
             val normalized = (num - min) / rangeDiff

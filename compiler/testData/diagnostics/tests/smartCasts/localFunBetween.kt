@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 open class Base
 class Derived: Base()
 
@@ -10,6 +11,9 @@ fun foo() {
     if (base is Derived) {
         fun can(n: Int) = n > 0
         trans(42, ::can)
-        bar(<!DEBUG_INFO_SMARTCAST!>base<!>)
+        bar(base)
     }
 }
+
+/* GENERATED_FIR_TAGS: callableReference, classDeclaration, comparisonExpression, functionDeclaration, functionalType,
+ifExpression, integerLiteral, isExpression, localFunction, localProperty, nullableType, propertyDeclaration, smartcast */

@@ -1,0 +1,58 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package kotlin.reflect.jvm.internal
+
+import kotlin.metadata.Modality
+import kotlin.reflect.KTypeParameter
+import kotlin.reflect.jvm.internal.types.KTypeSubstitutor
+
+internal data class KCallableOverriddenStorage(
+    private val classTypeParametersSubstitutor: KTypeSubstitutor?,
+    val modality: Modality?,
+    val isStatic: Boolean?,
+    val originalContainerIfFakeOverride: KDeclarationContainerImpl?,
+    private val originalCallableTypeParameters: List<KTypeParameter>,
+    // For fake overrides, the list of callables from supertypes that it overrides. If the callable is not a fake override, the list is
+    // empty, and the overridden callables should be found by calling `computeOverriddenFunctions`.
+    // For an intersection override, the first element is the most specific overridden callable, whose signature the fake override has.
+    val overridden: List<ReflectKCallable<*>>,
+    // For an intersection override, the fake overrides in the same class from which it was created, one for each callable in `overridden`
+    // in the same order.
+    val intersectedFakeOverrides: List<ReflectKCallable<*>>,
+
+    val forceIsExternal: Boolean,
+    val forceIsOperator: Boolean,
+    val forceIsInfix: Boolean,
+    val forceIsInline: Boolean,
+) {
+    companion object {
+        @JvmField
+        val EMPTY = KCallableOverriddenStorage(
+            classTypeParametersSubstitutor = null,
+            modality = null,
+            isStatic = null,
+            originalContainerIfFakeOverride = null,
+            originalCallableTypeParameters = emptyList(),
+            overridden = emptyList(),
+            intersectedFakeOverrides = emptyList(),
+            forceIsExternal = false,
+            forceIsOperator = false,
+            forceIsInfix = false,
+            forceIsInline = false,
+        )
+    }
+
+    val isFakeOverride: Boolean get() = originalContainerIfFakeOverride != null
+
+    fun withChainedClassTypeParametersSubstitutor(substitutor: KTypeSubstitutor): KCallableOverriddenStorage =
+        copy(classTypeParametersSubstitutor = classTypeParametersSubstitutor?.chainedWith(substitutor) ?: substitutor)
+
+    fun getTypeSubstitutor(callableTypeParameters: List<KTypeParameter>, memberNameForDebug: String): KTypeSubstitutor =
+        originalCallableTypeParameters.substitutedWith(callableTypeParameters)
+            ?.disjointSumWith(classTypeParametersSubstitutor ?: KTypeSubstitutor.EMPTY, memberNameForDebug)
+            ?: classTypeParametersSubstitutor
+            ?: KTypeSubstitutor.EMPTY
+}

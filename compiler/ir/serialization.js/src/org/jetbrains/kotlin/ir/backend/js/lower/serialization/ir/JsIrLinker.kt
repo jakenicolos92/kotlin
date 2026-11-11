@@ -1,0 +1,95 @@
+/*
+ * Copyright 2010-2019 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.ir.backend.js.lower.serialization.ir
+
+import org.jetbrains.kotlin.backend.common.linkage.partial.PartialLinkageSupportForLinker
+import org.jetbrains.kotlin.backend.common.linkage.partial.createPartialLinkageSupportForLinker
+import org.jetbrains.kotlin.backend.common.overrides.IrLinkerFakeOverrideProvider
+import org.jetbrains.kotlin.backend.common.serialization.*
+import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.ir.IrDiagnosticReporter
+import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
+import org.jetbrains.kotlin.ir.util.IdSignature
+import org.jetbrains.kotlin.ir.util.KotlinMangler
+import org.jetbrains.kotlin.ir.util.SymbolTable
+import org.jetbrains.kotlin.library.KotlinAbiVersion
+import org.jetbrains.kotlin.library.KotlinLibrary
+import org.jetbrains.kotlin.library.isJsStdlib
+import org.jetbrains.kotlin.library.isWasmStdlib
+import org.jetbrains.kotlin.utils.addToStdlib.runIf
+import org.jetbrains.kotlin.utils.memoryOptimizedMap
+
+class JsIrLinker(
+    configuration: CompilerConfiguration,
+    symbolTable: SymbolTable,
+    irDiagnosticReporter: IrDiagnosticReporter,
+    friendModules: Map<String, Collection<String>> = emptyMap(),
+) : KotlinIrLinker(
+    configuration = configuration,
+    symbolTable = symbolTable,
+    deserializedSymbolPostProcessor = { symbol, signature, fileSymbol ->
+        runIf(signature.isLocal) {
+            symbol.privateSignature = IdSignature.CompositeSignature(IdSignature.FileSignature(fileSymbol), signature)
+        }
+        symbol
+    }) {
+
+    override val partialLinkageSupport: PartialLinkageSupportForLinker = createPartialLinkageSupportForLinker(
+        irFactory = symbolTable.irFactory,
+        anyClass = anyClass,
+        nothingClass = nothingClass,
+        diagnosticReporter = irDiagnosticReporter,
+    )
+
+    override val irMangler: KotlinMangler.IrMangler = JsManglerIr
+
+    override val fakeOverrideBuilder = IrLinkerFakeOverrideProvider(
+        fileLocalSymbolProvider = fileLocalSymbolProvider,
+        symbolTable = symbolTable,
+        mangler = irMangler,
+        friendModules = friendModules,
+        partialLinkageSupport = partialLinkageSupport
+    )
+
+    override val moduleDependencyTracker: IrModuleDependencyTracker = IrModuleDependencyTrackerImpl()
+
+    override fun isBuiltInModule(module: IrModuleFragment): Boolean {
+        val klib = module.kotlinLibrary ?: return false
+        return klib.isJsStdlib || klib.isWasmStdlib
+    }
+
+    override fun createModuleDeserializer(
+        moduleFragment: IrModuleFragment,
+        klib: KotlinLibrary?,
+        strategyResolver: DeserializationStrategyResolver,
+    ): IrModuleDeserializer {
+        require(klib != null) { "Expecting kotlin library" }
+        val libraryAbiVersion = klib.versions.abiVersion ?: KotlinAbiVersion.CURRENT
+        return JsModuleDeserializer(moduleFragment, klib, strategyResolver, libraryAbiVersion)
+    }
+
+    private val deserializedFilesInKlibOrder = mutableMapOf<IrModuleFragment, List<IrFile>>()
+
+    private inner class JsModuleDeserializer(
+        moduleFragment: IrModuleFragment,
+        klib: KotlinLibrary,
+        strategyResolver: DeserializationStrategyResolver,
+        libraryAbiVersion: KotlinAbiVersion,
+    ) : BasicIrModuleDeserializer(this, moduleFragment, klib, strategyResolver, libraryAbiVersion) {
+        init {
+            deserializedFilesInKlibOrder[moduleFragment] = fileDeserializationStates.memoryOptimizedMap { it.file }
+        }
+    }
+
+    fun moduleDeserializer(module: IrModuleFragment): IrModuleDeserializer {
+        return klibDeserializers[module.kotlinLibrary!!] ?: error("Deserializer for ${module.name} not found")
+    }
+
+    fun getDeserializedFilesInKlibOrder(fragment: IrModuleFragment): List<IrFile> {
+        return deserializedFilesInKlibOrder[fragment] ?: emptyList()
+    }
+}

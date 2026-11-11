@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 class B
 
 class A {
@@ -7,12 +8,15 @@ class A {
 val B.a: () -> Int  get() = { 5 }
 
 fun test(a: A, b: B) {
-    val <!UNUSED_VARIABLE!>x<!>: Int = b.a()
+    val x: Int = b.a()
 
-    b.<!FUNCTION_EXPECTED!>(a)<!>()
+    b.(<!UNRESOLVED_REFERENCE!>a<!>)()
 
-    with(b) {
-        val <!UNUSED_VARIABLE!>y<!>: Int = a()
-        <!FUNCTION_EXPECTED!>(a)<!>()
+    <!CANNOT_INFER_PARAMETER_TYPE!>with<!>(b) {
+        val y: Int = a()
+        (<!UNRESOLVED_REFERENCE!>a<!>)()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, functionalType, getter,
+integerLiteral, lambdaLiteral, localProperty, operator, propertyDeclaration, propertyWithExtensionReceiver */

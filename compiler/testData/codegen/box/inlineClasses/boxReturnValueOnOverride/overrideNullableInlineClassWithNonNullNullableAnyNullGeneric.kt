@@ -1,0 +1,27 @@
+// IGNORE_KLIB_RUNTIME_ERRORS_WITH_CUSTOM_SECOND_STAGE: JS:2.4
+// KT-89984: Fixed in 2.5.20-Beta1
+// WITH_STDLIB
+// WORKS_WHEN_VALUE_CLASS
+
+OPTIONAL_JVM_INLINE_ANNOTATION
+value class X<T>(val x: T)
+
+interface IFoo {
+    fun foo(): X<String?>?
+}
+
+class Test : IFoo {
+    override fun foo(): X<String?>? = X(null)
+}
+
+fun box(): String {
+    val t1: IFoo = Test()
+    val x1 = t1.foo()
+    if (x1 != X(null)) throw AssertionError("x1: $x1")
+
+    val t2 = Test()
+    val x2 = t2.foo()
+    if (x2 != X(null)) throw AssertionError("x2: $x2")
+
+    return "OK"
+}

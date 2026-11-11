@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 fun box(c : C) {
     val a : C = c
     a.foo()
@@ -14,3 +15,5 @@ open class B : A() {
 open class C : B() {
     override fun foo() {}
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, localProperty, override, propertyDeclaration */

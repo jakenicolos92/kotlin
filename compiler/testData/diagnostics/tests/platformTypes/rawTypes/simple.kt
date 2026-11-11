@@ -1,4 +1,6 @@
-// !DIAGNOSTICS: -UNUSED_VARIABLE
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_VARIABLE
 // FILE: A.java
 
 import java.util.*;
@@ -37,3 +39,6 @@ fun main() {
     barResult.y = strMap
     barResult.foo("", strList, null)
 }
+
+/* GENERATED_FIR_TAGS: assignment, checkNotNullCall, flexibleType, functionDeclaration, javaProperty, localProperty,
+nullableType, propertyDeclaration, stringLiteral */

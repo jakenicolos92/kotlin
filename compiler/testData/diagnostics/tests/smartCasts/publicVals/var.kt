@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 public class X {
     public var x : String? = null
     private var y: String? = "abc"
@@ -13,3 +14,5 @@ public class X {
     }
 }
 
+/* GENERATED_FIR_TAGS: classDeclaration, equalityExpression, functionDeclaration, ifExpression, integerLiteral,
+nullableType, propertyDeclaration, smartcast, stringLiteral */

@@ -1,4 +1,5 @@
-// !CHECK_TYPE
+// RUN_PIPELINE_TILL: FRONTEND
+// CHECK_TYPE
 
 import java.util.*;
 
@@ -91,3 +92,7 @@ fun test(notRange1: NotRange1, notRange2: NotRange2, notRange3: NotRange3, notRa
 
   for (i in (checkSubtype<List<Int>>(ArrayList<Int>())));
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, flexibleType, forLoop, funWithExtensionReceiver, functionDeclaration,
+functionalType, getter, infix, integerLiteral, javaFunction, localProperty, nullableType, operator, primaryConstructor,
+propertyDeclaration, propertyWithExtensionReceiver, typeParameter, typeWithExtension */

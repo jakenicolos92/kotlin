@@ -1,0 +1,119 @@
+/*
+ * Copyright 2010-2026 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
+package org.jetbrains.kotlin.js.test.handlers
+
+import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.ir.backend.js.transformers.irToJs.TranslationMode
+import org.jetbrains.kotlin.js.backend.ast.*
+import org.jetbrains.kotlin.js.config.ModuleKind
+import org.jetbrains.kotlin.js.config.moduleKind
+import org.jetbrains.kotlin.js.config.useEs6ConstLet
+import org.jetbrains.kotlin.js.test.ast.JsAstDirectives
+import org.jetbrains.kotlin.js.test.ast.directives.JsAstDirective
+import org.jetbrains.kotlin.js.translate.utils.name
+import org.jetbrains.kotlin.test.TargetBackend
+import org.jetbrains.kotlin.test.backend.handlers.JsBinaryArtifactHandler
+import org.jetbrains.kotlin.test.directives.JsEnvironmentConfigurationDirectives.CHECK_OPTIMIZED_JS
+import org.jetbrains.kotlin.test.directives.model.ComposedRegisteredDirectives
+import org.jetbrains.kotlin.test.directives.model.DirectivesContainer
+import org.jetbrains.kotlin.test.directives.model.RegisteredDirectives
+import org.jetbrains.kotlin.test.model.BinaryArtifacts
+import org.jetbrains.kotlin.test.model.JsIrArtifact
+import org.jetbrains.kotlin.test.model.TestModule
+import org.jetbrains.kotlin.test.services.*
+import java.io.File
+
+class JsAstHandler(testServices: TestServices) : JsBinaryArtifactHandler(testServices) {
+    override val directiveContainers: List<DirectivesContainer>
+        get() = listOf(JsAstDirectives)
+
+    override fun processAfterAllModules(someAssertionWasFailed: Boolean) {}
+
+    override fun processModule(module: TestModule, info: BinaryArtifacts.Js) {
+        val mode = if (CHECK_OPTIMIZED_JS in module.directives)
+            TranslationMode.FULL_PROD_MINIMIZED_NAMES
+        else
+            TranslationMode.FULL_DEV
+
+        val jsProgram = (info.unwrap() as? JsIrArtifact)
+            ?.compilerResult
+            ?.get(mode)
+            ?.jsProgram
+            ?: return
+
+        // `testServices.moduleStructure.allDirectives` only provides global and module-level directives, but we also need file-level
+        // directives here, because an AST directive can be placed anywhere (we usually place them close to whatever they're checking).
+        val moduleStructure = testServices.moduleStructure
+        val fileDirectives = moduleStructure.modules.flatMap { it.files }.map { it.directives }
+        val moduleDirectives = moduleStructure.modules.map { it.directives }
+
+        processDirectives(
+            jsProgram,
+            module.files.first { !it.isAdditional }.originalFile,
+            testServices.defaultsProvider.targetBackend!!,
+            ComposedRegisteredDirectives(moduleDirectives + fileDirectives),
+        )
+
+        jsProgram.verifyAst(testServices.compilerConfigurationProvider.getCompilerConfiguration(module))
+    }
+
+    private fun processDirectives(ast: JsNode, sourceFile: File, targetBackend: TargetBackend, registeredDirectives: RegisteredDirectives) {
+        val parsedDirectives: List<JsAstDirective> = JsAstDirectives.allDirectives.flatMap(registeredDirectives::get)
+        testServices.assertions.assertAll(
+            parsedDirectives.map { directive ->
+                check@{
+                    if (!directive.shouldRunWithBackend(targetBackend)) return@check
+                    if (registeredDirectives.any { it.name in directive.ignoredModes }) return@check
+                    if (directive.targetModes.isNotEmpty() && registeredDirectives.none { it.name in directive.targetModes }) return@check
+                    directive.evaluate(ast, sourceFile)
+                }
+            }
+        )
+    }
+
+    private fun JsProgram.verifyAst(configuration: CompilerConfiguration) {
+        accept(object : RecursiveJsVisitor() {
+            override fun visitVars(x: JsVars) {
+                when (x.variant) {
+                    JsVars.Variant.Var if configuration.useEs6ConstLet -> {
+                        // In plain module system, we ALWAYS generate the top-level module variable as a 'var',
+                        // because it has the following form:
+                        //   var main = function (_) {
+                        //     ...
+                        //   }(typeof main === 'undefined' ? {} : main)
+                        //
+                        // So, we reference `main` before it is declared. This is forbidden for 'const' and 'let', but allowed for 'var'.
+                        if (!(configuration.moduleKind == ModuleKind.PLAIN && x in this@verifyAst.globalBlock.statements)) {
+                            testServices.assertions.fail { "$x: encountered a 'var' in generated code, expected 'let' or 'const'" }
+                        }
+                    }
+                    JsVars.Variant.Const if x.vars.any { it.initExpression == null } -> {
+                        testServices.assertions.fail { "$x: 'const' variables must be initialized immediately" }
+                    }
+                    else -> {}
+                }
+                super.visitVars(x)
+            }
+
+            override fun visitExpressionStatement(x: JsExpressionStatement) {
+                val expression = x.expression
+
+                // FIXME: The code generated by the IR BE contains null statements. Remove this check when that is fixed.
+                if (false) {
+                    if (expression is JsNullLiteral) {
+                        testServices.assertions.fail { "Expression statement contains `null` literal" }
+                    }
+                }
+
+                if (expression is JsInvocation && expression.name?.ident == $$"Unit$getInstance" && expression.arguments.isEmpty()) {
+                    testServices.assertions.fail { $$"Unit$getInstance() statements should be eliminated" }
+                }
+
+                super.visitExpressionStatement(x)
+            }
+        })
+    }
+}

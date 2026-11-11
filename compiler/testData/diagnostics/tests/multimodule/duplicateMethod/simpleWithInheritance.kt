@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // MODULE: m1
 // FILE: a.kt
 package p
@@ -36,3 +37,6 @@ fun test(b: B?) {
         b<!UNNECESSARY_SAFE_CALL!>?.<!>getParent()
     }
 }
+
+/* GENERATED_FIR_TAGS: andExpression, functionDeclaration, ifExpression, interfaceDeclaration, intersectionType,
+isExpression, nullableType, override, safeCall, smartcast */

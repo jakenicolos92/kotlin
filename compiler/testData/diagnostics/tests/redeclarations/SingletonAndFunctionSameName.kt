@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun Foo() = 42
 
 object Foo {
@@ -8,7 +9,7 @@ object Foo {
 
 
 
-<!CONFLICTING_OVERLOADS!>fun En()<!> = 239
+fun En() = 239
 
 enum class <!CONFLICTING_OVERLOADS!>En<!> {
     ENTRY,
@@ -19,3 +20,5 @@ enum class <!CONFLICTING_OVERLOADS!>En<!> {
 
     fun SUBCLASS() = ENTRY()
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, functionDeclaration, integerLiteral, nestedClass, objectDeclaration */

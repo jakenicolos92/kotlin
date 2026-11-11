@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 fun foo() {
     var v: Any = "xyz"
     // It is possible in principle to provide smart cast here
@@ -6,3 +7,6 @@ fun foo() {
     v = 42
     v.<!UNRESOLVED_REFERENCE!>length<!>()
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, integerLiteral, localProperty, propertyDeclaration, smartcast,
+stringLiteral */

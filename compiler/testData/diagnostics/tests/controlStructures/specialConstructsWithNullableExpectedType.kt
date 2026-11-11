@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 val ns: String? = null
 
 val testElvis1: String? = ns ?: ""
@@ -18,3 +19,6 @@ val testWhen5: String? = run { when { else -> run { "" } } }
 
 val testExcl1: String? = run { ns!! }
 val testExcl2: String? = run { run { ns!! } }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, elvisExpression, ifExpression, lambdaLiteral, nullableType, propertyDeclaration,
+stringLiteral, whenExpression */

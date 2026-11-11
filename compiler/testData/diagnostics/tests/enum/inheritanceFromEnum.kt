@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 // FILE: MyJavaEnum.java
 public enum MyJavaEnum {}
 
@@ -8,6 +9,8 @@ public enum MyJavaEnum {}
 
 enum class MyEnum2() {}
 
-class MyClass(): <!INVISIBLE_MEMBER, FINAL_SUPERTYPE!>MyEnum2<!>() {}
+class MyClass(): <!FINAL_SUPERTYPE, INVISIBLE_REFERENCE!>MyEnum2<!>() {}
 
-class MyClass2(): <!FINAL_SUPERTYPE!>MyJavaEnum<!>() {}
+class MyClass2(): <!FINAL_SUPERTYPE, UNRESOLVED_REFERENCE!>MyJavaEnum<!>() {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, enumDeclaration, enumEntry, javaType, primaryConstructor */

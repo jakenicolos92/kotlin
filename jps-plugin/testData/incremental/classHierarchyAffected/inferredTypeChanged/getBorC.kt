@@ -1,1 +1,0 @@
-fun getBorC() = if (Math.random() > 0.5) getB() else getC()

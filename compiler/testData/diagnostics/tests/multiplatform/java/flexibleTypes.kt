@@ -1,8 +1,8 @@
-// !LANGUAGE: +MultiPlatformProjects
+// RUN_PIPELINE_TILL: CODEGEN
 // MODULE: m1-common
 // FILE: common.kt
 
-header class Foo {
+expect class Foo {
     constructor(p: Any)
 
     fun f1(s: String): Int
@@ -12,7 +12,7 @@ header class Foo {
     fun <T : Set<Number>> f3(t: T): T?
 }
 
-// MODULE: m2-jvm(m1-common)
+// MODULE: m2-jvm()()(m1-common)
 // FILE: FooImpl.java
 
 import java.util.*;
@@ -29,4 +29,7 @@ public class FooImpl {
 
 // FILE: jvm.kt
 
-impl typealias Foo = FooImpl
+actual typealias Foo = FooImpl
+
+/* GENERATED_FIR_TAGS: actual, classDeclaration, expect, functionDeclaration, javaType, nullableType,
+secondaryConstructor, typeAliasDeclaration, typeConstraint, typeParameter */

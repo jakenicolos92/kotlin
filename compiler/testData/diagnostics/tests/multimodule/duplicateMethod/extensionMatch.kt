@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNNECESSARY_SAFE_CALL
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNNECESSARY_SAFE_CALL
 
 // MODULE: m1
 // FILE: a.kt
@@ -34,3 +35,6 @@ fun B.test() {
         "".getParent()
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, ifExpression,
+interfaceDeclaration, isExpression, nullableType, override, smartcast, stringLiteral, thisExpression */

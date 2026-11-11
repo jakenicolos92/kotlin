@@ -1,0 +1,16 @@
+FILE: invalidDestructing.kt
+    public final? class A : R|kotlin/Any| {
+        public? [ContainingClassKey=A] constructor(): R|A| {
+            super<R|kotlin/Any|>()
+        }
+
+        private final [DestructuringDeclarationContainerVariableMarkerKey=true] val <destruct>: <implicit> = IntegerLiteral(1).to#(IntegerLiteral(2))
+            private get(): <implicit>
+
+        public final [DestructuringDeclarationContainerVariableKey=/A.<destruct>] val a: <implicit> = R|/A.<destruct>|.component1#()
+            public get(): <implicit>
+
+        public final [DestructuringDeclarationContainerVariableKey=/A.<destruct>] val b: <implicit> = R|/A.<destruct>|.component2#()
+            public get(): <implicit>
+
+    }

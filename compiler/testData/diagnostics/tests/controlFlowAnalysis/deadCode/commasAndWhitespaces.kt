@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun testCommasAndWhitespaces() {
     fun bar(i: Int, s: String, x: Any) {}
@@ -8,5 +9,4 @@ fun testCommasAndWhitespaces() {
 
 fun todo(): Nothing = throw Exception()
 
-
-
+/* GENERATED_FIR_TAGS: functionDeclaration, integerLiteral, localFunction, stringLiteral */

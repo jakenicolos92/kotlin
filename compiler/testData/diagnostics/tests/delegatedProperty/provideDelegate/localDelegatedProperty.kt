@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 import kotlin.reflect.KProperty
 
@@ -9,3 +10,6 @@ fun test(): String {
     val result by "OK"
     return result
 }
+
+/* GENERATED_FIR_TAGS: funWithExtensionReceiver, functionDeclaration, localProperty, nullableType, operator,
+propertyDeclaration, propertyDelegate, starProjection, stringLiteral, thisExpression */

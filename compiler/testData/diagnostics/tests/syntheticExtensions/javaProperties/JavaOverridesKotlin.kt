@@ -1,3 +1,6 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: FRONTEND
+// ISSUE: KT-63067
 // FILE: KotlinFile.kt
 open class KotlinClass {
     public open fun getSomething1(): Int = 1
@@ -13,7 +16,7 @@ fun foo(javaClass: JavaClass) {
     javaClass.something2 = javaClass.something2 + 1
 }
 
-fun useInt(<!UNUSED_PARAMETER!>i<!>: Int) {}
+fun useInt(i: Int) {}
 
 // FILE: JavaClass.java
 public class JavaClass extends KotlinClass implements JavaInterface {
@@ -27,3 +30,6 @@ public class JavaClass extends KotlinClass implements JavaInterface {
 public class JavaInterface {
     int getSomething2();
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, classDeclaration, functionDeclaration, integerLiteral,
+javaFunction, javaProperty, javaType */

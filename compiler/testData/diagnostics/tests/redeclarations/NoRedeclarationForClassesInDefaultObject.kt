@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package kt2247
 
 class B {
@@ -10,3 +11,5 @@ class B {
     }
 
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, nestedClass, objectDeclaration */

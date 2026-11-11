@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 package jet121
 
 fun box() : String {
@@ -12,3 +13,6 @@ return if (answer == 2) "OK" else "FAIL"
 fun apply(arg:String, f :  String.() -> Int) : Int {
   return arg.f()
 }
+
+/* GENERATED_FIR_TAGS: equalityExpression, functionDeclaration, functionalType, ifExpression, integerLiteral,
+lambdaLiteral, localProperty, propertyDeclaration, stringLiteral, typeWithExtension */

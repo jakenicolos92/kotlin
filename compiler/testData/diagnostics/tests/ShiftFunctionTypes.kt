@@ -1,11 +1,12 @@
-// FILE: f.kt
+// RUN_PIPELINE_TILL: CODEGEN
+// FILE: a.kt
 class A {
 }
 
-// FILE: f.kt
+// FILE: b.kt
 package n
   class B
-// FILE: f.kt
+// FILE: c.kt
 abstract class XXX() {
     abstract val a : Int
     abstract val a2 : n.B
@@ -50,3 +51,6 @@ abstract class YYY() {
     abstract val a18 : (a : Int) -> ((a : Int) -> Int)
     abstract val a19 : (b : (a : Int) -> Int) -> Int
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionalType, nullableType, primaryConstructor, propertyDeclaration,
+typeWithExtension */

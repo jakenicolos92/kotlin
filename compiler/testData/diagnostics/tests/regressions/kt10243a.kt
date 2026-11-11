@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 <!MUST_BE_INITIALIZED!>var x: Int<!>
 fun foo(f: Boolean) {
     try {
@@ -9,3 +10,6 @@ fun foo(f: Boolean) {
         fun bar() {}
     }
 }
+
+/* GENERATED_FIR_TAGS: assignment, functionDeclaration, ifExpression, integerLiteral, localFunction, propertyDeclaration,
+tryExpression */

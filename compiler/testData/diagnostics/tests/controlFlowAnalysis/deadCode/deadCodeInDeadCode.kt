@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 
 fun unreachable0() {
     return
@@ -7,7 +8,7 @@ fun unreachable0() {
 
 fun unreachable2() {
     return
-    <!UNREACHABLE_CODE!>val a = todo()<!>
+    <!UNREACHABLE_CODE!>val <!UNUSED_VARIABLE!>a<!> = todo()<!>
 }
 
 fun unreachable3() {
@@ -22,3 +23,5 @@ fun unreachable4(array: Array<Any>) {
 
 fun bar(a: Any) {}
 fun todo(): Nothing = throw Exception()
+
+/* GENERATED_FIR_TAGS: functionDeclaration, localProperty, propertyDeclaration */

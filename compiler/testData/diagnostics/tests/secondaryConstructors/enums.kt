@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: FRONTEND
+// DIAGNOSTICS: -UNUSED_PARAMETER
 enum class A {
     W(1), X(1, 2), Y(3.0), Z(""), E();
 
@@ -14,7 +15,7 @@ enum class B(x: Int) {
 
     constructor(x: Int, y: Int): this(x+y)
     constructor(x: Double): this(x.toInt(), 1)
-    constructor(x: String): <!DELEGATION_SUPER_CALL_IN_ENUM_CONSTRUCTOR!>super<!>(x, 1)
+    constructor(x: String): <!DELEGATION_SUPER_CALL_IN_ENUM_CONSTRUCTOR, PRIMARY_CONSTRUCTOR_DELEGATION_CALL_EXPECTED!>super<!>(x, 1)
 }
 
 enum class C {
@@ -38,3 +39,6 @@ enum class D(val prop: Int) {
 
     abstract fun f(): Int
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, enumDeclaration, enumEntry, functionDeclaration, integerLiteral,
+primaryConstructor, propertyDeclaration, secondaryConstructor */

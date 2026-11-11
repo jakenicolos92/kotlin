@@ -1,3 +1,14 @@
+// RUN_PIPELINE_TILL: FRONTEND
+/*
+ * KOTLIN DIAGNOSTICS SPEC TEST (NEGATIVE)
+ *
+ * SPEC VERSION: 0.1-313
+ * PRIMARY LINKS: expressions, when-expression -> paragraph 5 -> sentence 1
+ * expressions, when-expression -> paragraph 1 -> sentence 1
+ * expressions, when-expression -> paragraph 1 -> sentence 2
+ * expressions, when-expression -> paragraph 6 -> sentence 5
+ */
+
 // EA-68871: empty when condition
 enum class My { FIRST, SECOND }
 fun foo(arg: My): Int {
@@ -7,3 +18,6 @@ fun foo(arg: My): Int {
         else -> return -1
     }
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, equalityExpression, functionDeclaration, integerLiteral, smartcast,
+whenExpression, whenWithSubject */

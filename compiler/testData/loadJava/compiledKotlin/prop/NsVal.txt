@@ -1,4 +1,0 @@
-package test
-
-public val nsVal: kotlin.Int = 1
-    public fun <get-nsVal>(): kotlin.Int

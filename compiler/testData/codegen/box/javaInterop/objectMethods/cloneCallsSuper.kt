@@ -1,5 +1,4 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
 data class A(var x: Int) : Cloneable {
     public override fun clone(): A = super.clone() as A

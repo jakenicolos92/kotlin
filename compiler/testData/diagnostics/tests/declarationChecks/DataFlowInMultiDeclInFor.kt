@@ -1,3 +1,5 @@
+// LANGUAGE: +NameBasedDestructuring +DeprecateNameMismatchInShortDestructuringWithParentheses +EnableNameBasedDestructuringShortForm
+// RUN_PIPELINE_TILL: FRONTEND
 // KT-2667 Support multi-declarations in for-loops in control flow analysis
 package d
 
@@ -8,8 +10,11 @@ class A {
 }
 
 fun foo(list: List<A>) {
-    for (<!VAL_OR_VAR_ON_LOOP_PARAMETER!>var<!> (<!ASSIGNED_BUT_NEVER_ACCESSED_VARIABLE!>c1<!>, <!UNUSED_VARIABLE!>c2<!>, c3) in list) {
-        <!UNUSED_VALUE!><!VAL_REASSIGNMENT!>c1<!> =<!> 1
+    for (<!VAL_OR_VAR_ON_LOOP_PARAMETER!>var<!> [c1, c2, c3] in list) {
+        <!VAL_REASSIGNMENT!>c1<!> = 1
         c3 + 1
     }
 }
+
+/* GENERATED_FIR_TAGS: additiveExpression, assignment, classDeclaration, forLoop, functionDeclaration, integerLiteral,
+localProperty, operator, propertyDeclaration */

@@ -1,4 +1,5 @@
-// !DIAGNOSTICS: -DEBUG_INFO_SMARTCAST
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -DEBUG_INFO_SMARTCAST
 interface Either<out A, out B>
 interface Left<out A>: Either<A, Nothing> {
     val value: A
@@ -23,3 +24,6 @@ fun _is_r(e: Either<C1, C2>): Any {
     }
     return e.value.v2
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, ifExpression, interfaceDeclaration, isExpression,
+nullableType, out, primaryConstructor, propertyDeclaration, smartcast, typeParameter */

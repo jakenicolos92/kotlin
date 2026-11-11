@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-1998 Strange "Overload resolution ambiguity"
 
 object A {
@@ -12,3 +13,6 @@ class B
 
 val B.c : String
     get() = "test"
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, getter, objectDeclaration, propertyDeclaration,
+propertyWithExtensionReceiver, stringLiteral */

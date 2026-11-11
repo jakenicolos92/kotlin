@@ -1,1 +1,0 @@
-fun getBorD() = if (Math.random() > 0.5) getB() else getD()

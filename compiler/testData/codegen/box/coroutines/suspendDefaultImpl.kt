@@ -1,11 +1,11 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.startCoroutine
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 interface TestInterface {
-    suspend fun toInt(): Int = suspendCoroutineOrReturn { x ->
+    suspend fun toInt(): Int = suspendCoroutineUninterceptedOrReturn { x ->
         x.resume(56)
         COROUTINE_SUSPENDED
     }

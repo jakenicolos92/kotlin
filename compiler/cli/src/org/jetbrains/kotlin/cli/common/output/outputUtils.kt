@@ -14,32 +14,69 @@
  * limitations under the License.
  */
 
-package org.jetbrains.kotlin.cli.common.output.outputUtils
+package org.jetbrains.kotlin.cli.common.output
 
 import com.intellij.openapi.util.io.FileUtil
 import org.jetbrains.kotlin.backend.common.output.OutputFile
 import org.jetbrains.kotlin.backend.common.output.OutputFileCollection
-import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
-import org.jetbrains.kotlin.cli.common.messages.MessageCollector
+import org.jetbrains.kotlin.cli.CliDiagnostics
 import org.jetbrains.kotlin.cli.common.messages.OutputMessageUtil
+import org.jetbrains.kotlin.cli.report
+import org.jetbrains.kotlin.cli.reportOutput
+import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.incremental.components.ICFileMappingTracker
 import java.io.File
+import java.io.FileNotFoundException
 
-fun OutputFileCollection.writeAll(outputDir: File, report: ((file: OutputFile, sources: List<File>, output: File) -> Unit)?) {
+fun OutputFileCollection.writeAll(outputDir: File, report: ((outputInfo: OutputFile, output: File) -> Unit)?) {
     for (file in asList()) {
-        val sources = file.sourceFiles
         val output = File(outputDir, file.relativePath)
-        report?.invoke(file, sources, output)
-        FileUtil.writeToFile(output, file.asByteArray())
+        report?.invoke(file, output)
+        try {
+            FileUtil.writeToFile(output, file.asByteArray())
+        } catch (e: FileNotFoundException) {
+            if (outputDir.isDirectory) {
+                // output directory exists
+                throw NoPermissionException("error while writing $output (Permission denied)", e)
+            }
+            // Failed to create directory, possibly due to lack of write permission or clash with existing file.
+            // In both cases, the directory will not exist, so for the sake of simplicity, we treat them same way.
+            throw e
+        }
     }
 }
 
 fun OutputFileCollection.writeAllTo(outputDir: File) {
-    writeAll(outputDir, null)
+    writeAll(outputDir, report = null)
 }
 
-fun OutputFileCollection.writeAll(outputDir: File, messageCollector: MessageCollector, reportOutputFiles: Boolean) {
-    if (!reportOutputFiles) writeAllTo(outputDir)
-    else writeAll(outputDir) { _, sources, output ->
-        messageCollector.report(CompilerMessageSeverity.OUTPUT, OutputMessageUtil.formatOutputMessage(sources, output))
+fun OutputFileCollection.writeAll(
+    outputDir: File,
+    configuration: CompilerConfiguration,
+    reportOutputFiles: Boolean,
+    fileMappingTracker: ICFileMappingTracker?,
+) {
+    try {
+        if (!reportOutputFiles && fileMappingTracker == null) writeAllTo(outputDir)
+        else writeAll(outputDir) { outputInfo, output ->
+            fileMappingTracker?.let { tracker ->
+                tracker.recordSourceFilesToOutputFileMapping(outputInfo.sourceFiles, output)
+                if (outputInfo.generatedForCompilerPlugin) {
+                    check(outputInfo.sourceFiles.any { !it.exists() }) {
+                        "Output file affected by plugin-generated files should be based on at least one synthetic source file, but got ${outputInfo.sourceFiles.joinToString { it.path }}"
+                    }
+                    tracker.recordOutputFileGeneratedForPlugin(output)
+                }
+            }
+            if (reportOutputFiles) {
+                configuration.reportOutput(OutputMessageUtil.formatOutputMessage(outputInfo.sourceFiles, output))
+            }
+        }
+    } catch (e: NoPermissionException) {
+        configuration.report(CliDiagnostics.IO_ERROR, e.message!!)
+    } catch (e: FileNotFoundException) {
+        configuration.report(CliDiagnostics.IO_ERROR, "directory not found: $outputDir")
     }
 }
+
+private class NoPermissionException(message: String, cause: Throwable?) : IllegalStateException(message, cause)

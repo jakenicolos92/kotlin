@@ -1,10 +1,14 @@
-// !DIAGNOSTICS: -UNUSED_PARAMETER
+// RUN_PIPELINE_TILL: CODEGEN
+// DIAGNOSTICS: -UNUSED_PARAMETER
 fun foo(arg: Int?) {
     var x = arg
     if (x == null) return
     run {
-        // Not safe: x = null later in the owner
-        <!SMARTCAST_IMPOSSIBLE!>x<!>.hashCode()
+        // Safe: since `run` is in-place
+        x.hashCode()
     }
     x = null  
 }
+
+/* GENERATED_FIR_TAGS: assignment, equalityExpression, functionDeclaration, ifExpression, lambdaLiteral, localProperty,
+nullableType, propertyDeclaration, smartcast */

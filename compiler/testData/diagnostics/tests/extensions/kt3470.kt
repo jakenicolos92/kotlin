@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class A {
     companion object {
         fun foo() = toString()
@@ -5,3 +6,5 @@ class A {
 }
 
 val a = A.toString()
+
+/* GENERATED_FIR_TAGS: classDeclaration, companionObject, functionDeclaration, objectDeclaration, propertyDeclaration */

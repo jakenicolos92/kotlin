@@ -1,5 +1,6 @@
-// SKIP_MINIFICATION
-// This test uses eval
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
+// KJS_WITH_FULL_RUNTIME
 open class A {
     val a: Int
     open val b: Int
@@ -39,7 +40,7 @@ fun box(): String {
         field("e")
         field("f")
         field("g")
-        property("h")
+        field("h")
     }
     if (expectedRegex.find(aBody) == null) return "fail"
 

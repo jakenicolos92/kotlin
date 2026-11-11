@@ -1,3 +1,5 @@
+// DISABLE_JAVA_FACADE
+// RUN_PIPELINE_TILL: CODEGEN
 // FILE: A.java
 abstract public class A<F> extends B<F> {
     public F remove(int x) { }
@@ -20,3 +22,6 @@ fun main(a: A<String>, b: B<String>, c: ArrayList<String>) {
     c.remove("")
     c.removeAt(0)
 }
+
+/* GENERATED_FIR_TAGS: checkNotNullCall, classDeclaration, flexibleType, functionDeclaration, integerLiteral, javaType,
+nullableType, override, stringLiteral, typeParameter */

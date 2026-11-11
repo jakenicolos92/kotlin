@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 class WithPublicInvoke {
     public operator fun invoke() {}
 }
@@ -32,12 +33,12 @@ class Test {
 }
 
 private fun Test.<!EXTENSION_SHADOWED_BY_MEMBER!>publicFoo<!>() {}
-fun Test.internalFoo() {}
+fun Test.<!EXTENSION_SHADOWED_BY_MEMBER!>internalFoo<!>() {}
 fun Test.protectedFoo() {}
 fun Test.privateFoo() {}
 
 val Test.<!EXTENSION_SHADOWED_BY_MEMBER!>publicVal<!>: Int get() = 42
-val Test.internalVal: Int get() = 42
+val Test.<!EXTENSION_SHADOWED_BY_MEMBER!>internalVal<!>: Int get() = 42
 val Test.protectedVal: Int get() = 42
 val Test.privateVal: Int get() = 42
 
@@ -45,3 +46,6 @@ fun Test.<!EXTENSION_FUNCTION_SHADOWED_BY_MEMBER_PROPERTY_WITH_INVOKE!>withPubli
 fun Test.wihtInternalInvoke() {}
 fun Test.withProtectedInvoke() {}
 fun Test.withPrivateInvoke() {}
+
+/* GENERATED_FIR_TAGS: classDeclaration, funWithExtensionReceiver, functionDeclaration, getter, integerLiteral, operator,
+propertyDeclaration, propertyWithExtensionReceiver */

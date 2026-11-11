@@ -1,6 +1,8 @@
+// WITH_KOTLIN_JVM_ANNOTATIONS
 package test;
 
-import org.jetbrains.annotations.*;
+import kotlin.annotations.jvm.*;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 

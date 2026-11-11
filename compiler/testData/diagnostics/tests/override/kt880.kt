@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 // KT-880 Overload resolution ambiguity
 
 public interface I {
@@ -14,3 +15,5 @@ public open class T() : A(), I {
         test() // Test no "Overload resolution ambiguity" is here
     }
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, functionDeclaration, interfaceDeclaration, primaryConstructor */

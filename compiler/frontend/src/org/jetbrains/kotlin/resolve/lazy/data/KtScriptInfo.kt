@@ -16,14 +16,16 @@
 
 package org.jetbrains.kotlin.resolve.lazy.data
 
+import org.jetbrains.kotlin.K1Deprecation
 import org.jetbrains.kotlin.descriptors.ClassKind
 import org.jetbrains.kotlin.psi.KtAnnotationEntry
 import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.kotlin.psi.KtParameter
 import org.jetbrains.kotlin.psi.KtScript
 
+@K1Deprecation
 class KtScriptInfo(
-        val script: KtScript
+    val script: KtScript
 ) : KtClassLikeInfo {
     override fun getContainingPackageFqName() = script.fqName.parent()
     override fun getModifierList() = null

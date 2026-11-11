@@ -1,7 +1,9 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// DONT_TARGET_EXACT_BACKEND: JS_IR, JS_IR_ES6, WASM_JS, WASM_WASI
+// ^ returnType is not supported
 
 // WITH_REFLECT
+
+package test
 
 import kotlin.test.assertEquals
 
@@ -12,7 +14,7 @@ interface H<T> {
 interface A : H<A>
 
 fun box(): String {
-    assertEquals("A?", A::foo.returnType.toString())
+    assertEquals("test.A?", A::foo.returnType.toString())
     assertEquals("T?", H<A>::foo.returnType.toString())
 
     return "OK"

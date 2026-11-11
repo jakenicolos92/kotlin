@@ -12,5 +12,9 @@ fun box(): String {
     return "fail"
 }
 
-// 1 Intrinsics\.areEqual
-// 1 Double\.compare
+// 0 Intrinsics\.areEqual
+// 0 Double\.compare
+// 2 F2D
+// 2 DCMPG
+// 1 IFNE
+// 1 IFGT

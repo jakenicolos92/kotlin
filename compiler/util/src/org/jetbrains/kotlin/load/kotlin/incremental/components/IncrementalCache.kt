@@ -16,6 +16,7 @@
 
 package org.jetbrains.kotlin.load.kotlin.incremental.components
 
+import java.io.File
 import java.io.Serializable
 
 data class JvmPackagePartProto(val data: ByteArray, val strings: Array<String>) : Serializable
@@ -31,7 +32,7 @@ interface IncrementalCache {
 
     fun getModuleMappingData(): ByteArray?
 
-    fun registerInline(fromPath: String, jvmSignature: String, toPath: String)
+    fun getMetadata(fragmentName: String): Map<File, ByteArray>
 
     fun getClassFilePath(internalClassName: String): String
 

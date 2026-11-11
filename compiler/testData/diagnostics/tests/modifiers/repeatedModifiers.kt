@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: FRONTEND
 abstract <!REPEATED_MODIFIER!>abstract<!> class Foo
 public <!REPEATED_MODIFIER!>public<!> class Bar
 <!INCOMPATIBLE_MODIFIERS!>open<!> <!REPEATED_MODIFIER!>open<!> <!INCOMPATIBLE_MODIFIERS!>final<!> class Baz {
@@ -8,7 +9,7 @@ class Bzz(public <!REPEATED_MODIFIER!>public<!> val q: Int = 1) {
     public <!REPEATED_MODIFIER!>public<!> val x: Int = 2
 
     public val y: Int
-        <!REDUNDANT_MODIFIER_IN_GETTER!>public<!> <!REPEATED_MODIFIER!>public<!> get() = 3
+        public <!REPEATED_MODIFIER!>public<!> get() = 3
 
     val z: Int
         <!WRONG_MODIFIER_TARGET!>open<!> <!INCOMPATIBLE_MODIFIERS!>final<!> get() = 4
@@ -17,7 +18,7 @@ class Bzz(public <!REPEATED_MODIFIER!>public<!> val q: Int = 1) {
         public <!REPEATED_MODIFIER!>public<!> val y: Int = 2
 
         public val x: Int
-            <!REDUNDANT_MODIFIER_IN_GETTER!>public<!> <!REPEATED_MODIFIER!>public<!> get() = 3
+            public <!REPEATED_MODIFIER!>public<!> get() = 3
     }
 
     public <!REPEATED_MODIFIER!>public<!> object C {
@@ -35,7 +36,12 @@ fun test() {
         public <!REPEATED_MODIFIER!>public<!> val y: Int = 2
 
         public val x: Int
-            <!REDUNDANT_MODIFIER_IN_GETTER!>public<!> <!REPEATED_MODIFIER!>public<!> get() = 3
+            public <!REPEATED_MODIFIER!>public<!> get() = 3
     }
 }
 
+<!WRONG_MODIFIER_TARGET!>external<!> <!REPEATED_MODIFIER!>external<!> val i = 0
+<!WRONG_MODIFIER_TARGET!>const<!> <!REPEATED_MODIFIER!>const<!> var x = 0
+
+/* GENERATED_FIR_TAGS: classDeclaration, const, functionDeclaration, getter, integerLiteral, localClass, nestedClass,
+objectDeclaration, primaryConstructor, propertyDeclaration */

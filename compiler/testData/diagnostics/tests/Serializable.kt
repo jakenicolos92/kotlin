@@ -1,8 +1,9 @@
-fun use(<!UNUSED_PARAMETER!>s<!>: java.io.Serializable) {
+// RUN_PIPELINE_TILL: FRONTEND
+fun use(s: java.io.Serializable) {
 
 }
 
-fun useList(<!UNUSED_PARAMETER!>s<!>: List<java.io.Serializable>) {
+fun useList(s: List<java.io.Serializable>) {
 
 }
 
@@ -36,8 +37,8 @@ fun testLiterals() {
 }
 
 fun testNotSerializable(l: List<Int>) {
-    use(<!TYPE_MISMATCH!>l<!>)
-    use(<!TYPE_MISMATCH!>N()<!>)
+    use(<!ARGUMENT_TYPE_MISMATCH!>l<!>)
+    use(<!ARGUMENT_TYPE_MISMATCH!>N()<!>)
 }
 
 enum class C {
@@ -53,3 +54,6 @@ fun testEnums(a: Enum<*>) {
 fun testLists(a: List<Int>) {
     useList(a)
 }
+
+/* GENERATED_FIR_TAGS: classDeclaration, enumDeclaration, enumEntry, functionDeclaration, integerLiteral, starProjection,
+stringLiteral */

@@ -1,3 +1,4 @@
+// RUN_PIPELINE_TILL: CODEGEN
 enum class ProtocolState {
   WAITING {
     override fun signal() = ProtocolState.TALKING
@@ -11,5 +12,7 @@ enum class ProtocolState {
 }
 
 fun box() {
-   val <!UNUSED_VARIABLE!>x<!>: ProtocolState = ProtocolState.WAITING
+   val x: ProtocolState = ProtocolState.WAITING
 }
+
+/* GENERATED_FIR_TAGS: enumDeclaration, enumEntry, functionDeclaration, localProperty, propertyDeclaration */
